@@ -1,5 +1,12 @@
-// Bindings は wrangler.jsonc で定義したリソースの型。
-// HonoのGenericsを通じて c.env.DB のように型安全にアクセスできる。
-export type Bindings = {
-  DB: D1Database;
-};
+// Wrangler の `cloudflare:workers` が参照する Env に、wrangler.jsonc で
+// 定義したリソースを追加する。wrangler types を事前生成しなくても型検査できる。
+declare global {
+  namespace Cloudflare {
+    interface Env {
+      DB: D1Database;
+    }
+  }
+}
+
+// Hono の Generics を通じて c.env.DB のように型安全にアクセスする。
+export type Bindings = Cloudflare.Env;

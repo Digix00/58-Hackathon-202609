@@ -10,7 +10,11 @@ const factory = createFactory<{ Bindings: Bindings }>();
  * リクエスト処理中にRepositoryやUseCaseを組み立てない。
  */
 export class HealthHandler {
-  constructor(private readonly checkHealth: CheckHealth) {}
+  private readonly checkHealth: CheckHealth;
+
+  constructor(checkHealth: CheckHealth) {
+    this.checkHealth = checkHealth;
+  }
 
   readonly get = factory.createHandlers(async (c) =>
     c.json(await this.checkHealth.execute()),
