@@ -1,0 +1,30 @@
+name: Discord Notifications
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, ready_for_review, review_requested, reopened, closed]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Notify Discord
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        with:
+          script: |
+            const notify = require('./.github/workflows/discord-notify.cjs');
+            await notify({ context, core, fs: require('fs') });
