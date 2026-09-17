@@ -1,16 +1,22 @@
 version: 2
 updates:
-  - package-ecosystem: "gomod"
-    directory: "/backend"
-    schedule:
-      interval: "weekly"
-
+  # pnpm workspaceルート。frontend/backend両方のpackage.jsonをまとめて検出する。
+  # cooldownで「リリース直後」の更新を遅らせ、公開後すぐ撤回されるような
+  # 悪意あるパッケージ(typosquatting/アカウント乗っ取り等)を自動更新で
+  # 引き込むリスクを減らす。
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 14
+      semver-major-days: 21
+      semver-minor-days: 10
+      semver-patch-days: 5
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
