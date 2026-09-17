@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "backend": "workspace:*",
+    "hono": "^4.13.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260917.1",
     "@types/node": "^24.13.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

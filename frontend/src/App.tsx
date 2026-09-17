@@ -1,11 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
+import { apiClient } from './lib/api'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+  const [apiHealth, setApiHealth] = useState('checking...')
+
+  useEffect(() => {
+    apiClient.health
+      .$get()
+      .then((res) => res.json())
+      .then((data) => setApiHealth(`${data.status} (db: ${data.database})`))
+      .catch(() => setApiHealth('unreachable'))
+  }, [])
 
   return (
     <>
@@ -28,6 +38,7 @@ function App() {
         >
           Count is {count}
         </button>
+        <p>API health: {apiHealth}</p>
       </section>
 
       <div className="ticks"></div>
