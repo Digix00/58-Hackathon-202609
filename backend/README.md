@@ -2,6 +2,32 @@
 
 Cloudflare Workers上で動く [Hono](https://hono.dev/) 製API。データストアは [D1](https://developers.cloudflare.com/d1/) ([Drizzle ORM](https://orm.drizzle.team/) 経由)。
 
+## アーキテクチャ
+
+バックエンドは依存関係が内側へ向くよう、次のレイヤーに分けている。
+
+```text
+src/
+├── app/                         # Honoアプリ、共通middleware・error handler
+├── bootstrap/container.ts       # 全機能のComposition Root
+├── features/                    # 機能単位の独立したモジュール
+│   └── health/
+│       ├── application/         # UseCaseとRepository Port
+│       ├── infrastructure/      # D1/Drizzle Adapter
+│       └── presentation/        # Hono Handler
+├── infrastructure/database/    # 機能横断のDB schema
+└── index.ts                     # Worker entry point
+```
+
+`bootstrap/container.ts`だけが具象クラスを知るComposition Rootである。`index.ts`から
+Workerモジュールの初期化時に
+Repository → UseCase → Handler → Appの順でDIするため、リクエストごとに依存オブジェクトを
+生成しない。ルートにはDI済みHandlerのメソッドだけが渡される。
+
+新しい機能は`features/<feature-name>`単位で追加する。その中のApplication層にPortとUseCase、
+Infrastructure層にPortの実装、Presentation層にHandlerを置き、最後に`container.ts`で依存を組み立てる。
+`createApp`へ注入可能な形を保つことで、テストではD1を起動せずFakeを渡せる。
+
 ## セットアップ
 
 ```bash
@@ -46,7 +72,7 @@ D1データベース自体の作成(`wrangler d1 create`)はリソースを一�
 
 ## スキーマ変更
 
-`src/db/schema.ts` を編集後、以下でマイグレーションSQLを生成する。
+`src/infrastructure/database/schema.ts` を編集後、以下でマイグレーションSQLを生成する。
 
 ```bash
 pnpm db:generate
