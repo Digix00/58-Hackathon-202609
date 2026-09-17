@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git PR 作成フロー"
+  short_description: "差分確認からコミット・PR作成まで扱う Git ワークフロー"
+  default_prompt: "$create-pull-request を使って現在の git 差分を確認し、適切な粒度でコミットを分け、ブランチを push して gh で pull request を作成してください。"
