@@ -31,10 +31,12 @@ git branch --show-current
 # 変更内容のサマリーを確認
 git status --short
 
-# 変更内容の詳細を確認
+# 変更内容の詳細を確認（staged / unstaged 両方）
+git diff --cached --stat
 git diff --stat
 
-# 実際の差分を確認（必要に応じて）
+# 実際の差分を確認（必要に応じて。staged 済みの変更も見落とさない）
+git diff --cached
 git diff
 ```
 

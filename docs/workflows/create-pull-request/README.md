@@ -16,7 +16,7 @@ git の操作に入る前に、まず現在のリポジトリ状態を確認す�
 1. リポジトリルートで `bash docs/workflows/create-pull-request/scripts/collect_git_context.sh` を実行し、ブランチ、upstream、status、diff stat、最近のコミットをまとめて確認する。
 2. 出力されたファイル一覧を読み、コミット境界の判断に必要なファイルだけ詳細 diff を確認する。
 3. git の状態を変更する前に、今何が変わっているかを説明する。どのファイルを同じコミットに含めるべきか、その理由も示す。
-4. **バックエンド変更が含まれる場合は、必要に応じてリポジトリルートで `make fmt` / `make generate-code` を実行する（詳細は後述）。**
+4. **バックエンド変更が含まれる場合は、必要に応じて `pnpm --filter backend lint` / `pnpm --filter backend build` を実行する（詳細は後述）。**
 5. ディレクトリ構成ではなく、振る舞いや意図に基づいてコミット単位を決める。原則として、1 つの意図につき 1 コミットを優先する。
 6. その意図に属するファイルだけを stage し、具体的なメッセージで commit する。作業ツリーが空になるまで繰り返す。
 7. 現在のブランチを upstream に push する。
@@ -33,15 +33,16 @@ git の操作に入る前に、まず現在のリポジトリ状態を確認す�
 
 差分がなければ、その旨を伝えて終了する。変更がない状態で空コミット、push、PR 作成はしない。
 
-## バックエンド変更時の `make fmt` / `make generate-code`（リポジトリルートで実行）
+## バックエンド変更時のチェック（リポジトリルートで実行）
 
-バックエンドに変更がある場合、コミット前に以下を検討・実行する。
+`backend/` 配下の TypeScript ファイルに変更がある場合、コミット前に以下を検討・実行する。
 
-- **`make fmt`**: `backend/` 配下の Go ファイルに変更がある場合は原則実行する（リポジトリルートで実行）。
-- **`make generate-code`**: Swagger 注釈や API 定義に影響しそうな変更（例: `backend/cmd/server`、`backend/internal/handler`、`backend/internal/usecase`、`backend/internal/domain`、`backend/docs` など）が含まれる場合は実行する（リポジトリルートで実行）。  
-  生成物の差分が出たら、関連するコミットに含める。
+- **`pnpm --filter backend lint`**: oxlint による静的解析。原則実行する。
+- **`pnpm --filter backend build`**: `tsc --noEmit` による型チェック。原則実行する。
+- **`pnpm --filter backend test`**: vitest によるテスト。既存テストへの影響が疑われる変更では実行する。
+- **`pnpm --filter backend db:generate`**: `backend/src` 配下の Drizzle スキーマ定義を変更した場合は実行し、生成された migration ファイルの差分を関連コミットに含める。
 
-迷った場合は実行を優先し、生成物の差分がないことを確認する。
+迷った場合は実行を優先し、意図しない差分が出ていないことを確認する。
 
 ## コミット境界の決め方
 
@@ -159,7 +160,7 @@ git push -u origin "$(git branch --show-current)"
 
 - Base branch: リポジトリの文脈から分かるならそれを使う。曖昧なら GitHub が返すデフォルトブランチを優先する。
 - Title: ブランチ名ではなく、実際に反映した変更の結果を表す。
-- Body: [`references/pr_body_template.md`](references/pr_body_template.md) と [`REVIEW.md`](../../../REVIEW.md) の「PR説明欄の更新」に合わせて書く。Mermaid による図解が必要な変更だけ追加し、それ以外は省略してよい。
+- Body: [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md) の構成（概要・変更内容・レビュワーに確認して欲しいこと・動作確認・見た目の修正・その他）に沿って書く。埋め方の参考として [`references/pr_body_template.md`](references/pr_body_template.md) を使ってよい。フロントエンドの見た目に関する変更がある場合のみスクリーンショットを添付する。
 
 例:
 
@@ -186,4 +187,4 @@ gh pr create --title "feat: initialize iOS app scaffold" --body "$(cat /tmp/pr-b
 
 ### references/
 
-- [`references/pr_body_template.md`](references/pr_body_template.md): [`REVIEW.md`](../../../REVIEW.md) の PR 説明フォーマットに合わせた本文テンプレート。
+- [`references/pr_body_template.md`](references/pr_body_template.md): [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md) の各項目を埋めるための補足テンプレート。
