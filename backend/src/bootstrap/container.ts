@@ -1,7 +1,7 @@
 import { createApp } from "../app/create-app";
-import { CheckHealthUseCase } from "../features/health/application/check-health.usecase";
-import { D1HealthRepository } from "../features/health/infrastructure/d1-health.repository";
-import { HealthHandler } from "../features/health/presentation/health.handler";
+import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
+import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
+import { HealthHandler } from "../presentation/health.handler";
 import type { Bindings } from "../types";
 
 /**

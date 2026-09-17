@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
-import type { HealthRepository } from "../application/health.repository";
+import type { HealthRepository } from "../../application/health.repository";
 
 /** D1/Drizzleを使ったHealthRepositoryの実装。 */
 export class D1HealthRepository implements HealthRepository {

@@ -4,18 +4,21 @@ Cloudflare Workers上で動く [Hono](https://hono.dev/) 製API。データス�
 
 ## アーキテクチャ
 
-バックエンドは依存関係が内側へ向くよう、次のレイヤーに分けている。
+バックエンドは機能名ではなくレイヤーごとに分け、Health 関連のファイルは名前で識別する。
 
 ```text
 src/
 ├── app/                         # Honoアプリ、共通middleware・error handler
 ├── bootstrap/container.ts       # 全機能のComposition Root
-├── features/                    # 機能単位の独立したモジュール
-│   └── health/
-│       ├── application/         # UseCaseとRepository Port
-│       ├── infrastructure/      # D1/Drizzle Adapter
-│       └── presentation/        # Hono Handler
-├── infrastructure/database/    # 機能横断のDB schema
+├── application/                 # UseCase、Port、Application model
+│   ├── entity/health-status.entity.ts
+│   ├── health.repository.ts     # Repository Port
+│   └── usecase/
+│       └── check-health.usecase.ts
+├── infrastructure/database/    # D1/Drizzle AdapterとDB schema
+│   ├── d1-health.repository.ts
+│   └── schema.ts
+├── presentation/health.handler.ts
 └── index.ts                     # Worker entry point
 ```
 
@@ -24,9 +27,9 @@ Workerモジュールの初期化時に
 Repository → UseCase → Handler → Appの順でDIするため、リクエストごとに依存オブジェクトを
 生成しない。ルートにはDI済みHandlerのメソッドだけが渡される。
 
-新しい機能は`features/<feature-name>`単位で追加する。その中のApplication層にPortとUseCase、
-Infrastructure層にPortの実装、Presentation層にHandlerを置き、最後に`container.ts`で依存を組み立てる。
-`createApp`へ注入可能な形を保つことで、テストではD1を起動せずFakeを渡せる。
+Application層にEntity、Repository Port、UseCaseを置き、Infrastructure層にPortの実装、
+Presentation層にHandlerを置く。機能名はファイル名に含め、依存は`container.ts`で組み立てる。
+`createApp`へ注入可能な形を保つことで、テストではD1を使わずFakeを渡せる。
 
 ## セットアップ
 
@@ -45,6 +48,11 @@ wrangler d1 create 58-hackathon-db
 pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
 pnpm dev                # http://localhost:8787
 ```
+
+## CORS
+
+許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
+環境ごとにフロントエンドの origin を設定する。未設定の場合は、従来どおり `*` を使用する。
 
 ## デプロイ
 

@@ -1,16 +1,11 @@
-import type { HealthRepository } from "./health.repository";
-
-export interface HealthStatus {
-  status: "ok";
-  checkedAt: string;
-  database: "ok" | "error";
-}
+import type { HealthStatus } from "../entity/health-status.entity";
+import type { HealthRepository } from "../health.repository";
 
 export interface CheckHealth {
   execute(): Promise<HealthStatus>;
 }
 
-/** Health機能のアプリケーションロジック。HTTPやD1には依存しない。 */
+/** Health機能のアプリケーションロジック。HTTPやD1には直接依存せず、Repository Portを介して疎通確認を行う。 */
 export class CheckHealthUseCase implements CheckHealth {
   private readonly repository: HealthRepository;
   private readonly now: () => Date;

@@ -1,7 +1,7 @@
 import { createFactory } from "hono/factory";
 
-import type { Bindings } from "../../../types";
-import type { CheckHealth } from "../application/check-health.usecase";
+import type { CheckHealth } from "../application/usecase/check-health.usecase";
+import type { Bindings } from "../types";
 
 const factory = createFactory<{ Bindings: Bindings }>();
 
