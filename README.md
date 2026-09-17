@@ -1,1 +1,40 @@
 # 58-Hackathon-202609
+
+pnpm workspaceによるmonorepo。
+
+- [`frontend/`](./frontend) — React + Vite。Cloudflare Pages想定。
+- [`backend/`](./backend) — Hono + Cloudflare Workers + D1。詳細は[backend/README.md](./backend/README.md)。
+
+frontendは`backend`パッケージをworkspace依存として参照し、[Hono RPC](https://hono.dev/docs/guides/rpc)経由で
+バックエンドの型を直接importしてAPI通信の型安全性を得ている(`frontend/src/lib/api.ts`)。
+
+## ローカル開発
+
+```bash
+make dev
+```
+
+依存インストール → ローカルD1へのマイグレーション適用 → backend([http://localhost:8787](http://localhost:8787))と
+frontend([http://localhost:5173](http://localhost:5173))の同時起動、をこの1コマンドで行う。終了はCtrl+C。
+
+個別に立ち上げたい場合は `make backend` / `make frontend` / `make db-migrate`、コマンド一覧は `make help`。
+
+> Cloudflare D1はローカル開発時`wrangler dev`が内部(miniflare)でSQLiteとして扱うため、
+> 独立して常駐する「DBサーバー」は存在しない。ローカルDBを使える状態にする作業は
+> マイグレーション適用(`make db-migrate`)のみで完結する。
+
+## セットアップ
+
+```bash
+pnpm install
+```
+
+## ワークスペース共通コマンド
+
+```bash
+pnpm build   # 全パッケージをビルド
+pnpm lint    # 全パッケージをlint
+pnpm test    # 全パッケージをtest
+```
+
+個別のパッケージに対しては `pnpm --filter frontend <script>` / `pnpm --filter backend <script>` を使う。

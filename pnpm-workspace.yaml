@@ -1,0 +1,15 @@
+packages:
+  - "frontend"
+  - "backend"
+
+# インストール時にビルドスクリプト(postinstall等)の実行を許可する依存のみ列挙する。
+# esbuild/workerdは実行環境向けネイティブバイナリを取得するために必須で、
+# 両方ともCloudflare/esbuildプロジェクト公式パッケージであることを確認済み。
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+# 公開直後(乗っ取り/typosquatting等がまだ検知されていない可能性がある)の
+# パッケージを弾くサプライチェーン対策。pnpm 11のデフォルトは1日(1440分)だが、
+# より安全側に倒して3日(4320分)に設定する。
+minimumReleaseAge: 4320
