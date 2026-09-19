@@ -1,10 +1,17 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
-import app from "../src/index";
+import type { HealthStatus } from "../src/application/entity/health-status.entity";
+import { createApp } from "../src/app/create-app";
+import { CheckHealthUseCase } from "../src/application/usecase/check-health.usecase";
+import { D1HealthRepository } from "../src/infrastructure/database/d1-health.repository";
+import { HealthHandler } from "../src/presentation/health.handler";
 
 describe("GET /health", () => {
   it("returns ok status and database connectivity", async () => {
+    const repository = new D1HealthRepository(env.DB);
+    const useCase = new CheckHealthUseCase(repository);
+    const app = createApp({ healthHandler: new HealthHandler(useCase) });
     const res = await app.request("/health", {}, env);
 
     expect(res.status).toBe(200);
@@ -17,5 +24,66 @@ describe("GET /health", () => {
     expect(body.status).toBe("ok");
     expect(body.database).toBe("ok");
     expect(() => new Date(body.checkedAt).toISOString()).not.toThrow();
+  });
+
+  it.each(["ok", "error"] as const)(
+    "uses the injected use case result when database status is %s",
+    async (database) => {
+      let calls = 0;
+      const healthHandler = new HealthHandler({
+        execute: async (): Promise<HealthStatus> => {
+          calls += 1;
+          return {
+            status: "ok",
+            checkedAt: "2026-09-17T00:00:00.000Z",
+            database,
+          };
+        },
+      });
+      const app = createApp({ healthHandler });
+
+      const res = await app.request("/health", {}, env);
+
+      expect(await res.json()).toEqual({
+        status: "ok",
+        checkedAt: "2026-09-17T00:00:00.000Z",
+        database,
+      });
+      expect(calls).toBe(1);
+    },
+  );
+
+  it.each([
+    {
+      scenario: "uses the configured CORS origin",
+      corsOrigin: "https://frontend.example",
+      expectedOrigin: "https://frontend.example",
+    },
+    {
+      scenario: "keeps the current wildcard behavior when no origin is configured",
+      corsOrigin: undefined,
+      expectedOrigin: "*",
+    },
+  ])("$scenario", async ({ corsOrigin, expectedOrigin }) => {
+    const healthHandler = new HealthHandler({
+      execute: async () => ({
+        status: "ok",
+        checkedAt: "2026-09-17T00:00:00.000Z",
+        database: "ok",
+      }),
+    });
+    const app = createApp({ healthHandler });
+    const bindings = {
+      DB: env.DB,
+      ...(corsOrigin === undefined ? {} : { CORS_ORIGIN: corsOrigin }),
+    };
+
+    const res = await app.request(
+      "/health",
+      { headers: { Origin: "https://request-origin.example" } },
+      bindings,
+    );
+
+    expect(res.headers.get("access-control-allow-origin")).toBe(expectedOrigin);
   });
 });

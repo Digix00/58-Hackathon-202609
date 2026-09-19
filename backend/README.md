@@ -2,6 +2,35 @@
 
 Cloudflare Workers上で動く [Hono](https://hono.dev/) 製API。データストアは [D1](https://developers.cloudflare.com/d1/) ([Drizzle ORM](https://orm.drizzle.team/) 経由)。
 
+## アーキテクチャ
+
+バックエンドは機能名ではなくレイヤーごとに分け、Health 関連のファイルは名前で識別する。
+
+```text
+src/
+├── app/                         # Honoアプリ、共通middleware・error handler
+├── bootstrap/container.ts       # 全機能のComposition Root
+├── application/                 # UseCase、Port、Application model
+│   ├── entity/health-status.entity.ts
+│   ├── health.repository.ts     # Repository Port
+│   └── usecase/
+│       └── check-health.usecase.ts
+├── infrastructure/database/    # D1/Drizzle AdapterとDB schema
+│   ├── d1-health.repository.ts
+│   └── schema.ts
+├── presentation/health.handler.ts
+└── index.ts                     # Worker entry point
+```
+
+`bootstrap/container.ts`だけが具象クラスを知るComposition Rootである。`index.ts`から
+Workerモジュールの初期化時に
+Repository → UseCase → Handler → Appの順でDIするため、リクエストごとに依存オブジェクトを
+生成しない。ルートにはDI済みHandlerのメソッドだけが渡される。
+
+Application層にEntity、Repository Port、UseCaseを置き、Infrastructure層にPortの実装、
+Presentation層にHandlerを置く。機能名はファイル名に含め、依存は`container.ts`で組み立てる。
+`createApp`へ注入可能な形を保つことで、テストではD1を使わずFakeを渡せる。
+
 ## セットアップ
 
 ```bash
@@ -19,6 +48,11 @@ wrangler d1 create 58-hackathon-db
 pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
 pnpm dev                # http://localhost:8787
 ```
+
+## CORS
+
+許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
+環境ごとにフロントエンドの origin を設定する。未設定の場合は、従来どおり `*` を使用する。
 
 ## デプロイ
 
@@ -46,7 +80,7 @@ D1データベース自体の作成(`wrangler d1 create`)はリソースを一�
 
 ## スキーマ変更
 
-`src/db/schema.ts` を編集後、以下でマイグレーションSQLを生成する。
+`src/infrastructure/database/schema.ts` を編集後、以下でマイグレーションSQLを生成する。
 
 ```bash
 pnpm db:generate
