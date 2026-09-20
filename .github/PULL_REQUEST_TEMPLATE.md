@@ -12,7 +12,7 @@
 
 ## 動作確認
 
-- [ ] backend: `go build ./...` / `go test ./...`
+- [ ] backend: `pnpm --filter backend lint` / `pnpm --filter backend build` / `pnpm --filter backend test`
 - [ ] frontend: `pnpm lint` / `pnpm build`
 
 ## 見た目の修正
