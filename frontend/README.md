@@ -30,3 +30,19 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## デプロイ
+
+Cloudflare Workers (Static Assets) 上にホストする。`main`ブランチに`frontend/**`の変更が
+pushされると、[`.github/workflows/frontend-deploy.yml`](../.github/workflows/frontend-deploy.yml)が
+ビルドとデプロイを自動実行する。
+
+手元から手動で行う場合:
+
+```bash
+pnpm build
+pnpm deploy
+```
+
+CIに必要なGitHub Secrets (`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`) は
+backendと共通。詳細は[`backend/README.md`](../backend/README.md#ciに必要なgithub-secrets)を参照。
