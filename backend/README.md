@@ -54,6 +54,11 @@ pnpm dev                # http://localhost:8787
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
 環境ごとにフロントエンドの origin を設定する。未設定の場合は、従来どおり `*` を使用する。
 
+- 本番: `wrangler.jsonc` の `vars.CORS_ORIGIN` にデプロイ済みフロントエンドの origin を設定する。
+- ローカル: `.dev.vars`（`.dev.vars.example` をコピーして作成、git管理外）に
+  ローカルフロントエンド（`pnpm dev` 実行時、既定で `http://localhost:5173`）の origin を設定する。
+  `.dev.vars` は `wrangler dev` 実行時に `wrangler.jsonc` の `vars` より優先される。
+
 ## デプロイ
 
 `main`ブランチに`backend/**`の変更がpushされると、
