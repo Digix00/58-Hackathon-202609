@@ -1,0 +1,50 @@
+# 目安箱 データモデル
+
+永続化するデータ、状態、匿名化、保存・削除方針を定義する。
+
+## データ要件
+
+### エンティティ
+
+| エンティティ | 主な項目 | 用途 |
+| --- | --- | --- |
+| `concerns` | id、actor_key、原文、入力経路、属性、公開状態、処理状態、日時 | 悩み本体 |
+| `concern_clusters` | id、表示ラベル、要約、状態、日時 | 意味の近い悩みのまとまり |
+| `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
+| `concern_reactions` | concern_id、actor_key、種類、日時 | リアクションの重複防止と集計 |
+| `concern_views` | concern_id、actor_key、日時 | 既読と推薦に利用 |
+| `anonymous_sessions` | actor_key、作成日時、失効日時 | 匿名利用者を一時的に識別 |
+| `quizzes` | id、対象日、状態、作成日時 | デイリークイズ |
+| `quiz_participants` | quiz_id、actor_key、concern_id、属性、表示順 | クイズに登場する3ユーザー |
+| `quiz_options` | quiz_id、concern_id、表示順 | 順番を混ぜて表示する3件の実投稿 |
+| `quiz_answers` | quiz_id、actor_key、participant_id、selected_concern_id、日時 | 対応付け回答の集計 |
+| `users` | id、actor_key、LINE user IDのハッシュ、友だち状態、日時 | LINE配信とユーザー単位の履歴 |
+| `learning_histories` | actor_key、concern_id、cluster_id、quiz_id、イベント種別、日時 | 閲覧とクイズの履歴 |
+
+### 投稿の状態
+
+投稿は、公開状態と処理状態を分けて持つ。
+
+- 公開状態: `pending`、`published`、`hidden`、`deleted`
+- 処理状態: `not_started`、`transcribing`、`translating`、`clustering`、`ready`、`failed`
+
+投稿の保存が成功した後に文字起こし、翻訳、クラスタリングのいずれかが失敗しても、原文の投稿は失わず、その処理だけ未完了として閲覧できるようにする。
+
+### 属性の扱い
+
+- 年齢は年代などの広い区分で保存し、正確な年齢を保存しない
+- 性別は任意入力とし、回答しない選択肢を用意する
+- 地域はユーザーが選択した都道府県または広域区分のみを保存する
+- クイズの3ユーザーは異なるactor_keyから選び、表示時には属性だけを利用する
+- クイズでは未入力の属性を「回答しない」として扱い、個人を特定できる組み合わせを避ける
+- IPアドレスを生データとして保存しない
+- GPSやIPから地域を推定しない
+
+### 保存、削除、匿名化
+
+- 投稿本文、属性、リアクション、学習履歴はデモ期間中に必要な範囲で保存する
+- 匿名セッションには有効期限を設定する
+- ユーザーが削除を要求した投稿は公開対象から直ちに除外する
+- 生の音声、画像、IPアドレス、LINEアクセストークンは保存しない
+- デモ終了時に投稿、翻訳、学習履歴、LINE連携情報を削除する
+
