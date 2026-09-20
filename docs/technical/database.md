@@ -44,7 +44,7 @@ Issue #29「データベース設計」の設計書。
 
 ### 3.1 投稿・閲覧・AI処理
 
-~~~mermaid
+```mermaid
 erDiagram
   ACTORS ||--o| ANONYMOUS_SESSIONS : "匿名セッション"
   ACTORS ||--o| LINE_USERS : "LINEユーザー"
@@ -158,14 +158,16 @@ erDiagram
     TEXT concern_id FK
     TEXT strategy
     TEXT reason_code
+    TEXT algorithm_version
     INTEGER position
-    TEXT created_at
+    TEXT exposed_at
+    TEXT opened_at
   }
-~~~
+```
 
 ### 3.2 クイズ・学習・LINE 配信
 
-~~~mermaid
+```mermaid
 erDiagram
   QUIZZES ||--|{ QUIZ_PARTICIPANTS : "3人を含む"
   ACTORS ||--o{ QUIZ_PARTICIPANTS : "参加者"
@@ -250,7 +252,7 @@ erDiagram
     TEXT received_at
     TEXT processed_at
   }
-~~~
+```
 
 ER 図における「3人」「3件」は、SQLite のリレーションだけでは件数まで表現できないため、クイズ生成ユースケースのトランザクション内で検証する。
 
@@ -347,7 +349,7 @@ quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参�
 
 ### 推奨インデックス
 
-~~~sql
+```sql
 CREATE INDEX concerns_feed_idx
   ON concerns (visibility_status, created_at DESC, id DESC);
 
@@ -373,17 +375,17 @@ CREATE INDEX learning_events_actor_idx
   ON learning_events (actor_id, occurred_at DESC);
 
 CREATE INDEX feed_impressions_actor_idx
-  ON feed_impressions (actor_id, created_at DESC);
-~~~
+  ON feed_impressions (actor_id, exposed_at DESC);
+```
 
 フィードは created_at だけで並べず、同時刻の投稿を安定してページングするため id をタイブレーカーにする。
 
-~~~sql
+```sql
 WHERE visibility_status = 'published'
   AND (created_at, id) < (?, ?)
 ORDER BY created_at DESC, id DESC
 LIMIT ?
-~~~
+```
 
 ## 6. 主要処理とデータ更新
 
