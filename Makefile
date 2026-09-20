@@ -1,4 +1,4 @@
-.PHONY: help install db-migrate dev backend frontend
+.PHONY: help install db-migrate dev backend frontend dev-vars
 
 help:
 	@echo "make dev         - 依存インストール + ローカルD1へのマイグレーション適用 + backend/frontend同時起動"
@@ -16,10 +16,15 @@ install:
 db-migrate: install
 	pnpm --filter backend db:migrate:local
 
-dev: db-migrate
+# ローカル開発用のCORS設定がない場合だけサンプルから作成する。
+# 既存の.dev.varsは上書きせず、開発者固有の設定を保持する。
+dev-vars:
+	@test -f backend/.dev.vars || cp backend/.dev.vars.example backend/.dev.vars
+
+dev: db-migrate dev-vars
 	pnpm dev
 
-backend: install
+backend: install dev-vars
 	pnpm --filter backend dev
 
 frontend: install
