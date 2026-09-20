@@ -28,6 +28,7 @@ Issue #29「データベース設計」の設計書。
 - LINE の友だち状態は users.friend_status で管理する。配信対象は LINE Broadcast API が管理する友だち全体であり、D1 でユーザーごとの配信明細は持たない。
 
 この構成により、すべてのドメインテーブルが users.id を参照し、匿名利用者用と LINE 利用者用の多態的な外部キーを持たずに済む。
+
 ### 2.2 非同期処理はジョブ単位で管理する
 
 翻訳、ひらがな変換、クラスタリング、モデレーションを一つの状態値だけで管理すると、処理が並列に走ったときに状態を正しく表現できない。そのため、concerns.processing_status は API 向けの概要値とし、実際の処理状況は concern_processing_jobs で管理する。
@@ -321,7 +322,7 @@ quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参�
 | line_broadcasts | id, quiz_id, idempotency_key, status, requested_at, sent_at, finished_at, line_retry_key, line_request_id, last_error | デイリークイズを全友だちへ送る一回の実行単位。idempotency_key は daily-quiz:YYYY-MM-DD |
 | line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, retry_key, attempted_at, error_message | LINE Broadcast API の呼び出し一回につき一行。配信先ユーザーごとの明細ではない |
 
-LINE Broadcast API は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。API 呼び出しが失敗した場合だけ、line_broadcast_attempts に試行結果を追加し、line_broadcasts を再試行可能な状態にする。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
+POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。API 呼び出しが失敗した場合だけ、line_broadcast_attempts に試行結果を追加し、line_broadcasts を再試行可能な状態にする。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
 ## 5. SQLite で必ず設定する制約
 
 ### 一意性
@@ -433,7 +434,7 @@ flowchart TD
 1. Cron の実行時刻は UTC として受け取り、Asia/Tokyo に変換した業務日を quizzes.quiz_date として求める。保存する日時は UTC のままにする。
 2. 対象日の published な quizzes を一件取得する。
 3. idempotency_key=daily-quiz:YYYY-MM-DD で line_broadcasts を作成する。既に succeeded なら何もしない。failed または未完了なら再実行する。
-4. クイズ URL を含むメッセージを LINE Broadcast API に一回送信する。配信先は LINE 公式アカウントの全友だちであり、ユーザーごとの Push API 呼び出しは行わない。
+4. クイズ URL を含むメッセージを POST https://api.line.me/v2/bot/message/broadcast に一回送信する。配信先は LINE 公式アカウントの全友だちであり、ユーザーごとの Push API 呼び出しは行わない。
 5. API 呼び出しごとに line_broadcast_attempts を追加し、HTTP ステータス、LINE の request ID、Retry Key、エラーを記録する。
 6. 成功時は line_broadcasts.sent_at / finished_at と status=succeeded を更新し、失敗時は last_error と status=failed を保存して再試行できるようにする。
 
