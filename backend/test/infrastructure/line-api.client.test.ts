@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
-} from "../../src/application/auth/line-token-verifier";
+} from "../../src/application/port/line-token-verifier";
 import { LineApiClient } from "../../src/infrastructure/line/line-api.client";
 
 describe("LineApiClient", () => {

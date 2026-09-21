@@ -6,7 +6,7 @@ import { AuthUseCase } from "../application/usecase/auth.usecase";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
-} from "../application/auth/line-token-verifier";
+} from "../application/port/line-token-verifier";
 import type { Bindings } from "../types";
 
 export const SESSION_COOKIE_NAME = "__Host-session";

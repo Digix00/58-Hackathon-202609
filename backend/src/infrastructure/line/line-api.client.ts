@@ -3,7 +3,7 @@ import {
   LineAuthConfigurationError,
   type LineIdentity,
   type LineTokenVerifier,
-} from "../../application/auth/line-token-verifier";
+} from "../../application/port/line-token-verifier";
 
 const LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify";
 const LINE_ISSUER = "https://access.line.me";
