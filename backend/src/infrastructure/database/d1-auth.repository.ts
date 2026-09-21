@@ -5,8 +5,11 @@ import type {
   SessionRepository,
   UserRepository,
 } from "../../application/repository/auth.repository";
-import type { Session } from "../../application/entity/session";
-import type { User } from "../../application/entity/user";
+import type {
+  Session,
+  SessionInsertInput,
+} from "../../application/entity/session";
+import type { User, UserInsertInput } from "../../application/entity/user";
 import { sessions, users } from "./schema";
 
 export class D1UserRepository implements UserRepository {
@@ -16,35 +19,30 @@ export class D1UserRepository implements UserRepository {
     this.db = drizzle(db);
   }
 
-  async selectOrCreateByLineUserId(
-    lineUserId: string,
-    userId: string,
-  ): Promise<User> {
-    const existing = await this.selectByLineUserId(lineUserId);
-
-    if (existing) {
-      return existing;
-    }
-
+  async insert(input: UserInsertInput): Promise<User> {
     const now = new Date().toISOString();
     await this.db
       .insert(users)
       .values({
-        id: userId,
-        lineUserId,
+        id: input.id,
+        lineUserId: input.lineUserId,
         createdAt: now,
         updatedAt: now,
       })
-      .onConflictDoNothing({ target: users.lineUserId })
       .run();
 
-    const created = await this.selectByLineUserId(lineUserId);
+    return {
+      id: input.id,
+      lineUserId: input.lineUserId,
+    };
+  }
 
-    if (!created) {
-      throw new Error("failed to create auth user");
-    }
-
-    return created;
+  async selectByLineUserId(lineUserId: string): Promise<User | null> {
+    return (await this.db
+      .select({ id: users.id, lineUserId: users.lineUserId })
+      .from(users)
+      .where(eq(users.lineUserId, lineUserId))
+      .get()) ?? null;
   }
 
   async selectById(userId: string): Promise<User | null> {
@@ -55,13 +53,6 @@ export class D1UserRepository implements UserRepository {
       .get()) ?? null;
   }
 
-  private async selectByLineUserId(lineUserId: string): Promise<User | null> {
-    return (await this.db
-      .select({ id: users.id, lineUserId: users.lineUserId })
-      .from(users)
-      .where(eq(users.lineUserId, lineUserId))
-      .get()) ?? null;
-  }
 }
 
 export class D1SessionRepository implements SessionRepository {
@@ -71,13 +62,7 @@ export class D1SessionRepository implements SessionRepository {
     this.db = drizzle(db);
   }
 
-  async insert(session: {
-    id: string;
-    tokenHash: string;
-    userId: string | null;
-    expiresAt: string;
-    createdAt: string;
-  }): Promise<Session> {
+  async insert(session: SessionInsertInput): Promise<Session> {
     await this.db
       .insert(sessions)
       .values({

@@ -58,10 +58,7 @@ export class AuthUseCase implements AuthUseCasePort {
     currentToken?: string,
   ): Promise<SessionResult> {
     const identity = await this.lineTokenVerifier.verify(idToken);
-    const user = await this.users.selectOrCreateByLineUserId(
-      identity.lineUserId,
-      this.createId("user"),
-    );
+    const user = await this.findOrCreateUser(identity.lineUserId);
 
     const currentSession = await this.findSession(currentToken);
     const authenticatedSession = await this.createSession(user.id);
@@ -124,6 +121,18 @@ export class AuthUseCase implements AuthUseCasePort {
       user: null,
       token,
     };
+  }
+
+  private async findOrCreateUser(lineUserId: string): Promise<User> {
+    const existingUser = await this.users.selectByLineUserId(lineUserId);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    return this.users.insert({
+      id: this.createId("user"),
+      lineUserId,
+    });
   }
 
   private async findSession(
