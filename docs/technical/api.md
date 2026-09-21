@@ -1,13 +1,14 @@
 # 目安箱 API仕様
 
-LINEミニアプリ（LIFF）から利用する、目安箱の HTTP API 契約を定義する。
+WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の HTTP API 契約を定義する。
 本書では、実装時に判断が分かれないよう、認証主体、入力値、レスポンス、状態遷移、重複操作、LINE連携の責務を固定する。
 
 本書は [プロダクト要件](../requirements/product.md) の API 境界を定義する文書であり、次の方針を前提とする。
 
-- 全ユーザーは LINE / LIFF 認証済みのユーザーとして扱う
-- 内部の投稿者識別には users.id を使い、API のレスポンスには返さない
-- 投稿・既読・リアクション・クイズ回答・学習履歴は、認証済みユーザーに紐づける
+- Web MVPの画面向け API は、匿名セッションまたは LINE / LIFF 認証済みユーザーを認証主体として扱う
+- 匿名セッションでは投稿、閲覧、リアクション、クイズ回答、学習履歴を利用できる
+- LIFF ID token から解決したユーザーには、LINE連携やユーザー単位の履歴を紐づける
+- 内部の投稿者識別には users.id または匿名セッションの内部識別子を使い、APIのレスポンスには返さない
 - LINE の日次クイズ配信は、ユーザーを列挙して個別送信せず、LINE Messaging API の Broadcast API で全友だちへ送信する
 - 投稿保存と AI / 外部サービス処理は分離し、外部処理の失敗で原文投稿を失わない
 
@@ -24,10 +25,11 @@ LINEミニアプリ（LIFF）から利用する、目安箱の HTTP API 契約�
 
 ### 1.2 リクエストとレスポンス
 
-通常の画面向け API は、次のヘッダーを利用する。
+通常の画面向け API は、次の認証ヘッダーのどちらか一方を利用する。LIFF ID token と匿名セッションIDを同時に指定してはならない。
 
 ~~~http
-Authorization: Bearer <LIFF_ID_TOKEN>
+Authorization: Bearer <LIFF_ID_TOKEN>  # LIFF利用時
+X-Anonymous-Session-Id: <ANONYMOUS_SESSION_ID>  # Web匿名利用時
 Content-Type: application/json
 Accept: application/json
 ~~~
@@ -38,7 +40,7 @@ Accept: application/json
 - 日時は ISO 8601 UTC の文字列（末尾が Z）で返す
 - クイズの業務日だけは Asia/Tokyo 基準の YYYY-MM-DD 文字列で返す
 - ID は opaque string とし、クライアントは ID の形式や採番規則に依存しない
-- クライアントがユーザー識別子を Request body や Query に指定しても、サーバーは認証済みトークンから解決したユーザーを使う
+- クライアントが userId などのユーザー識別子を Request body や Query に指定しても、サーバーは認証ヘッダーから解決した認証主体を使う
 - 空文字列は未指定として扱わず、必須項目では validation error とする
 - 任意項目を指定しない場合は、原則としてキー自体を省略する
 
@@ -48,10 +50,11 @@ Accept: application/json
 
 | 認証方式 | 対象 | 認証方法 |
 | --- | --- | --- |
+| 匿名セッション | Web の画面向け API | X-Anonymous-Session-Id に匿名セッションIDを指定 |
 | LIFF | 画面向け API | Authorization Bearer に LIFF の ID token を指定 |
 | LINE 署名 | LINE Webhook | x-line-signature を channel secret で検証 |
 | 内部認証 | LINE Broadcast API を起動する内部 API | Authorization Bearer に内部トークンを指定 |
-| 不要 | GET /health | Worker / D1 の疎通確認のみ |
+| 不要 | 匿名セッション作成 API、GET /health | セッション作成 API はレート制限の対象とし、health は Worker / D1 の疎通確認のみ |
 
 #### LIFF 認証の処理
 
@@ -69,6 +72,18 @@ Accept: application/json
 - ID token を検証せずに JWT の payload だけをデコードした値
 
 ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生の ID token、LINE user ID、アクセストークンはレスポンスや通常ログへ出力しない。
+
+#### 匿名セッション認証の処理
+
+1. Webブラウザが `POST /api/v1/sessions/anonymous` を呼び出す
+2. サーバーが有効期限付きの高エントロピーな opaque session ID を発行する
+3. クライアントは以降の画面向け API に `X-Anonymous-Session-Id` を指定する
+4. バックエンドがセッションの有効期限を検証し、匿名の認証主体として解決する
+5. セッションの有効期限が切れた場合や不正な場合は 401 INVALID_ANONYMOUS_SESSION を返す
+
+匿名セッションIDはユーザー識別子ではなく認証用の秘密値として扱い、レスポンス以外の通常ログや画面表示へ出力しない。LIFF ID token と匿名セッションIDの両方が指定された場合は 400 INVALID_REQUEST とする。匿名セッション作成 API のレスポンスには `Cache-Control: no-store` を設定する。
+
+匿名セッションは有効期間内の投稿、既読、リアクション、クイズ回答、学習履歴に利用できる。LINE連携が必要な処理は LIFF 認証済みユーザーまたは LINE Webhook の認証済みユーザーとして扱う。
 
 ### 1.4 共通エラー形式
 
@@ -104,7 +119,7 @@ ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生�
 | 201 | リソースの新規作成 | — |
 | 204 | 成功し Response body が不要 | — |
 | 400 | JSON、Header、Query の形式が不正 | INVALID_REQUEST、INVALID_CURSOR |
-| 401 | 認証情報がない、または無効 | AUTHENTICATION_REQUIRED、INVALID_ID_TOKEN、INVALID_LINE_SIGNATURE |
+| 401 | 認証情報がない、または無効 | AUTHENTICATION_REQUIRED、INVALID_ID_TOKEN、INVALID_ANONYMOUS_SESSION、INVALID_LINE_SIGNATURE |
 | 403 | 認証済みだが操作できない | USER_DELETED、FORBIDDEN |
 | 404 | リソースがない、または公開対象外 | NOT_FOUND、QUIZ_NOT_AVAILABLE |
 | 409 | 状態競合、同一クイズへの回答済み | QUIZ_ALREADY_ANSWERED、BROADCAST_IN_PROGRESS |
@@ -145,7 +160,7 @@ regionCode は regions マスタで定義されたコードを指定する。都
 
 #### 入力経路
 
-- web: LIFF の投稿フォームから入力
+- web: Web または LIFF の投稿フォームから入力
 - voice: 音声文字起こし結果を確認してから投稿
 - line: LINE Webhook の text message から投稿
 
@@ -193,29 +208,30 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | Method | Path | 優先度 | 認証 | 用途 |
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
-| POST | /api/v1/concerns | MVP | LIFF | 悩み投稿 |
-| GET | /api/v1/concerns | MVP | LIFF | 新着または推薦フィード |
-| GET | /api/v1/concerns/:concernId | MVP | LIFF | 悩み詳細 |
-| POST | /api/v1/concerns/:concernId/reactions | MVP | LIFF | リアクション登録 |
-| PUT | /api/v1/concerns/:concernId/view | MVP | LIFF | 既読登録 |
-| GET | /api/v1/clusters | デモ必須 | LIFF | 公開クラスタ一覧 |
-| GET | /api/v1/clusters/:clusterId/concerns | デモ必須 | LIFF | クラスタ内の悩み |
-| GET | /api/v1/quizzes/today | デモ必須 | LIFF | Asia/Tokyo の当日クイズ |
-| GET | /api/v1/quizzes/:quizId | デモ必須 | LIFF | 指定クイズ |
-| POST | /api/v1/quizzes/:quizId/answers | デモ必須 | LIFF | 対応付け回答 |
-| GET | /api/v1/history/summary | デモ必須 | LIFF | 閲覧・クラスタ・地域・クイズ集計 |
-| GET | /api/v1/history/quiz-answers | デモ必須 | LIFF | クイズ回答履歴 |
-| POST | /api/v1/speech/transcriptions | デモ必須 | LIFF | 音声の一時文字起こし |
+| POST | /api/v1/sessions/anonymous | MVP | 不要 | Web MVP用の匿名セッション作成 |
+| POST | /api/v1/concerns | MVP | 匿名セッション / LIFF | 悩み投稿 |
+| GET | /api/v1/concerns | MVP | 匿名セッション / LIFF | 新着または推薦フィード |
+| GET | /api/v1/concerns/:concernId | MVP | 匿名セッション / LIFF | 悩み詳細 |
+| POST | /api/v1/concerns/:concernId/reactions | MVP | 匿名セッション / LIFF | リアクション登録 |
+| PUT | /api/v1/concerns/:concernId/view | MVP | 匿名セッション / LIFF | 既読登録 |
+| GET | /api/v1/clusters | デモ必須 | 匿名セッション / LIFF | 公開クラスタ一覧 |
+| GET | /api/v1/clusters/:clusterId/concerns | デモ必須 | 匿名セッション / LIFF | クラスタ内の悩み |
+| GET | /api/v1/quizzes/today | デモ必須 | 匿名セッション / LIFF | Asia/Tokyo の当日クイズ |
+| GET | /api/v1/quizzes/:quizId | デモ必須 | 匿名セッション / LIFF | 指定クイズ |
+| POST | /api/v1/quizzes/:quizId/answers | デモ必須 | 匿名セッション / LIFF | 対応付け回答 |
+| GET | /api/v1/history/summary | デモ必須 | 匿名セッション / LIFF | 閲覧・クラスタ・地域・属性・クイズ集計 |
+| GET | /api/v1/history/quiz-answers | デモ必須 | 匿名セッション / LIFF | クイズ回答履歴 |
+| POST | /api/v1/speech/transcriptions | デモ必須 | 匿名セッション / LIFF | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow / text message |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 
-匿名セッション作成 API、userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。
+userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。匿名セッション作成 API は Web MVP の入口として提供する。
 
 ## 3. 悩み API
 
 ### 3.1 POST /api/v1/concerns
 
-LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理を分離するため、翻訳・ひらがな化・クラスタリングの完了を待たずに返す。
+匿名セッションまたは LIFF 認証済みユーザーの悩みを保存する。新規投稿はモデレーションが完了するまで公開せず、保存と非同期処理を分離するため、翻訳・ひらがな化・クラスタリングの完了は待たずに返す。
 
 #### Request
 
@@ -242,12 +258,12 @@ LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理
 
 #### 処理
 
-1. Authorization の ID token を検証し、内部 users.id を解決する
+1. Authorization または X-Anonymous-Session-Id を検証し、認証主体を解決する
 2. Request を validation する
-3. concerns を保存する
+3. concerns を visibilityStatus=pending で保存する
 4. moderation、ja_hira、en_translation、clustering の非同期ジョブを登録する
 5. 投稿 ID と保存時点の状態を返す
-6. 非同期処理の完了後、processingStatus と派生データを更新する
+6. moderation が成功した場合だけ visibilityStatus を published に更新し、各非同期処理の完了後に processingStatus と派生データを更新する
 
 #### Response: 201 Created
 
@@ -261,7 +277,7 @@ LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理
     "regionCode": "osaka"
   },
   "inputMethod": "web",
-  "visibilityStatus": "published",
+  "visibilityStatus": "pending",
   "processingStatus": "pending",
   "representations": {
     "jaHira": null,
@@ -273,8 +289,8 @@ LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理
 }
 ~~~
 
-- モデレーションの確認が必要な場合は visibilityStatus を pending として返す
-- visibilityStatus が published 以外の投稿は一般フィードへ返さない
+- 新規投稿は visibilityStatus=pending で返し、モデレーションが明示的に公開可と判定した場合だけ published にする
+- モデレーションで拒否または判定不能となった投稿は pending または hidden のままとし、visibilityStatus が published 以外の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
 
@@ -382,7 +398,7 @@ reasonCode の初期値は次のとおり。
 ~~~
 
 - hidden、deleted、pending の悩みには登録できない
-- concernId と userId と reactionType の組を一意にする
+- concernId と解決済みの認証主体と reactionType の組を一意にする
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
@@ -401,7 +417,7 @@ reasonCode の初期値は次のとおり。
 ~~~
 
 - 同じ concernId に対して何度呼んでも成功する
-- concern_views は concernId と userId の組で集約する
+- concern_views は concernId と解決済みの認証主体の組で集約する
 - firstViewedAt は最初の呼び出し時だけ設定し、lastViewedAt は呼び出しごとに更新してよい
 - 同一の既読操作で学習履歴を無制限に増やさない
 - 公開済みでない concernId は 404 NOT_FOUND とする
@@ -453,6 +469,12 @@ reasonCode の初期値は次のとおり。
 クイズの参加者と投稿の正しい対応は、回答前の API レスポンスへ含めない。
 
 ### 5.1 共通のクイズ表示形式
+
+クイズ取得 API（5.2、5.3）は、次の Query を受け付ける。
+
+| Param | 必須 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| language | 任意 | original | original、jaHira、en |
 
 ~~~json
 {
@@ -516,6 +538,8 @@ reasonCode の初期値は次のとおり。
 - participantId は当該クイズ内だけで利用する opaque ID とし、users.id や LINE user ID を使わない
 - concernId は公開済みの元投稿を参照するが、参加者との正しい対応は返さない
 - 3 件の concern は実際の投稿であり、架空の選択肢は作らない
+- Query の language で指定した表現が ready の場合はその本文と language を返し、pending、failed、未生成の場合は原文の本文と language=original にフォールバックする
+- language が不正な場合は 400 INVALID_REQUEST とする
 - クイズ生成後に元投稿が hidden または deleted になった場合は、クイズ自体を hidden として公開しない
 - answered=true の場合は answerResult を追加し、同じ quiz の回答結果を表示できるようにする
 
@@ -524,6 +548,7 @@ reasonCode の初期値は次のとおり。
 Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 - 当日クイズが存在しない、または元投稿が公開できない場合は 404 QUIZ_NOT_AVAILABLE
+- Query は 5.1 の language を受け付ける
 - Response は 5.1 の共通形式
 - ルート実装では /today を /:quizId より先に登録し、today が quizId として解釈されないようにする
 
@@ -531,6 +556,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 指定した published クイズを返す。
 
+- Query は 5.1 の language を受け付ける
 - Response は 5.1 の共通形式
 - 存在しない、closed、hidden、元投稿が非公開のクイズは 404 QUIZ_NOT_AVAILABLE
 - quizId は API が発行した opaque ID として扱う
@@ -566,7 +592,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 - participantId は当該 quiz の participants に含まれ、3 件で重複しない
 - concernId は当該 quiz の concerns に含まれ、3 件で重複しない
 - quiz は published で、3 件の元投稿も published
-- 回答者の userId は Request body から取得せず、LIFF ID token から解決する
+- 回答者の userId は Request body から取得せず、LIFF ID token または匿名セッションから解決した認証主体を使う
 - 同じ quiz に対する同じユーザーの回答は上書きしない
 
 #### Response: 201 Created
@@ -574,7 +600,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~json
 {
   "quizId": "quiz_2026-09-21",
-  "score": 2,
+  "score": 1,
   "total": 3,
   "results": [
     {
@@ -611,7 +637,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 ## 6. 学習履歴 API
 
-学習履歴は LIFF で認証されたユーザー自身のデータだけを返す。
+学習履歴は、匿名セッションまたは LIFF で認証された現在の認証主体自身のデータだけを返す。
 
 ### 6.1 GET /api/v1/history/summary
 
@@ -633,6 +659,20 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
       "count": 4
     }
   ],
+  "attributes": {
+    "ageGroups": [
+      {
+        "ageGroup": "20s",
+        "count": 5
+      }
+    ],
+    "genders": [
+      {
+        "gender": "female",
+        "count": 4
+      }
+    ]
+  },
   "quiz": {
     "answeredCount": 3,
     "correctCount": 7,
@@ -644,6 +684,8 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
 - clusters と regions は、既読履歴に現れた公開投稿を集計する
+- attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
+- 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
 - quiz.answeredCount は回答済みクイズ数
 - accuracy は correctCount / totalQuestions。totalQuestions が 0 の場合は 0
 - users.deleted_at が設定されたユーザーは 403 USER_DELETED とする
@@ -664,7 +706,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
     {
       "quizId": "quiz_2026-09-21",
       "quizDate": "2026-09-21",
-      "score": 2,
+      "score": 1,
       "total": 3,
       "answeredAt": "2026-09-21T00:20:00.000Z"
     }
@@ -875,7 +917,7 @@ API が返す concerns.processingStatus は処理全体の概要値とする。�
 - quiz answer
 - speech transcription
 
-Rate limit を超えた場合は 429 RATE_LIMITED と Retry-After を返す。匿名セッションや IP アドレスを API の認証主体として使わない。
+Rate limit を超えた場合は 429 RATE_LIMITED と Retry-After を返す。Web API では匿名セッションを認証主体として使うが、IP アドレスを認証主体やユーザー識別子として使わない。
 
 次の情報は API Response、通常ログ、D1 の生データへ保存しない。
 
@@ -910,7 +952,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 
 ### 13.1 実装順
 
-1. LIFF ID token 検証、users upsert、認証 middleware
+1. 匿名セッション作成、LIFF ID token 検証、users upsert、認証 middleware
 2. concerns の作成・一覧・詳細
 3. view、reaction、cursor pagination
 4. concern の非同期ジョブと cluster
@@ -927,6 +969,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - 正常系の Request / Response
 - 必須項目欠落、空文字、範囲外、未知の enum
 - 不正・期限切れの LIFF ID token
+- 不正・期限切れの匿名セッションID
 - 他ユーザーの userId を body に入れた場合に無視されること
 - published 以外の concern / quiz が外部へ返らないこと
 - reaction の再送で二重加算されないこと
