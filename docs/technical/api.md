@@ -38,7 +38,7 @@ Accept: application/json
 - 日時は ISO 8601 UTC の文字列（末尾が Z）で返す
 - クイズの業務日だけは Asia/Tokyo 基準の YYYY-MM-DD 文字列で返す
 - ID は opaque string とし、クライアントは ID の形式や採番規則に依存しない
-- クライアントが userId、lineUserId、actorKey を Request body や Query に指定しても、サーバーは認証済みトークンから解決したユーザーを使う
+- クライアントがユーザー識別子を Request body や Query に指定しても、サーバーは認証済みトークンから解決したユーザーを使う
 - 空文字列は未指定として扱わず、必須項目では validation error とする
 - 任意項目を指定しない場合は、原則としてキー自体を省略する
 
@@ -236,7 +236,7 @@ LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理
 - gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
 - regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
 - inputMethod は必須で、web または voice のいずれか
-- userId、lineUserId、actorKey は Request body に含めない
+- ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
 - 本文に氏名、連絡先、住所などの個人情報が含まれる場合は、モデレーション結果に応じて pending とする
 
