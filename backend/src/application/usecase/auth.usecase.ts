@@ -1,8 +1,8 @@
 import type {
   SessionRepository,
   UserRepository,
-} from "../auth/auth.repository";
-import type { LineTokenVerifier } from "../auth/line-token-verifier";
+} from "../repository/auth.repository";
+import type { LineTokenVerifier } from "../port/line-token-verifier";
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
 

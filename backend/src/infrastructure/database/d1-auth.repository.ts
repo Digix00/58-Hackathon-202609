@@ -5,7 +5,7 @@ import type {
   CreateSessionInput,
   SessionRepository,
   UserRepository,
-} from "../../application/auth/auth.repository";
+} from "../../application/repository/auth.repository";
 import type { Session } from "../../application/entity/session";
 import type { User } from "../../application/entity/user";
 import { sessions, users } from "./schema";
