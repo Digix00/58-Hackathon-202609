@@ -1,9 +1,8 @@
 import { createContext } from "react";
 
-export type AuthResponse = {
-  authenticated: boolean;
-  user: { id: string } | null;
-};
+import type { AuthResponse } from "../lib/api";
+
+export type { AuthResponse };
 
 export type AuthStatus = "initializing" | "anonymous" | "authenticated";
 

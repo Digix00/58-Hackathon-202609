@@ -12,6 +12,7 @@ import {
   initializeLiff,
   isInLineClient,
   isLineLoggedIn,
+  logoutLine,
   startLineLogin,
 } from "./liff";
 import {
@@ -34,9 +35,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const requestSession = useCallback(async (): Promise<AuthResponse> => {
     const response = await apiClient.api.v1.auth.session.$get();
     if (!response.ok) {
-      throw new Error("failed to restore the app session");
+      throw new Error("アプリのセッションを復元できませんでした");
     }
-    return (await response.json()) as AuthResponse;
+    return response.json();
   }, []);
 
   const loginWithIdToken = useCallback(
@@ -45,9 +46,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         json: { idToken },
       });
       if (!response.ok) {
-        throw new Error("LINE authentication failed");
+        throw new Error("LINE認証に失敗しました");
       }
-      applySession((await response.json()) as AuthResponse);
+      applySession(await response.json());
     },
     [applySession],
   );
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const liffInitialized = await initializeLiff();
       if (!liffInitialized) {
-        throw new Error("VITE_LINE_LIFF_ID is not configured");
+        throw new Error("VITE_LINE_LIFF_IDが設定されていません");
       }
 
       if (!isInLineClient() && !isLineLoggedIn()) {
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const idToken = getLineIdToken();
       if (!idToken) {
-        throw new Error("LINE ID token is unavailable");
+        throw new Error("LINE ID tokenを取得できません");
       }
 
       setStatus("initializing");
@@ -123,8 +124,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const response = await apiClient.api.v1.auth.logout.$post();
       if (!response.ok) {
-        throw new Error("failed to log out");
+        throw new Error("ログアウトに失敗しました");
       }
+      logoutLine();
       applySession({ authenticated: false, user: null });
     } catch (cause) {
       setError(toErrorMessage(cause));
@@ -143,5 +145,5 @@ export function AuthProvider({ children }: PropsWithChildren) {
 }
 
 function toErrorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "authentication failed";
+  return cause instanceof Error ? cause.message : "認証に失敗しました";
 }

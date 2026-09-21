@@ -1,6 +1,7 @@
 import liff from "@line/liff";
 
 let initialization: Promise<boolean> | null = null;
+let initialized = false;
 
 export async function initializeLiff(): Promise<boolean> {
   const liffId = import.meta.env.VITE_LINE_LIFF_ID;
@@ -11,9 +12,13 @@ export async function initializeLiff(): Promise<boolean> {
   if (!initialization) {
     initialization = liff
       .init({ liffId })
-      .then(() => true)
+      .then(() => {
+        initialized = true;
+        return true;
+      })
       .catch((error: unknown) => {
         initialization = null;
+        initialized = false;
         throw error;
       });
   }
@@ -35,4 +40,10 @@ export function getLineIdToken(): string | null {
 
 export function startLineLogin(): void {
   liff.login({ redirectUri: window.location.href });
+}
+
+export function logoutLine(): void {
+  if (initialized && liff.isLoggedIn()) {
+    liff.logout();
+  }
 }
