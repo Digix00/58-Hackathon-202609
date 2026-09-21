@@ -20,10 +20,13 @@ describe("GET /health", () => {
       status: string;
       checkedAt: string;
       database: string;
+      version: string;
     }>();
     expect(body.status).toBe("ok");
     expect(body.database).toBe("ok");
     expect(() => new Date(body.checkedAt).toISOString()).not.toThrow();
+    expect(typeof body.version).toBe("string");
+    expect(body.version.length).toBeGreaterThan(0);
   });
 
   it.each(["ok", "error"] as const)(
@@ -37,6 +40,7 @@ describe("GET /health", () => {
             status: "ok",
             checkedAt: "2026-09-17T00:00:00.000Z",
             database,
+            version: "0.1.0",
           };
         },
       });
@@ -48,6 +52,7 @@ describe("GET /health", () => {
         status: "ok",
         checkedAt: "2026-09-17T00:00:00.000Z",
         database,
+        version: "0.1.0",
       });
       expect(calls).toBe(1);
     },
@@ -70,6 +75,7 @@ describe("GET /health", () => {
         status: "ok",
         checkedAt: "2026-09-17T00:00:00.000Z",
         database: "ok",
+        version: "0.1.0",
       }),
     });
     const app = createApp({ healthHandler });
