@@ -9,10 +9,16 @@ export interface CheckHealth {
 export class CheckHealthUseCase implements CheckHealth {
   private readonly repository: HealthRepository;
   private readonly now: () => Date;
+  private readonly version: string;
 
-  constructor(repository: HealthRepository, now: () => Date = () => new Date()) {
+  constructor(
+    repository: HealthRepository,
+    now: () => Date = () => new Date(),
+    version = "0.1.0",
+  ) {
     this.repository = repository;
     this.now = now;
+    this.version = version;
   }
 
   readonly execute = async (): Promise<HealthStatus> => {
@@ -27,6 +33,7 @@ export class CheckHealthUseCase implements CheckHealth {
       status: "ok",
       checkedAt: this.now().toISOString(),
       database,
+      version: this.version,
     };
   };
 }
