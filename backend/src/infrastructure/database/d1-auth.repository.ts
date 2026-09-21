@@ -2,7 +2,6 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import type {
-  CreateSessionInput,
   SessionRepository,
   UserRepository,
 } from "../../application/repository/auth.repository";
@@ -72,7 +71,13 @@ export class D1SessionRepository implements SessionRepository {
     this.db = drizzle(db);
   }
 
-  async create(session: CreateSessionInput): Promise<Session> {
+  async insert(session: {
+    id: string;
+    tokenHash: string;
+    userId: string | null;
+    expiresAt: string;
+    createdAt: string;
+  }): Promise<Session> {
     await this.db
       .insert(sessions)
       .values({

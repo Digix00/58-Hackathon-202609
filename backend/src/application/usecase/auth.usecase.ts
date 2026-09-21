@@ -17,7 +17,17 @@ export interface SessionResult extends SessionView {
   token?: string;
 }
 
-export class AuthUseCase {
+export interface AuthUseCasePort {
+  authenticateWithLine(
+    idToken: string,
+    currentToken?: string,
+  ): Promise<SessionResult>;
+  getOrCreateSession(currentToken?: string): Promise<SessionResult>;
+  getSession(currentToken?: string): Promise<SessionView | null>;
+  logout(currentToken?: string): Promise<void>;
+}
+
+export class AuthUseCase implements AuthUseCasePort {
   private readonly sessionTtlSeconds: number;
   private readonly users: UserRepository;
   private readonly sessions: SessionRepository;
@@ -99,7 +109,7 @@ export class AuthUseCase {
   private async createSession(userId: string | null): Promise<SessionResult> {
     const now = this.now();
     const token = generateToken();
-    const session = await this.sessions.create({
+    const session = await this.sessions.insert({
       id: this.createId("session"),
       tokenHash: await hashToken(token),
       userId,
