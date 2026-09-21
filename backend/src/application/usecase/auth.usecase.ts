@@ -1,10 +1,10 @@
 import type {
   SessionRepository,
   UserRepository,
-} from "./auth.repository";
+} from "../auth/auth.repository";
+import type { LineTokenVerifier } from "../auth/line-token-verifier";
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
-import type { LineTokenVerifier } from "./line-token-verifier";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
@@ -17,7 +17,7 @@ export interface SessionResult extends SessionView {
   token?: string;
 }
 
-export class AuthService {
+export class AuthUseCase {
   private readonly sessionTtlSeconds: number;
   private readonly users: UserRepository;
   private readonly sessions: SessionRepository;
