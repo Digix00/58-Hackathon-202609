@@ -70,6 +70,17 @@ describe("LineApiClient", () => {
     }
   });
 
+  it("rejects a malformed verification response", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response("not-json", { status: 200 }),
+    );
+    const client = new LineApiClient("channel-123", fetcher);
+
+    await expect(client.verify("raw-id-token")).rejects.toBeInstanceOf(
+      InvalidLineTokenError,
+    );
+  });
+
   it("rejects a failed LINE verification without exposing the response body", async () => {
     const fetcher = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ error: "invalid token" }), { status: 400 }),

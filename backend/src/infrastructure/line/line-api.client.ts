@@ -50,8 +50,15 @@ export class LineApiClient implements LineTokenVerifier {
       throw new InvalidLineTokenError();
     }
 
-    const payload = (await response.json()) as LineVerifyResponse;
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new InvalidLineTokenError();
+    }
+
     if (
+      !isLineVerifyResponse(payload) ||
       typeof payload.sub !== "string" ||
       payload.sub.length === 0 ||
       payload.iss !== LINE_ISSUER ||
@@ -64,4 +71,8 @@ export class LineApiClient implements LineTokenVerifier {
 
     return { lineUserId: payload.sub };
   }
+}
+
+function isLineVerifyResponse(value: unknown): value is LineVerifyResponse {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
