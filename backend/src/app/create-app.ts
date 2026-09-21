@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import type { AuthService } from "../application/auth/auth.service";
+import type { AuthUseCase } from "../application/usecase/auth.usecase";
 import { createAuthMiddleware } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { HealthHandler } from "../presentation/health.handler";
@@ -11,15 +11,15 @@ import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {
   authHandler: AuthHandler;
-  authService: AuthService;
+  authUseCase: AuthUseCase;
   healthHandler: HealthHandler;
 }
 
 /** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
-export function createApp({ authHandler, authService, healthHandler }: ApplicationDependencies) {
+export function createApp({ authHandler, authUseCase, healthHandler }: ApplicationDependencies) {
   const app = new Hono<{
     Bindings: Bindings;
-    Variables: { auth: Awaited<ReturnType<AuthService["getSession"]>> };
+    Variables: { auth: Awaited<ReturnType<AuthUseCase["getSession"]>> };
   }>();
 
   app.use("*", requestLogger);
@@ -34,7 +34,7 @@ export function createApp({ authHandler, authService, healthHandler }: Applicati
 
   // 同じ式でチェーンし、Hono RPCがルートとレスポンスの型を保持できるようにする。
   return app
-    .use("/api/v1/*", createAuthMiddleware(authService))
+    .use("/api/v1/*", createAuthMiddleware(authUseCase))
     .get("/health", ...healthHandler.get)
     .post("/api/v1/auth/line", ...authHandler.line)
     .get("/api/v1/auth/session", ...authHandler.session)

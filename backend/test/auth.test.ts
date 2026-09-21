@@ -1,14 +1,14 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { AuthService } from "../src/application/auth/auth.service";
 import { createApp } from "../src/app/create-app";
+import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { D1SessionRepository, D1UserRepository } from "../src/infrastructure/database/d1-auth.repository";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 
 function createTestApp() {
-  const authService = new AuthService(
+  const authUseCase = new AuthUseCase(
     new D1UserRepository(env.DB),
     new D1SessionRepository(env.DB),
     {
@@ -22,8 +22,8 @@ function createTestApp() {
   );
 
   return createApp({
-    authHandler: new AuthHandler(authService),
-    authService,
+    authHandler: new AuthHandler(authUseCase),
+    authUseCase,
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",

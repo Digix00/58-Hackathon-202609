@@ -1,6 +1,6 @@
 import type { ErrorHandler } from "hono";
 
-import type { SessionView } from "../application/auth/auth.service";
+import type { SessionView } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
 
 export const handleError: ErrorHandler<{

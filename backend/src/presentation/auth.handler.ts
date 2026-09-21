@@ -2,7 +2,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
 
-import { AuthService } from "../application/auth/auth.service";
+import { AuthUseCase } from "../application/usecase/auth.usecase";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
@@ -18,14 +18,14 @@ const lineLoginRequest = z.object({
 const factory = createFactory<{ Bindings: Bindings }>();
 
 export class AuthHandler {
-  private readonly authService: AuthService;
+  private readonly authUseCase: AuthUseCase;
   private readonly sessionMaxAgeSeconds: number;
 
   constructor(
-    authService: AuthService,
+    authUseCase: AuthUseCase,
     sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS,
   ) {
-    this.authService = authService;
+    this.authUseCase = authUseCase;
     this.sessionMaxAgeSeconds = Number.isFinite(sessionMaxAgeSeconds)
       ? Math.max(60, Math.floor(sessionMaxAgeSeconds))
       : SESSION_MAX_AGE_SECONDS;
@@ -42,7 +42,7 @@ export class AuthHandler {
     }
 
     try {
-      const result = await this.authService.authenticateWithLine(
+      const result = await this.authUseCase.authenticateWithLine(
         parsed.data.idToken,
         getCookie(c, SESSION_COOKIE_NAME),
       );
@@ -72,7 +72,7 @@ export class AuthHandler {
   });
 
   readonly session = factory.createHandlers(async (c) => {
-    const result = await this.authService.getOrCreateSession(
+    const result = await this.authUseCase.getOrCreateSession(
       getCookie(c, SESSION_COOKIE_NAME),
     );
     if (result.token) {
@@ -83,13 +83,13 @@ export class AuthHandler {
   });
 
   readonly logout = factory.createHandlers(async (c) => {
-    await this.authService.logout(getCookie(c, SESSION_COOKIE_NAME));
+    await this.authUseCase.logout(getCookie(c, SESSION_COOKIE_NAME));
     deleteCookie(c, SESSION_COOKIE_NAME, { path: "/", secure: true });
     return c.json({ authenticated: false, user: null });
   });
 
-  getService(): AuthService {
-    return this.authService;
+  getUseCase(): AuthUseCase {
+    return this.authUseCase;
   }
 }
 

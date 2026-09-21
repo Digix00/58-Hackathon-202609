@@ -1,6 +1,6 @@
 import { createApp } from "../app/create-app";
-import { AuthService } from "../application/auth/auth.service";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
+import { AuthUseCase } from "../application/usecase/auth.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -17,7 +17,7 @@ import type { Bindings } from "../types";
  */
 export function createApplication(bindings: Bindings) {
   const sessionTtlSeconds = parseSessionTtl(bindings.AUTH_SESSION_TTL_SECONDS);
-  const authService = new AuthService(
+  const authUseCase = new AuthUseCase(
     new D1UserRepository(bindings.DB),
     new D1SessionRepository(bindings.DB),
     new LineApiClient(bindings.LINE_CHANNEL_ID),
@@ -28,8 +28,8 @@ export function createApplication(bindings: Bindings) {
   const healthHandler = new HealthHandler(checkHealth);
 
   return createApp({
-    authHandler: new AuthHandler(authService, sessionTtlSeconds),
-    authService,
+    authHandler: new AuthHandler(authUseCase, sessionTtlSeconds),
+    authUseCase,
     healthHandler,
   });
 }
