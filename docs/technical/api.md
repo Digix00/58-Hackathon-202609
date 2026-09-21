@@ -85,6 +85,24 @@ ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生�
 
 匿名セッションは有効期間内の投稿、既読、リアクション、クイズ回答、学習履歴に利用できる。LINE連携が必要な処理は LIFF 認証済みユーザーまたは LINE Webhook の認証済みユーザーとして扱う。
 
+#### POST /api/v1/sessions/anonymous
+
+匿名セッションを作成する。Request body は持たず、発行回数はレート制限する。
+
+#### Response: 201 Created
+
+~~~json
+{
+  "sessionId": "session_01J...",
+  "expiresAt": "2026-09-28T00:00:00.000Z"
+}
+~~~
+
+- sessionId はサーバーが生成する高エントロピーな opaque string とし、クライアントが内容を解釈・生成してはならない
+- expiresAt は ISO 8601 UTC とする
+- レスポンスにはユーザー情報、LINE user ID、users.id を含めない
+- セッション作成後は、画面向け API の各リクエストへ X-Anonymous-Session-Id を指定する
+
 ### 1.4 共通エラー形式
 
 すべての API エラーは、次の形式に統一する。
@@ -688,7 +706,8 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 - 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
 - quiz.answeredCount は回答済みクイズ数
 - accuracy は correctCount / totalQuestions。totalQuestions が 0 の場合は 0
-- users.deleted_at が設定されたユーザーは 403 USER_DELETED とする
+- LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+- 期限切れまたは無効な匿名セッションは 401 INVALID_ANONYMOUS_SESSION とする
 - 内部 userId や投稿者の識別情報は返さない
 
 ### 6.2 GET /api/v1/history/quiz-answers
