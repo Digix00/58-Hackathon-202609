@@ -19,7 +19,10 @@ make dev
 | 変数 | 用途 | 配置 |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するAPI URL | フロントエンドの環境設定 |
+| `VITE_LINE_LIFF_ID` | LINE MINI AppのLIFF ID | フロントエンドの環境設定 |
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |
+| `LINE_CHANNEL_ID` | LINE IDトークン検証に使うチャネルID | Worker環境変数 |
+| `AUTH_SESSION_TTL_SECONDS` | アプリセッションの有効秒数 | Worker環境変数（任意） |
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
 | AIサービスのAPIキー | クラスタリング、翻訳、音声認識 | Worker環境変数またはSecret |
@@ -92,4 +95,3 @@ make dev
 - LINEの友だち登録イベントと投稿受付を接続する
 - デイリークイズのURLを友だちへ一斉配信する
 - E2Eテスト、フォールバック、保存データ削除手順を確認する
-

@@ -1,8 +1,12 @@
 import type { ErrorHandler } from "hono";
 
+import type { SessionView } from "../application/auth/auth.service";
 import type { Bindings } from "../types";
 
-export const handleError: ErrorHandler<{ Bindings: Bindings }> = (error, c) => {
+export const handleError: ErrorHandler<{
+  Bindings: Bindings;
+  Variables: { auth: SessionView | null };
+}> = (error, c) => {
   console.error(
     JSON.stringify({
       severity: "ERROR",
