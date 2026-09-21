@@ -12,7 +12,7 @@ export function createAuthDependencies() {
       },
     },
     {
-      create: async () => {
+      insert: async () => {
         throw new Error("auth fixture is not used by this test");
       },
       selectByTokenHash: async () => {

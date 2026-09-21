@@ -79,11 +79,15 @@ export class AuthUseCase implements AuthUseCasePort {
   async getOrCreateSession(currentToken?: string): Promise<SessionResult> {
     const currentSession = await this.findSession(currentToken);
     if (currentSession) {
+      const user = await this.getUser(currentSession);
+      if (currentSession.userId && !user) {
+        await this.revokeSession(currentToken);
+        return this.createSession(null);
+      }
+
       return {
         session: currentSession,
-        user: currentSession.userId
-          ? await this.users.selectById(currentSession.userId)
-          : null,
+        user,
       };
     }
 
@@ -96,9 +100,15 @@ export class AuthUseCase implements AuthUseCasePort {
       return null;
     }
 
+    const user = await this.getUser(session);
+    if (session.userId && !user) {
+      await this.revokeSession(currentToken);
+      return null;
+    }
+
     return {
       session,
-      user: session.userId ? await this.users.selectById(session.userId) : null,
+      user,
     };
   }
 
@@ -137,6 +147,10 @@ export class AuthUseCase implements AuthUseCasePort {
       await hashToken(currentToken),
       this.now().toISOString(),
     );
+  }
+
+  private async getUser(session: Session): Promise<User | null> {
+    return session.userId ? this.users.selectById(session.userId) : null;
   }
 
   private async revokeSession(currentToken?: string): Promise<void> {

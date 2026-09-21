@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import type { AuthUseCase } from "../application/usecase/auth.usecase";
+import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
 import { createAuthMiddleware } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { HealthHandler } from "../presentation/health.handler";
@@ -11,25 +11,31 @@ import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {
   authHandler: AuthHandler;
-  authUseCase: AuthUseCase;
+  authUseCase: AuthUseCasePort;
   healthHandler: HealthHandler;
 }
 
 /** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
-export function createApp({ authHandler, authUseCase, healthHandler }: ApplicationDependencies) {
+export function createApp({
+  authHandler,
+  authUseCase,
+  healthHandler,
+}: ApplicationDependencies) {
   const app = new Hono<{
     Bindings: Bindings;
-    Variables: { auth: Awaited<ReturnType<AuthUseCase["getSession"]>> };
+    Variables: {
+      auth: Awaited<ReturnType<AuthUseCasePort["getSession"]>>;
+    };
   }>();
 
   app.use("*", requestLogger);
-  app.use(
-    "*",
-    cors({
-      origin: (_origin, c) => c.env.CORS_ORIGIN ?? "*",
-      credentials: true,
-    }),
-  );
+  app.use("*", (c, next) => {
+    const origin = c.env.CORS_ORIGIN?.trim();
+    return cors({
+      origin: () => origin || "*",
+      credentials: Boolean(origin),
+    })(c, next);
+  });
   app.onError(handleError);
 
   // 同じ式でチェーンし、Hono RPCがルートとレスポンスの型を保持できるようにする。

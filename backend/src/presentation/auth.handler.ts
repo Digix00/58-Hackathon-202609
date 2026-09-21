@@ -2,14 +2,15 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
 
-import { AuthUseCase } from "../application/usecase/auth.usecase";
+import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
+import { getRequestId } from "../app/request-id";
+import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
 import type { Bindings } from "../types";
 
-export const SESSION_COOKIE_NAME = "__Host-session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
   idToken: z.string().min(1).max(4096),
@@ -18,11 +19,11 @@ const lineLoginRequest = z.object({
 const factory = createFactory<{ Bindings: Bindings }>();
 
 export class AuthHandler {
-  private readonly authUseCase: AuthUseCase;
+  private readonly authUseCase: AuthUseCasePort;
   private readonly sessionMaxAgeSeconds: number;
 
   constructor(
-    authUseCase: AuthUseCase,
+    authUseCase: AuthUseCasePort,
     sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS,
   ) {
     this.authUseCase = authUseCase;
@@ -32,11 +33,18 @@ export class AuthHandler {
   }
 
   readonly line = factory.createHandlers(async (c) => {
+    const requestId = setRequestId(c);
     const body = await readJson(c.req.raw);
     const parsed = lineLoginRequest.safeParse(body);
     if (!parsed.success) {
       return c.json(
-        { code: "invalid_request", message: "idToken is required" },
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "idTokenを指定してください",
+            requestId,
+          },
+        },
         400,
       );
     }
@@ -54,15 +62,24 @@ export class AuthHandler {
     } catch (error) {
       if (error instanceof InvalidLineTokenError) {
         return c.json(
-          { code: "invalid_line_token", message: "LINE authentication failed" },
+          {
+            error: {
+              code: "INVALID_LINE_TOKEN",
+              message: "LINE認証に失敗しました",
+              requestId,
+            },
+          },
           401,
         );
       }
       if (error instanceof LineAuthConfigurationError) {
         return c.json(
           {
-            code: "auth_not_configured",
-            message: "LINE authentication is not configured",
+            error: {
+              code: "AUTH_NOT_CONFIGURED",
+              message: "LINE認証が設定されていません",
+              requestId,
+            },
           },
           503,
         );
@@ -72,6 +89,7 @@ export class AuthHandler {
   });
 
   readonly session = factory.createHandlers(async (c) => {
+    setRequestId(c);
     const result = await this.authUseCase.getOrCreateSession(
       getCookie(c, SESSION_COOKIE_NAME),
     );
@@ -83,14 +101,20 @@ export class AuthHandler {
   });
 
   readonly logout = factory.createHandlers(async (c) => {
+    setRequestId(c);
     await this.authUseCase.logout(getCookie(c, SESSION_COOKIE_NAME));
     deleteCookie(c, SESSION_COOKIE_NAME, { path: "/", secure: true });
     return c.json({ authenticated: false, user: null });
   });
+}
 
-  getUseCase(): AuthUseCase {
-    return this.authUseCase;
-  }
+function setRequestId(c: {
+  header(name: string, value: string): void;
+  req: { raw: Request };
+}): string {
+  const requestId = getRequestId(c.req.raw);
+  c.header("X-Request-Id", requestId);
+  return requestId;
 }
 
 function setSessionCookie(
@@ -107,12 +131,9 @@ function setSessionCookie(
   });
 }
 
-function toResponse(result: {
-  session: { userId: string | null };
-  user: { id: string } | null;
-}) {
+function toResponse(result: { user: { id: string } | null }) {
   return {
-    authenticated: result.session.userId !== null,
+    authenticated: result.user !== null,
     user: result.user ? { id: result.user.id } : null,
   };
 }

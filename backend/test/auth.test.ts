@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
@@ -44,15 +44,6 @@ function cookieFrom(response: Response): string {
 }
 
 describe("authentication routes", () => {
-  beforeAll(async () => {
-    await env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY NOT NULL, line_user_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
-    ).run();
-    await env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY NOT NULL, token_hash TEXT NOT NULL UNIQUE, user_id TEXT, expires_at TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, FOREIGN KEY (user_id) REFERENCES users(id))",
-    ).run();
-  });
-
   it("creates an anonymous session and restores it", async () => {
     const app = createTestApp();
 

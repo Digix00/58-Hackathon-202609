@@ -54,10 +54,10 @@ export class LineApiClient implements LineTokenVerifier {
     if (
       typeof payload.sub !== "string" ||
       payload.sub.length === 0 ||
-      (payload.iss !== undefined && payload.iss !== LINE_ISSUER) ||
-      (payload.aud !== undefined && payload.aud !== this.channelId) ||
-      (typeof payload.exp === "number" &&
-        payload.exp <= Math.floor(Date.now() / 1000))
+      payload.iss !== LINE_ISSUER ||
+      payload.aud !== this.channelId ||
+      typeof payload.exp !== "number" ||
+      payload.exp <= Math.floor(Date.now() / 1000)
     ) {
       throw new InvalidLineTokenError();
     }

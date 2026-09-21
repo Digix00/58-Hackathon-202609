@@ -70,13 +70,15 @@ describe("GET /health", () => {
       scenario: "uses the configured CORS origin",
       corsOrigin: "https://frontend.example",
       expectedOrigin: "https://frontend.example",
+      expectedCredentials: "true",
     },
     {
-      scenario: "keeps the current wildcard behavior when no origin is configured",
+      scenario: "uses a non-credentialed wildcard when no origin is configured",
       corsOrigin: undefined,
       expectedOrigin: "*",
+      expectedCredentials: null,
     },
-  ])("$scenario", async ({ corsOrigin, expectedOrigin }) => {
+  ])("$scenario", async ({ corsOrigin, expectedOrigin, expectedCredentials }) => {
     const healthHandler = new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -101,5 +103,8 @@ describe("GET /health", () => {
     );
 
     expect(res.headers.get("access-control-allow-origin")).toBe(expectedOrigin);
+    expect(res.headers.get("access-control-allow-credentials")).toBe(
+      expectedCredentials,
+    );
   });
 });

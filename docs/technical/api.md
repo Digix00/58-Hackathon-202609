@@ -25,11 +25,10 @@ WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の
 
 ### 1.2 リクエストとレスポンス
 
-公開閲覧 API は認証ヘッダーなしで利用できる。操作 API は LIFF ID token を Authorization Bearer で指定する。
+公開閲覧 API は認証ヘッダーなしで利用できる。操作 API は、LINE ID token の検証後に発行される HttpOnly Cookie セッションで認証する。
 
 ~~~http
-Authorization: Bearer <LIFF_ID_TOKEN>  # LINEログイン済みLIFF利用時
-X-Anonymous-Session-Id: <ANONYMOUS_SESSION_ID>  # Web匿名利用時
+Cookie: __Host-session=<SESSION_TOKEN>  # サーバーが発行し、ブラウザが自動送信
 Content-Type: application/json
 Accept: application/json
 ~~~
@@ -40,7 +39,7 @@ Accept: application/json
 - 日時は ISO 8601 UTC の文字列（末尾が Z）で返す
 - クイズの業務日だけは Asia/Tokyo 基準の YYYY-MM-DD 文字列で返す
 - ID は opaque string とし、クライアントは ID の形式や採番規則に依存しない
-- クライアントが userId などのユーザー識別子を Request body や Query に指定しても、サーバーは認証ヘッダーから解決した認証主体を使う
+- クライアントが userId などのユーザー識別子を Request body や Query に指定しても、サーバーは Cookie セッションから解決した認証主体を使う
 - 空文字列は未指定として扱わず、必須項目では validation error とする
 - 任意項目を指定しない場合は、原則としてキー自体を省略する
 
@@ -51,7 +50,7 @@ Accept: application/json
 | 認証方式 | 対象 | 認証方法 |
 | --- | --- | --- |
 | 公開閲覧（認証不要） | フィード、投稿詳細、公開クラスタ | 認証ヘッダーなし。通常ブラウザと未ログインのLIFFから利用 |
-| LIFF | 投稿、リアクション、既読、クイズ、履歴、音声入力 | Authorization Bearer に LIFF の ID token を指定 |
+| LINE認証済みセッション | 投稿、リアクション、既読、クイズ、履歴、音声入力 | `POST /api/v1/auth/line` 後の HttpOnly Cookie を自動送信 |
 | LINE 署名 | LINE Webhook | x-line-signature を channel secret で検証 |
 | 内部認証 | LINE Broadcast API を起動する内部 API | Authorization Bearer に内部トークンを指定 |
 | 不要 | 公開閲覧 API、GET /health | 公開閲覧 API は書き込みや個人履歴を扱わず、health は Worker / D1 の疎通確認のみ |
@@ -60,10 +59,11 @@ Accept: application/json
 
 1. フロントエンドが LIFF SDK の liff.init と liff.login を実行する
 2. フロントエンドが liff.getIDToken で ID token を取得する
-3. フロントエンドが Authorization Bearer に ID token を指定して通常 API を呼び出す
+3. フロントエンドが `POST /api/v1/auth/line` の JSON body に ID token を指定する
 4. バックエンドが LINE Login v2.1 の Verify ID token API へ ID token と期待する channel ID を送る
 5. 検証結果の subject（LINE user ID）から users.id を解決または upsert する
-6. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
+6. バックエンドが HttpOnly Cookie のセッションを発行し、以降の API へ自動送信させる
+7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
 次の値は信頼しない。
 
@@ -228,6 +228,9 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | Method | Path | 優先度 | 認証 | 用途 |
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
+| POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
+| GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | セッションを復元し、未存在時は匿名セッションを発行 |
+| POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |

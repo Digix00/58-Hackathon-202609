@@ -39,6 +39,37 @@ describe("LineApiClient", () => {
     expect((init.body as URLSearchParams).get("client_id")).toBe("channel-123");
   });
 
+  it("rejects a verification response that omits required claims", async () => {
+    const payloads = [
+      {
+        sub: "U123",
+        aud: "channel-123",
+        exp: Math.floor(Date.now() / 1000) + 60,
+      },
+      {
+        sub: "U123",
+        iss: "https://access.line.me",
+        exp: Math.floor(Date.now() / 1000) + 60,
+      },
+      {
+        sub: "U123",
+        iss: "https://access.line.me",
+        aud: "channel-123",
+      },
+    ];
+
+    for (const payload of payloads) {
+      const fetcher = vi.fn<typeof fetch>(async () =>
+        new Response(JSON.stringify(payload), { status: 200 }),
+      );
+      const client = new LineApiClient("channel-123", fetcher);
+
+      await expect(client.verify("raw-id-token")).rejects.toBeInstanceOf(
+        InvalidLineTokenError,
+      );
+    }
+  });
+
   it("rejects a failed LINE verification without exposing the response body", async () => {
     const fetcher = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ error: "invalid token" }), { status: 400 }),
