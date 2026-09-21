@@ -29,6 +29,8 @@ read AGENTS.md
 
 プロダクトの詳細な要件は `docs/requirements/product.md`、技術的な前提は `docs/technical/`、日々の開発・運用手順は `docs/technical/development.md` と `docs/workflows/` を正とする。
 
+フロントエンドの実装方針・画面設計を確認するときは、`docs/requirements/design-guidelines.md`、`docs/requirements/screens.md`、`docs/requirements/screens/` を参照する。これらのドキュメントが存在しない場合も、画面実装の判断に必要な内容を追加する前に、要件や既存の設計方針との整合性を確認する。
+
 ## 3. 作業開始時に読むもの
 
 作業の最初に、次の順で確認する。すべてを毎回精読する必要はないが、変更対象に関係する資料は必ず読むこと。
