@@ -1,17 +1,9 @@
-export interface AuthUser {
-  id: string;
-  lineUserId: string;
-}
-
-export interface AuthSession {
-  id: string;
-  userId: string | null;
-  expiresAt: string;
-}
+import type { Session } from "../entity/session";
+import type { User } from "../entity/user";
 
 export interface UserRepository {
-  findOrCreateByLineUserId(lineUserId: string, userId: string): Promise<AuthUser>;
-  findById(userId: string): Promise<AuthUser | null>;
+  selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
+  selectById(userId: string): Promise<User | null>;
 }
 
 export interface SessionRepository {
@@ -21,7 +13,7 @@ export interface SessionRepository {
     userId: string | null;
     expiresAt: string;
     createdAt: string;
-  }): Promise<AuthSession>;
-  findByTokenHash(tokenHash: string, now: string): Promise<AuthSession | null>;
-  revokeByTokenHash(tokenHash: string, revokedAt: string): Promise<void>;
+  }): Promise<Session>;
+  selectByTokenHash(tokenHash: string, now: string): Promise<Session | null>;
+  updateRevokedAtByTokenHash(tokenHash: string, revokedAt: string): Promise<void>;
 }

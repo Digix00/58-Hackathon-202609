@@ -1,80 +1,74 @@
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+
 import type {
-  AuthSession,
-  AuthUser,
   SessionRepository,
   UserRepository,
 } from "../../application/auth/auth.repository";
-
-interface UserRow {
-  id: string;
-  line_user_id: string;
-}
-
-interface SessionRow {
-  id: string;
-  user_id: string | null;
-  expires_at: string;
-}
+import type { Session } from "../../application/entity/session";
+import type { User } from "../../application/entity/user";
+import { sessions, users } from "./schema";
 
 export class D1UserRepository implements UserRepository {
-  private readonly db: D1Database;
+  private readonly db: ReturnType<typeof drizzle>;
 
   constructor(db: D1Database) {
-    this.db = db;
+    this.db = drizzle(db);
   }
 
-  async findOrCreateByLineUserId(
+  async selectOrCreateByLineUserId(
     lineUserId: string,
     userId: string,
-  ): Promise<AuthUser> {
-    const existing = await this.db
-      .prepare("SELECT id, line_user_id FROM users WHERE line_user_id = ?")
-      .bind(lineUserId)
-      .first<UserRow>();
+  ): Promise<User> {
+    const existing = await this.selectByLineUserId(lineUserId);
 
     if (existing) {
-      return { id: existing.id, lineUserId: existing.line_user_id };
+      return existing;
     }
 
     const now = new Date().toISOString();
-    try {
-      await this.db
-        .prepare(
-          "INSERT INTO users (id, line_user_id, created_at, updated_at) VALUES (?, ?, ?, ?)",
-        )
-        .bind(userId, lineUserId, now, now)
-        .run();
-    } catch {
-      // A concurrent request may have created the same LINE user. Re-read below.
-    }
+    await this.db
+      .insert(users)
+      .values({
+        id: userId,
+        lineUserId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: users.lineUserId })
+      .run();
 
-    const created = await this.db
-      .prepare("SELECT id, line_user_id FROM users WHERE line_user_id = ?")
-      .bind(lineUserId)
-      .first<UserRow>();
+    const created = await this.selectByLineUserId(lineUserId);
 
     if (!created) {
       throw new Error("failed to create auth user");
     }
 
-    return { id: created.id, lineUserId: created.line_user_id };
+    return created;
   }
 
-  async findById(userId: string): Promise<AuthUser | null> {
-    const row = await this.db
-      .prepare("SELECT id, line_user_id FROM users WHERE id = ?")
-      .bind(userId)
-      .first<UserRow>();
+  async selectById(userId: string): Promise<User | null> {
+    return (await this.db
+      .select({ id: users.id, lineUserId: users.lineUserId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .get()) ?? null;
+  }
 
-    return row ? { id: row.id, lineUserId: row.line_user_id } : null;
+  private async selectByLineUserId(lineUserId: string): Promise<User | null> {
+    return (await this.db
+      .select({ id: users.id, lineUserId: users.lineUserId })
+      .from(users)
+      .where(eq(users.lineUserId, lineUserId))
+      .get()) ?? null;
   }
 }
 
 export class D1SessionRepository implements SessionRepository {
-  private readonly db: D1Database;
+  private readonly db: ReturnType<typeof drizzle>;
 
   constructor(db: D1Database) {
-    this.db = db;
+    this.db = drizzle(db);
   }
 
   async create(session: {
@@ -83,18 +77,16 @@ export class D1SessionRepository implements SessionRepository {
     userId: string | null;
     expiresAt: string;
     createdAt: string;
-  }): Promise<AuthSession> {
+  }): Promise<Session> {
     await this.db
-      .prepare(
-        "INSERT INTO sessions (id, token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
-      )
-      .bind(
-        session.id,
-        session.tokenHash,
-        session.userId,
-        session.expiresAt,
-        session.createdAt,
-      )
+      .insert(sessions)
+      .values({
+        id: session.id,
+        tokenHash: session.tokenHash,
+        userId: session.userId,
+        expiresAt: session.expiresAt,
+        createdAt: session.createdAt,
+      })
       .run();
 
     return {
@@ -104,28 +96,37 @@ export class D1SessionRepository implements SessionRepository {
     };
   }
 
-  async findByTokenHash(
+  async selectByTokenHash(
     tokenHash: string,
     now: string,
-  ): Promise<AuthSession | null> {
-    const row = await this.db
-      .prepare(
-        "SELECT id, user_id, expires_at FROM sessions WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?",
+  ): Promise<Session | null> {
+    return (await this.db
+      .select({
+        id: sessions.id,
+        userId: sessions.userId,
+        expiresAt: sessions.expiresAt,
+      })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.tokenHash, tokenHash),
+          isNull(sessions.revokedAt),
+          gt(sessions.expiresAt, now),
+        ),
       )
-      .bind(tokenHash, now)
-      .first<SessionRow>();
-
-    return row
-      ? { id: row.id, userId: row.user_id, expiresAt: row.expires_at }
-      : null;
+      .get()) ?? null;
   }
 
-  async revokeByTokenHash(tokenHash: string, revokedAt: string): Promise<void> {
+  async updateRevokedAtByTokenHash(
+    tokenHash: string,
+    revokedAt: string,
+  ): Promise<void> {
     await this.db
-      .prepare(
-        "UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+      .update(sessions)
+      .set({ revokedAt })
+      .where(
+        and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)),
       )
-      .bind(revokedAt, tokenHash)
       .run();
   }
 }

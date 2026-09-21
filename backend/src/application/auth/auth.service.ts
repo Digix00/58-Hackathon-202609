@@ -1,16 +1,16 @@
 import type {
-  AuthSession,
-  AuthUser,
   SessionRepository,
   UserRepository,
 } from "./auth.repository";
+import type { Session } from "../entity/session";
+import type { User } from "../entity/user";
 import type { LineTokenVerifier } from "./line-token-verifier";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export interface SessionView {
-  session: AuthSession;
-  user: AuthUser | null;
+  session: Session;
+  user: User | null;
 }
 
 export interface SessionResult extends SessionView {
@@ -48,7 +48,7 @@ export class AuthService {
     currentToken?: string,
   ): Promise<SessionResult> {
     const identity = await this.lineTokenVerifier.verify(idToken);
-    const user = await this.users.findOrCreateByLineUserId(
+    const user = await this.users.selectOrCreateByLineUserId(
       identity.lineUserId,
       this.createId("user"),
     );
@@ -72,7 +72,7 @@ export class AuthService {
       return {
         session: currentSession,
         user: currentSession.userId
-          ? await this.users.findById(currentSession.userId)
+          ? await this.users.selectById(currentSession.userId)
           : null,
       };
     }
@@ -88,7 +88,7 @@ export class AuthService {
 
     return {
       session,
-      user: session.userId ? await this.users.findById(session.userId) : null,
+      user: session.userId ? await this.users.selectById(session.userId) : null,
     };
   }
 
@@ -118,12 +118,12 @@ export class AuthService {
 
   private async findSession(
     currentToken?: string,
-  ): Promise<AuthSession | null> {
+  ): Promise<Session | null> {
     if (!currentToken) {
       return null;
     }
 
-    return this.sessions.findByTokenHash(
+    return this.sessions.selectByTokenHash(
       await hashToken(currentToken),
       this.now().toISOString(),
     );
@@ -134,7 +134,7 @@ export class AuthService {
       return;
     }
 
-    await this.sessions.revokeByTokenHash(
+    await this.sessions.updateRevokedAtByTokenHash(
       await hashToken(currentToken),
       this.now().toISOString(),
     );
