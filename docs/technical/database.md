@@ -225,14 +225,12 @@ erDiagram
 
   LINE_BROADCASTS {
     TEXT id PK
-    TEXT quiz_id FK
+    TEXT quiz_id FK, UK
     TEXT idempotency_key UK
     TEXT status
     TEXT requested_at
     TEXT sent_at
     TEXT finished_at
-    TEXT line_retry_key
-    TEXT line_request_id
     TEXT last_error
   }
 
@@ -243,18 +241,20 @@ erDiagram
     TEXT status
     INTEGER http_status
     TEXT line_request_id
-    TEXT retry_key
+    TEXT line_accepted_request_id
+    TEXT line_retry_key
     TEXT attempted_at
     TEXT error_message
   }
 
   LINE_WEBHOOK_EVENTS {
-    TEXT provider_event_id PK
+    TEXT webhook_event_id PK
     TEXT user_id FK
     TEXT event_type
     TEXT status
     TEXT received_at
     TEXT processed_at
+    TEXT error_code
   }
 ```
 
@@ -318,11 +318,26 @@ quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| line_webhook_events | provider_event_id, user_id, event_type, status, received_at, processed_at, error_code | LINE の再送に対する冪等性を確保。生の webhook payload は保存しない。user_id は検証済みイベントから解決する |
-| line_broadcasts | id, quiz_id, idempotency_key, status, requested_at, sent_at, finished_at, line_retry_key, line_request_id, last_error | デイリークイズを全友だちへ送る一回の実行単位。idempotency_key は daily-quiz:YYYY-MM-DD |
-| line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, retry_key, attempted_at, error_message | LINE Broadcast API の呼び出し一回につき一行。配信先ユーザーごとの明細ではない |
+| line_webhook_events | webhook_event_id, user_id, event_type, status, received_at, processed_at, error_code | LINE の再送に対する冪等性を確保。webhook_event_id は LINE の webhookEventId に対応し、user_id は user source の場合だけ入り得る nullable の外部キー。生の webhook payload は保存しない |
+| line_broadcasts | id, quiz_id, idempotency_key, status, requested_at, sent_at, finished_at, last_error | デイリークイズを全友だちへ送る一回の論理実行単位。quiz_id と idempotency_key をそれぞれ UNIQUE にする |
+| line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, line_accepted_request_id, line_retry_key, attempted_at, error_message | LINE Broadcast API の HTTP 呼び出し一回につき一行。配信先ユーザーごとの明細ではない。タイムアウト再試行時は同じ line_retry_key を記録する |
 
-POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。API 呼び出しが失敗した場合だけ、line_broadcast_attempts に試行結果を追加し、line_broadcasts を再試行可能な状態にする。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
+POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。line_broadcasts はクイズごとの論理配信、line_broadcast_attempts はその論理配信に対する HTTP 試行履歴として分離する。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。タイムアウトなど結果不明のときは同じ Retry Key で再試行し、LINE が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みとして論理的な成功に扱う。line_broadcasts.status=succeeded は LINE が一回の Broadcast API リクエストを受理したことを示すだけで、友だち一人ひとりの配信完了を D1 で追跡するものではない。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
+
+#### API項目と物理カラムの対応
+
+API の camelCase と D1/SQLite の snake_case は次のように対応する。受信者ごとの配信行は作成せず、論理配信と HTTP 試行だけを保存する。
+
+| API / LINE項目 | D1/SQLite カラム | 用途 |
+| --- | --- | --- |
+| webhookEventId | line_webhook_events.webhook_event_id | Webhook の重複処理を防ぐ外部イベント ID |
+| quizId | line_broadcasts.quiz_id | 配信対象クイズ。1クイズにつき1論理配信 |
+| idempotencyKey | line_broadcasts.idempotency_key | アプリ側の日次実行キー |
+| broadcastId | line_broadcasts.id | アプリ側の論理配信 ID |
+| X-Line-Retry-Key | line_broadcast_attempts.line_retry_key | LINE API の再試行キー |
+| X-Line-Request-Id | line_broadcast_attempts.line_request_id | LINE が返す試行単位のリクエスト ID |
+| X-Line-Accepted-Request-Id | line_broadcast_attempts.line_accepted_request_id | 409 時に受理済みの先行リクエストを識別する ID |
+
 ## 5. SQLite で必ず設定する制約
 
 ### 一意性
@@ -333,6 +348,7 @@ POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同�
 - concerns の同一 user による既読集約
 - quiz_participants の quiz_id と user_id
 - quiz_attempts の quiz_id と user_id
+- line_broadcasts.quiz_id
 - line_broadcasts.idempotency_key
 - line_broadcast_attempts の broadcast_id と attempt_number
 
@@ -344,8 +360,9 @@ POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同�
 - concern_processing_jobs.status: pending, running, succeeded, failed
 - concern_representations.locale: ja-Hira, en
 - quizzes.status: draft, published, closed, hidden
+- line_webhook_events.status: received, processed, ignored, failed
 - line_broadcasts.status: pending, running, succeeded, failed
-- line_broadcast_attempts.status: started, succeeded, failed
+- line_broadcast_attempts.status: started, succeeded, failed（LINE の 409 + X-Line-Accepted-Request-Id は succeeded として記録）
 - 数値の display_order, score, view_count, attempt_count, attempt_number は 0 以上
 
 属性値の表示名はデータベースに日本語の自由入力で保存せず、API のコード値を利用する。例えば年代は 10s, 20s, 30s, 40s, 50s_plus, no_answer、性別は male, female, non_binary, other, no_answer とする。
@@ -435,8 +452,10 @@ flowchart TD
 2. 対象日の published な quizzes を一件取得する。
 3. idempotency_key=daily-quiz:YYYY-MM-DD で line_broadcasts を作成する。既に succeeded なら何もしない。failed または未完了なら再実行する。
 4. クイズ URL を含むメッセージを POST https://api.line.me/v2/bot/message/broadcast に一回送信する。配信先は LINE 公式アカウントの全友だちであり、ユーザーごとの Push API 呼び出しは行わない。
-5. API 呼び出しごとに line_broadcast_attempts を追加し、HTTP ステータス、LINE の request ID、Retry Key、エラーを記録する。
-6. 成功時は line_broadcasts.sent_at / finished_at と status=succeeded を更新し、失敗時は last_error と status=failed を保存して再試行できるようにする。
+5. API 呼び出しごとに line_broadcast_attempts を追加し、HTTP ステータス、LINE の X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key、エラーを記録する。
+6. 成功時は line_broadcasts.sent_at / finished_at と status=succeeded を更新し、失敗時は last_error と status=failed を保存して再試行できるようにする。タイムアウトなど結果不明の再試行は同じ line_retry_key を使い、LINE の 409 + X-Line-Accepted-Request-Id は受理済みの成功として扱う。
+
+line_broadcasts.status=succeeded は LINE Broadcast API が論理リクエストを受理した状態であり、全友だちへの個別配信結果を意味しない。したがって、line_broadcast_deliveries のような受信者単位のテーブルは作成しない。
 
 Cron と scheduled handler の仕様は [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) と [Scheduled Handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/) を参照する。
 ## 7. マイグレーションと実装順
