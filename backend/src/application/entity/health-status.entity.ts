@@ -3,4 +3,5 @@ export interface HealthStatus {
   status: "ok";
   checkedAt: string;
   database: "ok" | "error";
+  version: string;
 }

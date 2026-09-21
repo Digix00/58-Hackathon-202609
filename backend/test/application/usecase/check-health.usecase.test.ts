@@ -28,6 +28,7 @@ describe("CheckHealthUseCase", () => {
       status: "ok",
       checkedAt: "2026-09-17T00:00:00.000Z",
       database,
+      version: "0.1.0",
     });
     expect(repository.ping).toHaveBeenCalledOnce();
   });

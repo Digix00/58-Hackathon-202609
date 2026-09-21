@@ -13,7 +13,9 @@ function App() {
     apiClient.health
       .$get()
       .then((res) => res.json())
-      .then((data) => setApiHealth(`${data.status} (db: ${data.database})`))
+      .then((data) =>
+        setApiHealth(`${data.status} (db: ${data.database}, v${data.version})`),
+      )
       .catch(() => setApiHealth('unreachable'))
   }, [])
 
