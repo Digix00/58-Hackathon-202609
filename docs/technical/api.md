@@ -19,17 +19,17 @@ HTTP APIの共通仕様、エンドポイント、データ形式、エラーを
 | Method | Path | 優先度 | 認証 | 用途 |
 | --- | --- | --- | --- | --- |
 | GET | `/health` | 現在実装済み | 不要 | WorkerとD1の疎通確認 |
-| POST | `/api/v1/concerns` | MVP | 匿名可 | 悩みを投稿する |
-| GET | `/api/v1/concerns` | MVP | 匿名可 | 悩みを新着または推薦順で取得する |
-| GET | `/api/v1/concerns/:id` | MVP | 匿名可 | 悩みの詳細を取得する |
-| POST | `/api/v1/concerns/:id/reactions` | MVP | 匿名可 | リアクションを登録する |
-| POST | `/api/v1/concerns/:id/views` | MVP | 匿名可 | 既読を記録する |
-| GET | `/api/v1/clusters` | デモ必須 | 匿名可 | クラスタと投稿数を取得する |
-| GET | `/api/v1/quiz/today` | デモ必須 | 匿名可 | 3ユーザーと3件の悩みを取得する |
-| POST | `/api/v1/quiz/answers` | デモ必須 | 匿名可 | 対応付けクイズの回答を登録する |
-| GET | `/api/v1/history` | デモ必須 | セッションまたはLINE | 学習履歴を取得する |
-| POST | `/api/v1/speech/transcriptions` | デモ必須 | 匿名可 | 音声を一時的に文字起こしする |
-| POST | `/api/v1/webhooks/line` | デモ必須 | LINE署名 | LINEの友だち登録と投稿を受け取る |
+| POST | `/api/v1/concerns` | MVP | LINEログイン（LIFF内のみ） | 悩みを投稿する |
+| GET | `/api/v1/concerns` | MVP | 不要（閲覧のみ） | 未ログインは新着またはランダム、LINEログイン済みは推薦順で悩みを取得する |
+| GET | `/api/v1/concerns/:id` | MVP | 不要（閲覧のみ） | 悩みの詳細を取得する |
+| POST | `/api/v1/concerns/:id/reactions` | MVP | LINEログイン（LIFF内のみ） | リアクションを登録する |
+| POST | `/api/v1/concerns/:id/views` | MVP | LINEログイン（LIFF内のみ） | 既読を記録する |
+| GET | `/api/v1/clusters` | デモ必須 | 不要（閲覧のみ） | クラスタと投稿数を取得する |
+| GET | `/api/v1/quiz/today` | デモ必須 | LINEログイン（LIFF内のみ） | 3ユーザーと3件の悩みを取得する |
+| POST | `/api/v1/quiz/answers` | デモ必須 | LINEログイン（LIFF内のみ） | 対応付けクイズの回答を登録する |
+| GET | `/api/v1/history` | デモ必須 | LINEログイン（LIFF内のみ） | 学習履歴を取得する |
+| POST | `/api/v1/speech/transcriptions` | デモ必須 | LINEログイン（LIFF内のみ） | 音声を一時的に文字起こしする |
+| POST | `/api/v1/webhooks/line` | デモ必須 | LINE署名 | LINEの友だち登録イベントを受け取る |
 | POST | `/api/v1/line/broadcasts/daily-quiz` | デモ必須 | 内部認証 | 友だち登録済みユーザーへクイズを一斉配信する |
 
 ### 投稿リクエストの例
@@ -40,11 +40,11 @@ HTTP APIの共通仕様、エンドポイント、データ形式、エラーを
   "ageGroup": "20s",
   "gender": "回答しない",
   "region": "大阪府",
-  "inputMethod": "web"
+  "inputMethod": "liff"
 }
 ```
 
-`ageGroup`、`gender`、`region`、`inputMethod` は任意とする。`inputMethod` は `web`、`line`、`voice` のいずれかとする。正確な年齢、住所、緯度経度は受け付けない。
+`ageGroup`、`gender`、`region`、`inputMethod` は任意とする。`inputMethod` は `liff` または `voice` のいずれかとする。通常ブラウザからの投稿リクエストは受け付けない。正確な年齢、住所、緯度経度は受け付けない。
 
 ### 投稿レスポンスの例
 
@@ -55,7 +55,7 @@ HTTP APIの共通仕様、エンドポイント、データ形式、エラーを
   "ageGroup": "20s",
   "gender": "回答しない",
   "region": "大阪府",
-  "inputMethod": "web",
+  "inputMethod": "liff",
   "representations": {
     "jaHira": null,
     "en": null
@@ -81,4 +81,3 @@ HTTP APIの共通仕様、エンドポイント、データ形式、エラーを
 | 429 | 短時間の過剰な投稿や操作 |
 | 500 | 想定外のサーバーエラー |
 | 503 | AIや外部サービスが利用できないが、再試行可能 |
-

@@ -13,13 +13,14 @@
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_reactions` | concern_id、actor_key、種類、日時 | リアクションの重複防止と集計 |
 | `concern_views` | concern_id、actor_key、日時 | 既読と推薦に利用 |
-| `anonymous_sessions` | actor_key、作成日時、失効日時 | 匿名利用者を一時的に識別 |
 | `quizzes` | id、対象日、状態、作成日時 | デイリークイズ |
 | `quiz_participants` | quiz_id、actor_key、concern_id、属性、表示順 | クイズに登場する3ユーザー |
 | `quiz_options` | quiz_id、concern_id、表示順 | 順番を混ぜて表示する3件の実投稿 |
 | `quiz_answers` | quiz_id、actor_key、participant_id、selected_concern_id、日時 | 対応付け回答の集計 |
 | `users` | id、actor_key、LINE user IDのハッシュ、友だち状態、日時 | LINE配信とユーザー単位の履歴 |
 | `learning_histories` | actor_key、concern_id、cluster_id、quiz_id、イベント種別、日時 | 閲覧とクイズの履歴 |
+
+`actor_key` は、LINEログインで確認した利用者識別子から生成する内部用の値である。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`actor_key`、既読、リアクション、クイズ回答、学習履歴を記録しない。
 
 ### 投稿の状態
 
@@ -43,8 +44,6 @@
 ### 保存、削除、匿名化
 
 - 投稿本文、属性、リアクション、学習履歴はデモ期間中に必要な範囲で保存する
-- 匿名セッションには有効期限を設定する
 - ユーザーが削除を要求した投稿は公開対象から直ちに除外する
 - 生の音声、画像、IPアドレス、LINEアクセストークンは保存しない
 - デモ終了時に投稿、翻訳、学習履歴、LINE連携情報を削除する
-
