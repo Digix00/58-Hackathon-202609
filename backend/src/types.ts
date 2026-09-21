@@ -7,7 +7,6 @@ declare global {
       LINE_CHANNEL_ID?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;
-      TEST_MIGRATIONS: Array<{ name: string; queries: string[] }>;
     }
   }
 }
