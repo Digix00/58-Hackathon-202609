@@ -35,7 +35,7 @@ Accept: application/json
 - 通常の JSON Request / Response は UTF-8 の JSON とする
 - 音声文字起こしだけは Content-Type: multipart/form-data を使用する
 - JSON のキーは camelCase とする
--日時は ISO 8601 UTC の文字列（末尾が Z）で返す
+- 日時は ISO 8601 UTC の文字列（末尾が Z）で返す
 - クイズの業務日だけは Asia/Tokyo 基準の YYYY-MM-DD 文字列で返す
 - ID は opaque string とし、クライアントは ID の形式や採番規則に依存しない
 - クライアントが userId、lineUserId、actorKey を Request body や Query に指定しても、サーバーは認証済みトークンから解決したユーザーを使う
@@ -165,6 +165,8 @@ regionCode は regions マスタで定義されたコードを指定する。都
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗したが原文は利用可能
 
+representations.jaHira と representations.en は、作成 API では未生成時に null、一覧・詳細 API では pending、ready、failed の状態値を返す。ready の本文は language の選択対象となり、pending または failed の場合は原文へフォールバックする。
+
 ### 1.7 ページネーション
 
 一覧 API は cursor pagination を利用する。
@@ -231,7 +233,7 @@ LIFF 認証済みユーザーの悩みを保存する。保存と非同期処理
 
 - body は必須。前後の空白を trim した後、1〜1000 文字
 - ageGroup は任意。指定時は定義済みの年代コードだけを受け付ける
-- gender は任意。指定しない場合と no_answer は区別して扱ってよい
+- gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
 - regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
 - inputMethod は必須で、web または voice のいずれか
 - userId、lineUserId、actorKey は Request body に含めない
@@ -349,7 +351,7 @@ reasonCode の初期値は次のとおり。
 
 公開済みの悩みを 1 件返す。
 
-- Response の item 形式は GET /api/v1/concerns の items と同じ
+- Response の item 形式は GET /api/v1/concerns の items と同じ。ただし詳細取得では recommendation を省略する
 - 非公開または存在しない concernId は 404 NOT_FOUND
 - 詳細取得だけでは既読にしない。画面表示後に 3.5 の既読 API を呼び出す
 - 投稿者を特定できる users.id、LINE user ID、LINE profile 情報は返さない
@@ -814,6 +816,8 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 ~~~
 
 同じ quizDate の配信がすでに succeeded の場合は、LINE API を再度呼び出さず、200 OK で既存の成功結果を返す。
+
+同じ idempotencyKey の配信が running 中の場合は、二つ目の LINE API 呼び出しを行わず、409 BROADCAST_IN_PROGRESS を返す。
 
 LINE API が一時的に失敗した場合は、失敗した attempt を保存したうえで 503 BROADCAST_UPSTREAM_UNAVAILABLE を返す。failed の配信は同じ quizDate の idempotencyKey で再試行する。
 
