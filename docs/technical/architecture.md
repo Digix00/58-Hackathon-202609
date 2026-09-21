@@ -17,7 +17,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  Sources["LIFF Web LINE 音声"] --> Worker["Hono Worker"]
+  Sources["Web LINE 音声"] --> Worker["Hono Worker"]
   Worker --> D1["D1"]
   Worker --> AI["AI処理"]
   Worker --> Output["Web LINE"]
@@ -36,12 +36,6 @@ flowchart LR
 - `app`: Honoアプリ、共通middleware、エラーハンドラー
 
 リクエストごとにRepositoryやUseCaseを生成せず、現在のComposition Rootの方針を踏襲する。
-
-### LINEミニアプリの認証
-
-LIFF のフロントエンドは `liff.init()` と `liff.login()` でログインし、ID token を `Authorization: Bearer <ID_TOKEN>` で Hono API へ送る。バックエンドは LINE Login v2.1 の Verify ID token API で検証し、token の subject から `users.id` を解決する。リクエスト本文の user_id は認証情報として扱わない。
-
-LINE webhook は `X-Line-Signature` を検証し、日次一斉配信 endpoint はエンドユーザーの token ではなく内部認証を使う。
 
 ### 非同期処理
 
@@ -89,7 +83,6 @@ LINE webhook は `X-Line-Signature` を検証し、日次一斉配信 endpoint �
 - 投稿、リアクション、クイズ回答には過剰利用を抑止する仕組みを設ける
 - ログへ投稿本文、IPアドレス、アクセストークンを出力しない
 - LINE webhookは署名検証し、配信APIは内部認証で保護する
-- ID token、アクセストークン、LINE user IDの生値をログへ出力・保存しない
 
 ### アクセシビリティ
 
@@ -104,8 +97,8 @@ LINE webhook は `X-Line-Signature` を検証し、日次一斉配信 endpoint �
 
 現時点では、次の方針を実装上の前提とする。
 
-1. 入口はLINEミニアプリ（LIFF）とし、音声入力もLIFF内で提供する
-2. 全ユーザーにLIFF認証を必須とし、匿名セッション用のテーブルは持たない
+1. 入口はWeb、LINE、音声入力とする
+2. ログインを必須にせず、匿名セッションとLINEの友だち登録を併用する
 3. 投稿保存と外部処理を分離し、AI、翻訳、音声認識の障害で投稿を失わないようにする
 4. 正確な位置情報と生IPを保存しない
 5. クラスタリングや推薦は、失敗時に新着順へ戻れるようにする
