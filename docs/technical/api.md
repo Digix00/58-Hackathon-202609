@@ -728,7 +728,7 @@ LINE Platform からの Webhook 専用 endpoint。
 - webhookEventId を line_webhook_events に保存し、同じイベントを二重処理しない
 - 生の Webhook payload は保存しない
 - 既に処理済みの webhookEventId はユースケースを再実行せず、200 OK を返す
-- 未対応 event type は保存せず、署名が正しければ 200 OK を返す
+- 未対応 event type も webhookEventId と event_type を line_webhook_events に status=ignored として記録し、業務処理は行わず 200 OK を返す
 - 不正な署名は 401 INVALID_LINE_SIGNATURE とする
 
 ### 8.2 follow event
@@ -757,7 +757,7 @@ MVP では user source から受信した text を悩み本文として扱う。
 
 - text が不正な場合は投稿を保存せず、修正を促す reply message を返す
 - 画像、スタンプ、位置情報など未対応 message type は投稿として保存しない
-- group source や room source は MVP 対象外とし、ユーザー単位へ変換できない場合は処理しない
+- group source や room source は MVP 対象外とし、line_webhook_events に status=ignored として記録したうえで、ユーザー単位の投稿処理はしない
 - Webhook の HTTP レスポンスはイベント受付の成否を表し、AI 処理の完了を待たない
 
 ## 9. LINE デイリークイズ一斉配信
@@ -791,7 +791,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 4. idempotencyKey=daily-quiz:YYYY-MM-DD の line_broadcasts を取得または作成する
 5. LINE Messaging API の POST /v2/bot/message/broadcast を一回の論理配信として呼び出す
 6. Web クイズ URL を含む同一メッセージを LINE 公式アカウントの全友だちへ送信する
-7. line_broadcast_attempts に試行結果、HTTP status、LINE request ID、Retry Key を記録する
+7. line_broadcast_attempts に試行結果、HTTP status、X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key を記録する
 8. 成功時は line_broadcasts を succeeded にし、送信時刻を保存する
 
 重要な制約:
@@ -801,6 +801,9 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 - LINE Broadcast API の全友だち配信を一回の論理実行として扱う
 - アプリケーションの idempotencyKey と LINE API の Retry Key は別に管理する
 - LINE API の応答が不明な状態で再試行する場合は、同じ論理リクエストの Retry Key を再利用して二重配信を抑止する
+- response の status=succeeded は LINE Broadcast API が一回の論理リクエストを受理したことを示すもので、全友だちの個別配信完了や個別 delivery status を表さない
+- LINE API が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みであるため attempt を論理成功として扱い、BROADCAST_UPSTREAM_UNAVAILABLE にはしない
+- BROADCAST_IN_PROGRESS はアプリケーション内で同じ idempotencyKey の runner が並行実行中の場合だけに用い、LINE API の 409 とは区別する
 
 #### Response: 200 OK
 
@@ -817,7 +820,9 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 
 同じ quizDate の配信がすでに succeeded の場合は、LINE API を再度呼び出さず、200 OK で既存の成功結果を返す。
 
-同じ idempotencyKey の配信が running 中の場合は、二つ目の LINE API 呼び出しを行わず、409 BROADCAST_IN_PROGRESS を返す。
+同じ idempotencyKey の配信が running 中の場合は、二つ目の LINE API 呼び出しを行わず、409 BROADCAST_IN_PROGRESS を返す。これはアプリケーション内の同時実行を示す。
+
+LINE API がタイムアウトなどで結果不明になった場合は、同じ Retry Key で再試行する。LINE API が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストの受理を確認できるため、その attempt を成功として line_broadcasts を succeeded に更新し、次回以降は既存の 200 OK を返す。
 
 LINE API が一時的に失敗した場合は、失敗した attempt を保存したうえで 503 BROADCAST_UPSTREAM_UNAVAILABLE を返す。failed の配信は同じ quizDate の idempotencyKey で再試行する。
 
@@ -827,6 +832,13 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 - 実行対象の quizDate は Asia/Tokyo へ変換して決める
 - scheduled handler は HTTP endpoint を自己呼び出しせず、9.1 と同じ配信ランナーを直接起動する
 - Cron と内部 POST のどちらから起動しても、line_broadcasts の idempotencyKey により同じ日付の成功配信を二重実行しない
+
+### 9.3 APIレスポンスとDBの責務
+
+- この API は受信者一覧、ユーザーごとの送信結果、個別 delivery status を返さない
+- status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない
+- アプリケーションの broadcastId / idempotencyKey と、LINE API の Retry Key / Request ID は別の識別子として扱う
+- DBの物理カラムや制約は #32 の database.md で定義し、この PR は HTTP の認証、Request/Response、状態コード、冪等性の契約を定義する
 
 ## 10. 非同期処理と状態表示
 
