@@ -19,7 +19,3 @@ export function loginWithLiff(redirectUri: string) {
 export function closeLiffWindow() {
   liff.closeWindow()
 }
-
-export function getLiffIdToken() {
-  return liff.getIDToken()
-}
