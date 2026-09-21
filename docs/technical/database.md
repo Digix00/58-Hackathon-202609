@@ -17,17 +17,17 @@ Issue #29「データベース設計」の設計書。
 
 ## 2. 全体方針
 
-### 2.1 ユーザーを LINE 認証で統一する
+### 2.1 ユーザー識別を users に統一する
 
-本アプリは LINE ミニアプリ（LIFF）を入口とし、全ユーザーを LINE Login/LIFF で認証する。匿名セッション用の別テーブルは持たず、投稿、既読、リアクション、クイズ回答、推薦履歴はすべて users.id を参照する。
+MVPでは、ブラウザだけで利用する匿名セッションと、LINE/LIFFで認証したユーザーの両方を受け付ける。どちらの主体も users に一行を持ち、投稿、既読、リアクション、クイズ回答、推薦履歴はすべて users.id を参照する。匿名セッション用と LINE ユーザー用の別々の外部キーや配信先テーブルは持たず、users.identity_type で主体の種類を区別する。
 
-- フロントエンドは LIFF でログインし、取得した ID token を Authorization: Bearer <ID_TOKEN> として API に送る。
-- バックエンドは LINE Login v2.1 の Verify ID token API で ID token を検証し、検証済みの LINE user ID から内部 users.id を解決する。
-- LINE user ID はサーバー側の秘密鍵で HMAC 化した値だけを users.line_user_id_hash に保存し、生の ID や ID token・アクセストークンは保存しない。
-- リクエスト本文から送られた user_id は信頼せず、必ず検証済みトークンの主体から解決した user_id を利用する。
-- LINE の友だち状態は users.friend_status で管理する。配信対象は LINE Broadcast API が管理する友だち全体であり、D1 でユーザーごとの配信明細は持たない。
+- 匿名ブラウザでは、バックエンドが暗号学的に安全なランダム値を発行し、HttpOnly、Secure、SameSite のセッション Cookie（または同等のセッションヘッダー）で保持する。生のトークンは保存せず、サーバー側の秘密鍵で HMAC-SHA-256 化した値を users.anonymous_session_hash に保存し、session_expires_at を過ぎたセッションは API から参照できないようにする。
+- LINE/LIFF では、フロントエンドが取得した ID token を Authorization: Bearer <ID_TOKEN> として API に送る。バックエンドは LINE Login v2.1 の Verify ID token API で検証し、検証済みの LINE user ID の HMAC 値を users.line_user_id_hash に保存して内部 users.id を解決する。
+- LINE user ID、ID token、アクセストークン、匿名セッショントークンの生値は保存・ログ出力しない。
+- 匿名セッションの users.friend_status は NULL とし、LINE ユーザーだけが active、unfollowed、blocked の状態を持つ。LINE Broadcast API の配信対象は公式アカウントが管理する友だち全体であり、D1 でユーザーごとの配信明細は持たない。
+- リクエスト本文から送られた user_id は信頼せず、匿名セッションまたは検証済み LINE token の主体から解決した user_id を利用する。
 
-この構成により、すべてのドメインテーブルが users.id を参照し、匿名利用者用と LINE 利用者用の多態的な外部キーを持たずに済む。
+この構成により、既存の匿名可 API と LINE/LIFF API の両方を users.id に統一でき、匿名利用者用と LINE 利用者用の多態的な外部キーを持たずに済む。
 
 ### 2.2 非同期処理はジョブ単位で管理する
 
@@ -44,11 +44,12 @@ Issue #29「データベース設計」の設計書。
 
 ### 2.4 LINEミニアプリとAPIの認証
 
-通常の API は LIFF 認証を必須とする。フロントエンドは liff.init() と liff.login() でログイン状態を確立し、ID token を Bearer トークンとして送信する。バックエンドは LINE Login v2.1 の Verify ID token API（POST https://api.line.me/oauth2/v2.1/verify）へ ID token と LIFF の channel ID を渡して検証し、検証済みの subject（LINE user ID）から users を upsert する。
+APIごとに、匿名セッション、LIFF、LINE webhook、内部実行の認証方式を分ける。匿名可の API はセッション Cookie（またはセッションヘッダー）から users.anonymous_session_hash を解決し、LINE 認証済み API は LIFF の ID token から users.line_user_id_hash を解決する。どちらの場合も内部 user_id はサーバー側で決定し、クライアントから送られた user_id は無視する。
 
-- 成功した検証結果からのみ内部 user_id を決定する。クライアントが body や query に指定した user_id は無視する。
-- ID token、アクセストークン、LINE user ID の生値は保存・ログ出力しない。識別が必要な場合は HMAC-SHA-256 のハッシュを用いる。
-- LINE webhook は LIFF 認証とは別に X-Line-Signature を channel secret で検証し、イベントの user ID を同じ users に紐付ける。
+- LIFF は liff.init() と liff.login() でログイン状態を確立する。バックエンドは ID token と LIFF の channel ID を LINE Login v2.1 の Verify ID token API（POST https://api.line.me/oauth2/v2.1/verify）へ渡し、検証済みの subject（LINE user ID）から users を upsert する。
+- 匿名ブラウザでは、バックエンドが発行した高エントロピーのセッション値を受け付け、保存済みの HMAC 値と有効期限を検証して users を解決する。期限切れの匿名セッションからは投稿・閲覧・履歴を参照できない。
+- 成功した認証結果からのみ内部 user_id を決定する。ID token、アクセストークン、LINE user ID、匿名セッショントークンの生値は保存・ログ出力しない。
+- LINE webhook は LIFF 認証とは別に X-Line-Signature を channel secret で検証し、イベントの LINE user ID を HMAC 化して同じ users に紐付ける。
 - 日次配信の内部 endpoint はエンドユーザーの LIFF token を受け付けず、Worker 間の内部認証を使う。
 
 参照: [LIFFアプリの開発](https://developers.line.biz/en/docs/liff/developing-liff-apps/)、[LINE Loginでユーザーを管理する](https://developers.line.biz/en/docs/line-login/managing-users/)、[LINE Messaging API リファレンス](https://developers.line.biz/en/reference/messaging-api/nojs/)。
@@ -74,8 +75,11 @@ erDiagram
 
   USERS {
     TEXT id PK
+    TEXT identity_type
     TEXT line_user_id_hash UK
+    TEXT anonymous_session_hash UK
     TEXT friend_status
+    TEXT session_expires_at
     TEXT created_at
     TEXT joined_at
     TEXT unfollowed_at
@@ -218,6 +222,7 @@ erDiagram
 
   QUIZ_ANSWERS {
     TEXT attempt_id PK, FK
+    TEXT quiz_id FK
     TEXT participant_id PK, FK
     TEXT selected_concern_id FK
     INTEGER is_correct
@@ -228,6 +233,8 @@ erDiagram
     TEXT quiz_id FK, UK
     TEXT idempotency_key UK
     TEXT status
+    TEXT claim_token
+    TEXT lease_expires_at
     TEXT requested_at
     TEXT sent_at
     TEXT finished_at
@@ -266,7 +273,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| users | id, line_user_id_hash, friend_status, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF 認証済みユーザー。line_user_id_hash は HMAC 値を UNIQUE にする |
+| users | id, identity_type, line_user_id_hash, anonymous_session_hash, friend_status, session_expires_at, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF ユーザーと匿名ブラウザセッションの主体。identity_type で区別し、各 credential hash を UNIQUE にする。匿名行の friend_status は NULL |
 | regions | code, level, name_ja, name_en | 都道府県と広域区分のマスタ。投稿には自由入力文字列を保存しない |
 
 ### 4.2 投稿・AI処理
@@ -296,19 +303,25 @@ concerns の processing_status は次の概要値とする。
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | quizzes | id, quiz_date, status, title, created_at, published_at, hidden_at | quiz_date は UNIQUE。status は draft, published, closed, hidden |
-| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE |
-| quiz_options | quiz_id, concern_id, display_order | 3件の投稿を混ぜて表示する。quiz_id と display_order を UNIQUE |
-| quiz_attempts | id, quiz_id, user_id, score, answered_at | quiz_id と user_id を UNIQUE にして二重回答を防ぐ |
-| quiz_answers | attempt_id, participant_id, selected_concern_id, is_correct | attempt_id と participant_id、attempt_id と selected_concern_id を UNIQUE |
+| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE にし、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
+| quiz_options | quiz_id, concern_id, display_order | 3件の投稿を混ぜて表示する。quiz_id と display_order を UNIQUE にし、quiz_id と concern_id を複合主キーにする |
+| quiz_attempts | id, quiz_id, user_id, score, answered_at | quiz_id と user_id を UNIQUE にして二重回答を防ぎ、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
+| quiz_answers | quiz_id, attempt_id, participant_id, selected_concern_id, is_correct | PRIMARY KEY は attempt_id と participant_id。attempt_id と quiz_id、participant_id と quiz_id、quiz_id と selected_concern_id を複合外部キーにして、回答対象を同じクイズに限定する |
 
-quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参照する複合外部キーにする。quiz_answers.selected_concern_id も、同じ quiz_id の quiz_options に存在することを複合外部キーまたはユースケースで検証する。
+quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参照する複合外部キーにする。quiz_answers には quiz_id を必ず持たせ、次の複合外部キーを設定する。
+
+- (attempt_id, quiz_id) REFERENCES quiz_attempts(id, quiz_id)
+- (participant_id, quiz_id) REFERENCES quiz_participants(id, quiz_id)
+- (quiz_id, selected_concern_id) REFERENCES quiz_options(quiz_id, concern_id)
+
+quiz_attempts と quiz_participants には、それぞれ (id, quiz_id) の複合 UNIQUE 制約を付ける。SQLite/D1 で外部キー制約を有効にし、いずれかの複合外部キーに違反した回答はトランザクション全体をロールバックする。これにより、別クイズの attempt_id、participant_id、selected_concern_id を混在させた行を保存できない。
 
 クイズ回答は次の処理を一つのトランザクションで行う。
 
 1. 公開中のクイズであることを確認する。
 2. 元投稿3件がすべて公開中であることを確認する。
 3. quiz_attempts を挿入する。既存なら 409 を返す。
-4. 3件の quiz_answers を挿入する。
+4. 同じ quiz_id を付与した3件の quiz_answers を挿入する。複合外部キーの検証に失敗した場合はトランザクション全体をロールバックする。
 5. 正答数を計算し、score を更新する。
 6. learning_events に回答イベントを追加する。
 
@@ -319,10 +332,12 @@ quiz_options の (quiz_id, concern_id) は quiz_participants の同じ組を参�
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | line_webhook_events | webhook_event_id, user_id, event_type, status, received_at, processed_at, error_code | LINE の再送に対する冪等性を確保。webhook_event_id は LINE の webhookEventId に対応し、user_id は user source の場合だけ入り得る nullable の外部キー。生の webhook payload は保存しない |
-| line_broadcasts | id, quiz_id, idempotency_key, status, requested_at, sent_at, finished_at, last_error | デイリークイズを全友だちへ送る一回の論理実行単位。quiz_id と idempotency_key をそれぞれ UNIQUE にする |
-| line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, line_accepted_request_id, line_retry_key, attempted_at, error_message | LINE Broadcast API の HTTP 呼び出し一回につき一行。配信先ユーザーごとの明細ではない。タイムアウト再試行時は同じ line_retry_key を記録する |
+| line_broadcasts | id, quiz_id, idempotency_key, status, claim_token, lease_expires_at, requested_at, sent_at, finished_at, last_error | デイリークイズを全友だちへ送る一回の論理実行単位。quiz_id と idempotency_key をそれぞれ UNIQUE にし、claim_token と lease_expires_at で実行単位を原子的に占有する |
+| line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, line_accepted_request_id, line_retry_key, attempted_at, error_message | LINE Broadcast API の HTTP 呼び出し一回につき一行。配信先ユーザーごとの明細ではない。外部 API 呼び出し前に status=started と line_retry_key を保存し、結果不明の再試行では同じキーを使う |
 
-POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。line_broadcasts はクイズごとの論理配信、line_broadcast_attempts はその論理配信に対する HTTP 試行履歴として分離する。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。タイムアウトなど結果不明のときは同じ Retry Key で再試行し、LINE が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みとして論理的な成功に扱う。line_broadcasts.status=succeeded は LINE が一回の Broadcast API リクエストを受理したことを示すだけで、友だち一人ひとりの配信完了を D1 で追跡するものではない。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
+POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。line_broadcasts はクイズごとの論理配信、line_broadcast_attempts はその論理配信に対する HTTP 試行履歴として分離する。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。line_broadcasts の claim_token と lease_expires_at を使い、Cron と内部 endpoint の呼び出しが同じ論理配信を同時に外部 API へ送らないようにする。
+
+LINE API を呼ぶ前に、claim を取得したトランザクション内で line_broadcast_attempts に status=started、attempt_number、attempted_at、line_retry_key を保存する。Worker が API 応答を受け取る前に終了した場合、lease の期限切れ後に同じ attempt の line_retry_key を再利用する。LINE が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みとして論理的な成功に扱う。line_broadcasts.status=succeeded は LINE が一回の Broadcast API リクエストを受理した状態であり、友だち一人ひとりの配信完了を D1 で追跡するものではない。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
 
 #### API項目と物理カラムの対応
 
@@ -342,19 +357,25 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 
 ### 一意性
 
-- users.line_user_id_hash
+- users.line_user_id_hash（LINE 行のみ）
+- users.anonymous_session_hash（匿名セッション行のみ）
 - quizzes.quiz_date
 - concerns の同一 user によるリアクション
 - concerns の同一 user による既読集約
 - quiz_participants の quiz_id と user_id
+- quiz_participants の id と quiz_id（quiz_answers の複合外部キー先）
 - quiz_attempts の quiz_id と user_id
+- quiz_attempts の id と quiz_id（quiz_answers の複合外部キー先）
+- quiz_options の quiz_id と concern_id
 - line_broadcasts.quiz_id
 - line_broadcasts.idempotency_key
 - line_broadcast_attempts の broadcast_id と attempt_number
 
 ### CHECK 制約
 
-- users.friend_status: active, unfollowed, blocked
+- users.identity_type: anonymous, line
+- users.friend_status: NULL（anonymous）または active, unfollowed, blocked（line）
+- users.identity_type と credential hash の組み合わせ: line は line_user_id_hash のみ、anonymous は anonymous_session_hash と session_expires_at のみを持つ
 - concerns.input_method: web, line, voice
 - concerns.visibility_status: pending, published, hidden, deleted
 - concern_processing_jobs.status: pending, running, succeeded, failed
@@ -362,6 +383,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 - quizzes.status: draft, published, closed, hidden
 - line_webhook_events.status: received, processed, ignored, failed
 - line_broadcasts.status: pending, running, succeeded, failed
+- line_broadcasts.status=running の行は claim_token と lease_expires_at を持ち、succeeded/failed に遷移したら claim を解放する
 - line_broadcast_attempts.status: started, succeeded, failed（LINE の 409 + X-Line-Accepted-Request-Id は succeeded として記録）
 - 数値の display_order, score, view_count, attempt_count, attempt_number は 0 以上
 
@@ -396,6 +418,9 @@ CREATE INDEX learning_events_user_idx
 
 CREATE INDEX feed_impressions_user_idx
   ON feed_impressions (user_id, exposed_at DESC);
+
+CREATE INDEX line_broadcast_lease_idx
+  ON line_broadcasts (status, lease_expires_at);
 ```
 
 フィードは created_at だけで並べず、同時刻の投稿を安定してページングするため id をタイブレーカーにする。
@@ -411,7 +436,7 @@ LIMIT ?
 
 ### 投稿
 
-1. Authorization Bearer の ID token を検証し、LINE user ID から内部 user_id を解決する。
+1. 匿名セッションまたは LIFF の認証情報を検証し、サーバー側で users.id を解決する。LIFF の場合は ID token を検証し、匿名の場合は HMAC と有効期限を検証する。
 2. 本文・属性・input_method をサーバー側で検証する。
 3. concerns を保存する。
 4. concern_processing_jobs に必要なジョブを登録する。
@@ -442,18 +467,20 @@ flowchart TD
   H --> R
   R --> D["Derive quiz_date in Asia/Tokyo"]
   D --> Q["Published quiz row"]
-  R --> B["line_broadcasts"]
+  R --> CL["Atomic claim / lease"]
+  CL --> B["line_broadcasts + started attempt"]
   B --> L["LINE Broadcast API"]
-  L --> A["line_broadcast_attempts"]
+  L --> A["Update attempt"]
   A --> S["Update broadcast status"]
 ```
 
 1. Cron の実行時刻は UTC として受け取り、Asia/Tokyo に変換した業務日を quizzes.quiz_date として求める。保存する日時は UTC のままにする。
 2. 対象日の published な quizzes を一件取得する。
-3. idempotency_key=daily-quiz:YYYY-MM-DD で line_broadcasts を作成する。既に succeeded なら何もしない。failed または未完了なら再実行する。
-4. クイズ URL を含むメッセージを POST https://api.line.me/v2/bot/message/broadcast に一回送信する。配信先は LINE 公式アカウントの全友だちであり、ユーザーごとの Push API 呼び出しは行わない。
-5. API 呼び出しごとに line_broadcast_attempts を追加し、HTTP ステータス、LINE の X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key、エラーを記録する。
-6. 成功時は line_broadcasts.sent_at / finished_at と status=succeeded を更新し、失敗時は last_error と status=failed を保存して再試行できるようにする。タイムアウトなど結果不明の再試行は同じ line_retry_key を使い、LINE の 409 + X-Line-Accepted-Request-Id は受理済みの成功として扱う。
+3. D1 の一つのトランザクションで、idempotency_key=daily-quiz:YYYY-MM-DD の行を `INSERT ... ON CONFLICT DO NOTHING` で確保する。その後、`status=pending` または `status=failed`、もしくは `status=running AND lease_expires_at <= now` の行だけを `status=running` に更新し、呼び出しごとに生成したランダムな claim_token と lease_expires_at を保存する。更新件数が0なら、別の実行が有効な lease を保持しているか、既に succeeded なので LINE API を呼ばずに終了する。この compare-and-set を同一トランザクションで行うことで、Cron と内部 endpoint の重複実行を一つに絞る。
+4. claim を取得したトランザクション内で、既存の status=started の attempt があればその line_retry_key を再利用し、なければ次の attempt_number と新しい line_retry_key を生成して `status=started` の line_broadcast_attempts を保存する。外部 API を呼ぶ前にこのトランザクションを commit する。
+5. commit 後、クイズ URL を含むメッセージを POST https://api.line.me/v2/bot/message/broadcast に一回送信する。配信先は LINE 公式アカウントの全友だちであり、ユーザーごとの Push API 呼び出しは行わない。
+6. API 応答後に、HTTP ステータス、LINE の X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key、エラーを attempt に記録する。更新は claim_token が一致する running 行に限定し、lease を奪われた古い Worker が新しい実行結果を上書きしないようにする。
+7. 成功時は line_broadcasts.sent_at / finished_at と status=succeeded を更新する。明確に送信されなかった失敗だけは attempt/status=failed として再試行し、タイムアウトなど結果不明の場合は attempt/status=started と同じ line_retry_key を残したまま lease の期限切れを待つ。次の実行はその key を再利用する。LINE の 409 + X-Line-Accepted-Request-Id は受理済みの成功として扱う。
 
 line_broadcasts.status=succeeded は LINE Broadcast API が論理リクエストを受理した状態であり、全友だちへの個別配信結果を意味しない。したがって、line_broadcast_deliveries のような受信者単位のテーブルは作成しない。
 
