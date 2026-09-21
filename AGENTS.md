@@ -24,7 +24,6 @@ read AGENTS.md
 | `backend/` | HTTP API と永続化 | Hono、Cloudflare Workers、D1、Drizzle ORM |
 | `docs/` | 要件、設計、開発・運用方針、作業手順 | Markdown |
 | `.github/` | CI、デプロイ、Pull Request の運用 | GitHub Actions |
-| `.claude/commands/` | Claude Code 用の再利用可能な作業手順 | Markdown |
 | `.agents/skills/` | エージェント用の再利用可能な作業手順 | Markdown、補助スクリプト |
 
 プロダクトの詳細な要件は `docs/requirements/product.md`、技術的な前提は `docs/technical/`、日々の開発・運用手順は `docs/technical/development.md` と `docs/workflows/` を正とする。
@@ -42,7 +41,7 @@ read AGENTS.md
 5. `docs/technical/api.md`、`docs/technical/data.md`、`docs/technical/development.md` のうち関係するもの
 6. `backend/README.md` または `frontend/README.md`
 7. 対象ディレクトリの実装、テスト、設定ファイル
-8. 変更に関係する `.github/`、`.claude/`、`.agents/` の手順
+8. 変更に関係する `.github/`、`.agents/` の手順
 
 既存のドキュメントに書かれていない仕様を実装する場合は、実装だけで終わらせず、必要な設計・API・データ・開発ドキュメントの更新も変更範囲に含める。
 
