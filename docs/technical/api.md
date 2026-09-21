@@ -186,15 +186,14 @@ regionCode は regions マスタで定義されたコードを指定する。都
 
 #### 投稿の公開状態
 
-- pending: 公開前の確認待ち
-- published: 一般フィードへ公開可能
-- hidden: 非公開
-- deleted: 削除済み
+- published: 保存直後から一般フィードへ公開可能。PoCでは新規投稿の初期値とする
+- hidden: システムが明示的に非公開にした状態
+- deleted: 削除済み。外部の画面向け API には返さない
 
 #### 投稿の処理状態
 
-- pending: 非同期処理が未開始
-- processing: いずれかの非同期処理を実行中
+- pending: 翻訳・ひらがな化・クラスタリングのジョブが未開始
+- processing: 翻訳・ひらがな化・クラスタリングのいずれかを実行中
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗したが原文は利用可能
 
@@ -249,7 +248,7 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 
 ### 3.1 POST /api/v1/concerns
 
-匿名セッションまたは LIFF 認証済みユーザーの悩みを保存する。新規投稿はモデレーションが完了するまで公開せず、保存と非同期処理を分離するため、翻訳・ひらがな化・クラスタリングの完了は待たずに返す。
+匿名セッションまたは LIFF 認証済みユーザーの悩みを保存する。PoCでは人手のモデレータを置かず、受け付けた投稿を保存直後から公開する。翻訳・ひらがな化・クラスタリングは非同期で実行し、完了を待たずに返す。
 
 #### Request
 
@@ -272,16 +271,16 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 - inputMethod は必須で、web または voice のいずれか
 - ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
-- 本文に氏名、連絡先、住所などの個人情報が含まれる場合は、モデレーション結果に応じて pending とする
+- 本文の個人情報や緊急性を判定するモデレーションは PoC の API 責務に含めない。実在の個人情報や緊急相談をデモデータに使用しない
 
 #### 処理
 
 1. Authorization または X-Anonymous-Session-Id を検証し、認証主体を解決する
 2. Request を validation する
-3. concerns を visibilityStatus=pending で保存する
-4. moderation、ja_hira、en_translation、clustering の非同期ジョブを登録する
+3. concerns を visibilityStatus=published で保存する
+4. ja_hira、en_translation、clustering の非同期ジョブを登録する
 5. 投稿 ID と保存時点の状態を返す
-6. moderation が成功した場合だけ visibilityStatus を published に更新し、各非同期処理の完了後に processingStatus と派生データを更新する
+6. 各非同期処理の完了後に processingStatus と派生データを更新する
 
 #### Response: 201 Created
 
@@ -295,7 +294,7 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
     "regionCode": "osaka"
   },
   "inputMethod": "web",
-  "visibilityStatus": "pending",
+  "visibilityStatus": "published",
   "processingStatus": "pending",
   "representations": {
     "jaHira": null,
@@ -307,8 +306,9 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 }
 ~~~
 
-- 新規投稿は visibilityStatus=pending で返し、モデレーションが明示的に公開可と判定した場合だけ published にする
-- モデレーションで拒否または判定不能となった投稿は pending または hidden のままとし、visibilityStatus が published 以外の投稿は一般フィードへ返さない
+- PoCで受け付けた新規投稿は visibilityStatus=published、processingStatus=pending で返す
+- 投稿本文の翻訳・ひらがな化・クラスタリングが未完了でも、published の原文投稿は一般フィードへ返す
+- hidden または deleted の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
 
@@ -365,7 +365,7 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 ~~~
 
 - visibilityStatus が published の投稿だけを返す
-- hidden、deleted、pending の投稿は 404 と区別せず、一覧から除外する
+- hidden、deleted の投稿は 404 と区別せず、一覧から除外する
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
 - representation の値が failed でも原文は返す
 - viewed と reacted は認証済みユーザー自身の状態である
@@ -415,7 +415,7 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- hidden、deleted、pending の悩みには登録できない
+- hidden、deleted の悩みには登録できない
 - concernId と解決済みの認証主体と reactionType の組を一意にする
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
@@ -905,7 +905,6 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
-- moderation
 - ja_hira
 - en_translation
 - clustering
@@ -947,7 +946,7 @@ Rate limit を超えた場合は 429 RATE_LIMITED と Retry-After を返す。We
 - Webhook の生 payload
 - users.id を外部に公開する値
 
-投稿本文に個人情報や緊急相談が含まれる可能性があるため、公開前に moderation の判定を通し、判断できない場合は visibilityStatus=pending とする。
+PoCでは人手のモデレーションや公開前の自動判定を行わない。実在の個人情報や緊急相談を含むデータは使用せず、受け付けた投稿は保存直後から published として扱う。
 
 ## 12. Hono RPC 方針
 
