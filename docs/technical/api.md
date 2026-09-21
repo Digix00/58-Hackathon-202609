@@ -7,7 +7,7 @@ WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の
 
 - 公開閲覧 API は、通常ブラウザとLINEミニアプリの未ログイン状態から利用できる
 - 投稿、リアクション、既読、クイズ回答、学習履歴、音声入力などの操作 API は、LINEミニアプリ内のLINEログイン済みユーザーだけが利用できる
-- LIFF ID token から解決したユーザーには、投稿データ、LINE連携やユーザー単位の履歴を紐づける
+- LIFF ID token から解決したユーザーには、LINE連携やユーザー単位の履歴を紐づける
 - 内部の投稿者識別には users.id を使い、APIのレスポンスには返さない
 - LINE の日次クイズ配信は、ユーザーを列挙して個別送信せず、LINE Messaging API の Broadcast API で全友だちへ送信する
 - 投稿保存と AI / 外部サービス処理は分離し、外部処理の失敗で原文投稿を失わない
@@ -29,6 +29,7 @@ WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の
 
 ~~~http
 Authorization: Bearer <LIFF_ID_TOKEN>  # LINEログイン済みLIFF利用時
+X-Anonymous-Session-Id: <ANONYMOUS_SESSION_ID>  # Web匿名利用時
 Content-Type: application/json
 Accept: application/json
 ~~~
@@ -72,9 +73,37 @@ Accept: application/json
 
 ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生の ID token、LINE user ID、アクセストークンはレスポンスや通常ログへ出力しない。
 
-#### 公開閲覧 API
+#### 廃止仕様: 匿名セッション認証の処理
 
-通常ブラウザと未ログインのLINEミニアプリは、公開済み投稿と公開クラスタの取得だけを認証なしで行える。これらのリクエストでは認証主体を解決せず、既読、リアクション、学習履歴などの利用者単位の状態も記録しない。
+以下は旧仕様の記録であり、現行MVPでは匿名セッションを発行・利用しない。公開閲覧は認証ヘッダーなしで行い、操作 API はLINEログイン済みのLIFFから利用する。
+
+1. Webブラウザが `POST /api/v1/sessions/anonymous` を呼び出す
+2. サーバーが有効期限付きの高エントロピーな opaque session ID を発行する
+3. クライアントは以降の画面向け API に `X-Anonymous-Session-Id` を指定する
+4. バックエンドがセッションの有効期限を検証し、匿名の認証主体として解決する
+5. セッションの有効期限が切れた場合や不正な場合は 401 INVALID_ANONYMOUS_SESSION を返す
+
+匿名セッションIDはユーザー識別子ではなく認証用の秘密値として扱い、レスポンス以外の通常ログや画面表示へ出力しない。LIFF ID token と匿名セッションIDの両方が指定された場合は 400 INVALID_REQUEST とする。匿名セッション作成 API のレスポンスには `Cache-Control: no-store` を設定する。
+
+匿名セッションは有効期間内の投稿、既読、リアクション、クイズ回答、学習履歴に利用できる。LINE連携が必要な処理は LIFF 認証済みユーザーまたは LINE Webhook の認証済みユーザーとして扱う。
+
+#### POST /api/v1/sessions/anonymous
+
+匿名セッションを作成する。Request body は持たず、発行回数はレート制限する。
+
+#### Response: 201 Created
+
+~~~json
+{
+  "sessionId": "session_01J...",
+  "expiresAt": "2026-09-28T00:00:00.000Z"
+}
+~~~
+
+- sessionId はサーバーが生成する高エントロピーな opaque string とし、クライアントが内容を解釈・生成してはならない
+- expiresAt は ISO 8601 UTC とする
+- レスポンスにはユーザー情報、LINE user ID、users.id を含めない
+- セッション作成後は、画面向け API の各リクエストへ X-Anonymous-Session-Id を指定する
 
 ### 1.4 共通エラー形式
 
@@ -110,7 +139,7 @@ ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生�
 | 201 | リソースの新規作成 | — |
 | 204 | 成功し Response body が不要 | — |
 | 400 | JSON、Header、Query の形式が不正 | INVALID_REQUEST、INVALID_CURSOR |
-| 401 | 認証情報がない、または無効 | AUTHENTICATION_REQUIRED、INVALID_ID_TOKEN、INVALID_LINE_SIGNATURE |
+| 401 | 認証情報がない、または無効 | AUTHENTICATION_REQUIRED、INVALID_ID_TOKEN、INVALID_ANONYMOUS_SESSION、INVALID_LINE_SIGNATURE |
 | 403 | 認証済みだが操作できない | USER_DELETED、FORBIDDEN |
 | 404 | リソースがない、または公開対象外 | NOT_FOUND、QUIZ_NOT_AVAILABLE |
 | 409 | 状態競合、同一クイズへの回答済み | QUIZ_ALREADY_ANSWERED、BROADCAST_IN_PROGRESS |
@@ -151,10 +180,12 @@ regionCode は regions マスタで定義されたコードを指定する。都
 
 #### 入力経路
 
-- liff: LINEミニアプリの投稿フォームから入力
+- web: 旧仕様。現行MVPでは通常ブラウザからの投稿に利用しない
 - voice: LINEミニアプリ内で音声文字起こし結果を確認してから投稿
+- line: 旧仕様。現行MVPではLINE Webhookから投稿しない
+- liff: LINEミニアプリの投稿フォームから入力
 
-通常の POST /api/v1/concerns では liff または voice だけを受け付ける。通常ブラウザからの投稿リクエストは受け付けない。
+通常の POST /api/v1/concerns では liff または voice だけを受け付ける。通常ブラウザおよびLINE Webhookからの投稿リクエストは受け付けない。
 
 #### 投稿の公開状態
 
@@ -197,6 +228,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | Method | Path | 優先度 | 認証 | 用途 |
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
+| POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
 | GET | /api/v1/concerns/:concernId | MVP | 不要（閲覧のみ） | 悩み詳細 |
@@ -210,7 +242,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | GET | /api/v1/history/summary | デモ必須 | LINEログイン（LIFF内のみ） | 閲覧・クラスタ・地域・属性・クイズ集計 |
 | GET | /api/v1/history/quiz-answers | デモ必須 | LINEログイン（LIFF内のみ） | クイズ回答履歴 |
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
-| POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow |
+| POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
@@ -679,6 +711,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 - quiz.answeredCount は回答済みクイズ数
 - accuracy は correctCount / totalQuestions。totalQuestions が 0 の場合は 0
 - LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+- 期限切れまたは無効な匿名セッションは 401 INVALID_ANONYMOUS_SESSION とする（旧仕様のみ）
 - 内部 userId や投稿者の識別情報は返さない
 
 ### 6.2 GET /api/v1/history/quiz-answers
@@ -777,9 +810,20 @@ LINE Platform からの Webhook 専用 endpoint。
 - 過去の投稿、既読、リアクション、学習履歴は削除しない
 - LINE Broadcast API の配信対象除外は LINE Platform の友だち状態に任せる
 
-### 8.4 その他のイベント
+### 8.4 text message event（旧仕様）
 
-MVPでは、LINEのtext messageを投稿受付には利用しない。悩みの投稿はLINEミニアプリの投稿フォームから行う。text message、画像、スタンプ、位置情報など未対応イベントは、重複処理防止のためイベント種別だけを記録し、投稿処理は行わず 200 OK を返す。
+旧仕様では user source から受信した text を悩み本文として扱っていた。現行MVPではLINEのtext messageを投稿受付に利用せず、悩みの投稿はLINEミニアプリの投稿フォームから行う。以下は旧仕様の記録として残す。
+
+1. event.source.userId から内部 users.id を解決する
+2. text を trim し、1〜1000 文字で validation する
+3. concerns を inputMethod=line で保存する
+4. Web 投稿と同じ非同期処理ジョブを登録する
+5. replyToken が有効な間に受付結果を reply message で返す
+
+- text が不正な場合は投稿を保存せず、修正を促す reply message を返す
+- 画像、スタンプ、位置情報など未対応 message type は投稿として保存しない
+- group source や room source は MVP 対象外とし、line_webhook_events に status=ignored として記録したうえで、ユーザー単位の投稿処理はしない
+- Webhook の HTTP レスポンスはイベント受付の成否を表し、AI 処理の完了を待たない
 
 ## 9. LINE デイリークイズ一斉配信
 
@@ -895,7 +939,7 @@ API が返す concerns.processingStatus は処理全体の概要値とする。�
 - quiz answer
 - speech transcription
 
-Rate limit を超えた場合は 429 RATE_LIMITED と Retry-After を返す。公開閲覧では認証主体を使わず、操作 API ではLINEログイン済みの users.id を認証主体として使う。IP アドレスを認証主体やユーザー識別子として使わない。
+Rate limit を超えた場合は 429 RATE_LIMITED と Retry-After を返す。現行仕様では公開閲覧に認証主体を使わず、操作 API ではLINEログイン済みの users.id を認証主体として使う。旧仕様では匿名セッションを認証主体としていたが、現行MVPでは利用しない。IP アドレスを認証主体やユーザー識別子として使わない。
 
 次の情報は API Response、通常ログ、D1 の生データへ保存しない。
 
@@ -930,7 +974,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 
 ### 13.1 実装順
 
-1. LIFF ID token 検証、users upsert、認証 middleware
+1. LIFF ID token 検証、users upsert、認証 middleware（匿名セッション作成は旧仕様のため実装しない）
 2. concerns の作成・一覧・詳細
 3. view、reaction、cursor pagination
 4. concern の非同期ジョブと cluster
@@ -947,7 +991,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - 正常系の Request / Response
 - 必須項目欠落、空文字、範囲外、未知の enum
 - 不正・期限切れの LIFF ID token
-- 未ログインで操作 API を呼び出した場合の 401 AUTHENTICATION_REQUIRED
+- 不正・期限切れの匿名セッションID（旧仕様）
 - 他ユーザーの userId を body に入れた場合に無視されること
 - published 以外の concern / quiz が外部へ返らないこと
 - reaction の再送で二重加算されないこと
@@ -955,7 +999,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - quiz answer の participant / concern 重複と回答済み
 - cursor の不正と Query 条件の不一致
 - 音声 MIME type、サイズ、長さ、外部サービス失敗
-- LINE Webhook の署名不正、event 重複、follow / unfollow
+- LINE Webhook の署名不正、event 重複、follow / unfollow / text
 - LINE Broadcast の成功、失敗、同日再実行、全友だち一斉送信
 
 ### 13.3 外部仕様の参照
