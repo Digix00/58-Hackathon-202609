@@ -10,7 +10,7 @@ LINEでは利用者を識別するが、投稿・フィード・クイズ・履�
 
 ## 画面一覧
 
-以下のパスは、LIFFの初期化と利用確認が完了した後のミニアプリ内ルートである。
+以下のパスは、匿名セッションまたはLINE利用確認の後に利用できるルートである。
 
 | 画面 | ミニアプリ内ルート | 優先度 | 目的 |
 | --- | --- | --- | --- |
@@ -25,15 +25,16 @@ LINEでは利用者を識別するが、投稿・フィード・クイズ・履�
 
 ```mermaid
 flowchart TD
+  Browser["通常のWebブラウザ"] --> Anonymous["匿名セッション"]
   RichMenu["LINEリッチメニュー"] --> Liff
   Push["LINEのデイリークイズ通知"] --> LiffQuiz
 
   Liff["LIFF起動"] --> Init["LIFF初期化・利用確認"]
   LiffQuiz["LIFF起動<br/>/quiz/today"] --> Init
   Init -->|"LINE内・認証済み"| Feed["フィード<br/>/"]
+  Init -->|"LINE外または認証不可"| Anonymous
+  Anonymous --> Feed["フィード<br/>/"]
   Init -->|"通知から起動"| Quiz["今日のクイズ<br/>/quiz/today"]
-  Init -->|"LINE外または認証不可"| OpenInLine["LINEで開く案内"]
-
   Feed -->|"投稿する"| Post["投稿フォーム<br/>/post"]
   Post -->|"投稿完了"| Feed
   Feed -->|"投稿を読む"| Detail["投稿詳細<br/>/concerns/:id"]
