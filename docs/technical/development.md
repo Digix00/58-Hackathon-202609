@@ -19,6 +19,7 @@ make dev
 | 変数 | 用途 | 配置 |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するAPI URL | フロントエンドの環境設定 |
+| `VITE_LIFF_ID` | LINEミニアプリのLIFF初期化と通常WebからのLIFF導線 | フロントエンドの環境設定 |
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
