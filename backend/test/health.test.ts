@@ -6,12 +6,16 @@ import { createApp } from "../src/app/create-app";
 import { CheckHealthUseCase } from "../src/application/usecase/check-health.usecase";
 import { D1HealthRepository } from "../src/infrastructure/database/d1-health.repository";
 import { HealthHandler } from "../src/presentation/health.handler";
+import { createAuthDependencies } from "./support/auth-fixture";
 
 describe("GET /health", () => {
   it("returns ok status and database connectivity", async () => {
     const repository = new D1HealthRepository(env.DB);
     const useCase = new CheckHealthUseCase(repository);
-    const app = createApp({ healthHandler: new HealthHandler(useCase) });
+    const app = createApp({
+      ...createAuthDependencies(),
+      healthHandler: new HealthHandler(useCase),
+    });
     const res = await app.request("/health", {}, env);
 
     expect(res.status).toBe(200);
@@ -44,7 +48,10 @@ describe("GET /health", () => {
           };
         },
       });
-      const app = createApp({ healthHandler });
+      const app = createApp({
+        ...createAuthDependencies(),
+        healthHandler,
+      });
 
       const res = await app.request("/health", {}, env);
 
@@ -78,7 +85,10 @@ describe("GET /health", () => {
         version: "0.1.0",
       }),
     });
-    const app = createApp({ healthHandler });
+    const app = createApp({
+      ...createAuthDependencies(),
+      healthHandler,
+    });
     const bindings = {
       DB: env.DB,
       ...(corsOrigin === undefined ? {} : { CORS_ORIGIN: corsOrigin }),
