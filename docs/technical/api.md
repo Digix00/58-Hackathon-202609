@@ -6,35 +6,31 @@ HTTP APIの共通仕様、エンドポイント、データ形式、エラーを
 
 ### 共通仕様
 
-- APIはJSONを利用する。
-- APIのルートは `/api/v1` とする。
-- 既存の `GET /health` は運用監視用として維持する。
-- 通常の API は `Authorization: Bearer <LIFF_ID_TOKEN>` を必須とする。
-- バックエンドは ID token を LINE Login v2.1 の Verify ID token API で検証し、検証済みの LINE user ID から内部 `users.id` を解決する。クライアント指定の `user_id` は信頼しない。
-- ブラウザからのAPI URLは `VITE_API_BASE_URL` で設定する。
-- 本番環境のCORS許可元は `CORS_ORIGIN` で明示する。
-- Hono RPCでリクエストとレスポンスの型をフロントエンドへ共有する。
-- エラーは `code`、`message`、`requestId` を含む形式に統一する。
-
-LIFF 認証は LINE の ID token を使う。フロントエンドは `liff.init()` と `liff.login()` でログイン状態を確立し、バックエンドは `POST https://api.line.me/oauth2/v2.1/verify` によって token の署名、有効期限、LIFF channel ID を検証する。LINE webhook は `X-Line-Signature`、内部の一斉配信 endpoint は Worker 間の内部認証で保護する。
+- APIはJSONを利用する
+- APIのルートは `/api/v1` とする
+- 既存の `GET /health` は運用監視用として維持する
+- ブラウザからのAPI URLは `VITE_API_BASE_URL` で設定する
+- 本番環境のCORS許可元は `CORS_ORIGIN` で明示する
+- Hono RPCでリクエストとレスポンスの型をフロントエンドへ共有する
+- エラーは `code`、`message`、`requestId` を含む形式に統一する
 
 ### MVPとデモ必須のエンドポイント
 
 | Method | Path | 優先度 | 認証 | 用途 |
 | --- | --- | --- | --- | --- |
 | GET | `/health` | 現在実装済み | 不要 | WorkerとD1の疎通確認 |
-| POST | `/api/v1/concerns` | MVP | LIFF必須 | 悩みを投稿する |
-| GET | `/api/v1/concerns` | MVP | LIFF必須 | 悩みを新着または推薦順で取得する |
-| GET | `/api/v1/concerns/:id` | MVP | LIFF必須 | 悩みの詳細を取得する |
-| POST | `/api/v1/concerns/:id/reactions` | MVP | LIFF必須 | リアクションを登録する |
-| POST | `/api/v1/concerns/:id/views` | MVP | LIFF必須 | 既読を記録する |
-| GET | `/api/v1/clusters` | デモ必須 | LIFF必須 | クラスタと投稿数を取得する |
-| GET | `/api/v1/quiz/today` | デモ必須 | LIFF必須 | 3ユーザーと3件の悩みを取得する |
-| POST | `/api/v1/quiz/answers` | デモ必須 | LIFF必須 | 対応付けクイズの回答を登録する |
-| GET | `/api/v1/history` | デモ必須 | LIFF必須 | 学習履歴を取得する |
-| POST | `/api/v1/speech/transcriptions` | デモ必須 | LIFF必須 | 音声を一時的に文字起こしする |
+| POST | `/api/v1/concerns` | MVP | 匿名可 | 悩みを投稿する |
+| GET | `/api/v1/concerns` | MVP | 匿名可 | 悩みを新着または推薦順で取得する |
+| GET | `/api/v1/concerns/:id` | MVP | 匿名可 | 悩みの詳細を取得する |
+| POST | `/api/v1/concerns/:id/reactions` | MVP | 匿名可 | リアクションを登録する |
+| POST | `/api/v1/concerns/:id/views` | MVP | 匿名可 | 既読を記録する |
+| GET | `/api/v1/clusters` | デモ必須 | 匿名可 | クラスタと投稿数を取得する |
+| GET | `/api/v1/quiz/today` | デモ必須 | 匿名可 | 3ユーザーと3件の悩みを取得する |
+| POST | `/api/v1/quiz/answers` | デモ必須 | 匿名可 | 対応付けクイズの回答を登録する |
+| GET | `/api/v1/history` | デモ必須 | セッションまたはLINE | 学習履歴を取得する |
+| POST | `/api/v1/speech/transcriptions` | デモ必須 | 匿名可 | 音声を一時的に文字起こしする |
 | POST | `/api/v1/webhooks/line` | デモ必須 | LINE署名 | LINEの友だち登録と投稿を受け取る |
-| POST | `/api/v1/line/broadcasts/daily-quiz` | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信する |
+| POST | `/api/v1/line/broadcasts/daily-quiz` | デモ必須 | 内部認証 | 友だち登録済みユーザーへクイズを一斉配信する |
 
 ### 投稿リクエストの例
 
@@ -78,10 +74,11 @@ LIFF 認証は LINE の ID token を使う。フロントエンドは `liff.init
 | 200 | 取得または更新に成功 |
 | 201 | 投稿やリアクションの作成に成功 |
 | 400 | 入力形式または値が不正 |
-| 401 | LIFFまたは内部認証に失敗 |
+| 401 | LINEまたは内部認証に失敗 |
 | 403 | 管理操作またはWebhook認証に失敗 |
 | 404 | 対象の投稿やクイズが存在しない |
 | 409 | 重複登録や状態の競合 |
 | 429 | 短時間の過剰な投稿や操作 |
 | 500 | 想定外のサーバーエラー |
 | 503 | AIや外部サービスが利用できないが、再試行可能 |
+
