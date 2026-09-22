@@ -20,6 +20,9 @@ import {
   type AuthStatus,
 } from "./auth-context";
 
+const useDevAuthenticatedSession =
+  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === "authenticated";
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>("initializing");
   const [user, setUser] = useState<AuthResponse["user"]>(null);
@@ -62,6 +65,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setError(null);
 
       try {
+        if (useDevAuthenticatedSession) {
+          applySession({
+            authenticated: true,
+            user: { id: "dev-user" },
+          });
+          return;
+        }
+
         const session = await requestSession();
         if (session.authenticated) {
           applySession(session);
