@@ -8,7 +8,11 @@ export const AGE_GROUPS = [
   "20s",
   "30s",
   "40s",
-  "50s_plus",
+  "50s",
+  "60s",
+  "70s",
+  "80s",
+  "90s_plus",
   "no_answer",
 ] as const;
 export type AgeGroup = (typeof AGE_GROUPS)[number];
