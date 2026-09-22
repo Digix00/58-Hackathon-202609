@@ -47,4 +47,4 @@ GitHub Actions のfrontend/backendチェックをPull Request前にまとめて�
 make check
 ```
 
-`make check` はfrontendのformat check・lint・buildと、backendのlint・build・testを実行する。個別に確認する場合は `make check-frontend` または `make check-backend` を使う。
+`make check` はfrontendのformat check・lint・buildと、backendのformat check・lint・build・testを実行する。個別に確認する場合は `make check-frontend` または `make check-backend` を使う。
