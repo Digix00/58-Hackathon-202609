@@ -52,7 +52,9 @@ export function createApp({
     .get("/api/v1/auth/session", ...authHandler.session)
     .post("/api/v1/auth/logout", ...authHandler.logout)
     .put("/api/v1/users/me", ...userHandler.updateProfile)
-    .post("/api/v1/concerns", ...concernHandler.create);
+    .get("/api/v1/concerns", ...concernHandler.list)
+    .post("/api/v1/concerns", ...concernHandler.create)
+    .get("/api/v1/concerns/:concernId", ...concernHandler.detail);
 }
 
 export type AppType = ReturnType<typeof createApp>;

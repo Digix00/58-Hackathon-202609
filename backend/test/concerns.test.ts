@@ -11,7 +11,7 @@ import {
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
-import { concerns } from "../src/infrastructure/database/schema";
+import { concerns, users } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
@@ -103,6 +103,45 @@ const validBody = {
   gender: "no_answer",
   regionCode: "osaka",
 };
+
+async function seedConcern(input: {
+  body: string;
+  createdAt: string;
+  id?: string;
+  visibilityStatus?: "published" | "hidden" | "deleted";
+}): Promise<string> {
+  const suffix = crypto.randomUUID();
+  const userId = `user-${suffix}`;
+  const concernId = input.id ?? `concern-${suffix}`;
+  const db = drizzle(env.DB);
+
+  await db
+    .insert(users)
+    .values({
+      id: userId,
+      lineUserId: `line-${suffix}`,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .run();
+  await db
+    .insert(concerns)
+    .values({
+      id: concernId,
+      userId,
+      body: input.body,
+      ageGroup: null,
+      genderCode: null,
+      regionCode: null,
+      visibilityStatus: input.visibilityStatus ?? "published",
+      processingStatus: "pending",
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .run();
+
+  return concernId;
+}
 
 describe("POST /api/v1/concerns", () => {
   it("rejects requests without a session", async () => {
@@ -288,5 +327,196 @@ describe("POST /api/v1/concerns", () => {
     expect(res.status).toBe(400);
     const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+});
+
+describe("GET /api/v1/concerns", () => {
+  it("returns a concern created by another session", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const created = await app.request(
+      "/api/v1/concerns",
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "別セッションから読める投稿" }),
+      },
+      env,
+    );
+    expect(created.status).toBe(201);
+    const createdBody = await created.json<{ id: string }>();
+
+    const res = await app.request("/api/v1/concerns", {}, env);
+
+    expect(res.status).toBe(200);
+    const body = await res.json<{
+      items: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    }>();
+    const item = body.items.find((value) => value.id === createdBody.id);
+    expect(item).toMatchObject({
+      id: createdBody.id,
+      body: "別セッションから読める投稿",
+      language: "original",
+      reactionCount: 0,
+      viewed: false,
+      reacted: false,
+      recommendation: { strategy: "newest", reasonCode: "newest" },
+    });
+  });
+
+  it("returns only published concerns in newest order", async () => {
+    const publishedNew = await seedConcern({
+      body: "公開された新しい投稿",
+      createdAt: "9999-01-03T00:00:00.000Z",
+    });
+    const publishedOld = await seedConcern({
+      body: "公開された古い投稿",
+      createdAt: "9999-01-01T00:00:00.000Z",
+    });
+    const hidden = await seedConcern({
+      body: "非公開の投稿",
+      createdAt: "9999-01-05T00:00:00.000Z",
+      visibilityStatus: "hidden",
+    });
+    const deleted = await seedConcern({
+      body: "削除済みの投稿",
+      createdAt: "9999-01-04T00:00:00.000Z",
+      visibilityStatus: "deleted",
+    });
+
+    const res = await createTestApp().request(
+      "/api/v1/concerns?limit=50&sort=newest",
+      {},
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json<{
+      items: Array<{ id: string }>;
+      nextCursor: string | null;
+    }>();
+    const ids = body.items.map((item) => item.id);
+    expect(ids).toContain(publishedNew);
+    expect(ids).toContain(publishedOld);
+    expect(ids).not.toContain(hidden);
+    expect(ids).not.toContain(deleted);
+    expect(ids.indexOf(publishedNew)).toBeLessThan(ids.indexOf(publishedOld));
+  });
+
+  it("paginates with an opaque cursor without duplicating items", async () => {
+    const suffix = crypto.randomUUID();
+    const createdAt = "9999-02-01T00:00:00.000Z";
+    const first = await seedConcern({
+      id: `issue63-${suffix}-c`,
+      body: "カーソルページの1件目",
+      createdAt,
+    });
+    const second = await seedConcern({
+      id: `issue63-${suffix}-b`,
+      body: "カーソルページの2件目",
+      createdAt,
+    });
+    const third = await seedConcern({
+      id: `issue63-${suffix}-a`,
+      body: "カーソルページの3件目",
+      createdAt,
+    });
+
+    const app = createTestApp();
+    const firstPage = await app.request(
+      "/api/v1/concerns?limit=2&sort=newest",
+      {},
+      env,
+    );
+    const firstBody = await firstPage.json<{
+      items: Array<{ id: string }>;
+      nextCursor: string | null;
+    }>();
+    const firstIds = firstBody.items.map((item) => item.id);
+
+    expect(firstPage.status).toBe(200);
+    expect(firstIds).toEqual([first, second]);
+    expect(firstBody.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await app.request(
+      `/api/v1/concerns?limit=2&sort=newest&cursor=${encodeURIComponent(firstBody.nextCursor ?? "")}`,
+      {},
+      env,
+    );
+    const secondBody = await secondPage.json<{
+      items: Array<{ id: string }>;
+      nextCursor: string | null;
+    }>();
+    const secondIds = secondBody.items.map((item) => item.id);
+
+    expect(secondPage.status).toBe(200);
+    expect(secondIds).toContain(third);
+    for (const id of firstIds) {
+      expect(secondIds).not.toContain(id);
+    }
+  });
+
+  it.each([
+    ["limit=0", "INVALID_REQUEST"],
+    ["limit=51", "INVALID_REQUEST"],
+    ["sort=recommended", "INVALID_REQUEST"],
+    ["cursor=invalid", "INVALID_CURSOR"],
+  ])("rejects invalid query %s", async (query, code) => {
+    const res = await createTestApp().request(
+      `/api/v1/concerns?${query}`,
+      {},
+      env,
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: { code: string } }>();
+    expect(body.error.code).toBe(code);
+  });
+});
+
+describe("GET /api/v1/concerns/:concernId", () => {
+  it("returns a published concern without identifying information", async () => {
+    const id = await seedConcern({
+      body: "詳細で読む公開投稿",
+      createdAt: "9999-03-01T00:00:00.000Z",
+    });
+
+    const res = await createTestApp().request(
+      `/api/v1/concerns/${id}`,
+      {},
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json<Record<string, unknown>>();
+    expect(body).toMatchObject({
+      id,
+      body: "詳細で読む公開投稿",
+      language: "original",
+    });
+    expect(body).not.toHaveProperty("userId");
+    expect(body).not.toHaveProperty("recommendation");
+  });
+
+  it("returns 404 for hidden, deleted, or missing concerns", async () => {
+    const hidden = await seedConcern({
+      body: "非公開詳細",
+      createdAt: "9999-04-01T00:00:00.000Z",
+      visibilityStatus: "hidden",
+    });
+    const deleted = await seedConcern({
+      body: "削除済み詳細",
+      createdAt: "9999-04-02T00:00:00.000Z",
+      visibilityStatus: "deleted",
+    });
+    const app = createTestApp();
+
+    for (const id of [hidden, deleted, "missing-concern"]) {
+      const res = await app.request(`/api/v1/concerns/${id}`, {}, env);
+      expect(res.status).toBe(404);
+      const body = await res.json<{ error: { code: string } }>();
+      expect(body.error.code).toBe("NOT_FOUND");
+    }
   });
 });

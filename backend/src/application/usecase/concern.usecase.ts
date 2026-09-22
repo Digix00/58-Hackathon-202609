@@ -1,6 +1,10 @@
 import type { AgeGroup, Gender } from "../entity/concern";
 import { Concern } from "../entity/concern";
-import type { ConcernRepository } from "../repository/concern.repository";
+import type {
+  ConcernListCursor,
+  ConcernRepository,
+  ListPublishedConcernsInput,
+} from "../repository/concern.repository";
 import { generateId } from "../shared/id-generator";
 
 export interface CreateConcernInput {
@@ -13,6 +17,15 @@ export interface CreateConcernInput {
 
 export interface IConcernUseCase {
   create(input: CreateConcernInput): Promise<Concern>;
+  listPublished(
+    input: ListPublishedConcernsInput,
+  ): Promise<ListPublishedConcernsResult>;
+  findPublishedById(id: string): Promise<Concern | null>;
+}
+
+export interface ListPublishedConcernsResult {
+  items: Concern[];
+  nextCursor: ConcernListCursor | null;
 }
 
 /**
@@ -48,4 +61,22 @@ export class ConcernUseCase implements IConcernUseCase {
 
     return this.repository.insert(concern);
   };
+
+  readonly listPublished = async (
+    input: ListPublishedConcernsInput,
+  ): Promise<ListPublishedConcernsResult> => {
+    const result = await this.repository.listPublished(input);
+    const lastItem = result.items[result.items.length - 1];
+
+    return {
+      items: result.items,
+      nextCursor:
+        result.hasMore && lastItem
+          ? { createdAt: lastItem.createdAt, id: lastItem.id }
+          : null,
+    };
+  };
+
+  readonly findPublishedById = (id: string): Promise<Concern | null> =>
+    this.repository.findPublishedById(id);
 }

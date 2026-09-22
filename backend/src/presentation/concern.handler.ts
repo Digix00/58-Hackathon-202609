@@ -11,6 +11,7 @@ import {
 } from "../application/entity/concern";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
+import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
 
 // 構造（型・必須項目）の検証だけをここで行う。本文長さや属性値の妥当性といった
 // ドメインルールはConcernのコンストラクタが検証し、ConcernValidationErrorとして返す。
@@ -20,6 +21,14 @@ const createConcernRequest = z.object({
   gender: z.string().optional(),
   regionCode: z.string().optional(),
 });
+
+const listConcernQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    cursor: z.string().min(1).optional(),
+    sort: z.literal("newest").default("newest"),
+  })
+  .strict();
 
 const factory = createFactory<{
   Bindings: Bindings;
@@ -94,6 +103,77 @@ export class ConcernHandler {
       throw error;
     }
   });
+
+  readonly list = factory.createHandlers(async (c) => {
+    const requestId = setRequestId(c);
+    const parsed = listConcernQuery.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "取得条件を確認してください",
+            details: parsed.error.issues.map((issue) => ({
+              field: issue.path.join(".") || "query",
+              reason: issue.code,
+            })),
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
+    const cursor = parsed.data.cursor
+      ? (decodeConcernCursor(parsed.data.cursor) ?? undefined)
+      : undefined;
+    if (parsed.data.cursor && !cursor) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_CURSOR",
+            message: "ページングカーソルが不正です",
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await this.concernUsecase.listPublished({
+      limit: parsed.data.limit,
+      cursor,
+    });
+    const nextCursor = result.nextCursor
+      ? encodeConcernCursor(result.nextCursor)
+      : null;
+
+    return c.json({
+      items: result.items.map((concern) => toFeedResponse(concern, true)),
+      nextCursor,
+    });
+  });
+
+  readonly detail = factory.createHandlers(async (c) => {
+    const requestId = setRequestId(c);
+    const concern = await this.concernUsecase.findPublishedById(
+      c.req.param("concernId") ?? "",
+    );
+    if (!concern) {
+      return c.json(
+        {
+          error: {
+            code: "NOT_FOUND",
+            message: "投稿が見つかりません",
+            requestId,
+          },
+        },
+        404,
+      );
+    }
+
+    return c.json(toFeedResponse(concern, false));
+  });
 }
 
 function toResponse(concern: Concern) {
@@ -112,6 +192,44 @@ function toResponse(concern: Concern) {
     reactionCount: 0,
     createdAt: concern.createdAt,
   };
+}
+
+function toFeedResponse(concern: Concern, includeRecommendation: boolean) {
+  return {
+    id: concern.id,
+    body: concern.body,
+    language: "original" as const,
+    attributes: {
+      ageGroup: concern.ageGroup ?? undefined,
+      gender: concern.gender ?? undefined,
+      regionCode: concern.regionCode ?? undefined,
+    },
+    representations: {
+      jaHira: toRepresentationStatus(concern),
+      en: toRepresentationStatus(concern),
+    },
+    cluster: null,
+    reactionCount: 0,
+    viewed: false,
+    reacted: false,
+    ...(includeRecommendation
+      ? {
+          recommendation: {
+            strategy: "newest" as const,
+            reasonCode: "newest" as const,
+          },
+        }
+      : {}),
+    createdAt: concern.createdAt,
+  };
+}
+
+function toRepresentationStatus(concern: Concern) {
+  return concern.processingStatus === "ready"
+    ? "ready"
+    : concern.processingStatus === "failed"
+      ? "failed"
+      : "pending";
 }
 
 function setRequestId(c: {
