@@ -16,7 +16,7 @@ describe("ConcernUseCase", () => {
     const useCase = new ConcernUseCase(
       repository,
       () => new Date("2026-09-22T00:00:00.000Z"),
-      (prefix) => `${prefix}_fixed`,
+      () => "fixed-id",
     );
 
     const result = await useCase.create({
@@ -30,7 +30,7 @@ describe("ConcernUseCase", () => {
 
     expect(saved).toBeInstanceOf(Concern);
     expect(result).toMatchObject({
-      id: "concern_fixed",
+      id: "fixed-id",
       userId: "user_1",
       body: "食堂が混んでいて昼休みに休めない",
       inputMethod: "liff",
@@ -50,7 +50,7 @@ describe("ConcernUseCase", () => {
     const useCase = new ConcernUseCase(
       repository,
       () => new Date("2026-09-22T00:00:00.000Z"),
-      (prefix) => `${prefix}_fixed`,
+      () => "fixed-id",
     );
 
     const result = await useCase.create({
@@ -71,7 +71,7 @@ describe("ConcernUseCase", () => {
     const useCase = new ConcernUseCase(
       repository,
       () => new Date("2026-09-22T00:00:00.000Z"),
-      (prefix) => `${prefix}_fixed`,
+      () => "fixed-id",
     );
 
     await expect(

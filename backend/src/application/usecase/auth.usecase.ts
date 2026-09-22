@@ -34,7 +34,7 @@ export class AuthUseCase implements AuthUseCasePort {
   private readonly sessions: SessionRepository;
   private readonly lineTokenVerifier: LineTokenVerifier;
   private readonly now: () => Date;
-  private readonly createId: (prefix: string) => string;
+  private readonly createId: () => string;
 
   constructor(
     users: UserRepository,
@@ -42,7 +42,7 @@ export class AuthUseCase implements AuthUseCasePort {
     lineTokenVerifier: LineTokenVerifier,
     sessionTtlSeconds = DEFAULT_SESSION_TTL_SECONDS,
     now: () => Date = () => new Date(),
-    createId: (prefix: string) => string = generateId,
+    createId: () => string = generateId,
   ) {
     this.users = users;
     this.sessions = sessions;
@@ -61,7 +61,7 @@ export class AuthUseCase implements AuthUseCasePort {
     const identity = await this.lineTokenVerifier.verify(idToken);
     const user = await this.users.selectOrCreateByLineUserId(
       identity.lineUserId,
-      this.createId("user"),
+      this.createId(),
     );
 
     const currentSession = await this.findSession(currentToken);
@@ -121,7 +121,7 @@ export class AuthUseCase implements AuthUseCasePort {
     const now = this.now();
     const token = generateToken();
     const session = await this.sessions.insert({
-      id: this.createId("session"),
+      id: this.createId(),
       tokenHash: await hashToken(token),
       userId,
       expiresAt: new Date(

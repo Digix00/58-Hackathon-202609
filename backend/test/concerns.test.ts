@@ -169,7 +169,9 @@ describe("POST /api/v1/concerns", () => {
       reactionCount: 0,
     });
     expect(created.attributes).toEqual({});
-    expect(typeof created.id).toBe("string");
+    expect(created.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(() => new Date(created.createdAt as string).toISOString()).not.toThrow();
 
     const db = drizzle(env.DB);

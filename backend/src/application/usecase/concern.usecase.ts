@@ -24,12 +24,12 @@ export interface ConcernUsecase {
 export class ConcernUseCase implements ConcernUsecase {
   private readonly repository: ConcernRepository;
   private readonly now: () => Date;
-  private readonly createId: (prefix: string) => string;
+  private readonly createId: () => string;
 
   constructor(
     repository: ConcernRepository,
     now: () => Date = () => new Date(),
-    createId: (prefix: string) => string = generateId,
+    createId: () => string = generateId,
   ) {
     this.repository = repository;
     this.now = now;
@@ -38,7 +38,7 @@ export class ConcernUseCase implements ConcernUsecase {
 
   readonly create = async (input: CreateConcernInput): Promise<Concern> => {
     const concern = new Concern({
-      id: this.createId("concern"),
+      id: this.createId(),
       userId: input.userId,
       body: input.body,
       inputMethod: input.inputMethod,
