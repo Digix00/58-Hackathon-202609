@@ -7,6 +7,7 @@ import { CheckHealthUseCase } from "../src/application/usecase/check-health.usec
 import { D1HealthRepository } from "../src/infrastructure/database/d1-health.repository";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
+import { createConcernDependencies } from "./support/concern-fixture";
 
 describe("GET /health", () => {
   it("returns ok status and database connectivity", async () => {
@@ -14,6 +15,7 @@ describe("GET /health", () => {
     const useCase = new CheckHealthUseCase(repository);
     const app = createApp({
       ...createAuthDependencies(),
+      ...createConcernDependencies(),
       healthHandler: new HealthHandler(useCase),
     });
     const res = await app.request("/health", {}, env);
@@ -50,6 +52,7 @@ describe("GET /health", () => {
       });
       const app = createApp({
         ...createAuthDependencies(),
+      ...createConcernDependencies(),
         healthHandler,
       });
 
@@ -89,6 +92,7 @@ describe("GET /health", () => {
     });
     const app = createApp({
       ...createAuthDependencies(),
+      ...createConcernDependencies(),
       healthHandler,
     });
     const bindings = {

@@ -6,6 +6,7 @@ import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { D1SessionRepository, D1UserRepository } from "../src/infrastructure/database/d1-auth.repository";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
+import { createConcernDependencies } from "./support/concern-fixture";
 
 function createTestApp() {
   const authUseCase = new AuthUseCase(
@@ -24,6 +25,7 @@ function createTestApp() {
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    ...createConcernDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",

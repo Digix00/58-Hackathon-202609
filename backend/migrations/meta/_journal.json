@@ -15,6 +15,13 @@
       "when": 1789985699457,
       "tag": "0001_silent_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790063346248,
+      "tag": "0002_cuddly_hedge_knight",
+      "breakpoints": true
     }
   ]
 }
