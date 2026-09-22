@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { closeLiffWindow, initializeLiff } from '../../infrastructure/liff/client'
 import { RuntimeContext, type RuntimeContextValue, type RuntimeState } from './RuntimeContext'
 const liffId = import.meta.env.VITE_LINE_LIFF_ID
+const forceLiffMode = import.meta.env.DEV && import.meta.env.VITE_DEV_LIFF_MODE === 'true'
+const shouldInitializeLiff = Boolean(liffId) && !forceLiffMode
 
 function createLiffUrl(path: string) {
   return liffId ? `https://liff.line.me/${liffId}${path}` : null
@@ -9,11 +11,15 @@ function createLiffUrl(path: string) {
 
 export function RuntimeProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<RuntimeState>(() =>
-    liffId ? { status: 'initializing' } : { status: 'ready', mode: 'browser' },
+    forceLiffMode
+      ? { status: 'ready', mode: 'liff' }
+      : liffId
+        ? { status: 'initializing' }
+        : { status: 'ready', mode: 'browser' },
   )
 
   useEffect(() => {
-    if (!liffId) return
+    if (!shouldInitializeLiff) return
     let isCurrent = true
     void initializeLiff()
       .then((session) => {
