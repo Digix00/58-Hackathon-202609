@@ -62,6 +62,22 @@ pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
 pnpm dev                # http://localhost:8787
 ```
 
+## LINE MINI App認証
+
+LINE Developers Consoleで設定したチャネルIDを、Workerの`LINE_CHANNEL_ID`へ設定する。
+チャネルシークレットやアクセストークンをフロントエンドへ配置してはいけない。
+
+```text
+LINE_CHANNEL_ID=<LINE LoginまたはLINE MINI AppのチャネルID>
+AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
+```
+
+フロントエンドから送られたIDトークンは、WorkerがLINEのVerify ID token APIへ送信して検証する。
+検証後はアプリ独自の`__Host-session` Cookieを発行し、以後のAPIではLINEトークンを再利用しない。
+
+LIFFアプリには`openid`スコープを設定する。プロフィール情報が必要になった場合でも、認証の根拠として
+フロントエンドからuserIdやプロフィール情報を送信せず、LINEから検証されたトークンを基準に扱う。
+
 ## CORS
 
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
@@ -72,6 +88,9 @@ Cookie セッションを使う認証 API では、環境ごとにフロント�
 - ローカル: `.dev.vars`（`.dev.vars.example` をコピーして作成、git管理外）に
   ローカルフロントエンド（`pnpm dev` 実行時、既定で `http://localhost:5173`）の origin を設定する。
   `.dev.vars` は `wrangler dev` 実行時に `wrangler.jsonc` の `vars` より優先される。
+
+Cookie認証を利用するため、フロントエンドのAPIクライアントはcredentialsを含めて通信する。
+本番では`CORS_ORIGIN`を`*`にせず、実際のフロントエンドoriginへ固定する。
 
 ## デプロイ
 

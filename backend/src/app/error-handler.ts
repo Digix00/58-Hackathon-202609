@@ -1,8 +1,13 @@
 import type { ErrorHandler } from "hono";
 
+import type { AuthVariables } from "./middleware/auth";
 import type { Bindings } from "../types";
+import { getRequestId } from "../utils/request-id";
 
-export const handleError: ErrorHandler<{ Bindings: Bindings }> = (error, c) => {
+export const handleError: ErrorHandler<{
+  Bindings: Bindings;
+  Variables: AuthVariables;
+}> = (error, c) => {
   console.error(
     JSON.stringify({
       severity: "ERROR",
@@ -10,5 +15,16 @@ export const handleError: ErrorHandler<{ Bindings: Bindings }> = (error, c) => {
       error: error instanceof Error ? error.message : String(error),
     }),
   );
-  return c.json({ status: "error", message: "internal server error" }, 500);
+  const requestId = getRequestId(c.req.raw);
+  c.header("X-Request-Id", requestId);
+  return c.json(
+    {
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "サーバー内部でエラーが発生しました",
+        requestId,
+      },
+    },
+    500,
+  );
 };
