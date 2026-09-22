@@ -11,14 +11,27 @@ src/
 ├── app/                         # Honoアプリ、共通middleware・error handler
 ├── bootstrap/container.ts       # 全機能のComposition Root
 ├── application/                 # UseCase、Port、Application model
-│   ├── entity/health-status.entity.ts
-│   ├── health.repository.ts     # Repository Port
-│   └── usecase/
+│   ├── entity/                  # Application Entity
+│   │   ├── health-status.entity.ts
+│   │   ├── session.ts
+│   │   └── user.ts
+│   ├── repository/              # 永続化処理のPort
+│   │   ├── auth.repository.ts
+│   │   └── health.repository.ts
+│   ├── port/                    # 外部サービスのPort
+│   │   └── line-token-verifier.ts
+│   └── usecase/                 # Application UseCase
+│       ├── auth.usecase.ts
 │       └── check-health.usecase.ts
-├── infrastructure/database/    # D1/Drizzle AdapterとDB schema
-│   ├── d1-health.repository.ts
-│   └── schema.ts
-├── presentation/health.handler.ts
+├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
+│   ├── database/
+│   │   ├── d1-auth.repository.ts
+│   │   ├── d1-health.repository.ts
+│   │   └── schema.ts
+│   └── line/line-api.client.ts
+├── presentation/                # HTTP Handler
+│   ├── auth.handler.ts
+│   └── health.handler.ts
 └── index.ts                     # Worker entry point
 ```
 
@@ -27,7 +40,7 @@ Workerモジュールの初期化時に
 Repository → UseCase → Handler → Appの順でDIするため、リクエストごとに依存オブジェクトを
 生成しない。ルートにはDI済みHandlerのメソッドだけが渡される。
 
-Application層にEntity、Repository Port、UseCaseを置き、Infrastructure層にPortの実装、
+Application層にEntity、Repository/外部サービスのPort、UseCaseを置き、Infrastructure層にPortの実装、
 Presentation層にHandlerを置く。機能名はファイル名に含め、依存は`container.ts`で組み立てる。
 `createApp`へ注入可能な形を保つことで、テストではD1を使わずFakeを渡せる。
 
@@ -52,7 +65,8 @@ pnpm dev                # http://localhost:8787
 ## CORS
 
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
-環境ごとにフロントエンドの origin を設定する。未設定の場合は、従来どおり `*` を使用する。
+Cookie セッションを使う認証 API では、環境ごとにフロントエンドの origin を必ず設定する。
+未設定時の `*` は認証情報を送らないローカル確認用のフォールバックとして扱う。
 
 - 本番: `wrangler.jsonc` の `vars.CORS_ORIGIN` にデプロイ済みフロントエンドの origin を設定する。
 - ローカル: `.dev.vars`（`.dev.vars.example` をコピーして作成、git管理外）に
