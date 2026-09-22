@@ -12,7 +12,7 @@ export interface CreateConcernInput {
   inputMethod: ConcernInputMethod;
 }
 
-export interface ConcernUsecase {
+export interface IConcernUseCase {
   create(input: CreateConcernInput): Promise<Concern>;
 }
 
@@ -21,7 +21,7 @@ export interface ConcernUsecase {
  * 入力値の不変条件はConcernのコンストラクタが検証するため、ここではID/時刻を
  * 採番してEntityを組み立て、永続化を依頼するオーケストレーションに専念する。
  */
-export class ConcernUseCase implements ConcernUsecase {
+export class ConcernUseCase implements IConcernUseCase {
   private readonly repository: ConcernRepository;
   private readonly now: () => Date;
   private readonly createId: () => string;

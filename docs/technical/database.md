@@ -77,6 +77,10 @@ erDiagram
     TEXT id PK
     TEXT identity_type
     TEXT line_user_id_hash UK
+    INTEGER birth_year
+    INTEGER birth_month
+    TEXT gender_code
+    TEXT region_code
     TEXT anonymous_session_hash UK
     TEXT friend_status
     TEXT session_expires_at
@@ -273,7 +277,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| users | id, identity_type, line_user_id_hash, anonymous_session_hash, friend_status, session_expires_at, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF ユーザーと匿名ブラウザセッションの主体。identity_type で区別し、各 credential hash を UNIQUE にする。匿名行の friend_status は NULL |
+| users | id, identity_type, line_user_id_hash, birth_year, birth_month, gender_code, region_code, anonymous_session_hash, friend_status, session_expires_at, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF ユーザーと匿名ブラウザセッションの主体。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力の既存ユーザーは NULL とする |
 | regions | code, level, name_ja, name_en | 都道府県と広域区分のマスタ。投稿には自由入力文字列を保存しない |
 
 ### 4.2 投稿・AI処理

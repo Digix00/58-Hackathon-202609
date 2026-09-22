@@ -21,6 +21,10 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    birthYear: integer("birth_year"),
+    birthMonth: integer("birth_month"),
+    genderCode: text("gender_code"),
+    regionCode: text("region_code"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

@@ -65,6 +65,10 @@ Accept: application/json
 6. バックエンドが HttpOnly Cookie のセッションを発行し、以降の API へ自動送信させる
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
+`POST /api/v1/auth/line` と `GET /api/v1/auth/session` の認証済みレスポンスには、
+ログインユーザー自身のプロフィール情報と `profileCompleted` を含める。プロフィール未入力の
+ユーザーは `profileCompleted=false` となり、`PUT /api/v1/users/me` で登録する。
+
 次の値は信頼しない。
 
 - Request body や Query に含まれる userId
@@ -235,6 +239,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | セッションを復元し、未存在時は匿名セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
+| PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -253,6 +258,47 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
+
+### 2.1 PUT /api/v1/users/me
+
+LINEログイン済みユーザー自身のプロフィールを更新する。ユーザー識別子はリクエストから受け取らず、
+HttpOnly Cookieのセッションから解決する。プロフィールは初回ログイン後に登録する。
+
+#### Request
+
+~~~json
+{
+  "birthYear": 2002,
+  "birthMonth": 9,
+  "gender": "no_answer",
+  "regionCode": "hyogo"
+}
+~~~
+
+- `birthYear` は1900年から現在年までの整数とする
+- `birthMonth` は1〜12の整数とし、現在年の場合は現在月以降の未来の月を受け付けない
+- 生年月日は日まで保持せず、年と月だけを保存する
+- `gender` は `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかとする
+- `regionCode` は既定の47都道府県コードのいずれかとする
+
+#### Response: 200 OK
+
+~~~json
+{
+  "authenticated": true,
+  "user": {
+    "id": "opaque-user-id",
+    "birthYear": 2002,
+    "birthMonth": 9,
+    "gender": "no_answer",
+    "regionCode": "hyogo",
+    "profileCompleted": true
+  }
+}
+~~~
+
+`id` は既存の認証レスポンスとの互換性のために返す内部 opaque IDであり、LINE user IDは返さない。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、入力値が不正な場合は400 `INVALID_REQUEST`を返す。
 
 ## 3. 悩み API
 

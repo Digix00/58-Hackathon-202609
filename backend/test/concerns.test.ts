@@ -17,6 +17,7 @@ import { ConcernHandler } from "../src/presentation/concern.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createUserDependencies } from "./support/user-fixture";
 
 function createTestApp() {
   const authUseCase = new AuthUseCase(
@@ -39,6 +40,7 @@ function createTestApp() {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler,
+    ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -54,6 +56,7 @@ function anonymousTestApp() {
   return createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",

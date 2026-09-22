@@ -17,7 +17,7 @@
 | `quiz_participants` | quiz_id、actor_key、concern_id、属性、表示順 | クイズに登場する3ユーザー |
 | `quiz_options` | quiz_id、concern_id、表示順 | 順番を混ぜて表示する3件の実投稿 |
 | `quiz_answers` | quiz_id、actor_key、participant_id、selected_concern_id、日時 | 対応付け回答の集計 |
-| `users` | id、actor_key、LINE user IDのハッシュ、友だち状態、日時 | LINE配信とユーザー単位の履歴 |
+| `users` | id、LINE user ID、生年月（年・月）、性別、都道府県、日時 | LINE配信とユーザー単位の履歴 |
 | `learning_histories` | actor_key、concern_id、cluster_id、quiz_id、イベント種別、日時 | 閲覧とクイズの履歴 |
 
 `actor_key` は、LINEログインで確認した利用者識別子から生成する内部用の値である。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`actor_key`、既読、リアクション、クイズ回答、学習履歴を記録しない。
@@ -33,9 +33,11 @@
 
 ### 属性の扱い
 
+- 生年月は年と月だけを保存し、日や正確な年齢は保存しない
 - 年齢は年代などの広い区分で保存し、正確な年齢を保存しない
-- 性別は任意入力とし、回答しない選択肢を用意する
-- 地域はユーザーが選択した都道府県または広域区分のみを保存する
+- ユーザープロフィールの性別は `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかで保存する
+- ユーザープロフィールの地域は47都道府県コードから選択して保存する
+- 初回ログイン直後のプロフィールは未入力を許容し、性別の `no_answer` は入力済みとして扱う
 - クイズの3ユーザーは異なるactor_keyから選び、表示時には属性だけを利用する
 - クイズでは未入力の属性を「回答しない」として扱い、個人を特定できる組み合わせを避ける
 - IPアドレスを生データとして保存しない

@@ -10,7 +10,7 @@ import {
   type ConcernInputMethod,
   type Gender,
 } from "../application/entity/concern";
-import type { ConcernUsecase } from "../application/usecase/concern.usecase";
+import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 
 // 構造（型・必須項目）の検証だけをここで行う。本文長さや属性値の妥当性といった
@@ -26,9 +26,9 @@ const createConcernRequest = z.object({
 const factory = createFactory<{ Bindings: Bindings; Variables: AuthVariables }>();
 
 export class ConcernHandler {
-  private readonly concernUsecase: ConcernUsecase;
+  private readonly concernUsecase: IConcernUseCase;
 
-  constructor(concernUsecase: ConcernUsecase) {
+  constructor(concernUsecase: IConcernUseCase) {
     this.concernUsecase = concernUsecase;
   }
 
