@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router'
 import { useBottomSheet } from './hooks/useBottomSheet'
-import { useDisplaySettings } from './providers/DisplaySettingsProvider'
-import { useRuntime } from './providers/RuntimeProvider'
+import { useDisplaySettings } from './providers/DisplaySettingsContext'
+import { useRuntime } from './providers/RuntimeContext'
 import { SettingsSheet } from '../shared/components/SettingsSheet'
 
 const navigation = [
