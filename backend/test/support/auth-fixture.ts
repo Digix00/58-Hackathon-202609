@@ -4,7 +4,10 @@ import { AuthHandler } from "../../src/presentation/auth.handler";
 export function createAuthDependencies() {
   const authUseCase = new AuthUseCase(
     {
-      selectOrCreateByLineUserId: async () => {
+      selectByLineUserId: async () => {
+        throw new Error("auth fixture is not used by this test");
+      },
+      insert: async () => {
         throw new Error("auth fixture is not used by this test");
       },
       selectById: async () => {
