@@ -83,7 +83,7 @@ backendと共通。詳細は[`backend/README.md`](../backend/README.md#ciに必�
 ビルド時はGitHub Actions Variablesから以下を注入する。未設定の場合はBuildステップで
 Workflowを失敗させる。
 
-| Variable | 説明 |
-| --- | --- |
+| Variable            | 説明                                         |
+| ------------------- | -------------------------------------------- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するバックエンドAPIのURL |
-| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID |
+| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID     |
