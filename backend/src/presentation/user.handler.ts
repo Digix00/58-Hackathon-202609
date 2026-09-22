@@ -4,8 +4,8 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
-  UserProfileValidationError,
   type UserProfileInput,
+  UserProfileValidationError,
 } from "../application/entity/user";
 import type { IUserUseCase } from "../application/usecase/user.usecase";
 import type { Bindings } from "../types";
@@ -45,7 +45,9 @@ export class UserHandler {
       );
     }
 
-    const parsed = updateUserProfileRequest.safeParse(await readJson(c.req.raw));
+    const parsed = updateUserProfileRequest.safeParse(
+      await readJson(c.req.raw),
+    );
     if (!parsed.success) {
       return c.json(
         {
