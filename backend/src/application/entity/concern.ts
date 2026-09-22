@@ -1,4 +1,8 @@
 import { REGION_CODES } from "./region-code";
+import { GENDERS, type Gender } from "./user-profile";
+
+export { GENDERS } from "./user-profile";
+export type { Gender } from "./user-profile";
 
 export const AGE_GROUPS = [
   "10s",
@@ -13,15 +17,6 @@ export const AGE_GROUPS = [
   "no_answer",
 ] as const;
 export type AgeGroup = (typeof AGE_GROUPS)[number];
-
-export const GENDERS = [
-  "male",
-  "female",
-  "non_binary",
-  "other",
-  "no_answer",
-] as const;
-export type Gender = (typeof GENDERS)[number];
 
 export const CONCERN_INPUT_METHODS = ["liff", "voice"] as const;
 export type ConcernInputMethod = (typeof CONCERN_INPUT_METHODS)[number];

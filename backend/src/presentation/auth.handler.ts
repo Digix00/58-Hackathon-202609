@@ -2,6 +2,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
 
+import type { User } from "../application/entity/user";
 import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
 import {
   InvalidLineTokenError,
@@ -10,6 +11,7 @@ import {
 import { getRequestId } from "../app/request-id";
 import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
 import type { Bindings } from "../types";
+import { toUserResponse } from "./user-response";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
@@ -131,10 +133,10 @@ function setSessionCookie(
   });
 }
 
-function toResponse(result: { user: { id: string } | null }) {
+function toResponse(result: { user: User | null }) {
   return {
     authenticated: result.user !== null,
-    user: result.user ? { id: result.user.id } : null,
+    user: result.user ? toUserResponse(result.user) : null,
   };
 }
 

@@ -12,6 +12,8 @@ import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { HealthHandler } from "../presentation/health.handler";
+import { UserHandler } from "../presentation/user.handler";
+import { UserUseCase } from "../application/usecase/user.usecase";
 import type { Bindings } from "../types";
 
 /**
@@ -20,8 +22,9 @@ import type { Bindings } from "../types";
  */
 export function createApplication(bindings: Bindings) {
   const sessionTtlSeconds = parseSessionTtl(bindings.AUTH_SESSION_TTL_SECONDS);
+  const userRepository = new D1UserRepository(bindings.DB);
   const authUseCase = new AuthUseCase(
-    new D1UserRepository(bindings.DB),
+    userRepository,
     new D1SessionRepository(bindings.DB),
     new LineApiClient(bindings.LINE_CHANNEL_ID),
     sessionTtlSeconds,
@@ -33,12 +36,14 @@ export function createApplication(bindings: Bindings) {
   const concernRepository = new D1ConcernRepository(bindings.DB);
   const concernUsecase = new ConcernUseCase(concernRepository);
   const concernHandler = new ConcernHandler(concernUsecase);
+  const userUseCase = new UserUseCase(userRepository);
 
   return createApp({
     authHandler: new AuthHandler(authUseCase, sessionTtlSeconds),
     authUseCase,
     concernHandler,
     healthHandler,
+    userHandler: new UserHandler(userUseCase),
   });
 }
 

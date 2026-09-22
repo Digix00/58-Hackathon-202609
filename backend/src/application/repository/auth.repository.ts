@@ -1,9 +1,11 @@
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
+import type { UserProfile } from "../entity/user-profile";
 
 export interface UserRepository {
   selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
   selectById(userId: string): Promise<User | null>;
+  updateProfile(userId: string, profile: UserProfile): Promise<User>;
 }
 
 export interface SessionRepository {
