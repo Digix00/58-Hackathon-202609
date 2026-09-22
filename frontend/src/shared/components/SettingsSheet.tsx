@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useDisplaySettings, type DisplayLanguage, type FontSize } from '../../app/providers/DisplaySettingsContext'
 
-type SettingsSheetProps = { open: boolean; onClose: () => void }
+type SettingsSheetProps = { open: boolean; onClose: () => void; profileSettings: ReactNode }
 
 const languageOptions: Array<{ value: DisplayLanguage; label: string }> = [
   { value: 'original', label: '原文' }, { value: 'hira', label: 'ひらがな' }, { value: 'en', label: '英語' },
@@ -9,10 +9,9 @@ const languageOptions: Array<{ value: DisplayLanguage; label: string }> = [
 const fontSizeOptions: Array<{ value: FontSize; label: string }> = [
   { value: 'normal', label: '標準' }, { value: 'large', label: '大きく表示' },
 ]
-
-export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const { fontSize, language, setFontSize, setLanguage } = useDisplaySettings()
+  const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } = useDisplaySettings()
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -36,12 +35,16 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       aria-labelledby="settings-title"
       onClose={handleDialogClose}
     >
-      <div className="settings-sheet crayon-edge" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="settings-sheet" onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true" />
-        <div className="sheet-heading"><h2 id="settings-title">表示の設定</h2><button className="icon-button crayon-edge" type="button" onClick={onClose} aria-label="設定を閉じる">×</button></div>
+        <div className="sheet-heading"><h2 id="settings-title">設定</h2><button className="icon-button sheet-close-button" type="button" onClick={onClose} aria-label="設定を閉じる"><svg className="sheet-close-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g filter="url(#crayon-edge)"><path d="M5.2 5.1C8.6 8.4 12.2 12.1 18.8 18.7" /><path d="M18.8 5.2C15.1 8.6 11.8 12.2 5.1 18.9" /><path className="sheet-close-trace" d="M5.5 5.4C8.8 8.8 12.3 12.3 18.4 18.4" /><path className="sheet-close-trace" d="M18.5 5.5C15.1 8.8 11.8 12.4 5.5 18.6" /></g></svg></button></div>
         <fieldset className="setting-group"><legend>文字サイズ</legend><div className="choice-row">{fontSizeOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="font-size" checked={fontSize === option.value} onChange={() => setFontSize(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
         <fieldset className="setting-group"><legend>表示することば</legend><div className="choice-row">{languageOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="display-language" checked={language === option.value} onChange={() => setLanguage(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
-        <section className="setting-group" aria-labelledby="speech-title"><h3 id="speech-title">読み上げ</h3><p>投稿を開くと、ここから読み上げられます。</p><button type="button" className="secondary-button" disabled>読み上げる文章がありません</button></section>
+        {profileSettings}
+        <fieldset className="setting-group speech-setting">
+          <legend>読み上げ</legend>
+          <label className="toggle-option"><input type="checkbox" checked={speechEnabled} onChange={(event) => setSpeechEnabled(event.target.checked)} /><span>投稿を開いたら読み上げる</span></label>
+        </fieldset>
       </div>
       <button className="sheet-backdrop" type="button" onClick={onClose} aria-label="背景を選んで設定を閉じる" />
     </dialog>
