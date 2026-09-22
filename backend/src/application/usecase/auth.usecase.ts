@@ -18,7 +18,7 @@ export interface SessionResult extends SessionView {
   token?: string;
 }
 
-export interface AuthUseCasePort {
+export interface IAuthUseCase {
   authenticateWithLine(
     idToken: string,
     currentToken?: string,
@@ -28,7 +28,7 @@ export interface AuthUseCasePort {
   logout(currentToken?: string): Promise<void>;
 }
 
-export class AuthUseCase implements AuthUseCasePort {
+export class AuthUseCase implements IAuthUseCase {
   private readonly sessionTtlSeconds: number;
   private readonly users: UserRepository;
   private readonly sessions: SessionRepository;

@@ -8,6 +8,7 @@ import { D1HealthRepository } from "../src/infrastructure/database/d1-health.rep
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createUserDependencies } from "./support/user-fixture";
 
 describe("GET /health", () => {
   it("returns ok status and database connectivity", async () => {
@@ -16,6 +17,7 @@ describe("GET /health", () => {
     const app = createApp({
       ...createAuthDependencies(),
       ...createConcernDependencies(),
+      ...createUserDependencies(),
       healthHandler: new HealthHandler(useCase),
     });
     const res = await app.request("/health", {}, env);
@@ -52,7 +54,8 @@ describe("GET /health", () => {
       });
       const app = createApp({
         ...createAuthDependencies(),
-      ...createConcernDependencies(),
+        ...createConcernDependencies(),
+        ...createUserDependencies(),
         healthHandler,
       });
 
@@ -93,6 +96,7 @@ describe("GET /health", () => {
     const app = createApp({
       ...createAuthDependencies(),
       ...createConcernDependencies(),
+      ...createUserDependencies(),
       healthHandler,
     });
     const bindings = {

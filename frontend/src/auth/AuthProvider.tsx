@@ -52,9 +52,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (useDevAuthenticatedSession) {
           applySession({
             authenticated: true,
-            user: { id: 'dev-user' },
-          })
-          return
+            user: {
+              id: "dev-user",
+              birthYear: null,
+              birthMonth: null,
+              gender: null,
+              regionCode: null,
+              profileCompleted: false,
+            },
+          });
+          return;
         }
 
         const session = await requestSession()
