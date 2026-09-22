@@ -6,7 +6,10 @@ import type {
   UserRepository,
 } from "../../application/repository/auth.repository";
 import type { Session } from "../../application/entity/session";
-import type { User } from "../../application/entity/user";
+import type {
+  User,
+  ValidatedUserProfilePatch,
+} from "../../application/entity/user";
 import { sessions, users } from "./schema";
 
 export class D1UserRepository implements UserRepository {
@@ -19,11 +22,12 @@ export class D1UserRepository implements UserRepository {
   async selectOrCreateByLineUserId(
     lineUserId: string,
     userId: string,
+    profile: ValidatedUserProfilePatch = {},
   ): Promise<User> {
     const existing = await this.selectByLineUserId(lineUserId);
 
     if (existing) {
-      return existing;
+      return this.updateExistingProfile(existing, profile);
     }
 
     const now = new Date().toISOString();
@@ -32,6 +36,9 @@ export class D1UserRepository implements UserRepository {
       .values({
         id: userId,
         lineUserId,
+        birthYear: profile.birthYear ?? null,
+        genderCode: profile.gender ?? null,
+        regionCode: profile.regionCode ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -48,19 +55,92 @@ export class D1UserRepository implements UserRepository {
   }
 
   async selectById(userId: string): Promise<User | null> {
-    return (await this.db
-      .select({ id: users.id, lineUserId: users.lineUserId })
+    const row = await this.db
+      .select({
+        id: users.id,
+        lineUserId: users.lineUserId,
+        birthYear: users.birthYear,
+        gender: users.genderCode,
+        regionCode: users.regionCode,
+      })
       .from(users)
       .where(eq(users.id, userId))
-      .get()) ?? null;
+      .get();
+    return this.toUser(row);
+  }
+
+  async updateProfile(
+    userId: string,
+    profile: ValidatedUserProfilePatch,
+  ): Promise<User | null> {
+    const now = new Date().toISOString();
+    const values: Partial<typeof users.$inferInsert> = { updatedAt: now };
+
+    if ("birthYear" in profile) {
+      values.birthYear = profile.birthYear ?? null;
+    }
+    if ("gender" in profile) {
+      values.genderCode = profile.gender ?? null;
+    }
+    if ("regionCode" in profile) {
+      values.regionCode = profile.regionCode ?? null;
+    }
+
+    await this.db.update(users).set(values).where(eq(users.id, userId)).run();
+    return this.selectById(userId);
   }
 
   private async selectByLineUserId(lineUserId: string): Promise<User | null> {
-    return (await this.db
-      .select({ id: users.id, lineUserId: users.lineUserId })
+    const row = await this.db
+      .select({
+        id: users.id,
+        lineUserId: users.lineUserId,
+        birthYear: users.birthYear,
+        gender: users.genderCode,
+        regionCode: users.regionCode,
+      })
       .from(users)
       .where(eq(users.lineUserId, lineUserId))
-      .get()) ?? null;
+      .get();
+    return this.toUser(row);
+  }
+
+  private toUser(
+    row:
+      | {
+          id: string;
+          lineUserId: string;
+          birthYear: number | null;
+          gender: string | null;
+          regionCode: string | null;
+        }
+      | undefined,
+  ): User | null {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      ...row,
+      gender: row.gender as User["gender"],
+      regionCode: row.regionCode as User["regionCode"],
+    };
+  }
+
+  private async updateExistingProfile(
+    user: User,
+    profile: ValidatedUserProfilePatch,
+  ): Promise<User> {
+    if (Object.keys(profile).length === 0) {
+      return user;
+    }
+
+    const updated = await this.updateProfile(user.id, profile);
+    if (!updated) {
+      throw new Error("failed to update auth user profile");
+    }
+
+    return updated;
   }
 }
 

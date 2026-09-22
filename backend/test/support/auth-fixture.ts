@@ -1,5 +1,6 @@
 import { AuthUseCase } from "../../src/application/usecase/auth.usecase";
 import { AuthHandler } from "../../src/presentation/auth.handler";
+import { UserHandler } from "../../src/presentation/user.handler";
 
 export function createAuthDependencies() {
   const authUseCase = new AuthUseCase(
@@ -8,6 +9,9 @@ export function createAuthDependencies() {
         throw new Error("auth fixture is not used by this test");
       },
       selectById: async () => {
+        throw new Error("auth fixture is not used by this test");
+      },
+      updateProfile: async () => {
         throw new Error("auth fixture is not used by this test");
       },
     },
@@ -32,5 +36,10 @@ export function createAuthDependencies() {
   return {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    userHandler: new UserHandler({
+      updateProfile: async () => {
+        throw new Error("auth fixture is not used by this test");
+      },
+    }),
   };
 }

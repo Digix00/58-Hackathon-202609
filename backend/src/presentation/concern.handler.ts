@@ -10,6 +10,7 @@ import {
   type ConcernInputMethod,
   type Gender,
 } from "../application/entity/concern";
+import { ageGroupFromBirthYear } from "../application/entity/user";
 import type { ConcernUsecase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 
@@ -67,12 +68,18 @@ export class ConcernHandler {
     }
 
     try {
+      const ageGroup =
+        auth.user.birthYear === null
+          ? (parsed.data.ageGroup as AgeGroup | undefined)
+          : ageGroupFromBirthYear(auth.user.birthYear);
+      const gender = auth.user.gender ?? (parsed.data.gender as Gender | undefined);
+      const regionCode = auth.user.regionCode ?? parsed.data.regionCode;
       const concern = await this.concernUsecase.create({
         userId: auth.user.id,
         body: parsed.data.body,
-        ageGroup: parsed.data.ageGroup as AgeGroup | undefined,
-        gender: parsed.data.gender as Gender | undefined,
-        regionCode: parsed.data.regionCode,
+        ageGroup,
+        gender,
+        regionCode,
         inputMethod: parsed.data.inputMethod as ConcernInputMethod,
       });
 

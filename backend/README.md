@@ -22,7 +22,8 @@ src/
 │   │   └── line-token-verifier.ts
 │   └── usecase/                 # Application UseCase
 │       ├── auth.usecase.ts
-│       └── check-health.usecase.ts
+│       ├── check-health.usecase.ts
+│       └── user.usecase.ts
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
 │   ├── database/
 │   │   ├── d1-auth.repository.ts
@@ -31,7 +32,8 @@ src/
 │   └── line/line-api.client.ts
 ├── presentation/                # HTTP Handler
 │   ├── auth.handler.ts
-│   └── health.handler.ts
+│   ├── health.handler.ts
+│   └── user.handler.ts
 └── index.ts                     # Worker entry point
 ```
 

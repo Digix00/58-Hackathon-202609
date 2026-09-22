@@ -21,11 +21,26 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    birthYear: integer("birth_year"),
+    genderCode: text("gender_code"),
+    regionCode: text("region_code"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => ({
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
+    birthYearCheck: check(
+      "users_birth_year_check",
+      sql`${table.birthYear} is null or ${table.birthYear} between 1900 and 2100`,
+    ),
+    genderCodeCheck: check(
+      "users_gender_code_check",
+      sql`${table.genderCode} is null or ${table.genderCode} in ('male', 'female', 'non_binary', 'other', 'no_answer')`,
+    ),
+    regionCodeCheck: check(
+      "users_region_code_check",
+      sql`${table.regionCode} is null or ${table.regionCode} in ('hokkaido', 'aomori', 'iwate', 'miyagi', 'akita', 'yamagata', 'fukushima', 'ibaraki', 'tochigi', 'gunma', 'saitama', 'chiba', 'tokyo', 'kanagawa', 'niigata', 'toyama', 'ishikawa', 'fukui', 'yamanashi', 'nagano', 'gifu', 'shizuoka', 'aichi', 'mie', 'shiga', 'kyoto', 'osaka', 'hyogo', 'nara', 'wakayama', 'tottori', 'shimane', 'okayama', 'hiroshima', 'yamaguchi', 'tokushima', 'kagawa', 'ehime', 'kochi', 'fukuoka', 'saga', 'nagasaki', 'kumamoto', 'oita', 'miyazaki', 'kagoshima', 'okinawa')`,
+    ),
   }),
 );
 

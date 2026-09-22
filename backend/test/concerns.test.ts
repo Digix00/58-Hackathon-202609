@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
+import { UserUseCase } from "../src/application/usecase/user.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -15,12 +16,14 @@ import { concerns } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
+import { UserHandler } from "../src/presentation/user.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 
 function createTestApp() {
+  const userRepository = new D1UserRepository(env.DB);
   const authUseCase = new AuthUseCase(
-    new D1UserRepository(env.DB),
+    userRepository,
     new D1SessionRepository(env.DB),
     {
       verify: async (idToken) => {
@@ -39,6 +42,7 @@ function createTestApp() {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler,
+    userHandler: new UserHandler(new UserUseCase(userRepository)),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -73,7 +77,10 @@ function cookieFrom(response: Response): string {
   return value.split(";", 1)[0];
 }
 
-async function loginCookie(app: ReturnType<typeof createTestApp>): Promise<string> {
+async function loginCookie(
+  app: ReturnType<typeof createTestApp>,
+  profile?: Record<string, unknown>,
+): Promise<string> {
   const anonymous = await app.request("/api/v1/auth/session", {}, env);
   const anonymousCookie = cookieFrom(anonymous);
 
@@ -85,7 +92,10 @@ async function loginCookie(app: ReturnType<typeof createTestApp>): Promise<strin
         Cookie: anonymousCookie,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ idToken: "valid-id-token" }),
+        body: JSON.stringify({
+          idToken: "valid-id-token",
+          ...(profile ? { profile } : {}),
+        }),
     },
     env,
   );
@@ -294,5 +304,37 @@ describe("POST /api/v1/concerns", () => {
     expect(res.status).toBe(400);
     const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("uses the saved user profile instead of request attributes", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app, {
+      birthYear: 2000,
+      gender: "female",
+      regionCode: "osaka",
+    });
+
+    const res = await app.request(
+      "/api/v1/concerns",
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...validBody,
+          ageGroup: "40s",
+          gender: "male",
+          regionCode: "tokyo",
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(201);
+    const created = await res.json<{ attributes: Record<string, unknown> }>();
+    expect(created.attributes).toEqual({
+      ageGroup: "20s",
+      gender: "female",
+      regionCode: "osaka",
+    });
   });
 });

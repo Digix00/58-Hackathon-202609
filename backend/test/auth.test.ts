@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
-import { D1SessionRepository, D1UserRepository } from "../src/infrastructure/database/d1-auth.repository";
+import { UserUseCase } from "../src/application/usecase/user.usecase";
+import {
+  D1SessionRepository,
+  D1UserRepository,
+} from "../src/infrastructure/database/d1-auth.repository";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
+import { UserHandler } from "../src/presentation/user.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
 
 function createTestApp() {
+  const userRepository = new D1UserRepository(env.DB);
   const authUseCase = new AuthUseCase(
-    new D1UserRepository(env.DB),
+    userRepository,
     new D1SessionRepository(env.DB),
     {
       verify: async (idToken) => {
@@ -25,6 +31,7 @@ function createTestApp() {
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    userHandler: new UserHandler(new UserUseCase(userRepository)),
     ...createConcernDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
@@ -87,7 +94,11 @@ describe("authentication routes", () => {
     expect(login.status).toBe(200);
     expect(await login.json()).toEqual({
       authenticated: true,
-      user: { id: expect.any(String) },
+      user: {
+        id: expect.any(String),
+        profile: { birthYear: null, gender: null, regionCode: null },
+        profileCompleted: false,
+      },
     });
 
     const authenticatedCookie = cookieFrom(login);
@@ -100,7 +111,11 @@ describe("authentication routes", () => {
     );
     expect(await restored.json()).toEqual({
       authenticated: true,
-      user: { id: expect.any(String) },
+      user: {
+        id: expect.any(String),
+        profile: { birthYear: null, gender: null, regionCode: null },
+        profileCompleted: false,
+      },
     });
 
     const logout = await app.request(

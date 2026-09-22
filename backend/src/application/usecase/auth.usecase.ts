@@ -4,7 +4,11 @@ import type {
 } from "../repository/auth.repository";
 import type { LineTokenVerifier } from "../port/line-token-verifier";
 import type { Session } from "../entity/session";
-import type { User } from "../entity/user";
+import {
+  type User,
+  type UserProfilePatch,
+  validateUserProfilePatch,
+} from "../entity/user";
 import { encodeBase64Url, generateId, randomBytes } from "../shared/id-generator";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -22,6 +26,7 @@ export interface AuthUseCasePort {
   authenticateWithLine(
     idToken: string,
     currentToken?: string,
+    profile?: UserProfilePatch,
   ): Promise<SessionResult>;
   getOrCreateSession(currentToken?: string): Promise<SessionResult>;
   getSession(currentToken?: string): Promise<SessionView | null>;
@@ -57,11 +62,16 @@ export class AuthUseCase implements AuthUseCasePort {
   async authenticateWithLine(
     idToken: string,
     currentToken?: string,
+    profile?: UserProfilePatch,
   ): Promise<SessionResult> {
     const identity = await this.lineTokenVerifier.verify(idToken);
+    const validatedProfile = profile
+      ? validateUserProfilePatch(profile)
+      : undefined;
     const user = await this.users.selectOrCreateByLineUserId(
       identity.lineUserId,
       this.createId(),
+      validatedProfile,
     );
 
     const currentSession = await this.findSession(currentToken);

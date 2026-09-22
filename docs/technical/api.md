@@ -65,6 +65,55 @@ Accept: application/json
 6. バックエンドが HttpOnly Cookie のセッションを発行し、以降の API へ自動送信させる
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
+LINE認証時の Request には、初回プロフィール入力を同時に行うための任意の `profile` を指定できる。
+プロフィールを指定しない場合もログイン自体は成功し、`profileCompleted=false` のユーザーとして扱う。
+
+~~~json
+{
+  "idToken": "<LIFF_ID_TOKEN>",
+  "profile": {
+    "birthYear": 2000,
+    "gender": "female",
+    "regionCode": "osaka"
+  }
+}
+~~~
+
+認証レスポンスと `GET /api/v1/auth/session` の `user` は、本人のプロフィールだけを次の形式で返す。
+
+~~~json
+{
+  "id": "user_01J...",
+  "profile": {
+    "birthYear": 2000,
+    "gender": "female",
+    "regionCode": "osaka"
+  },
+  "profileCompleted": true
+}
+~~~
+
+`id` は既存クライアント互換のため返しているが、他ユーザーの識別子やLINE user IDは返さない。
+
+#### PATCH /api/v1/users/me
+
+LINEログイン済みユーザー自身のプロフィールを更新する。Request body は部分更新で、`undefined` は変更せず、
+`null` は値を消去する。少なくとも1項目を指定する。
+
+~~~json
+{
+  "birthYear": 2000,
+  "gender": "female",
+  "regionCode": "osaka"
+}
+~~~
+
+- `birthYear` は1900年から現在年までの整数。正確な生年月日・年齢は保存しない
+- `gender` は `male`、`female`、`non_binary`、`other`、`no_answer`
+- `regionCode` は47都道府県のコード
+- 未ログインの場合は401 AUTHENTICATION_REQUIRED、不正な値は400 INVALID_REQUEST
+- 3項目がすべて設定されると `profileCompleted=true` になる。`no_answer` は入力済みとして扱う
+
 次の値は信頼しない。
 
 - Request body や Query に含まれる userId
@@ -235,6 +284,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | セッションを復元し、未存在時は匿名セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
+| PATCH | /api/v1/users/me | MVP | LINEログイン（LIFF内のみ） | 自分のプロフィールを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -279,6 +329,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
 - regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
 - inputMethod は必須で、liff または voice のいずれか
+- 認証済みユーザーに保存済みプロフィールがある場合、ageGroup は生年から算出し、gender と regionCode は保存値を利用する。Request の同名項目はフォールバックとしてのみ扱う
 - ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
 - 本文の個人情報や緊急性の判定は PoC の API 責務に含めない。実在の個人情報や緊急相談をデモデータに使用しない

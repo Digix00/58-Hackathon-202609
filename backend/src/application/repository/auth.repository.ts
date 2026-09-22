@@ -1,9 +1,20 @@
 import type { Session } from "../entity/session";
-import type { User } from "../entity/user";
+import type {
+  User,
+  ValidatedUserProfilePatch,
+} from "../entity/user";
 
 export interface UserRepository {
-  selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
+  selectOrCreateByLineUserId(
+    lineUserId: string,
+    userId: string,
+    profile?: ValidatedUserProfilePatch,
+  ): Promise<User>;
   selectById(userId: string): Promise<User | null>;
+  updateProfile(
+    userId: string,
+    profile: ValidatedUserProfilePatch,
+  ): Promise<User | null>;
 }
 
 export interface SessionRepository {

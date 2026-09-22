@@ -7,13 +7,26 @@ import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
+import {
+  UserProfileValidationError,
+  type UserProfilePatch,
+} from "../application/entity/user";
 import { getRequestId } from "../app/request-id";
 import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
 import type { Bindings } from "../types";
+import { toUserResponse } from "./user-response";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const userProfileRequest = z
+  .object({
+    birthYear: z.number().int().nullable().optional(),
+    gender: z.string().nullable().optional(),
+    regionCode: z.string().nullable().optional(),
+  })
+  .strict();
 const lineLoginRequest = z.object({
   idToken: z.string().min(1).max(4096),
+  profile: userProfileRequest.optional(),
 });
 
 const factory = createFactory<{ Bindings: Bindings }>();
@@ -53,6 +66,7 @@ export class AuthHandler {
       const result = await this.authUseCase.authenticateWithLine(
         parsed.data.idToken,
         getCookie(c, SESSION_COOKIE_NAME),
+        parsed.data.profile as UserProfilePatch | undefined,
       );
       if (result.token) {
         setSessionCookie(c, result.token, this.sessionMaxAgeSeconds);
@@ -82,6 +96,19 @@ export class AuthHandler {
             },
           },
           503,
+        );
+      }
+      if (error instanceof UserProfileValidationError) {
+        return c.json(
+          {
+            error: {
+              code: "INVALID_REQUEST",
+              message: "プロフィール情報を確認してください",
+              details: [{ field: error.field, reason: "invalid" }],
+              requestId,
+            },
+          },
+          400,
         );
       }
       throw error;
@@ -131,10 +158,12 @@ function setSessionCookie(
   });
 }
 
-function toResponse(result: { user: { id: string } | null }) {
+function toResponse(result: {
+  user: Parameters<typeof toUserResponse>[0] | null;
+}) {
   return {
     authenticated: result.user !== null,
-    user: result.user ? { id: result.user.id } : null,
+    user: result.user ? toUserResponse(result.user) : null,
   };
 }
 

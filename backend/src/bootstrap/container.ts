@@ -2,6 +2,7 @@ import { createApp } from "../app/create-app";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
+import { UserUseCase } from "../application/usecase/user.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -12,6 +13,7 @@ import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { HealthHandler } from "../presentation/health.handler";
+import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 
 /**
@@ -20,12 +22,14 @@ import type { Bindings } from "../types";
  */
 export function createApplication(bindings: Bindings) {
   const sessionTtlSeconds = parseSessionTtl(bindings.AUTH_SESSION_TTL_SECONDS);
+  const userRepository = new D1UserRepository(bindings.DB);
   const authUseCase = new AuthUseCase(
-    new D1UserRepository(bindings.DB),
+    userRepository,
     new D1SessionRepository(bindings.DB),
     new LineApiClient(bindings.LINE_CHANNEL_ID),
     sessionTtlSeconds,
   );
+  const userUseCase = new UserUseCase(userRepository);
   const healthRepository = new D1HealthRepository(bindings.DB);
   const checkHealth = new CheckHealthUseCase(healthRepository);
   const healthHandler = new HealthHandler(checkHealth);
@@ -39,6 +43,7 @@ export function createApplication(bindings: Bindings) {
     authUseCase,
     concernHandler,
     healthHandler,
+    userHandler: new UserHandler(userUseCase),
   });
 }
 
