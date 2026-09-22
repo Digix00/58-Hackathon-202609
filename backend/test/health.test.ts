@@ -6,12 +6,16 @@ import { createApp } from "../src/app/create-app";
 import { CheckHealthUseCase } from "../src/application/usecase/check-health.usecase";
 import { D1HealthRepository } from "../src/infrastructure/database/d1-health.repository";
 import { HealthHandler } from "../src/presentation/health.handler";
+import { createAuthDependencies } from "./support/auth-fixture";
 
 describe("GET /health", () => {
   it("returns ok status and database connectivity", async () => {
     const repository = new D1HealthRepository(env.DB);
     const useCase = new CheckHealthUseCase(repository);
-    const app = createApp({ healthHandler: new HealthHandler(useCase) });
+    const app = createApp({
+      ...createAuthDependencies(),
+      healthHandler: new HealthHandler(useCase),
+    });
     const res = await app.request("/health", {}, env);
 
     expect(res.status).toBe(200);
@@ -44,7 +48,10 @@ describe("GET /health", () => {
           };
         },
       });
-      const app = createApp({ healthHandler });
+      const app = createApp({
+        ...createAuthDependencies(),
+        healthHandler,
+      });
 
       const res = await app.request("/health", {}, env);
 
@@ -63,13 +70,15 @@ describe("GET /health", () => {
       scenario: "uses the configured CORS origin",
       corsOrigin: "https://frontend.example",
       expectedOrigin: "https://frontend.example",
+      expectedCredentials: "true",
     },
     {
-      scenario: "keeps the current wildcard behavior when no origin is configured",
+      scenario: "uses a non-credentialed wildcard when no origin is configured",
       corsOrigin: undefined,
       expectedOrigin: "*",
+      expectedCredentials: null,
     },
-  ])("$scenario", async ({ corsOrigin, expectedOrigin }) => {
+  ])("$scenario", async ({ corsOrigin, expectedOrigin, expectedCredentials }) => {
     const healthHandler = new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -78,7 +87,10 @@ describe("GET /health", () => {
         version: "0.1.0",
       }),
     });
-    const app = createApp({ healthHandler });
+    const app = createApp({
+      ...createAuthDependencies(),
+      healthHandler,
+    });
     const bindings = {
       DB: env.DB,
       ...(corsOrigin === undefined ? {} : { CORS_ORIGIN: corsOrigin }),
@@ -91,5 +103,8 @@ describe("GET /health", () => {
     );
 
     expect(res.headers.get("access-control-allow-origin")).toBe(expectedOrigin);
+    expect(res.headers.get("access-control-allow-credentials")).toBe(
+      expectedCredentials,
+    );
   });
 });

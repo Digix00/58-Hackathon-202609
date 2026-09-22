@@ -4,7 +4,9 @@ declare global {
   namespace Cloudflare {
     interface Env {
       DB: D1Database;
+      LINE_CHANNEL_ID?: string;
       CORS_ORIGIN?: string;
+      AUTH_SESSION_TTL_SECONDS?: string;
     }
   }
 }

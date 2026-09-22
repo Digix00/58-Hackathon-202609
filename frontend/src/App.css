@@ -182,3 +182,33 @@
     border-right-color: var(--border);
   }
 }
+
+.auth-status {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.auth-status button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  background: #06c755;
+  cursor: pointer;
+  font: inherit;
+}
+
+.auth-status button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.auth-error {
+  color: #dc2626;
+  font-size: 0.9rem;
+}
