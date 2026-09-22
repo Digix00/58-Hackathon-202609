@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useDisplaySettings, type DisplayLanguage, type FontSize } from '../../app/providers/DisplaySettingsContext'
+import { useSettingsDialog } from '../hooks/useSettingsDialog'
 
 type SettingsSheetProps = { open: boolean; onClose: () => void; profileSettings: ReactNode }
 
@@ -10,30 +11,15 @@ const fontSizeOptions: Array<{ value: FontSize; label: string }> = [
   { value: 'normal', label: '標準' }, { value: 'large', label: '大きく表示' },
 ]
 export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const { dialogRef, handleClose } = useSettingsDialog({ open, onClose })
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } = useDisplaySettings()
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open) {
-      if (!dialog.open) dialog.showModal()
-      dialog.querySelector<HTMLElement>('button, input')?.focus()
-      return
-    }
-    if (dialog.open) dialog.close()
-  }, [open])
-
-  const handleDialogClose = () => {
-    if (open) onClose()
-  }
 
   return (
     <dialog
       ref={dialogRef}
       className="sheet-dialog"
       aria-labelledby="settings-title"
-      onClose={handleDialogClose}
+      onClose={handleClose}
     >
       <div className={`settings-sheet font-${fontSize}`} onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true" />
