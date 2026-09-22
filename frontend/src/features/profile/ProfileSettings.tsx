@@ -1,7 +1,16 @@
 import { useCallback, useReducer } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
-import { GENDERS, REGION_OPTIONS, updateUserProfile, type Gender, type RegionCode } from './profileApi'
+import actionStyles from '../../shared/styles/Actions.module.css'
+import sheetStyles from '../../shared/components/SettingsSheet.module.css'
+import {
+  GENDERS,
+  REGION_OPTIONS,
+  updateUserProfile,
+  type Gender,
+  type RegionCode,
+} from './profileApi'
+import styles from './ProfileSettings.module.css'
 
 const currentYear = new Date().getFullYear()
 
@@ -63,10 +72,10 @@ function profileReducer(state: ProfileState, action: ProfileAction): ProfileStat
 
 function getEffectiveProfile(draft: ProfileForm, user: ProfileUser | null): ProfileForm {
   return {
-    birthYear: draft.birthYear !== '' ? draft.birthYear : user?.birthYear ?? '',
-    birthMonth: draft.birthMonth !== '' ? draft.birthMonth : user?.birthMonth ?? '',
-    gender: draft.gender !== '' ? draft.gender : user?.gender ?? '',
-    regionCode: draft.regionCode !== '' ? draft.regionCode : user?.regionCode ?? '',
+    birthYear: draft.birthYear !== '' ? draft.birthYear : (user?.birthYear ?? ''),
+    birthMonth: draft.birthMonth !== '' ? draft.birthMonth : (user?.birthMonth ?? ''),
+    gender: draft.gender !== '' ? draft.gender : (user?.gender ?? ''),
+    regionCode: draft.regionCode !== '' ? draft.regionCode : (user?.regionCode ?? ''),
   }
 }
 
@@ -132,52 +141,65 @@ export function ProfileSettings() {
   const profileMessage = profileStatus === 'saved' ? '設定を保存しました。' : profileError
 
   return (
-    <section className="setting-group" aria-labelledby="profile-title">
+    <section className={sheetStyles.group} aria-labelledby="profile-title">
       <h3 id="profile-title">あなたの設定</h3>
-      {authStatus !== 'authenticated' ? <p>年代・性別・地域の設定は、LINEでログインすると保存できます。</p> : <>
-        <div className="profile-fields">
-          <NumberInputField
-            label="生まれた年"
-            inputMode="numeric"
-            min="1900"
-            max={currentYear}
-            placeholder="例）1990"
-            value={effectiveProfile.birthYear}
-            suffix="年"
-            disabled={isSaving}
-            onValueChange={(value) => updateField({ field: 'birthYear', value })}
-          />
-          <NumberInputField
-            label="生まれた月"
-            inputMode="numeric"
-            min="1"
-            max="12"
-            placeholder="例）4"
-            value={effectiveProfile.birthMonth}
-            suffix="月"
-            disabled={isSaving}
-            onValueChange={(value) => updateField({ field: 'birthMonth', value })}
-          />
-          <SelectField
-            label="性別"
-            value={effectiveProfile.gender}
-            options={GENDERS}
-            disabled={isSaving}
-            onChange={(value) => updateField({ field: 'gender', value })}
-          />
-          <SelectField
-            label="地域"
-            value={effectiveProfile.regionCode}
-            options={REGION_OPTIONS.map(([value, label]) => ({ value, label }))}
-            disabled={isSaving}
-            onChange={(value) => updateField({ field: 'regionCode', value })}
-          />
-        </div>
-        <button type="button" className="secondary-button" disabled={!canSaveProfile || isSaving} onClick={() => void saveProfile()}>
-          {isSaving ? '保存しています…' : '設定を保存する'}
-        </button>
-        {profileMessage ? <p className="setting-feedback" aria-live="polite">{profileMessage}</p> : null}
-      </>}
+      {authStatus !== 'authenticated' ? (
+        <p>年代・性別・地域の設定は、LINEでログインすると保存できます。</p>
+      ) : (
+        <>
+          <div className={styles.fields}>
+            <NumberInputField
+              label="生まれた年"
+              inputMode="numeric"
+              min="1900"
+              max={currentYear}
+              placeholder="例）1990"
+              value={effectiveProfile.birthYear}
+              suffix="年"
+              disabled={isSaving}
+              onValueChange={(value) => updateField({ field: 'birthYear', value })}
+            />
+            <NumberInputField
+              label="生まれた月"
+              inputMode="numeric"
+              min="1"
+              max="12"
+              placeholder="例）4"
+              value={effectiveProfile.birthMonth}
+              suffix="月"
+              disabled={isSaving}
+              onValueChange={(value) => updateField({ field: 'birthMonth', value })}
+            />
+            <SelectField
+              label="性別"
+              value={effectiveProfile.gender}
+              options={GENDERS}
+              disabled={isSaving}
+              onChange={(value) => updateField({ field: 'gender', value })}
+            />
+            <SelectField
+              label="地域"
+              value={effectiveProfile.regionCode}
+              options={REGION_OPTIONS.map(([value, label]) => ({ value, label }))}
+              disabled={isSaving}
+              onChange={(value) => updateField({ field: 'regionCode', value })}
+            />
+          </div>
+          <button
+            type="button"
+            className={actionStyles.secondary}
+            disabled={!canSaveProfile || isSaving}
+            onClick={() => void saveProfile()}
+          >
+            {isSaving ? '保存しています…' : '設定を保存する'}
+          </button>
+          {profileMessage ? (
+            <p className={styles.feedback} aria-live="polite">
+              {profileMessage}
+            </p>
+          ) : null}
+        </>
+      )}
     </section>
   )
 }

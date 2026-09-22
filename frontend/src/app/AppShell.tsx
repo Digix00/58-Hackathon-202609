@@ -1,8 +1,10 @@
 import { NavLink, Outlet } from 'react-router'
 import { ProfileSettings } from '../features/profile/ProfileSettings'
 import { SettingsSheet } from '../shared/components/SettingsSheet'
+import crayonStyles from '../shared/styles/Crayon.module.css'
 import { useBottomSheet } from './hooks/useBottomSheet'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
+import styles from './AppShell.module.css'
 
 const navigation = [
   { to: '/', label: '読む', end: true },
@@ -16,12 +18,12 @@ export function AppShell() {
   const { fontSize } = useDisplaySettings()
 
   return (
-    <div className={`app-shell font-${fontSize}`}>
-      <header className="app-header crayon-edge">
-        <p className="app-name">目安箱</p>
-        <div className="header-actions">
+    <div className={`${styles.shell} ${fontSize === 'large' ? styles.large : ''}`}>
+      <header className={`${styles.header} ${crayonStyles.edge} ${crayonStyles.headerRule}`}>
+        <p className={styles.appName}>目安箱</p>
+        <div className={styles.headerActions}>
           <button
-            className="settings-button"
+            className={styles.settingsButton}
             type="button"
             onClick={(event) => settings.open(event.currentTarget)}
             aria-label="設定を開く"
@@ -31,17 +33,20 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      <main className="app-content">
+      <main className={styles.content}>
         <Outlet />
       </main>
-      <nav className="bottom-nav crayon-edge" aria-label="画面移動">
+      <nav
+        className={`${styles.nav} ${crayonStyles.edge} ${crayonStyles.navRule}`}
+        aria-label="画面移動"
+      >
         {navigation.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `nav-link${isActive ? ' active' : ''}${item.prominent ? ' prominent' : ''}`
+              `${styles.navLink}${isActive ? ` ${styles.active}` : ''}${item.prominent ? ` ${styles.prominent}` : ''}`
             }
           >
             {item.label}

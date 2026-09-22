@@ -97,28 +97,34 @@ features/feed/
 
 `shared/` には複数featureで再利用され、特定の業務用語を持たないUI部品だけを置く。特定の画面や悩み・クイズなどの業務概念を持つ部品は、再利用される場合もfeature内に置く。再利用実績のない部品を先回りして共通化しない。
 
+## CSS の構成と依存方向
+
+グローバル CSS は `src/styles/` に置き、トークン、リセット、全画面共通のフォーカス表示などに限定する。アプリ起動時に `styles/index.css` から一度だけ読み込む。
+
+- `app/`、`shared/components/`、`features/` の見た目は、それぞれのコンポーネントと同じディレクトリの `*.module.css` に置く。
+- 複数箇所で利用実績のある装飾・操作スタイルだけを `shared/styles/` に置く。feature は `shared` を参照してよいが、`shared` の CSS・コンポーネントから feature のクラスや DOM 構造を参照してはならない。
+- 親コンポーネントが子コンポーネントの内部クラスを子孫セレクタで装飾しない。横断的な表示設定は CSS Custom Property または明示的な props で渡す。
+- CSS Modules 間の `composes` による隠れた結合は作らない。共有したい構造・見た目は、共有 UI コンポーネントまたは `shared/styles/` の明示的な export として扱う。
+- Vite 標準の CSS Modules を利用し、スタイルのためだけに CSS-in-JS やユーティリティ CSS の依存を追加しない。
+
 ## LINEミニアプリとルーティング
 
 LIFF SDKは `infrastructure/liff/` に閉じ込め、画面から直接呼び出さない。画面側が参照するのは、次のようなアプリケーション状態だけとする。
 
 ```ts
-type RuntimeMode = 'browser' | 'liff'
-type AuthState =
-  | 'initializing'
-  | 'anonymous'
-  | 'authenticated'
-  | 'unavailable'
+type RuntimeMode = "browser" | "liff";
+type AuthState = "initializing" | "anonymous" | "authenticated" | "unavailable";
 ```
 
 操作系画面への遷移は、次のルールに統一する。
 
-| 状態 | 表示 |
-| --- | --- |
+| 状態                                                | 表示                     |
+| --------------------------------------------------- | ------------------------ |
 | 通常Webで `/post`、`/quiz/today`、`/history` を開く | LINEミニアプリで開く案内 |
-| LIFF内の未ログイン利用者が操作する | LINEログイン案内 |
-| LIFF内でログイン済み | 対象画面を表示 |
-| ログイン中止・失敗 | 元の閲覧画面へ戻る |
-| LIFF初期化失敗 | 再起動・LINEへ戻る案内 |
+| LIFF内の未ログイン利用者が操作する                  | LINEログイン案内         |
+| LIFF内でログイン済み                                | 対象画面を表示           |
+| ログイン中止・失敗                                  | 元の閲覧画面へ戻る       |
+| LIFF初期化失敗                                      | 再起動・LINEへ戻る案内   |
 
 LINE user ID、アクセストークン、プロフィール情報はURL、ログ、画面表示、`localStorage` に保存しない。
 
@@ -162,17 +168,17 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 
 ### 画面・機能Issue
 
-| 画面・機能 | UI実装Issue | API接続時の参照Issue |
-| --- | --- | --- |
-| LINE認証・起動 | [#90](https://github.com/Digix00/58-Hackathon-202609/issues/90) | 同Issue |
-| フィード・投稿詳細 | [#64](https://github.com/Digix00/58-Hackathon-202609/issues/64) | [#63](https://github.com/Digix00/58-Hackathon-202609/issues/63) |
-| 投稿フォーム | [#60](https://github.com/Digix00/58-Hackathon-202609/issues/60) | [#59](https://github.com/Digix00/58-Hackathon-202609/issues/59) |
-| リアクション | [#67](https://github.com/Digix00/58-Hackathon-202609/issues/67) | [#66](https://github.com/Digix00/58-Hackathon-202609/issues/66) |
-| クラスタリング | [#72](https://github.com/Digix00/58-Hackathon-202609/issues/72) | [#71](https://github.com/Digix00/58-Hackathon-202609/issues/71) |
-| レコメンド | [#75](https://github.com/Digix00/58-Hackathon-202609/issues/75) | [#74](https://github.com/Digix00/58-Hackathon-202609/issues/74) |
+| 画面・機能           | UI実装Issue                                                     | API接続時の参照Issue                                            |
+| -------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- |
+| LINE認証・起動       | [#90](https://github.com/Digix00/58-Hackathon-202609/issues/90) | 同Issue                                                         |
+| フィード・投稿詳細   | [#64](https://github.com/Digix00/58-Hackathon-202609/issues/64) | [#63](https://github.com/Digix00/58-Hackathon-202609/issues/63) |
+| 投稿フォーム         | [#60](https://github.com/Digix00/58-Hackathon-202609/issues/60) | [#59](https://github.com/Digix00/58-Hackathon-202609/issues/59) |
+| リアクション         | [#67](https://github.com/Digix00/58-Hackathon-202609/issues/67) | [#66](https://github.com/Digix00/58-Hackathon-202609/issues/66) |
+| クラスタリング       | [#72](https://github.com/Digix00/58-Hackathon-202609/issues/72) | [#71](https://github.com/Digix00/58-Hackathon-202609/issues/71) |
+| レコメンド           | [#75](https://github.com/Digix00/58-Hackathon-202609/issues/75) | [#74](https://github.com/Digix00/58-Hackathon-202609/issues/74) |
 | 音声入力・多言語表示 | [#78](https://github.com/Digix00/58-Hackathon-202609/issues/78) | [#77](https://github.com/Digix00/58-Hackathon-202609/issues/77) |
-| 今日のクイズ | [#81](https://github.com/Digix00/58-Hackathon-202609/issues/81) | [#80](https://github.com/Digix00/58-Hackathon-202609/issues/80) |
-| 学習履歴 | [#87](https://github.com/Digix00/58-Hackathon-202609/issues/87) | [#86](https://github.com/Digix00/58-Hackathon-202609/issues/86) |
+| 今日のクイズ         | [#81](https://github.com/Digix00/58-Hackathon-202609/issues/81) | [#80](https://github.com/Digix00/58-Hackathon-202609/issues/80) |
+| 学習履歴             | [#87](https://github.com/Digix00/58-Hackathon-202609/issues/87) | [#86](https://github.com/Digix00/58-Hackathon-202609/issues/86) |
 
 ## 完了条件
 

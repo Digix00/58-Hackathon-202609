@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import styles from './FormFields.module.css'
 
 type FieldSize = 'regular' | 'compact'
 type FieldOption<T extends string | number> = { value: T; label: string }
 
-type NumberInputFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'size' | 'type' | 'value'> & {
+type NumberInputFieldProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'onChange' | 'size' | 'type' | 'value'
+> & {
   label: string
   value: number | ''
   suffix?: ReactNode
@@ -20,9 +24,9 @@ export function NumberInputField({
   ...inputProps
 }: NumberInputFieldProps) {
   return (
-    <label className="form-field" data-size={size}>
-      <span className="form-field-label">{label}</span>
-      <span className="form-number-input">
+    <label className={styles.field} data-size={size}>
+      <span className={styles.label}>{label}</span>
+      <span className={styles.numberInput}>
         <input
           {...inputProps}
           type="number"
@@ -72,11 +76,11 @@ export function SelectField<T extends string | number>({
   }, [isOpen])
 
   return (
-    <div className="form-field" data-size={size}>
-      <span className="form-field-label">{label}</span>
-      <details ref={selectRef} className="form-select" open={isOpen}>
+    <div className={styles.field} data-size={size}>
+      <span className={styles.label}>{label}</span>
+      <details ref={selectRef} className={styles.select} open={isOpen}>
         <summary
-          className="form-select-trigger"
+          className={styles.selectTrigger}
           aria-disabled={disabled}
           aria-expanded={isOpen}
           tabIndex={disabled ? -1 : 0}
@@ -91,17 +95,20 @@ export function SelectField<T extends string | number>({
             }
           }}
         >
-          <span>{selectedLabel}</span><span className="form-select-chevron" aria-hidden="true">⌄</span>
+          <span>{selectedLabel}</span>
+          <span className={styles.chevron} aria-hidden="true">
+            ⌄
+          </span>
         </summary>
-        <div className="form-select-menu" role="listbox" aria-label={`${label}の選択`}>
-          <div className="form-select-options">
+        <div className={styles.menu} role="listbox" aria-label={`${label}の選択`}>
+          <div className={styles.options}>
             {options.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 role="option"
                 aria-selected={option.value === value}
-                className={option.value === value ? 'selected' : ''}
+                className={option.value === value ? styles.selected : undefined}
                 disabled={disabled}
                 onClick={() => {
                   onChange(option.value)

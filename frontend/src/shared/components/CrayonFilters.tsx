@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import styles from './CrayonFilters.module.css'
 
 /**
  * クレヨン風の輪郭に使う SVG フィルタ定義。
@@ -17,7 +18,7 @@ export function CrayonFilters() {
   const [seed] = useState(createCrayonSeed)
 
   return (
-    <svg className="svg-defs" aria-hidden="true" focusable="false">
+    <svg className={styles.definitions} aria-hidden="true" focusable="false">
       <filter id="crayon-edge" x="-16%" y="-16%" width="132%" height="132%">
         <feTurbulence
           type="fractalNoise"
