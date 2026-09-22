@@ -4,14 +4,13 @@ export type RuntimeMode = 'browser' | 'liff'
 export type AuthState = 'anonymous' | 'authenticated' | 'unavailable'
 export type RuntimeState =
   | { status: 'initializing' }
-  | { status: 'ready'; mode: 'browser'; auth: 'unavailable' }
-  | { status: 'ready'; mode: 'liff'; auth: 'anonymous' | 'authenticated' }
+  | { status: 'ready'; mode: 'browser' }
+  | { status: 'ready'; mode: 'liff' }
   | { status: 'failed' }
 
 export type RuntimeContextValue = {
   state: RuntimeState
   liffUrl: (path: string) => string | null
-  startLogin: () => void
   closeWindow: () => void
 }
 

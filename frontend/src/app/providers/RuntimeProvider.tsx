@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { closeLiffWindow, initializeLiff, loginWithLiff } from '../../infrastructure/liff/client'
+import { closeLiffWindow, initializeLiff } from '../../infrastructure/liff/client'
 import { RuntimeContext, type RuntimeContextValue, type RuntimeState } from './RuntimeContext'
-const liffId = import.meta.env.VITE_LIFF_ID
+const liffId = import.meta.env.VITE_LINE_LIFF_ID
 
 function createLiffUrl(path: string) {
   return liffId ? `https://liff.line.me/${liffId}${path}` : null
@@ -9,19 +9,23 @@ function createLiffUrl(path: string) {
 
 export function RuntimeProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<RuntimeState>(() =>
-    liffId ? { status: 'initializing' } : { status: 'ready', mode: 'browser', auth: 'unavailable' },
+    liffId ? { status: 'initializing' } : { status: 'ready', mode: 'browser' },
   )
 
   useEffect(() => {
     if (!liffId) return
     let isCurrent = true
-    void initializeLiff(liffId)
+    void initializeLiff()
       .then((session) => {
         if (!isCurrent) return
+        if (!session) {
+          setState({ status: 'ready', mode: 'browser' })
+          return
+        }
         setState(
           session.isInClient
-            ? { status: 'ready', mode: 'liff', auth: session.isLoggedIn ? 'authenticated' : 'anonymous' }
-            : { status: 'ready', mode: 'browser', auth: 'unavailable' },
+            ? { status: 'ready', mode: 'liff' }
+            : { status: 'ready', mode: 'browser' },
         )
       })
       .catch(() => {
@@ -36,11 +40,6 @@ export function RuntimeProvider({ children }: { children: React.ReactNode }) {
     () => ({
       state,
       liffUrl: createLiffUrl,
-      startLogin: () => {
-        if (state.status === 'ready' && state.mode === 'liff' && state.auth === 'anonymous') {
-          loginWithLiff(window.location.href)
-        }
-      },
       closeWindow: () => {
         if (state.status === 'ready' && state.mode === 'liff') closeLiffWindow()
       },

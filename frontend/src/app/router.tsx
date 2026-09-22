@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import { EmptyState, ErrorState, LoadingState } from '../shared/components/AsyncStates'
+import { useAuth } from '../auth/useAuth'
 
 export function AppLayout() {
   const { state } = useRuntime()
@@ -22,15 +23,17 @@ export function OpenInLiffGuide() {
 }
 
 export function LoginGuide() {
-  const { startLogin } = useRuntime()
-  return <section className="guide-card"><p className="eyebrow">LINEで続ける</p><h1>この操作は、LINEでログインしてから使えます。</h1><p>LINEの名前や画像は公開されず、投稿は匿名で表示されます。</p><button type="button" className="primary-button" onClick={startLogin}>LINEで続ける</button><Link className="text-button" to="/">読むだけ続ける</Link></section>
+  const { login } = useAuth()
+  return <section className="guide-card"><p className="eyebrow">LINEで続ける</p><h1>この操作は、LINEでログインしてから使えます。</h1><p>LINEの名前や画像は公開されず、投稿は匿名で表示されます。</p><button type="button" className="primary-button" onClick={() => void login()}>LINEで続ける</button><Link className="text-button" to="/">読むだけ続ける</Link></section>
 }
 
 export function ProtectedPlaceholder({ title, description }: { title: string; description: string }) {
   const { state } = useRuntime()
+  const { status } = useAuth()
   if (state.status !== 'ready') return null
   if (state.mode === 'browser') return <OpenInLiffGuide />
-  if (state.auth === 'anonymous') return <LoginGuide />
+  if (status === 'initializing') return <main className="standalone-page"><LoadingState label="ログイン状態を確認しています…" /></main>
+  if (status === 'anonymous') return <LoginGuide />
   return <EmptyState title={title} description={description} />
 }
 
