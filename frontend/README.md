@@ -1,5 +1,16 @@
 # React + TypeScript + Vite
 
+## LINE MINI App認証
+
+ローカルでは`.env.example`を`.env.local`へコピーし、LINE Developers Consoleで発行したLIFF IDを設定する。
+
+```bash
+cp .env.example .env.local
+```
+
+`VITE_LINE_LIFF_ID`は公開されるフロントエンド設定値であり、チャネルシークレットは設定しない。
+認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
