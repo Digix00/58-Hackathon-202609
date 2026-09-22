@@ -1,4 +1,4 @@
-.PHONY: help install db-migrate dev backend frontend format-frontend format-check-frontend lint-frontend lint-backend build-frontend build-backend test-backend check-frontend check-backend check dev-vars
+.PHONY: help install db-migrate dev backend frontend format-frontend format-check-frontend format-backend format-check-backend lint-frontend lint-backend build-frontend build-backend test-backend check-frontend check-backend check dev-vars
 
 help:
 	@echo "make dev         - 依存インストール + ローカルD1へのマイグレーション適用 + backend/frontend同時起動"
@@ -8,6 +8,8 @@ help:
 	@echo "make frontend    - frontendのみ起動 (http://localhost:5173)"
 	@echo "make format-frontend       - frontendのコードを整形"
 	@echo "make format-check-frontend - frontendのコード整形を確認"
+	@echo "make format-backend        - backendのコードを整形"
+	@echo "make format-check-backend  - backendのコード整形を確認"
 	@echo "make lint-frontend         - frontendをlint"
 	@echo "make lint-backend          - backendをlint"
 	@echo "make build-frontend        - frontendを型検査・ビルド"
@@ -46,6 +48,12 @@ format-frontend:
 format-check-frontend:
 	pnpm --filter frontend format:check
 
+format-backend:
+	pnpm --filter backend format
+
+format-check-backend:
+	pnpm --filter backend format:check
+
 lint-frontend:
 	pnpm --filter frontend lint
 
@@ -63,6 +71,6 @@ test-backend:
 
 check-frontend: format-check-frontend lint-frontend build-frontend
 
-check-backend: lint-backend build-backend test-backend
+check-backend: format-check-backend lint-backend build-backend test-backend
 
 check: check-frontend check-backend

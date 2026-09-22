@@ -1,11 +1,15 @@
+import type { Session } from "../entity/session";
+import type { User } from "../entity/user";
+import type { LineTokenVerifier } from "../port/line-token-verifier";
 import type {
   SessionRepository,
   UserRepository,
 } from "../repository/auth.repository";
-import type { LineTokenVerifier } from "../port/line-token-verifier";
-import type { Session } from "../entity/session";
-import type { User } from "../entity/user";
-import { encodeBase64Url, generateId, randomBytes } from "../shared/id-generator";
+import {
+  encodeBase64Url,
+  generateId,
+  randomBytes,
+} from "../shared/id-generator";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
@@ -137,9 +141,7 @@ export class AuthUseCase implements IAuthUseCase {
     };
   }
 
-  private async findSession(
-    currentToken?: string,
-  ): Promise<Session | null> {
+  private async findSession(currentToken?: string): Promise<Session | null> {
     if (!currentToken) {
       return null;
     }

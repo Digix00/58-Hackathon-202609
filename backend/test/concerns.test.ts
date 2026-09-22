@@ -76,7 +76,9 @@ function cookieFrom(response: Response): string {
   return value.split(";", 1)[0];
 }
 
-async function loginCookie(app: ReturnType<typeof createTestApp>): Promise<string> {
+async function loginCookie(
+  app: ReturnType<typeof createTestApp>,
+): Promise<string> {
   const anonymous = await app.request("/api/v1/auth/session", {}, env);
   const anonymousCookie = cookieFrom(anonymous);
 
@@ -172,7 +174,9 @@ describe("POST /api/v1/concerns", () => {
     expect(created.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
-    expect(() => new Date(created.createdAt as string).toISOString()).not.toThrow();
+    expect(() =>
+      new Date(created.createdAt as string).toISOString(),
+    ).not.toThrow();
 
     const db = drizzle(env.DB);
     const rows = await db

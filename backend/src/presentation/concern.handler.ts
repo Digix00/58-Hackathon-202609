@@ -4,9 +4,9 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
-  ConcernValidationError,
   type AgeGroup,
   type Concern,
+  ConcernValidationError,
   type Gender,
 } from "../application/entity/concern";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
@@ -21,7 +21,10 @@ const createConcernRequest = z.object({
   regionCode: z.string().optional(),
 });
 
-const factory = createFactory<{ Bindings: Bindings; Variables: AuthVariables }>();
+const factory = createFactory<{
+  Bindings: Bindings;
+  Variables: AuthVariables;
+}>();
 
 export class ConcernHandler {
   private readonly concernUsecase: IConcernUseCase;

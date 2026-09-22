@@ -2,13 +2,13 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
-import { createAuthMiddleware } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { ConcernHandler } from "../presentation/concern.handler";
 import type { HealthHandler } from "../presentation/health.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
+import { createAuthMiddleware } from "./middleware/auth";
 import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {

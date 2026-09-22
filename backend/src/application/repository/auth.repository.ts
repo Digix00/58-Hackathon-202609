@@ -16,5 +16,8 @@ export interface SessionRepository {
     createdAt: string;
   }): Promise<Session>;
   selectByTokenHash(tokenHash: string, now: string): Promise<Session | null>;
-  updateRevokedAtByTokenHash(tokenHash: string, revokedAt: string): Promise<void>;
+  updateRevokedAtByTokenHash(
+    tokenHash: string,
+    revokedAt: string,
+  ): Promise<void>;
 }

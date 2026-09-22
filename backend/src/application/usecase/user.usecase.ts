@@ -1,7 +1,7 @@
 import {
-  validateUserProfile,
   type User,
   type UserProfileInput,
+  validateUserProfile,
 } from "../entity/user";
 import type { UserRepository } from "../repository/auth.repository";
 
@@ -18,10 +18,7 @@ export class UserUseCase implements IUserUseCase {
     this.now = now;
   }
 
-  async updateProfile(
-    userId: string,
-    input: UserProfileInput,
-  ): Promise<User> {
+  async updateProfile(userId: string, input: UserProfileInput): Promise<User> {
     const profile = validateUserProfile(input, this.now());
     return this.users.updateProfile(userId, profile);
   }
