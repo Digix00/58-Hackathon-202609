@@ -1,4 +1,4 @@
-import type { AgeGroup, ConcernInputMethod, Gender } from "../entity/concern";
+import type { AgeGroup, Gender } from "../entity/concern";
 import { Concern } from "../entity/concern";
 import type { ConcernRepository } from "../repository/concern.repository";
 import { generateId } from "../shared/id-generator";
@@ -9,7 +9,6 @@ export interface CreateConcernInput {
   ageGroup?: AgeGroup;
   gender?: Gender;
   regionCode?: string;
-  inputMethod: ConcernInputMethod;
 }
 
 export interface IConcernUseCase {
@@ -41,7 +40,6 @@ export class ConcernUseCase implements IConcernUseCase {
       id: this.createId(),
       userId: input.userId,
       body: input.body,
-      inputMethod: input.inputMethod,
       ageGroup: input.ageGroup,
       gender: input.gender,
       regionCode: input.regionCode,

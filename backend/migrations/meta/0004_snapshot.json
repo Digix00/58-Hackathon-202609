@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5ac84493-3fdc-46fc-b4c5-2d111ba8ebe5",
-  "prevId": "f64e0264-44d3-43aa-baa3-c9b2b0168b2a",
+  "id": "bff14592-ce26-4a5d-af7f-c1a61a081c29",
+  "prevId": "5ac84493-3fdc-46fc-b4c5-2d111ba8ebe5",
   "tables": {
     "concerns": {
       "name": "concerns",
@@ -23,13 +23,6 @@
         },
         "body": {
           "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "input_method": {
-          "name": "input_method",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -134,10 +127,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "concerns_input_method_check": {
-          "name": "concerns_input_method_check",
-          "value": "\"concerns\".\"input_method\" in ('liff', 'voice')"
-        },
         "concerns_age_group_check": {
           "name": "concerns_age_group_check",
           "value": "\"concerns\".\"age_group\" is null or \"concerns\".\"age_group\" in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')"

@@ -18,9 +18,6 @@ export const AGE_GROUPS = [
 ] as const;
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
-export const CONCERN_INPUT_METHODS = ["liff", "voice"] as const;
-export type ConcernInputMethod = (typeof CONCERN_INPUT_METHODS)[number];
-
 export const CONCERN_VISIBILITY_STATUSES = [
   "pending",
   "published",
@@ -56,7 +53,6 @@ export interface ConcernProps {
   id: string;
   userId: string;
   body: string;
-  inputMethod: ConcernInputMethod;
   ageGroup?: AgeGroup | null;
   gender?: Gender | null;
   regionCode?: string | null;
@@ -74,7 +70,6 @@ export class Concern {
   readonly id: string;
   readonly userId: string;
   readonly body: string;
-  readonly inputMethod: ConcernInputMethod;
   readonly ageGroup: AgeGroup | null;
   readonly gender: Gender | null;
   readonly regionCode: string | null;
@@ -88,12 +83,6 @@ export class Concern {
       throw new ConcernValidationError(
         "body",
         `body must be a non-empty string of at most ${CONCERN_BODY_MAX_LENGTH} characters`,
-      );
-    }
-    if (!CONCERN_INPUT_METHODS.includes(props.inputMethod)) {
-      throw new ConcernValidationError(
-        "inputMethod",
-        "inputMethod must be one of liff, voice",
       );
     }
     if (props.ageGroup && !AGE_GROUPS.includes(props.ageGroup)) {
@@ -112,7 +101,6 @@ export class Concern {
     this.id = props.id;
     this.userId = props.userId;
     this.body = body;
-    this.inputMethod = props.inputMethod;
     this.ageGroup = props.ageGroup ?? null;
     this.gender = props.gender ?? null;
     this.regionCode = props.regionCode ?? null;

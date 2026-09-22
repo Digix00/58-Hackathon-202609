@@ -25,7 +25,6 @@ describe("ConcernUseCase", () => {
       ageGroup: "20s",
       gender: "no_answer",
       regionCode: "osaka",
-      inputMethod: "liff",
     });
 
     expect(saved).toBeInstanceOf(Concern);
@@ -33,7 +32,6 @@ describe("ConcernUseCase", () => {
       id: "fixed-id",
       userId: "user_1",
       body: "食堂が混んでいて昼休みに休めない",
-      inputMethod: "liff",
       ageGroup: "20s",
       gender: "no_answer",
       regionCode: "osaka",
@@ -56,7 +54,6 @@ describe("ConcernUseCase", () => {
     const result = await useCase.create({
       userId: "user_1",
       body: "属性なしの投稿",
-      inputMethod: "voice",
     });
 
     expect(result.ageGroup).toBeNull();
@@ -75,7 +72,7 @@ describe("ConcernUseCase", () => {
     );
 
     await expect(
-      useCase.create({ userId: "user_1", body: "   ", inputMethod: "liff" }),
+      useCase.create({ userId: "user_1", body: "   " }),
     ).rejects.toThrow(ConcernValidationError);
   });
 });

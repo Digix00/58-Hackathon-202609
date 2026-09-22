@@ -11,7 +11,6 @@ export async function createConcern(input: PostFormInput): Promise<CreateConcern
       ...(input.ageGroup ? { ageGroup: input.ageGroup } : {}),
       ...(input.gender ? { gender: input.gender } : {}),
       ...(input.regionCode ? { regionCode: input.regionCode } : {}),
-      inputMethod: input.inputMethod,
     },
   })
 

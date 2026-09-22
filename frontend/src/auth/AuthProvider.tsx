@@ -53,15 +53,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
           applySession({
             authenticated: true,
             user: {
-              id: "dev-user",
+              id: 'dev-user',
               birthYear: null,
               birthMonth: null,
               gender: null,
               regionCode: null,
               profileCompleted: false,
             },
-          });
-          return;
+          })
+          return
         }
 
         const session = await requestSession()
