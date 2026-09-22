@@ -1,13 +1,16 @@
 import { createApp } from "../app/create-app";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
+import { ConcernUseCase } from "../application/usecase/concern.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
 } from "../infrastructure/database/d1-auth.repository";
+import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { AuthHandler } from "../presentation/auth.handler";
+import { ConcernHandler } from "../presentation/concern.handler";
 import { HealthHandler } from "../presentation/health.handler";
 import type { Bindings } from "../types";
 
@@ -27,9 +30,14 @@ export function createApplication(bindings: Bindings) {
   const checkHealth = new CheckHealthUseCase(healthRepository);
   const healthHandler = new HealthHandler(checkHealth);
 
+  const concernRepository = new D1ConcernRepository(bindings.DB);
+  const concernUsecase = new ConcernUseCase(concernRepository);
+  const concernHandler = new ConcernHandler(concernUsecase);
+
   return createApp({
     authHandler: new AuthHandler(authUseCase, sessionTtlSeconds),
     authUseCase,
+    concernHandler,
     healthHandler,
   });
 }

@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
 import { createAuthMiddleware } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
+import type { ConcernHandler } from "../presentation/concern.handler";
 import type { HealthHandler } from "../presentation/health.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
@@ -12,6 +13,7 @@ import { requestLogger } from "./middleware/request-logger";
 export interface ApplicationDependencies {
   authHandler: AuthHandler;
   authUseCase: AuthUseCasePort;
+  concernHandler: ConcernHandler;
   healthHandler: HealthHandler;
 }
 
@@ -19,6 +21,7 @@ export interface ApplicationDependencies {
 export function createApp({
   authHandler,
   authUseCase,
+  concernHandler,
   healthHandler,
 }: ApplicationDependencies) {
   const app = new Hono<{
@@ -44,7 +47,8 @@ export function createApp({
     .get("/health", ...healthHandler.get)
     .post("/api/v1/auth/line", ...authHandler.line)
     .get("/api/v1/auth/session", ...authHandler.session)
-    .post("/api/v1/auth/logout", ...authHandler.logout);
+    .post("/api/v1/auth/logout", ...authHandler.logout)
+    .post("/api/v1/concerns", ...concernHandler.create);
 }
 
 export type AppType = ReturnType<typeof createApp>;

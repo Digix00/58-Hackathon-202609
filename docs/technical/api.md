@@ -95,7 +95,7 @@ ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生�
 
 ~~~json
 {
-  "sessionId": "session_01J...",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
   "expiresAt": "2026-09-28T00:00:00.000Z"
 }
 ~~~
@@ -163,7 +163,11 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 - 20s
 - 30s
 - 40s
-- 50s_plus
+- 50s
+- 60s
+- 70s
+- 80s
+- 90s_plus
 - no_answer
 
 #### 性別
@@ -292,7 +296,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 ~~~json
 {
-  "id": "concern_01J...",
+  "id": "550e8400-e29b-41d4-a716-446655440001",
   "body": "食堂が混んでいて、昼休みにゆっくり食べられない",
   "attributes": {
     "ageGroup": "20s",
@@ -339,7 +343,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 {
   "items": [
     {
-      "id": "concern_01J...",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "body": "食堂が混んでいて昼休みに休めない",
       "language": "original",
       "attributes": {
@@ -415,7 +419,7 @@ reasonCode の初期値は次のとおり。
 
 ~~~json
 {
-  "concernId": "concern_01J...",
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
   "reactionType": "empathy",
   "reactionCount": 13,
   "reacted": true
@@ -435,7 +439,7 @@ reasonCode の初期値は次のとおり。
 
 ~~~json
 {
-  "concernId": "concern_01J...",
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
   "viewed": true,
   "viewedAt": "2026-09-21T00:10:00.000Z"
 }

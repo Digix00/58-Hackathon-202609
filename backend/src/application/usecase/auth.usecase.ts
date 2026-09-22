@@ -5,6 +5,7 @@ import type {
 import type { LineTokenVerifier } from "../port/line-token-verifier";
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
+import { encodeBase64Url, generateId, randomBytes } from "../shared/id-generator";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
@@ -33,7 +34,7 @@ export class AuthUseCase implements AuthUseCasePort {
   private readonly sessions: SessionRepository;
   private readonly lineTokenVerifier: LineTokenVerifier;
   private readonly now: () => Date;
-  private readonly createId: (prefix: string) => string;
+  private readonly createId: () => string;
 
   constructor(
     users: UserRepository,
@@ -41,7 +42,7 @@ export class AuthUseCase implements AuthUseCasePort {
     lineTokenVerifier: LineTokenVerifier,
     sessionTtlSeconds = DEFAULT_SESSION_TTL_SECONDS,
     now: () => Date = () => new Date(),
-    createId: (prefix: string) => string = generateId,
+    createId: () => string = generateId,
   ) {
     this.users = users;
     this.sessions = sessions;
@@ -60,7 +61,7 @@ export class AuthUseCase implements AuthUseCasePort {
     const identity = await this.lineTokenVerifier.verify(idToken);
     const user = await this.users.selectOrCreateByLineUserId(
       identity.lineUserId,
-      this.createId("user"),
+      this.createId(),
     );
 
     const currentSession = await this.findSession(currentToken);
@@ -120,7 +121,7 @@ export class AuthUseCase implements AuthUseCasePort {
     const now = this.now();
     const token = generateToken();
     const session = await this.sessions.insert({
-      id: this.createId("session"),
+      id: this.createId(),
       tokenHash: await hashToken(token),
       userId,
       expiresAt: new Date(
@@ -165,30 +166,8 @@ export class AuthUseCase implements AuthUseCasePort {
   }
 }
 
-export function generateId(prefix: string): string {
-  return `${prefix}_${encodeBase64Url(randomBytes(16))}`;
-}
-
 function generateToken(): string {
   return encodeBase64Url(randomBytes(32));
-}
-
-function randomBytes(length: number): Uint8Array {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  return bytes;
-}
-
-function encodeBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
 }
 
 async function hashToken(token: string): Promise<string> {
