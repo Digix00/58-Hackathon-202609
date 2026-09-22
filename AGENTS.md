@@ -93,6 +93,13 @@ pnpm --filter frontend build
 
 機能を追加するときは、既存の Health 機能と同じく、Entity、Port、UseCase、Adapter、Handler、Composition Root の責務を分離する。Entity には業務上の状態と不変条件を置き、HTTP や永続化の都合を持たせない。リクエストごとに Repository や UseCase を生成せず、Worker のモジュール初期化時に依存関係を構築する。
 
+### Entity・Repository・UseCase の実装規約
+
+- Repository の入出力は Entity をそのまま渡す。`InsertXxxInput` のような Repository 専用の入力型を新設しない。ただし、トークンハッシュのように永続化にのみ必要で、アプリケーション層の Entity に持たせるべきでない秘密情報がある場合はこの限りではない。
+- バリデーションは責務で分ける。Handler は HTTP リクエストの構造（型・必須項目）だけを検証し、本文の文字数上限や属性値の妥当性のようなドメインルールは Entity のコンストラクタまたはファクトリで検証する。Entity は不変条件に違反した場合に専用のドメインエラー（例: `ConcernValidationError`）を投げ、Handler がそれを捕捉してエラーレスポンスへ変換する。
+- UseCase はドメイン（機能）単位で 1 つのクラス・ファイルにまとめる。ファイル名とクラス名はドメイン名を用いる（例: `auth.usecase.ts` の `AuthUseCase`、`concern.usecase.ts` の `ConcernUseCase`）。操作（作成・更新など）ごとにファイルを分割しない。
+- 既存の実装にある汎用的なロジック（ID 生成など）は再利用してよい。ただし、機能をまたいで UseCase 同士が直接 import し合う実装は避け、複数機能から使う横断的なロジックは `backend/src/application/shared/` のような独立した場所へ切り出す。こうした設計改善のための小さなリファクタリングは、依頼された変更の一部として行ってよい。
+
 ### API と Hono RPC
 
 - API のルートは `/api/v1` とし、運用監視用の `GET /health` は維持する。
