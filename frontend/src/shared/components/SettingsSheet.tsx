@@ -36,9 +36,9 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       aria-labelledby="settings-title"
       onClose={handleDialogClose}
     >
-      <div className="settings-sheet" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="settings-sheet crayon-edge" onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true" />
-        <div className="sheet-heading"><h2 id="settings-title">表示の設定</h2><button className="icon-button" type="button" onClick={onClose} aria-label="設定を閉じる">×</button></div>
+        <div className="sheet-heading"><h2 id="settings-title">表示の設定</h2><button className="icon-button crayon-edge" type="button" onClick={onClose} aria-label="設定を閉じる">×</button></div>
         <fieldset className="setting-group"><legend>文字サイズ</legend><div className="choice-row">{fontSizeOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="font-size" checked={fontSize === option.value} onChange={() => setFontSize(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
         <fieldset className="setting-group"><legend>表示することば</legend><div className="choice-row">{languageOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="display-language" checked={language === option.value} onChange={() => setLanguage(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
         <section className="setting-group" aria-labelledby="speech-title"><h3 id="speech-title">読み上げ</h3><p>投稿を開くと、ここから読み上げられます。</p><button type="button" className="secondary-button" disabled>読み上げる文章がありません</button></section>

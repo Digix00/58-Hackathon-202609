@@ -15,9 +15,9 @@ export function AppShell() {
   const { fontSize } = useDisplaySettings()
   return (
     <div className={`app-shell font-${fontSize}`}>
-      <header className="app-header"><p className="app-name">目安箱</p><div className="header-actions"><button className="icon-button" type="button" onClick={(event) => settings.open(event.currentTarget)} aria-label="表示の設定" aria-haspopup="dialog">あ</button><button className="icon-button" type="button" onClick={closeWindow} aria-label="LINEへ戻る">×</button></div></header>
+      <header className="app-header crayon-edge"><p className="app-name">目安箱</p><div className="header-actions"><button className="icon-button crayon-edge" type="button" onClick={(event) => settings.open(event.currentTarget)} aria-label="表示の設定" aria-haspopup="dialog">あ</button><button className="icon-button crayon-edge" type="button" onClick={closeWindow} aria-label="LINEへ戻る">×</button></div></header>
       <main className="app-content"><Outlet /></main>
-      <nav className="bottom-nav" aria-label="画面移動">{navigation.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}${item.prominent ? ' prominent' : ''}`}>{item.label}</NavLink>)}</nav>
+      <nav className="bottom-nav crayon-edge" aria-label="画面移動">{navigation.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}${item.prominent ? ' prominent' : ''}`}>{item.label}</NavLink>)}</nav>
       <SettingsSheet open={settings.isOpen} onClose={settings.close} />
     </div>
   )
