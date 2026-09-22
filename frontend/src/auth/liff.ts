@@ -1,17 +1,42 @@
-import {
-  getLineIdToken,
-  initializeLiff as initializeLiffClient,
-  isInLineClient,
-  isLineLoggedIn,
-  loginWithLiff,
-  logoutLine,
-} from '../infrastructure/liff/client'
+import liff from "@line/liff";
+
+let initialization: Promise<boolean> | null = null;
+let initialized = false;
 
 export async function initializeLiff(): Promise<boolean> {
-  return (await initializeLiffClient()) !== null
+  const liffId = import.meta.env.VITE_LINE_LIFF_ID;
+  if (!liffId) {
+    return false;
+  }
+
+  if (!initialization) {
+    initialization = liff
+      .init({ liffId })
+      .then(() => {
+        initialized = true;
+        return true;
+      })
+      .catch((error: unknown) => {
+        initialization = null;
+        initialized = false;
+        throw error;
+      });
+  }
+
+  return initialization;
 }
 
-export { getLineIdToken, isInLineClient, isLineLoggedIn, logoutLine }
+export function isLineLoggedIn(): boolean {
+  return liff.isLoggedIn();
+}
+
+export function isInLineClient(): boolean {
+  return liff.isInClient();
+}
+
+export function getLineIdToken(): string | null {
+  return liff.getIDToken() ?? null;
+}
 
 export function startLineLogin(): void {
   const redirectUri = `${window.location.origin}${window.location.pathname}`;
