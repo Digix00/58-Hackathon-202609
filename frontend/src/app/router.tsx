@@ -3,12 +3,16 @@ import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import { EmptyState, ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import { useAuth } from '../auth/useAuth'
+import { CrayonFilters } from '../shared/components/CrayonFilters'
 
 export function AppLayout() {
   const { state } = useRuntime()
-  if (state.status === 'initializing') return <main className="standalone-page"><LoadingState label="目安箱を準備しています…" /></main>
-  if (state.status === 'failed') return <main className="standalone-page"><ErrorState title="LINEを準備できませんでした" description="LINEミニアプリで開き直してください。" /></main>
-  return state.mode === 'liff' ? <AppShell /> : <main className="standalone-page"><Outlet /></main>
+  const location = useLocation()
+  const crayonFilters = <CrayonFilters key={location.key} />
+
+  if (state.status === 'initializing') return <>{crayonFilters}<main className="standalone-page"><LoadingState label="目安箱を準備しています…" /></main></>
+  if (state.status === 'failed') return <>{crayonFilters}<main className="standalone-page"><ErrorState title="LINEを準備できませんでした" description="LINEミニアプリで開き直してください。" /></main></>
+  return <>{crayonFilters}{state.mode === 'liff' ? <AppShell /> : <main className="standalone-page"><Outlet /></main>}</>
 }
 
 export function PublicPlaceholder({ detail = false }: { detail?: boolean }) {
