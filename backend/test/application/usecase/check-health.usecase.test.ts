@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { HealthRepository } from "../../../src/application/health.repository";
+import type { HealthRepository } from "../../../src/application/repository/health.repository";
 import { CheckHealthUseCase } from "../../../src/application/usecase/check-health.usecase";
 
 describe("CheckHealthUseCase", () => {

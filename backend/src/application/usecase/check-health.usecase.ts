@@ -1,5 +1,5 @@
 import type { HealthStatus } from "../entity/health-status.entity";
-import type { HealthRepository } from "../health.repository";
+import type { HealthRepository } from "../repository/health.repository";
 
 export interface CheckHealth {
   execute(): Promise<HealthStatus>;

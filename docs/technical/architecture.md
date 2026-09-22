@@ -30,7 +30,9 @@ flowchart LR
 - `presentation`: HTTPリクエスト、レスポンス、入力検証
 - `application`: 投稿、閲覧、推薦、クラスタリング、クイズ、LINE配信、学習履歴などのユースケース
 - `application/entity`: アプリケーションで扱うモデル
-- `application/*.repository.ts`: 永続化や外部サービスのPort
+- `application/repository`: 永続化処理のPort
+- `application/port`: 外部サービスのPort
+- `application/usecase`: Application層のユースケースと、その実装に依存する抽象契約
 - `infrastructure`: D1、Drizzle、音声認識、翻訳、AI、LINEのAdapter
 - `bootstrap/container.ts`: 依存関係の組み立て
 - `app`: Honoアプリ、共通middleware、エラーハンドラー
