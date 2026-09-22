@@ -71,9 +71,6 @@ export const REGION_CODES = [
 ] as const
 export type RegionCode = (typeof REGION_CODES)[number]
 
-export const CONCERN_INPUT_METHODS = ['liff', 'voice'] as const
-export type ConcernInputMethod = (typeof CONCERN_INPUT_METHODS)[number]
-
 export const POST_BODY_MAX_LENGTH = 1000
 
 export interface PostFormInput {
@@ -81,11 +78,10 @@ export interface PostFormInput {
   ageGroup?: AgeGroup
   gender?: Gender
   regionCode?: RegionCode
-  inputMethod: ConcernInputMethod
 }
 
 export type PostFormFieldErrors = Partial<
-  Record<'body' | 'ageGroup' | 'gender' | 'regionCode' | 'inputMethod', string>
+  Record<'body' | 'ageGroup' | 'gender' | 'regionCode', string>
 >
 
 export type PostResult = CreateConcernResponse
@@ -109,9 +105,5 @@ export function validatePostInput(input: PostFormInput): PostFormFieldErrors {
   if (input.regionCode && !REGION_CODES.includes(input.regionCode)) {
     fieldErrors.regionCode = '地域の選択が正しくありません'
   }
-  if (!CONCERN_INPUT_METHODS.includes(input.inputMethod)) {
-    fieldErrors.inputMethod = '入力方法が正しくありません'
-  }
-
   return fieldErrors
 }

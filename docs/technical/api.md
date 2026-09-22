@@ -186,15 +186,6 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 
 regionCode は regions マスタで定義されたコードを指定する。都道府県や広域区分の名称を自由入力では受け付けない。例として osaka や kansai のようなコードを利用する。
 
-#### 入力経路
-
-- web: 旧仕様。現行MVPでは通常ブラウザからの投稿に利用しない
-- voice: LINEミニアプリ内で音声文字起こし結果を確認してから投稿
-- line: 旧仕様。現行MVPではLINE Webhookから投稿しない
-- liff: LINEミニアプリの投稿フォームから入力
-
-通常の POST /api/v1/concerns では liff または voice だけを受け付ける。通常ブラウザおよびLINE Webhookからの投稿リクエストは受け付けない。
-
 #### 投稿の公開状態
 
 - published: 保存直後から一般フィードへ公開可能。PoCでは新規投稿の初期値とする
@@ -313,8 +304,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
   "body": "食堂が混んでいて、昼休みにゆっくり食べられない",
   "ageGroup": "20s",
   "gender": "no_answer",
-  "regionCode": "osaka",
-  "inputMethod": "liff"
+  "regionCode": "osaka"
 }
 ~~~
 
@@ -324,7 +314,6 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - ageGroup は任意。指定時は定義済みの年代コードだけを受け付ける
 - gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
 - regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
-- inputMethod は必須で、liff または voice のいずれか
 - ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
 - 本文の個人情報や緊急性の判定は PoC の API 責務に含めない。実在の個人情報や緊急相談をデモデータに使用しない
@@ -349,7 +338,6 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
     "gender": "no_answer",
     "regionCode": "osaka"
   },
-  "inputMethod": "liff",
   "visibilityStatus": "published",
   "processingStatus": "pending",
   "representations": {
@@ -812,7 +800,7 @@ Content-Type は multipart/form-data とする。
 
 - 音声の最大長は 60 秒
 - 生音声は D1、R2、ログへ保存しない
-- 文字起こし結果をユーザーが編集してから concerns API を呼び、inputMethod=voice とする
+- 文字起こし結果をユーザーが編集してから、編集後の本文で concerns API を呼ぶ
 - 音声ファイルが大きすぎる場合は 413 PAYLOAD_TOO_LARGE
 - MIME type が未対応の場合は 415 UNSUPPORTED_MEDIA_TYPE
 - 音声認識サービスが失敗した場合は 503 UPSTREAM_UNAVAILABLE
@@ -869,7 +857,7 @@ LINE Platform からの Webhook 専用 endpoint。
 
 1. event.source.userId から内部 users.id を解決する
 2. text を trim し、1〜1000 文字で validation する
-3. concerns を inputMethod=line で保存する
+3. concerns を保存する
 4. Web 投稿と同じ非同期処理ジョブを登録する
 5. replyToken が有効な間に受付結果を reply message で返す
 

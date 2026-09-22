@@ -104,7 +104,6 @@ erDiagram
     TEXT region_code FK
     TEXT cluster_id FK
     TEXT body
-    TEXT input_method
     TEXT visibility_status
     TEXT processing_status
     TEXT created_at
@@ -284,7 +283,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| concerns | id, user_id, body, input_method, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。input_method は web, line, voice。visibility_status は pending, published, hidden, deleted |
+| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。visibility_status は pending, published, hidden, deleted |
 | concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
@@ -380,7 +379,6 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 - users.identity_type: anonymous, line
 - users.friend_status: NULL（anonymous）または active, unfollowed, blocked（line）
 - users.identity_type と credential hash の組み合わせ: line は line_user_id_hash のみ、anonymous は anonymous_session_hash と session_expires_at のみを持つ
-- concerns.input_method: web, line, voice
 - concerns.visibility_status: pending, published, hidden, deleted
 - concern_processing_jobs.status: pending, running, succeeded, failed
 - concern_representations.locale: ja-Hira, en
@@ -441,7 +439,7 @@ LIMIT ?
 ### 投稿
 
 1. 匿名セッションまたは LIFF の認証情報を検証し、サーバー側で users.id を解決する。LIFF の場合は ID token を検証し、匿名の場合は HMAC と有効期限を検証する。
-2. 本文・属性・input_method をサーバー側で検証する。
+2. 本文・属性をサーバー側で検証する。
 3. concerns を保存する。
 4. concern_processing_jobs に必要なジョブを登録する。
 5. API は AI 処理を待たずに投稿 ID と保存状態を返す。

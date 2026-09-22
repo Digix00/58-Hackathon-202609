@@ -8,7 +8,7 @@
 
 | エンティティ | 主な項目 | 用途 |
 | --- | --- | --- |
-| `concerns` | id、actor_key、原文、入力経路、属性、公開状態、処理状態、日時 | 悩み本体 |
+| `concerns` | id、actor_key、原文、属性、公開状態、処理状態、日時 | 悩み本体 |
 | `concern_clusters` | id、表示ラベル、要約、状態、日時 | 意味の近い悩みのまとまり |
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_reactions` | concern_id、actor_key、種類、日時 | リアクションの重複防止と集計 |

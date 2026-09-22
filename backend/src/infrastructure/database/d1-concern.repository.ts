@@ -19,7 +19,6 @@ export class D1ConcernRepository implements ConcernRepository {
         id: concern.id,
         userId: concern.userId,
         body: concern.body,
-        inputMethod: concern.inputMethod,
         ageGroup: concern.ageGroup,
         genderCode: concern.gender,
         regionCode: concern.regionCode,
