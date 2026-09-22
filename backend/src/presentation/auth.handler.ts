@@ -7,7 +7,7 @@ import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
-import { getRequestId } from "../app/request-id";
+import { getRequestId } from "../utils/request-id";
 import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
 import type { Bindings } from "../types";
 

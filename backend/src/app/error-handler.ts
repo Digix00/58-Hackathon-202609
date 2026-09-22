@@ -1,12 +1,12 @@
 import type { ErrorHandler } from "hono";
 
-import type { SessionView } from "../application/usecase/auth.usecase";
+import type { AuthVariables } from "./middleware/auth";
 import type { Bindings } from "../types";
-import { getRequestId } from "./request-id";
+import { getRequestId } from "../utils/request-id";
 
 export const handleError: ErrorHandler<{
   Bindings: Bindings;
-  Variables: { auth: SessionView | null };
+  Variables: AuthVariables;
 }> = (error, c) => {
   console.error(
     JSON.stringify({

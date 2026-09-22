@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
-import { createAuthMiddleware } from "./middleware/auth";
+import { createAuthMiddleware, type AuthVariables } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { HealthHandler } from "../presentation/health.handler";
 import type { Bindings } from "../types";
@@ -23,9 +23,7 @@ export function createApp({
 }: ApplicationDependencies) {
   const app = new Hono<{
     Bindings: Bindings;
-    Variables: {
-      auth: Awaited<ReturnType<AuthUseCasePort["getSession"]>>;
-    };
+    Variables: AuthVariables;
   }>();
 
   app.use("*", requestLogger);
