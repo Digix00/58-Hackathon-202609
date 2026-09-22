@@ -1,18 +1,14 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
-
-import {
-  isUserProfileCompleted,
-  type User,
-} from "../application/entity/user";
-import type { IAuthUseCase } from "../application/usecase/auth.usecase";
+import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import { getRequestId } from "../app/request-id";
+import { isUserProfileCompleted, type User } from "../application/entity/user";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
-import { getRequestId } from "../app/request-id";
-import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;

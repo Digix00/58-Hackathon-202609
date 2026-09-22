@@ -11,7 +11,8 @@ describe("CheckHealthUseCase", () => {
       database: "ok",
     },
     {
-      scenario: "reports a database error without leaking infrastructure errors",
+      scenario:
+        "reports a database error without leaking infrastructure errors",
       ping: async () => {
         throw new Error("database unavailable");
       },

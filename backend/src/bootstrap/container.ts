@@ -1,7 +1,8 @@
 import { createApp } from "../app/create-app";
-import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
+import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
+import { UserUseCase } from "../application/usecase/user.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -13,7 +14,6 @@ import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { HealthHandler } from "../presentation/health.handler";
 import { UserHandler } from "../presentation/user.handler";
-import { UserUseCase } from "../application/usecase/user.usecase";
 import type { Bindings } from "../types";
 
 /**

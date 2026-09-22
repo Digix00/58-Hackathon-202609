@@ -8,16 +8,17 @@ import { LineApiClient } from "../../src/infrastructure/line/line-api.client";
 
 describe("LineApiClient", () => {
   it("sends the raw ID token to LINE and returns the verified subject", async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response(
-        JSON.stringify({
-          sub: "U123",
-          iss: "https://access.line.me",
-          aud: "channel-123",
-          exp: Math.floor(Date.now() / 1000) + 60,
-        }),
-        { status: 200 },
-      ),
+    const fetcher = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            sub: "U123",
+            iss: "https://access.line.me",
+            aud: "channel-123",
+            exp: Math.floor(Date.now() / 1000) + 60,
+          }),
+          { status: 200 },
+        ),
     );
     const client = new LineApiClient("channel-123", fetcher);
 
@@ -59,8 +60,8 @@ describe("LineApiClient", () => {
     ];
 
     for (const payload of payloads) {
-      const fetcher = vi.fn<typeof fetch>(async () =>
-        new Response(JSON.stringify(payload), { status: 200 }),
+      const fetcher = vi.fn<typeof fetch>(
+        async () => new Response(JSON.stringify(payload), { status: 200 }),
       );
       const client = new LineApiClient("channel-123", fetcher);
 
@@ -71,8 +72,8 @@ describe("LineApiClient", () => {
   });
 
   it("rejects a malformed verification response", async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response("not-json", { status: 200 }),
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("not-json", { status: 200 }),
     );
     const client = new LineApiClient("channel-123", fetcher);
 
@@ -82,8 +83,11 @@ describe("LineApiClient", () => {
   });
 
   it("rejects a failed LINE verification without exposing the response body", async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response(JSON.stringify({ error: "invalid token" }), { status: 400 }),
+    const fetcher = vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify({ error: "invalid token" }), {
+          status: 400,
+        }),
     );
     const client = new LineApiClient("channel-123", fetcher);
 
