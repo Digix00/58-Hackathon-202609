@@ -38,7 +38,7 @@ read AGENTS.md
 2. `docs/README.md`
 3. `docs/requirements/product.md`
 4. `docs/technical/architecture.md`
-5. `docs/technical/api.md`、`docs/technical/data.md`、`docs/technical/development.md` のうち関係するもの
+5. `docs/technical/frontend.md`、`docs/technical/api.md`、`docs/technical/data.md`、`docs/technical/development.md` のうち関係するもの
 6. `backend/README.md` または `frontend/README.md`
 7. 対象ディレクトリの実装、テスト、設定ファイル
 8. 変更に関係する `.github/`、`.agents/` の手順
