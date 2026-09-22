@@ -11,6 +11,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@line/liff": "2.29.2",
     "backend": "workspace:*",
     "hono": "4.13.7",
     "react": "^19.3.0",
