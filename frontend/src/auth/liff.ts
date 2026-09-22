@@ -14,5 +14,12 @@ export async function initializeLiff(): Promise<boolean> {
 export { getLineIdToken, isInLineClient, isLineLoggedIn, logoutLine }
 
 export function startLineLogin(): void {
-  loginWithLiff(window.location.href)
+  const redirectUri = `${window.location.origin}${window.location.pathname}`;
+  liff.login({ redirectUri });
+}
+
+export function logoutLine(): void {
+  if (initialized && liff.isLoggedIn()) {
+    liff.logout();
+  }
 }
