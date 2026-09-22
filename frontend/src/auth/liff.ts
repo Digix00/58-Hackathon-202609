@@ -39,7 +39,8 @@ export function getLineIdToken(): string | null {
 }
 
 export function startLineLogin(): void {
-  liff.login({ redirectUri: window.location.href });
+  const redirectUri = `${window.location.origin}${window.location.pathname}`;
+  liff.login({ redirectUri });
 }
 
 export function logoutLine(): void {

@@ -1,155 +1,17 @@
-import { useEffect, useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import { useAuth } from './auth/useAuth'
-import { apiClient } from './lib/api'
-import './App.css'
+import { RouterProvider } from 'react-router'
+import { DisplaySettingsProvider } from './app/providers/DisplaySettingsProvider'
+import { RuntimeProvider } from './app/providers/RuntimeProvider'
+import { router } from './app/routes'
+import { CrayonFilters } from './shared/components/CrayonFilters'
+import './app/styles.css'
 
-function App() {
-  const [count, setCount] = useState(0)
-  const [apiHealth, setApiHealth] = useState('checking...')
-  const { status, user, error, login, logout } = useAuth()
-
-  useEffect(() => {
-    apiClient.health
-      .$get()
-      .then((res) => res.json())
-      .then((data) =>
-        setApiHealth(`${data.status} (db: ${data.database}, v${data.version})`),
-      )
-      .catch(() => setApiHealth('unreachable'))
-  }, [])
-
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-        <p>API health: {apiHealth}</p>
-        <div className="auth-status" aria-live="polite">
-          <p>認証状態: {status}</p>
-          {user ? <p>ユーザー: {user.id}</p> : null}
-          {error ? <p className="auth-error">{error}</p> : null}
-          {status === 'authenticated' ? (
-            <button type="button" onClick={() => void logout()}>
-              ログアウト
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void login()}
-              disabled={status === 'initializing'}
-            >
-              LINEでログイン
-            </button>
-          )}
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <RuntimeProvider>
+      <DisplaySettingsProvider>
+        <CrayonFilters />
+        <RouterProvider router={router} />
+      </DisplaySettingsProvider>
+    </RuntimeProvider>
   )
 }
-
-export default App

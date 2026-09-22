@@ -10,7 +10,6 @@ import { apiClient } from "../lib/api";
 import {
   getLineIdToken,
   initializeLiff,
-  isInLineClient,
   isLineLoggedIn,
   logoutLine,
   startLineLogin,
@@ -101,7 +100,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw new Error("VITE_LINE_LIFF_IDが設定されていません");
       }
 
-      if (!isInLineClient() && !isLineLoggedIn()) {
+      if (!isLineLoggedIn()) {
         startLineLogin();
         return;
       }
