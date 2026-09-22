@@ -30,7 +30,9 @@ flowchart LR
 - `presentation`: HTTPリクエスト、レスポンス、入力検証
 - `application`: 投稿、閲覧、推薦、クラスタリング、クイズ、LINE配信、学習履歴などのユースケース
 - `application/entity`: アプリケーションで扱うモデル
-- `application/*.repository.ts`: 永続化や外部サービスのPort
+- `application/repository`: 永続化処理のPort
+- `application/port`: 外部サービスのPort
+- `application/usecase`: Application層のユースケースと、その実装に依存する抽象契約
 - `infrastructure`: D1、Drizzle、音声認識、翻訳、AI、LINEのAdapter
 - `bootstrap/container.ts`: 依存関係の組み立て
 - `app`: Honoアプリ、共通middleware、エラーハンドラー
@@ -72,7 +74,7 @@ flowchart LR
 
 - D1やWorkerが一時的に失敗した場合は、再試行可能なエラーを表示する
 - AI、翻訳、音声認識のサービス停止時は、原文で投稿と閲覧を継続する
-- LINEが停止しても、Web投稿とWeb閲覧は継続する
+- LINEが停止しても、通常ブラウザとLINEミニアプリの公開投稿閲覧は継続する。投稿、リアクション、クイズ、履歴などLINEログインが必要な操作は利用できない状態を明示する
 - 外部サービスの障害を理由に、投稿本文を再送し続けない
 
 ### セキュリティ
@@ -97,12 +99,11 @@ flowchart LR
 
 現時点では、次の方針を実装上の前提とする。
 
-1. 入口はWeb、LINE、音声入力とする
-2. ログインを必須にせず、匿名セッションとLINEの友だち登録を併用する
+1. 入口は通常ブラウザでの公開投稿閲覧と、LINEミニアプリでの閲覧・操作とする。音声入力はLINEミニアプリ内で提供する
+2. 通常ブラウザと未ログインのLINEミニアプリでは公開投稿を閲覧できる。投稿、リアクション、既読、クイズ、履歴はLINEログイン済みのLINEミニアプリに限定する
 3. 投稿保存と外部処理を分離し、AI、翻訳、音声認識の障害で投稿を失わないようにする
 4. 正確な位置情報と生IPを保存しない
 5. クラスタリングや推薦は、失敗時に新着順へ戻れるようにする
 6. クイズは3ユーザーの実投稿を対応付ける形式とし、架空の選択肢は使わない
 7. D1のテーブル、Drizzle schema、migrationを同じ変更単位で管理する
 8. 現在のHono、Workers、D1、Hono RPCの構成を維持し、外部機能はPortとAdapterに分離する
-

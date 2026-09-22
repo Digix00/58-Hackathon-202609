@@ -7,8 +7,8 @@
   "observability": {
     "enabled": true
   },
-  "vars": {
-    "CORS_ORIGIN": "https://58-hackathon-202609.digix-cloudflare.workers.dev"
+  "secrets": {
+    "required": ["LINE_CHANNEL_ID"]
   },
   "d1_databases": [
     {
