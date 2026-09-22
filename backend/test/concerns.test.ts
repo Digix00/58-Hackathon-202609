@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
-import { CreateConcernUseCase } from "../src/application/usecase/create-concern.usecase";
+import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -32,7 +32,7 @@ function createTestApp() {
     },
   );
   const concernHandler = new ConcernHandler(
-    new CreateConcernUseCase(new D1ConcernRepository(env.DB)),
+    new ConcernUseCase(new D1ConcernRepository(env.DB)),
   );
 
   return createApp({

@@ -4,31 +4,32 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
-  AGE_GROUPS,
-  CONCERN_BODY_MAX_LENGTH,
-  CONCERN_INPUT_METHODS,
-  GENDERS,
+  ConcernValidationError,
+  type AgeGroup,
   type Concern,
+  type ConcernInputMethod,
+  type Gender,
 } from "../application/entity/concern";
-import { REGION_CODES } from "../application/entity/region-code";
-import type { CreateConcern } from "../application/usecase/create-concern.usecase";
+import type { ConcernUsecase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 
+// 構造（型・必須項目）の検証だけをここで行う。本文長さや属性値の妥当性といった
+// ドメインルールはConcernのコンストラクタが検証し、ConcernValidationErrorとして返す。
 const createConcernRequest = z.object({
-  body: z.string().trim().min(1).max(CONCERN_BODY_MAX_LENGTH),
-  ageGroup: z.enum(AGE_GROUPS).optional(),
-  gender: z.enum(GENDERS).optional(),
-  regionCode: z.enum(REGION_CODES).optional(),
-  inputMethod: z.enum(CONCERN_INPUT_METHODS),
+  body: z.string(),
+  ageGroup: z.string().optional(),
+  gender: z.string().optional(),
+  regionCode: z.string().optional(),
+  inputMethod: z.string(),
 });
 
 const factory = createFactory<{ Bindings: Bindings; Variables: AuthVariables }>();
 
 export class ConcernHandler {
-  private readonly createConcern: CreateConcern;
+  private readonly concernUsecase: ConcernUsecase;
 
-  constructor(createConcern: CreateConcern) {
-    this.createConcern = createConcern;
+  constructor(concernUsecase: ConcernUsecase) {
+    this.concernUsecase = concernUsecase;
   }
 
   readonly create = factory.createHandlers(async (c) => {
@@ -65,16 +66,33 @@ export class ConcernHandler {
       );
     }
 
-    const concern = await this.createConcern.execute({
-      userId: auth.user.id,
-      body: parsed.data.body,
-      ageGroup: parsed.data.ageGroup,
-      gender: parsed.data.gender,
-      regionCode: parsed.data.regionCode,
-      inputMethod: parsed.data.inputMethod,
-    });
+    try {
+      const concern = await this.concernUsecase.create({
+        userId: auth.user.id,
+        body: parsed.data.body,
+        ageGroup: parsed.data.ageGroup as AgeGroup | undefined,
+        gender: parsed.data.gender as Gender | undefined,
+        regionCode: parsed.data.regionCode,
+        inputMethod: parsed.data.inputMethod as ConcernInputMethod,
+      });
 
-    return c.json(toResponse(concern), 201);
+      return c.json(toResponse(concern), 201);
+    } catch (error) {
+      if (error instanceof ConcernValidationError) {
+        return c.json(
+          {
+            error: {
+              code: "INVALID_REQUEST",
+              message: "入力内容を確認してください",
+              details: [{ field: error.field, reason: "invalid" }],
+              requestId,
+            },
+          },
+          400,
+        );
+      }
+      throw error;
+    }
   });
 }
 

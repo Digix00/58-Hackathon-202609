@@ -1,7 +1,7 @@
 import { createApp } from "../app/create-app";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
-import { CreateConcernUseCase } from "../application/usecase/create-concern.usecase";
+import { ConcernUseCase } from "../application/usecase/concern.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -31,8 +31,8 @@ export function createApplication(bindings: Bindings) {
   const healthHandler = new HealthHandler(checkHealth);
 
   const concernRepository = new D1ConcernRepository(bindings.DB);
-  const createConcern = new CreateConcernUseCase(concernRepository);
-  const concernHandler = new ConcernHandler(createConcern);
+  const concernUsecase = new ConcernUseCase(concernRepository);
+  const concernHandler = new ConcernHandler(concernUsecase);
 
   return createApp({
     authHandler: new AuthHandler(authUseCase, sessionTtlSeconds),

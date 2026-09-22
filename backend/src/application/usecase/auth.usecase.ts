@@ -5,6 +5,7 @@ import type {
 import type { LineTokenVerifier } from "../port/line-token-verifier";
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
+import { encodeBase64Url, generateId, randomBytes } from "../shared/id-generator";
 
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
@@ -165,30 +166,8 @@ export class AuthUseCase implements AuthUseCasePort {
   }
 }
 
-export function generateId(prefix: string): string {
-  return `${prefix}_${encodeBase64Url(randomBytes(16))}`;
-}
-
 function generateToken(): string {
   return encodeBase64Url(randomBytes(32));
-}
-
-function randomBytes(length: number): Uint8Array {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  return bytes;
-}
-
-function encodeBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
 }
 
 async function hashToken(token: string): Promise<string> {
