@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
+import { useAuth } from './auth/useAuth'
 import { apiClient } from './lib/api'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
   const [apiHealth, setApiHealth] = useState('checking...')
+  const { status, user, error, login, logout } = useAuth()
 
   useEffect(() => {
     apiClient.health
@@ -41,6 +43,24 @@ function App() {
           Count is {count}
         </button>
         <p>API health: {apiHealth}</p>
+        <div className="auth-status" aria-live="polite">
+          <p>認証状態: {status}</p>
+          {user ? <p>ユーザー: {user.id}</p> : null}
+          {error ? <p className="auth-error">{error}</p> : null}
+          {status === 'authenticated' ? (
+            <button type="button" onClick={() => void logout()}>
+              ログアウト
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void login()}
+              disabled={status === 'initializing'}
+            >
+              LINEでログイン
+            </button>
+          )}
+        </div>
       </section>
 
       <div className="ticks"></div>
