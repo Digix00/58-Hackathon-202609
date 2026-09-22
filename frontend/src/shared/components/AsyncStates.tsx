@@ -11,16 +11,29 @@ export function LoadingState({ label = '読み込んでいます…' }: { label?
   )
 }
 
-export function ErrorState({ title = '読み込めませんでした', description, onRetry }: ErrorStateProps) {
+export function ErrorState({
+  title = '読み込めませんでした',
+  description,
+  onRetry,
+}: ErrorStateProps) {
   return (
     <section className="state-card" role="alert">
       <h1>{title}</h1>
       <p>{description}</p>
-      {onRetry ? <button className="text-button" type="button" onClick={onRetry}>もう一度試す</button> : null}
+      {onRetry ? (
+        <button className="text-button" type="button" onClick={onRetry}>
+          もう一度試す
+        </button>
+      ) : null}
     </section>
   )
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
-  return <section className="state-card"><h1>{title}</h1><p>{description}</p></section>
+  return (
+    <section className="state-card">
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </section>
+  )
 }

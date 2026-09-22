@@ -22,6 +22,20 @@
       "when": 1790063346248,
       "tag": "0002_cuddly_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790077299939,
+      "tag": "0003_graceful_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790085330262,
+      "tag": "0004_thick_galactus",
+      "breakpoints": true
     }
   ]
 }

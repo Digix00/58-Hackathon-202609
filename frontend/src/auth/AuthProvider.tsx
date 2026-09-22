@@ -2,66 +2,60 @@ import {
   type PropsWithChildren,
   useCallback,
   useEffect,
-  useRef,
   useMemo,
   useReducer,
-} from "react";
-
-import { apiClient } from "../lib/api";
+  useRef,
+} from 'react'
+import { apiClient } from '../lib/api'
 import {
   getLineIdToken,
   initializeLiff,
   isLineLoggedIn,
   logoutLine,
   startLineLogin,
-} from "./liff";
-import {
-  AuthContext,
-  type AuthResponse,
-  type AuthStatus,
-} from "./auth-context";
+} from './liff'
+import { AuthContext, type AuthResponse, type AuthStatus } from './auth-context'
 
 const useDevAuthenticatedSession =
-  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === "authenticated";
+  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === 'authenticated'
 
 type AuthState = {
-  status: AuthStatus;
-  user: AuthResponse["user"];
-  error: string | null;
-};
+  status: AuthStatus
+  user: AuthResponse['user']
+  error: string | null
+}
 
 type AuthAction =
-  | { type: "refreshStarted" }
-  | { type: "loginStarted" }
-  | { type: "sessionApplied"; session: AuthResponse }
-  | { type: "sessionFailed"; message: string }
-  | { type: "errorCleared" }
-  | { type: "operationFailed"; message: string };
+  | { type: 'refreshStarted' }
+  | { type: 'loginStarted' }
+  | { type: 'sessionApplied'; session: AuthResponse }
+  | { type: 'sessionFailed'; message: string }
+  | { type: 'errorCleared' }
+  | { type: 'operationFailed'; message: string }
 
 const initialAuthState: AuthState = {
-  status: "initializing",
+  status: 'initializing',
   user: null,
   error: null,
-};
+}
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case "refreshStarted":
-      return { status: "initializing", user: state.user, error: null };
-    case "loginStarted":
-      return { status: "initializing", user: state.user, error: null };
-    case "sessionApplied":
+    case 'refreshStarted':
+    case 'loginStarted':
+      return { status: 'initializing', user: state.user, error: null }
+    case 'sessionApplied':
       return {
-        status: action.session.authenticated ? "authenticated" : "anonymous",
+        status: action.session.authenticated ? 'authenticated' : 'anonymous',
         user: action.session.user,
         error: null,
-      };
-    case "sessionFailed":
-      return { status: "anonymous", user: null, error: action.message };
-    case "errorCleared":
-      return { ...state, error: null };
-    case "operationFailed":
-      return { ...state, error: action.message };
+      }
+    case 'sessionFailed':
+      return { status: 'anonymous', user: null, error: action.message }
+    case 'errorCleared':
+      return { ...state, error: null }
+    case 'operationFailed':
+      return { ...state, error: action.message }
   }
 }
 
@@ -73,134 +67,137 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
  * Hidden complexity: 初期化の重複排除、LIFF ログインへのフォールバック、通信失敗時の匿名状態への遷移。
  */
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [state, dispatch] = useReducer(authReducer, initialAuthState);
-  const bootPromise = useRef<Promise<void> | null>(null);
+  const [state, dispatch] = useReducer(authReducer, initialAuthState)
+  const bootPromise = useRef<Promise<void> | null>(null)
 
   const applySession = useCallback((session: AuthResponse) => {
-    dispatch({ type: "sessionApplied", session });
-  }, []);
+    dispatch({ type: 'sessionApplied', session })
+  }, [])
 
   const requestSession = useCallback(async (): Promise<AuthResponse> => {
-    const response = await apiClient.api.v1.auth.session.$get();
+    const response = await apiClient.api.v1.auth.session.$get()
     if (!response.ok) {
-      throw new Error("アプリのセッションを復元できませんでした");
+      throw new Error('アプリのセッションを復元できませんでした')
     }
-    return response.json();
-  }, []);
+    return response.json()
+  }, [])
 
   const loginWithIdToken = useCallback(
     async (idToken: string): Promise<void> => {
       const response = await apiClient.api.v1.auth.line.$post({
         json: { idToken },
-      });
+      })
       if (!response.ok) {
-        throw new Error("LINE認証に失敗しました");
+        throw new Error('LINE認証に失敗しました')
       }
-      applySession(await response.json());
+      applySession(await response.json())
     },
     [applySession],
-  );
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     if (bootPromise.current) {
-      return bootPromise.current;
+      return bootPromise.current
     }
 
     const task = (async () => {
-      dispatch({ type: "refreshStarted" });
+      dispatch({ type: 'refreshStarted' })
 
       try {
         if (useDevAuthenticatedSession) {
           applySession({
             authenticated: true,
-            user: { id: "dev-user" },
-          });
-          return;
+            user: {
+              id: 'dev-user',
+              birthYear: null,
+              birthMonth: null,
+              gender: null,
+              regionCode: null,
+              profileCompleted: false,
+            },
+          })
+          return
         }
 
-        const session = await requestSession();
+        const session = await requestSession()
         if (session.authenticated) {
-          applySession(session);
-          return;
+          applySession(session)
+          return
         }
 
-        const liffInitialized = await initializeLiff();
+        const liffInitialized = await initializeLiff()
         if (liffInitialized && isLineLoggedIn()) {
-          const idToken = getLineIdToken();
+          const idToken = getLineIdToken()
           if (idToken) {
-            await loginWithIdToken(idToken);
-            return;
+            await loginWithIdToken(idToken)
+            return
           }
         }
 
-        applySession(session);
+        applySession(session)
       } catch (cause) {
-        dispatch({ type: "sessionFailed", message: toErrorMessage(cause) });
+        dispatch({ type: 'sessionFailed', message: toErrorMessage(cause) })
       }
     })().finally(() => {
-      bootPromise.current = null;
-    });
+      bootPromise.current = null
+    })
 
-    bootPromise.current = task;
-    return task;
-  }, [applySession, loginWithIdToken, requestSession]);
+    bootPromise.current = task
+    return task
+  }, [applySession, loginWithIdToken, requestSession])
 
   const login = useCallback(async (): Promise<void> => {
-    dispatch({ type: "errorCleared" });
+    dispatch({ type: 'errorCleared' })
 
     try {
-      const liffInitialized = await initializeLiff();
+      const liffInitialized = await initializeLiff()
       if (!liffInitialized) {
-        throw new Error("VITE_LINE_LIFF_IDが設定されていません");
+        throw new Error('VITE_LINE_LIFF_IDが設定されていません')
       }
 
       if (!isLineLoggedIn()) {
-        startLineLogin();
-        return;
+        startLineLogin()
+        return
       }
 
-      const idToken = getLineIdToken();
+      const idToken = getLineIdToken()
       if (!idToken) {
-        throw new Error("LINE ID tokenを取得できません");
+        throw new Error('LINE ID tokenを取得できません')
       }
 
-      dispatch({ type: "loginStarted" });
-      await loginWithIdToken(idToken);
+      dispatch({ type: 'loginStarted' })
+      await loginWithIdToken(idToken)
     } catch (cause) {
-      dispatch({ type: "sessionFailed", message: toErrorMessage(cause) });
+      dispatch({ type: 'sessionFailed', message: toErrorMessage(cause) })
     }
-  }, [loginWithIdToken]);
+  }, [loginWithIdToken])
 
   const logout = useCallback(async (): Promise<void> => {
-    dispatch({ type: "errorCleared" });
+    dispatch({ type: 'errorCleared' })
     try {
-      const response = await apiClient.api.v1.auth.logout.$post();
+      const response = await apiClient.api.v1.auth.logout.$post()
       if (!response.ok) {
-        throw new Error("ログアウトに失敗しました");
+        throw new Error('ログアウトに失敗しました')
       }
-      logoutLine();
-      applySession({ authenticated: false, user: null });
+      logoutLine()
+      applySession({ authenticated: false, user: null })
     } catch (cause) {
-      dispatch({ type: "operationFailed", message: toErrorMessage(cause) });
+      dispatch({ type: 'operationFailed', message: toErrorMessage(cause) })
     }
-  }, [applySession]);
+  }, [applySession])
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refresh()
+  }, [refresh])
 
   const contextValue = useMemo(
     () => ({ ...state, refresh, login, logout }),
     [login, logout, refresh, state],
-  );
+  )
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 function toErrorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "認証に失敗しました";
+  return cause instanceof Error ? cause.message : '認証に失敗しました'
 }

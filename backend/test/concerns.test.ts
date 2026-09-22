@@ -17,6 +17,7 @@ import { ConcernHandler } from "../src/presentation/concern.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createUserDependencies } from "./support/user-fixture";
 
 function createTestApp() {
   const authUseCase = new AuthUseCase(
@@ -39,6 +40,7 @@ function createTestApp() {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler,
+    ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -54,6 +56,7 @@ function anonymousTestApp() {
   return createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
         status: "ok",
@@ -97,7 +100,6 @@ const validBody = {
   ageGroup: "20s",
   gender: "no_answer",
   regionCode: "osaka",
-  inputMethod: "liff",
 };
 
 describe("POST /api/v1/concerns", () => {
@@ -151,7 +153,6 @@ describe("POST /api/v1/concerns", () => {
         headers: { Cookie: cookie, "Content-Type": "application/json" },
         body: JSON.stringify({
           body: "属性なしの投稿です",
-          inputMethod: "liff",
         }),
       },
       env,
@@ -161,7 +162,6 @@ describe("POST /api/v1/concerns", () => {
     const created = await res.json<Record<string, unknown>>();
     expect(created).toMatchObject({
       body: "属性なしの投稿です",
-      inputMethod: "liff",
       visibilityStatus: "published",
       processingStatus: "pending",
       representations: { jaHira: null, en: null },
@@ -180,6 +180,8 @@ describe("POST /api/v1/concerns", () => {
       .from(concerns)
       .where(eq(concerns.id, created.id as string));
     expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toHaveProperty("inputMethod");
+    expect(created).not.toHaveProperty("inputMethod");
   });
 
   it("saves and returns provided optional attributes", async () => {
@@ -244,14 +246,14 @@ describe("POST /api/v1/concerns", () => {
   });
 
   it.each([
-    { scenario: "missing body", payload: { inputMethod: "liff" } },
+    { scenario: "missing body", payload: {} },
     {
       scenario: "whitespace-only body",
-      payload: { body: "   ", inputMethod: "liff" },
+      payload: { body: "   " },
     },
     {
       scenario: "body over 1000 characters",
-      payload: { body: "a".repeat(1001), inputMethod: "liff" },
+      payload: { body: "a".repeat(1001) },
     },
     {
       scenario: "unknown ageGroup",
@@ -264,18 +266,6 @@ describe("POST /api/v1/concerns", () => {
     {
       scenario: "unknown regionCode",
       payload: { ...validBody, regionCode: "unknown" },
-    },
-    {
-      scenario: "missing inputMethod",
-      payload: { body: validBody.body },
-    },
-    {
-      scenario: "deprecated inputMethod=web",
-      payload: { ...validBody, inputMethod: "web" },
-    },
-    {
-      scenario: "deprecated inputMethod=line",
-      payload: { ...validBody, inputMethod: "line" },
     },
   ])("rejects $scenario with 400 INVALID_REQUEST", async ({ payload }) => {
     const app = createTestApp();

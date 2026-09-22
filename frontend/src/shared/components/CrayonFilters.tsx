@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 /**
  * クレヨン風の輪郭に使う SVG フィルタ定義。
  *
@@ -17,10 +19,21 @@ export function CrayonFilters() {
   return (
     <svg className="svg-defs" aria-hidden="true" focusable="false">
       <filter id="crayon-edge" x="-16%" y="-16%" width="132%" height="132%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.026" numOctaves="3" seed={seed} result="noise" />
-        <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" />
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.026"
+          numOctaves="3"
+          seed={seed}
+          result="noise"
+        />
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="noise"
+          scale="5"
+          xChannelSelector="R"
+          yChannelSelector="G"
+        />
       </filter>
     </svg>
   )
 }
-import { useState } from 'react'

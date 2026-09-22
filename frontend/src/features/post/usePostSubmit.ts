@@ -1,51 +1,55 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useReducer } from 'react'
+import { createConcern } from './postApi'
+import type { PostFormFieldErrors, PostFormInput, PostResult } from './postTypes'
+import { validatePostInput } from './postTypes'
 
-import { createConcern } from "./postApi";
-import type { PostFormFieldErrors, PostFormInput, PostResult } from "./postTypes";
-import { validatePostInput } from "./postTypes";
-
-export type PostSubmitStatus = "idle" | "submitting" | "succeeded" | "failed";
+export type PostSubmitStatus = 'idle' | 'submitting' | 'succeeded' | 'failed'
 
 export interface UsePostSubmitResult {
-  status: PostSubmitStatus;
-  fieldErrors: PostFormFieldErrors;
-  error: string | null;
-  result: PostResult | null;
-  submit: (input: PostFormInput) => Promise<void>;
-  reset: () => void;
+  status: PostSubmitStatus
+  fieldErrors: PostFormFieldErrors
+  error: string | null
+  result: PostResult | null
+  submit: (input: PostFormInput) => Promise<void>
+  reset: () => void
 }
 
-type PostSubmitState = Omit<UsePostSubmitResult, "submit" | "reset">;
+type PostSubmitState = Omit<UsePostSubmitResult, 'submit' | 'reset'>
 
 type PostSubmitAction =
-  | { type: "validationFailed"; fieldErrors: PostFormFieldErrors }
-  | { type: "submitStarted" }
-  | { type: "submitSucceeded"; result: PostResult }
-  | { type: "submitFailed"; error: string }
-  | { type: "reset" };
+  | { type: 'validationFailed'; fieldErrors: PostFormFieldErrors }
+  | { type: 'submitStarted' }
+  | { type: 'submitSucceeded'; result: PostResult }
+  | { type: 'submitFailed'; error: string }
+  | { type: 'reset' }
 
 const initialPostSubmitState: PostSubmitState = {
-  status: "idle",
+  status: 'idle',
   fieldErrors: {},
   error: null,
   result: null,
-};
+}
 
 function postSubmitReducer(
   _state: PostSubmitState,
   action: PostSubmitAction,
 ): PostSubmitState {
   switch (action.type) {
-    case "validationFailed":
-      return { status: "idle", fieldErrors: action.fieldErrors, error: null, result: null };
-    case "submitStarted":
-      return { status: "submitting", fieldErrors: {}, error: null, result: null };
-    case "submitSucceeded":
-      return { status: "succeeded", fieldErrors: {}, error: null, result: action.result };
-    case "submitFailed":
-      return { status: "failed", fieldErrors: {}, error: action.error, result: null };
-    case "reset":
-      return initialPostSubmitState;
+    case 'validationFailed':
+      return {
+        status: 'idle',
+        fieldErrors: action.fieldErrors,
+        error: null,
+        result: null,
+      }
+    case 'submitStarted':
+      return { status: 'submitting', fieldErrors: {}, error: null, result: null }
+    case 'submitSucceeded':
+      return { status: 'succeeded', fieldErrors: {}, error: null, result: action.result }
+    case 'submitFailed':
+      return { status: 'failed', fieldErrors: {}, error: action.error, result: null }
+    case 'reset':
+      return initialPostSubmitState
   }
 }
 
@@ -55,32 +59,32 @@ function postSubmitReducer(
  * State modeling: status、入力エラー、送信結果、通信エラーを reducer で同時に更新し、不整合な組み合わせを防ぐ。
  */
 export function usePostSubmit(): UsePostSubmitResult {
-  const [state, dispatch] = useReducer(postSubmitReducer, initialPostSubmitState);
+  const [state, dispatch] = useReducer(postSubmitReducer, initialPostSubmitState)
 
   const submit = useCallback(async (input: PostFormInput): Promise<void> => {
-    const validationErrors = validatePostInput(input);
+    const validationErrors = validatePostInput(input)
     if (Object.keys(validationErrors).length > 0) {
-      dispatch({ type: "validationFailed", fieldErrors: validationErrors });
-      return;
+      dispatch({ type: 'validationFailed', fieldErrors: validationErrors })
+      return
     }
 
-    dispatch({ type: "submitStarted" });
+    dispatch({ type: 'submitStarted' })
     try {
-      const response = await createConcern(input);
+      const response = await createConcern(input)
       if (response.ok) {
-        dispatch({ type: "submitSucceeded", result: response.concern });
-        return;
+        dispatch({ type: 'submitSucceeded', result: response.concern })
+        return
       }
 
-      dispatch({ type: "submitFailed", error: response.message });
+      dispatch({ type: 'submitFailed', error: response.message })
     } catch {
-      dispatch({ type: "submitFailed", error: "投稿に失敗しました。時間をおいて再度お試しください" });
+      dispatch({ type: 'submitFailed', error: '投稿に失敗しました。時間をおいて再度お試しください' })
     }
-  }, []);
+  }, [])
 
   const reset = useCallback((): void => {
-    dispatch({ type: "reset" });
-  }, []);
+    dispatch({ type: 'reset' })
+  }, [])
 
-  return { ...state, submit, reset };
+  return { ...state, submit, reset }
 }

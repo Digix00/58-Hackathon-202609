@@ -1,12 +1,12 @@
 import type { HealthStatus } from "../entity/health-status.entity";
 import type { HealthRepository } from "../repository/health.repository";
 
-export interface CheckHealth {
+export interface ICheckHealth {
   execute(): Promise<HealthStatus>;
 }
 
 /** Health機能のアプリケーションロジック。HTTPやD1には直接依存せず、Repository Portを介して疎通確認を行う。 */
-export class CheckHealthUseCase implements CheckHealth {
+export class CheckHealthUseCase implements ICheckHealth {
   private readonly repository: HealthRepository;
   private readonly now: () => Date;
   private readonly version: string;

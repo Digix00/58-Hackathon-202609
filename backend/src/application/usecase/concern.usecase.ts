@@ -1,4 +1,4 @@
-import type { AgeGroup, ConcernInputMethod, Gender } from "../entity/concern";
+import type { AgeGroup, Gender } from "../entity/concern";
 import { Concern } from "../entity/concern";
 import type { ConcernRepository } from "../repository/concern.repository";
 import { generateId } from "../shared/id-generator";
@@ -9,10 +9,9 @@ export interface CreateConcernInput {
   ageGroup?: AgeGroup;
   gender?: Gender;
   regionCode?: string;
-  inputMethod: ConcernInputMethod;
 }
 
-export interface ConcernUsecase {
+export interface IConcernUseCase {
   create(input: CreateConcernInput): Promise<Concern>;
 }
 
@@ -21,7 +20,7 @@ export interface ConcernUsecase {
  * 入力値の不変条件はConcernのコンストラクタが検証するため、ここではID/時刻を
  * 採番してEntityを組み立て、永続化を依頼するオーケストレーションに専念する。
  */
-export class ConcernUseCase implements ConcernUsecase {
+export class ConcernUseCase implements IConcernUseCase {
   private readonly repository: ConcernRepository;
   private readonly now: () => Date;
   private readonly createId: () => string;
@@ -41,7 +40,6 @@ export class ConcernUseCase implements ConcernUsecase {
       id: this.createId(),
       userId: input.userId,
       body: input.body,
-      inputMethod: input.inputMethod,
       ageGroup: input.ageGroup,
       gender: input.gender,
       regionCode: input.regionCode,

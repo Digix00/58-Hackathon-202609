@@ -192,6 +192,7 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 - 次のコマンドが成功する。
 
 ```bash
+pnpm --filter frontend format:check
 pnpm --filter frontend lint
 pnpm --filter frontend build
 ```

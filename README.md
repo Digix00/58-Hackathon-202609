@@ -32,9 +32,19 @@ pnpm install
 ## ワークスペース共通コマンド
 
 ```bash
-pnpm build   # 全パッケージをビルド
-pnpm lint    # 全パッケージをlint
-pnpm test    # 全パッケージをtest
+pnpm build   # 全パッケージのbuildスクリプトを実行
+pnpm lint    # 全パッケージのlintスクリプトを実行
+pnpm test    # testスクリプトがあるパッケージのテストを実行
 ```
 
 個別のパッケージに対しては `pnpm --filter frontend <script>` / `pnpm --filter backend <script>` を使う。
+
+`pnpm` のコマンドはワークスペース単位の基本操作に使う。現在、frontendにはtestスクリプトがないため、`pnpm test` ではbackendのテストが実行される。
+
+GitHub Actions のfrontend/backendチェックをPull Request前にまとめて確認する場合は、次を使う。
+
+```bash
+make check
+```
+
+`make check` はfrontendのformat check・lint・buildと、backendのlint・build・testを実行する。個別に確認する場合は `make check-frontend` または `make check-backend` を使う。

@@ -22,6 +22,17 @@ VITE_DEV_AUTH_MODE=authenticated
 
 `VITE_DEV_AUTH_MODE=authenticated` は Vite の開発時だけ有効な表示確認用のモックで、バックエンドの認証セッションやLINEログインを作成しない。実際の認証連携を確認するときは、この設定を外し、`VITE_LINE_LIFF_ID` を設定する。
 
+## コード整形
+
+フロントエンドのコード整形には Prettier を使用する。
+
+```bash
+pnpm --filter frontend format
+pnpm --filter frontend format:check
+```
+
+`format:check` は、整形が必要なファイルがないことを確認するCI向けのコマンド。
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
@@ -72,7 +83,7 @@ backendと共通。詳細は[`backend/README.md`](../backend/README.md#ciに必�
 ビルド時はGitHub Actions Variablesから以下を注入する。未設定の場合はBuildステップで
 Workflowを失敗させる。
 
-| Variable | 説明 |
-| --- | --- |
+| Variable            | 説明                                         |
+| ------------------- | -------------------------------------------- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するバックエンドAPIのURL |
-| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID |
+| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID     |

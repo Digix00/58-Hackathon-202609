@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
-import { DisplaySettingsContext, type DisplayLanguage, type FontSize } from './DisplaySettingsContext'
+import {
+  DisplaySettingsContext,
+  type DisplayLanguage,
+  type FontSize,
+} from './DisplaySettingsContext'
 
 const DEFAULT_LANGUAGE: DisplayLanguage = 'original'
 const DEFAULT_FONT_SIZE: FontSize = 'normal'

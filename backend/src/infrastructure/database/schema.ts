@@ -21,6 +21,10 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    birthYear: integer("birth_year"),
+    birthMonth: integer("birth_month"),
+    genderCode: text("gender_code"),
+    regionCode: text("region_code"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -53,7 +57,6 @@ export const concerns = sqliteTable(
       .notNull()
       .references(() => users.id),
     body: text("body").notNull(),
-    inputMethod: text("input_method").notNull(),
     ageGroup: text("age_group"),
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
@@ -77,10 +80,6 @@ export const concerns = sqliteTable(
       table.id,
     ),
     userIndex: index("concerns_user_idx").on(table.userId, table.createdAt),
-    inputMethodCheck: check(
-      "concerns_input_method_check",
-      sql`${table.inputMethod} in ('liff', 'voice')`,
-    ),
     ageGroupCheck: check(
       "concerns_age_group_check",
       sql`${table.ageGroup} is null or ${table.ageGroup} in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')`,

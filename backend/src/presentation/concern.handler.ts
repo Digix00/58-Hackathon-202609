@@ -7,10 +7,9 @@ import {
   ConcernValidationError,
   type AgeGroup,
   type Concern,
-  type ConcernInputMethod,
   type Gender,
 } from "../application/entity/concern";
-import type { ConcernUsecase } from "../application/usecase/concern.usecase";
+import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 
 // 構造（型・必須項目）の検証だけをここで行う。本文長さや属性値の妥当性といった
@@ -20,15 +19,14 @@ const createConcernRequest = z.object({
   ageGroup: z.string().optional(),
   gender: z.string().optional(),
   regionCode: z.string().optional(),
-  inputMethod: z.string(),
 });
 
 const factory = createFactory<{ Bindings: Bindings; Variables: AuthVariables }>();
 
 export class ConcernHandler {
-  private readonly concernUsecase: ConcernUsecase;
+  private readonly concernUsecase: IConcernUseCase;
 
-  constructor(concernUsecase: ConcernUsecase) {
+  constructor(concernUsecase: IConcernUseCase) {
     this.concernUsecase = concernUsecase;
   }
 
@@ -73,7 +71,6 @@ export class ConcernHandler {
         ageGroup: parsed.data.ageGroup as AgeGroup | undefined,
         gender: parsed.data.gender as Gender | undefined,
         regionCode: parsed.data.regionCode,
-        inputMethod: parsed.data.inputMethod as ConcernInputMethod,
       });
 
       return c.json(toResponse(concern), 201);
@@ -105,7 +102,6 @@ function toResponse(concern: Concern) {
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
     },
-    inputMethod: concern.inputMethod,
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
     representations: { jaHira: null, en: null },
