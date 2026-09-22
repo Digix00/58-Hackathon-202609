@@ -6,6 +6,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #625a9c; outline-offset: 3px; }
 .app-shell, .standalone-page { width: min(100%, 430px); min-height: 100svh; margin: 0 auto; background: #fffdf7; }
 .app-shell { display: grid; grid-template-rows: auto 1fr auto; }
+.standalone-page { display: grid; place-items: center; align-content: center; }
 .font-large { font-size: 1.14rem; }
 .app-header { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 16px 18px 10px; border-bottom: 1px solid #e5ded2; }
 .app-name, .eyebrow { margin: 0; color: #453d70; font-weight: 700; letter-spacing: .08em; }
