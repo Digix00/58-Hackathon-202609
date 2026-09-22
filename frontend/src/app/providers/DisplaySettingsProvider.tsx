@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
-import { DisplaySettingsContext, type DisplayLanguage, type FontSize } from './DisplaySettingsContext'
+import {
+  DisplaySettingsContext,
+  type DisplayLanguage,
+  type FontSize,
+} from './DisplaySettingsContext'
 
 export function DisplaySettingsProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState<DisplayLanguage>('original')
