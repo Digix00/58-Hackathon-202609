@@ -35,7 +35,7 @@ export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetP
       aria-labelledby="settings-title"
       onClose={handleDialogClose}
     >
-      <div className="settings-sheet" onMouseDown={(event) => event.stopPropagation()}>
+      <div className={`settings-sheet font-${fontSize}`} onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true" />
         <div className="sheet-heading"><h2 id="settings-title">設定</h2><button className="icon-button sheet-close-button" type="button" onClick={onClose} aria-label="設定を閉じる"><svg className="sheet-close-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g filter="url(#crayon-edge)"><path d="M5.2 5.1C8.6 8.4 12.2 12.1 18.8 18.7" /><path d="M18.8 5.2C15.1 8.6 11.8 12.2 5.1 18.9" /><path className="sheet-close-trace" d="M5.5 5.4C8.8 8.8 12.3 12.3 18.4 18.4" /><path className="sheet-close-trace" d="M18.5 5.5C15.1 8.8 11.8 12.4 5.5 18.6" /></g></svg></button></div>
         <fieldset className="setting-group"><legend>文字サイズ</legend><div className="choice-row">{fontSizeOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="font-size" checked={fontSize === option.value} onChange={() => setFontSize(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
