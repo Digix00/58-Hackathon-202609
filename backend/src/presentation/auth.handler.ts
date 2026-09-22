@@ -9,6 +9,7 @@ import {
 } from "../application/port/line-token-verifier";
 import { getRequestId } from "../app/request-id";
 import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import { logError } from "../logger";
 import type { Bindings } from "../types";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -61,6 +62,9 @@ export class AuthHandler {
       return c.json(toResponse(result));
     } catch (error) {
       if (error instanceof InvalidLineTokenError) {
+        logError("rejected a LINE login request due to an invalid ID token", {
+          requestId,
+        });
         return c.json(
           {
             error: {
@@ -73,6 +77,9 @@ export class AuthHandler {
         );
       }
       if (error instanceof LineAuthConfigurationError) {
+        logError("rejected a LINE login request because LINE auth is not configured", {
+          requestId,
+        });
         return c.json(
           {
             error: {

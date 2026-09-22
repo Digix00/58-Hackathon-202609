@@ -1,4 +1,5 @@
 import type { HealthStatus } from "../entity/health-status.entity";
+import { logError } from "../../logger";
 import type { HealthRepository } from "../repository/health.repository";
 
 export interface CheckHealth {
@@ -25,7 +26,10 @@ export class CheckHealthUseCase implements CheckHealth {
     let database: HealthStatus["database"] = "ok";
     try {
       await this.repository.ping();
-    } catch {
+    } catch (error) {
+      logError("database health check failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       database = "error";
     }
 

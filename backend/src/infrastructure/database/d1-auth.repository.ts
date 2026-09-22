@@ -7,6 +7,7 @@ import type {
 } from "../../application/repository/auth.repository";
 import type { Session } from "../../application/entity/session";
 import type { User } from "../../application/entity/user";
+import { logError } from "../../logger";
 import { sessions, users } from "./schema";
 
 export class D1UserRepository implements UserRepository {
@@ -41,6 +42,7 @@ export class D1UserRepository implements UserRepository {
     const created = await this.selectByLineUserId(lineUserId);
 
     if (!created) {
+      logError("failed to read back auth user after insert", { lineUserId });
       throw new Error("failed to create auth user");
     }
 
