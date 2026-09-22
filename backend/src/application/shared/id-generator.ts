@@ -1,6 +1,6 @@
 /** 機能間で共有するopaque ID生成ユーティリティ。特定のドメイン（auth/concern等）に依存しない。 */
 export function generateId(prefix: string): string {
-  return `${prefix}_${encodeBase64Url(randomBytes(16))}`;
+  return `${prefix}_${crypto.randomUUID()}`;
 }
 
 export function randomBytes(length: number): Uint8Array {

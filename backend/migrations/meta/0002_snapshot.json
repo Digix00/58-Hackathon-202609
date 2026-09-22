@@ -140,7 +140,7 @@
         },
         "concerns_age_group_check": {
           "name": "concerns_age_group_check",
-          "value": "\"concerns\".\"age_group\" is null or \"concerns\".\"age_group\" in ('10s', '20s', '30s', '40s', '50s_plus', 'no_answer')"
+          "value": "\"concerns\".\"age_group\" is null or \"concerns\".\"age_group\" in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')"
         },
         "concerns_gender_code_check": {
           "name": "concerns_gender_code_check",

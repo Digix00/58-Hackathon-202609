@@ -387,7 +387,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 - line_broadcast_attempts.status: started, succeeded, failed（LINE の 409 + X-Line-Accepted-Request-Id は succeeded として記録）
 - 数値の display_order, score, view_count, attempt_count, attempt_number は 0 以上
 
-属性値の表示名はデータベースに日本語の自由入力で保存せず、API のコード値を利用する。例えば年代は 10s, 20s, 30s, 40s, 50s_plus, no_answer、性別は male, female, non_binary, other, no_answer とする。
+属性値の表示名はデータベースに日本語の自由入力で保存せず、API のコード値を利用する。例えば年代は 10s, 20s, 30s, 40s, 50s, 60s, 70s, 80s, 90s_plus, no_answer、性別は male, female, non_binary, other, no_answer とする。
 
 ### 推奨インデックス
 

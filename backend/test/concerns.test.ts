@@ -203,6 +203,25 @@ describe("POST /api/v1/concerns", () => {
     });
   });
 
+  it("accepts the highest configured age group", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+
+    const res = await app.request(
+      "/api/v1/concerns",
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...validBody, ageGroup: "90s_plus" }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(201);
+    const created = await res.json<{ attributes: Record<string, unknown> }>();
+    expect(created.attributes.ageGroup).toBe("90s_plus");
+  });
+
   it("ignores a userId supplied in the request body", async () => {
     const app = createTestApp();
     const cookie = await loginCookie(app);

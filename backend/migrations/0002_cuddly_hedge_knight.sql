@@ -12,7 +12,7 @@ CREATE TABLE `concerns` (
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "concerns_input_method_check" CHECK("concerns"."input_method" in ('liff', 'voice')),
-	CONSTRAINT "concerns_age_group_check" CHECK("concerns"."age_group" is null or "concerns"."age_group" in ('10s', '20s', '30s', '40s', '50s_plus', 'no_answer')),
+	CONSTRAINT "concerns_age_group_check" CHECK("concerns"."age_group" is null or "concerns"."age_group" in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')),
 	CONSTRAINT "concerns_gender_code_check" CHECK("concerns"."gender_code" is null or "concerns"."gender_code" in ('male', 'female', 'non_binary', 'other', 'no_answer')),
 	CONSTRAINT "concerns_visibility_status_check" CHECK("concerns"."visibility_status" in ('pending', 'published', 'hidden', 'deleted')),
 	CONSTRAINT "concerns_processing_status_check" CHECK("concerns"."processing_status" in ('pending', 'processing', 'ready', 'failed'))

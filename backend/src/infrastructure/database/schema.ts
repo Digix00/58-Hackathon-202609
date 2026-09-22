@@ -83,7 +83,7 @@ export const concerns = sqliteTable(
     ),
     ageGroupCheck: check(
       "concerns_age_group_check",
-      sql`${table.ageGroup} is null or ${table.ageGroup} in ('10s', '20s', '30s', '40s', '50s_plus', 'no_answer')`,
+      sql`${table.ageGroup} is null or ${table.ageGroup} in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')`,
     ),
     genderCodeCheck: check(
       "concerns_gender_code_check",
