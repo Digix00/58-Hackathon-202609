@@ -8,6 +8,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
 
 concurrency:
   group: backend-deploy
