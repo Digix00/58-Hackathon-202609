@@ -35,9 +35,6 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       className="sheet-dialog"
       aria-labelledby="settings-title"
       onClose={handleDialogClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
     >
       <div className="settings-sheet" onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true" />
@@ -46,6 +43,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
         <fieldset className="setting-group"><legend>表示することば</legend><div className="choice-row">{languageOptions.map((option) => <label key={option.value} className="choice"><input type="radio" name="display-language" checked={language === option.value} onChange={() => setLanguage(option.value)} /><span>{option.label}</span></label>)}</div></fieldset>
         <section className="setting-group" aria-labelledby="speech-title"><h3 id="speech-title">読み上げ</h3><p>投稿を開くと、ここから読み上げられます。</p><button type="button" className="secondary-button" disabled>読み上げる文章がありません</button></section>
       </div>
+      <button className="sheet-backdrop" type="button" onClick={onClose} aria-label="背景を選んで設定を閉じる" />
     </dialog>
   )
 }
