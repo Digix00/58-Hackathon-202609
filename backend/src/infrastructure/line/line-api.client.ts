@@ -22,7 +22,7 @@ export class LineApiClient implements LineTokenVerifier {
 
   constructor(
     channelId: string | undefined,
-    fetcher: typeof fetch = fetch,
+    fetcher: typeof fetch = fetch.bind(globalThis),
   ) {
     this.channelId = channelId;
     this.fetcher = fetcher;
