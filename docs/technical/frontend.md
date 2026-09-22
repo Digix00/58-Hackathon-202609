@@ -18,7 +18,9 @@
 
 ## UIとデータ連携の境界
 
-Container/Presentationalパターンを基本とし、feature単位で責務を分ける。
+Container/Presentationalパターンを基本とし、feature単位で責務を分ける。各featureを独立した変更単位として扱い、画面・API接続・状態管理を同じfeature内へ集約する。アプリ全体に厳格なClean Architectureを導入せず、外部SDKとAPIの境界を明確にするために必要な分だけ層を設ける。
+
+複数ステップの投稿・音声入力・クイズ回答では、状態遷移を明示して無効な組み合わせを作らない。状態機械用のライブラリをアプリ全体へ導入するのではなく、まず `useReducer` と型で局所的に表現する。
 
 ### Container
 
@@ -66,14 +68,16 @@ frontend/src/
 │   ├── post/
 │   ├── quiz/
 │   └── history/
+├── auth/                   # 認証状態とログイン操作の境界
 ├── shared/
 │   ├── components/
 │   ├── ui/
 │   ├── hooks/
 │   └── styles/
+├── lib/
+│   └── api.ts              # Hono RPCクライアント
 └── infrastructure/
-    ├── api/
-    └── liff/
+    └── liff/               # LIFF SDKの具体実装
 ```
 
 各featureでは、次の構成を基本とする。
@@ -85,10 +89,13 @@ features/feed/
 ├── FeedCard.tsx
 ├── useFeed.ts
 ├── feedApi.ts
-└── feedTypes.ts
+├── feedTypes.ts
+└── feedViewModel.ts
 ```
 
 小さな部品まで機械的にContainerとPresentationalへ分割せず、画面全体または複雑な操作単位で分離する。
+
+`shared/` には複数featureで再利用され、特定の業務用語を持たないUI部品だけを置く。特定の画面や悩み・クイズなどの業務概念を持つ部品は、再利用される場合もfeature内に置く。再利用実績のない部品を先回りして共通化しない。
 
 ## LINEミニアプリとルーティング
 
@@ -137,8 +144,11 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 
 ## 状態・アクセシビリティ
 
-- 画面固有の状態は `useState`、複数ステップの状態は `useReducer` を使う。
+- 単一または単純なまとまりの画面固有状態は `useState` を使う。
+- 投稿フォーム、音声文字起こし、クイズ回答など、状態同士が依存する複数ステップの操作は `useReducer` を使う。状態と許可するアクションを型で表し、送信中に再送信できるなどの無効な状態を作らない。
 - 認証状態や表示設定など、複数画面で共有する最小限の状態だけProviderで管理する。
+- URLには投稿IDやクイズIDなど、共有・復元が必要な識別子だけを持たせる。フォーム入力値、LINE認証情報、画面内だけで完結する状態はURLへ置かない。
+- APIレスポンスはfeatureのHookまたはContainerで管理する。カーソルページング、再取得、楽観更新、複数画面での同じサーバー状態の共有が複雑になった場合に限り、TanStack Queryなどのサーバー状態ライブラリの導入を検討する。導入時もDTOからViewModelへの変換境界は維持する。
 - Custom Hookの責務分割、境界、状態モデリングの詳細は [React Custom Hooks スタイルガイド](./react-hooks-style-guide.md) に従う。
 - 色だけで状態を伝えず、文言・ARIA属性・ボタン状態を組み合わせる。
 - 送信結果、エラー、リアクション結果は `aria-live` で通知する。
