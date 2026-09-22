@@ -30,10 +30,7 @@ const initialPostSubmitState: PostSubmitState = {
   result: null,
 }
 
-function postSubmitReducer(
-  _state: PostSubmitState,
-  action: PostSubmitAction,
-): PostSubmitState {
+function postSubmitReducer(_state: PostSubmitState, action: PostSubmitAction): PostSubmitState {
   switch (action.type) {
     case 'validationFailed':
       return {
@@ -78,7 +75,10 @@ export function usePostSubmit(): UsePostSubmitResult {
 
       dispatch({ type: 'submitFailed', error: response.message })
     } catch {
-      dispatch({ type: 'submitFailed', error: '投稿に失敗しました。時間をおいて再度お試しください' })
+      dispatch({
+        type: 'submitFailed',
+        error: '投稿に失敗しました。時間をおいて再度お試しください',
+      })
     }
   }, [])
 
