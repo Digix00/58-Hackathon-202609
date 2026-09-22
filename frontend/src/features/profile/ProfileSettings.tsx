@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { GENDERS, REGION_OPTIONS, updateUserProfile, type Gender, type RegionCode } from './profileApi'
 
@@ -133,15 +133,28 @@ function ProfilePicker<T extends string | number>({
   onChange: (value: T) => void
 }) {
   const [open, setOpen] = useState(false)
+  const pickerRef = useRef<HTMLDetailsElement>(null)
   const selectedLabel = options.find((option) => option.value === value)?.label ?? '選択してください'
+
+  useEffect(() => {
+    if (!open) return
+
+    const closeWhenTappedOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) setOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeWhenTappedOutside)
+    return () => document.removeEventListener('pointerdown', closeWhenTappedOutside)
+  }, [open])
 
   return (
     <div className="profile-field">
       <span className="profile-field-label">{label}</span>
-      <details className="profile-picker" open={open}>
+      <details ref={pickerRef} className="profile-picker" open={open}>
         <summary
           className="profile-picker-trigger"
           aria-disabled={disabled}
+          tabIndex={disabled ? -1 : 0}
           onClick={(event) => {
             event.preventDefault()
             if (!disabled) setOpen((current) => !current)
@@ -158,6 +171,7 @@ function ProfilePicker<T extends string | number>({
                 role="option"
                 aria-selected={option.value === value}
                 className={option.value === value ? 'selected' : ''}
+                disabled={disabled}
                 onClick={() => {
                   onChange(option.value)
                   setOpen(false)
