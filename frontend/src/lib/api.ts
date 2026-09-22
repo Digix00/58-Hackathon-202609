@@ -14,3 +14,8 @@ export type AuthResponse = InferResponseType<
   typeof apiClient.api.v1.auth.session.$get,
   200
 >;
+
+export type CreateConcernResponse = InferResponseType<
+  typeof apiClient.api.v1.concerns.$post,
+  201
+>;
