@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useReducer } from 'react'
 import { useAuth } from '../../auth/useAuth'
+import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import { GENDERS, REGION_OPTIONS, updateUserProfile, type Gender, type RegionCode } from './profileApi'
 
 const currentYear = new Date().getFullYear()
@@ -117,76 +118,6 @@ function useProfileSettings() {
   }
 }
 
-type PickerOption<T extends string | number> = { value: T; label: string }
-
-function ProfilePicker<T extends string | number>({
-  label,
-  value,
-  options,
-  disabled,
-  onChange,
-}: {
-  label: string
-  value: T | ''
-  options: readonly PickerOption<T>[]
-  disabled: boolean
-  onChange: (value: T) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const pickerRef = useRef<HTMLDetailsElement>(null)
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? '選択してください'
-
-  useEffect(() => {
-    if (!open) return
-
-    const closeWhenTappedOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) setOpen(false)
-    }
-
-    document.addEventListener('pointerdown', closeWhenTappedOutside)
-    return () => document.removeEventListener('pointerdown', closeWhenTappedOutside)
-  }, [open])
-
-  return (
-    <div className="profile-field">
-      <span className="profile-field-label">{label}</span>
-      <details ref={pickerRef} className="profile-picker" open={open}>
-        <summary
-          className="profile-picker-trigger"
-          aria-disabled={disabled}
-          tabIndex={disabled ? -1 : 0}
-          onClick={(event) => {
-            event.preventDefault()
-            if (!disabled) setOpen((current) => !current)
-          }}
-        >
-          <span>{selectedLabel}</span><span className="profile-picker-chevron" aria-hidden="true">⌄</span>
-        </summary>
-        <div className="profile-picker-menu" role="listbox" aria-label={`${label}の選択`}>
-          <div className="profile-picker-options">
-            {options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={option.value === value}
-                className={option.value === value ? 'selected' : ''}
-                disabled={disabled}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </details>
-    </div>
-  )
-}
-
 export function ProfileSettings() {
   const {
     authStatus,
@@ -205,46 +136,36 @@ export function ProfileSettings() {
       <h3 id="profile-title">あなたの設定</h3>
       {authStatus !== 'authenticated' ? <p>年代・性別・地域の設定は、LINEでログインすると保存できます。</p> : <>
         <div className="profile-fields">
-          <label className="profile-field">
-            <span className="profile-field-label">生まれた年</span>
-            <span className="profile-number">
-              <input
-                type="number"
-                inputMode="numeric"
-                min="1900"
-                max={currentYear}
-                placeholder="例）1990"
-                value={effectiveProfile.birthYear}
-                disabled={isSaving}
-                onChange={(event) => updateField({ field: 'birthYear', value: event.target.value ? Number(event.target.value) : '' })}
-              />
-              <span aria-hidden="true">年</span>
-            </span>
-          </label>
-          <label className="profile-field">
-            <span className="profile-field-label">生まれた月</span>
-            <span className="profile-number">
-              <input
-                type="number"
-                inputMode="numeric"
-                min="1"
-                max="12"
-                placeholder="例）4"
-                value={effectiveProfile.birthMonth}
-                disabled={isSaving}
-                onChange={(event) => updateField({ field: 'birthMonth', value: event.target.value ? Number(event.target.value) : '' })}
-              />
-              <span aria-hidden="true">月</span>
-            </span>
-          </label>
-          <ProfilePicker
+          <NumberInputField
+            label="生まれた年"
+            inputMode="numeric"
+            min="1900"
+            max={currentYear}
+            placeholder="例）1990"
+            value={effectiveProfile.birthYear}
+            suffix="年"
+            disabled={isSaving}
+            onValueChange={(value) => updateField({ field: 'birthYear', value })}
+          />
+          <NumberInputField
+            label="生まれた月"
+            inputMode="numeric"
+            min="1"
+            max="12"
+            placeholder="例）4"
+            value={effectiveProfile.birthMonth}
+            suffix="月"
+            disabled={isSaving}
+            onValueChange={(value) => updateField({ field: 'birthMonth', value })}
+          />
+          <SelectField
             label="性別"
             value={effectiveProfile.gender}
             options={GENDERS}
             disabled={isSaving}
             onChange={(value) => updateField({ field: 'gender', value })}
           />
-          <ProfilePicker
+          <SelectField
             label="地域"
             value={effectiveProfile.regionCode}
             options={REGION_OPTIONS.map(([value, label]) => ({ value, label }))}
