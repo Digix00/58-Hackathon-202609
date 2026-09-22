@@ -54,17 +54,23 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .sheet-backdrop { position: fixed; z-index: 0; inset: 0; width: 100vw; height: 100vh; padding: 0; border: 0; background: transparent; cursor: default; }
 .sheet-handle { width: 45px; height: 5px; margin: 0 auto; border-radius: 999px; background: #bdb4a8; }
 .sheet-heading { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
-.sheet-heading h2, .setting-group h3 { margin: 0; color: #292722; font-size: 1.1em; }
+.sheet-heading h2 { margin: 0; color: #292722; font-size: 1.1em; }
+.setting-group h3 { margin: 0; color: #453d70; font-size: 1em; }
 .sheet-close-button { color: #716b62; background: transparent; }
 .sheet-close-icon { display: block; width: 24px; height: 24px; overflow: visible; }
 .sheet-close-icon path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .sheet-close-icon .sheet-close-trace { stroke-width: 1.15; opacity: .45; }
-.setting-group { margin: 0; padding: 20px 0 0; border: 0; border-top: 1px solid #e3dccf; }
+.setting-group { position: relative; margin: 0; padding: 0 0 28px; border: 0; }
+.setting-group::after, .sheet-heading + .setting-group::before { content: ""; position: absolute; inset: auto 0 0; border-top: 2.5px solid #a9a093; filter: url(#crayon-edge); -webkit-mask-image: var(--crayon-grain); mask-image: var(--crayon-grain); -webkit-mask-size: 160px 160px; mask-size: 160px 160px; opacity: .7; pointer-events: none; }
+.sheet-heading + .setting-group { padding-top: 20px; }
+.sheet-heading + .setting-group::before { inset: 0 0 auto; }
+.settings-sheet > .setting-group:last-child { padding-bottom: 0; }
+.settings-sheet > .setting-group:last-child::after { content: none; }
 .setting-group legend { padding: 0; margin-bottom: 12px; color: #453d70; font-weight: 700; }
 .setting-group p { margin: 10px 0 16px; color: #5c574f; font-size: .9em; line-height: 1.7; }
-.profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; margin: 18px 0; }
-.profile-field { display: grid; gap: 6px; min-width: 0; color: #5c574f; font-size: .85em; font-weight: 700; }
-.profile-field-label { display: block; }
+.profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; margin: 24px 0; }
+.profile-field { display: grid; gap: 8px; min-width: 0; color: #5c574f; font-weight: 700; }
+.profile-field-label { display: block; font-size: .85em; }
 .profile-number { position: relative; display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 10px 0 11px; border: 0; border-radius: 12px 10px 13px 11px; color: #514c82; background: #fffefb; font-weight: 400; }
 .profile-number::before { content: ""; position: absolute; inset: -1px; border: 2.5px solid #9b9285; border-radius: inherit; filter: url(#crayon-edge); -webkit-mask-image: var(--crayon-grain); mask-image: var(--crayon-grain); pointer-events: none; }
 .profile-number:focus-within::before { border-color: #625a9c; }
@@ -75,6 +81,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .profile-picker-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 10px 0 11px; border: 0; border-radius: 12px 10px 13px 11px; color: #514c82; background: #fffefb; font-weight: 400; cursor: pointer; list-style: none; }
 .profile-picker-trigger::before { content: ""; position: absolute; z-index: 0; inset: -1px; border: 2.5px solid #9b9285; border-radius: inherit; filter: url(#crayon-edge); -webkit-mask-image: var(--crayon-grain); mask-image: var(--crayon-grain); pointer-events: none; }
 .profile-picker-trigger > span { position: relative; z-index: 1; }
+.profile-picker-trigger[aria-disabled="true"] { cursor: not-allowed; opacity: .72; }
 .profile-picker-trigger::-webkit-details-marker { display: none; }
 .profile-picker[open] .profile-picker-trigger { border-radius: 12px 10px 0 0; }
 .profile-picker[open] .profile-picker-trigger::before { border-color: #9b9285; }
@@ -84,7 +91,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .profile-picker-options { position: relative; z-index: 1; display: grid; align-content: start; gap: 4px; height: 100%; overflow-y: auto; }
 .profile-picker-menu button { display: block; width: 100%; min-height: 38px; padding: 6px 8px; border: 0; border-radius: 8px; color: #514c82; background: transparent; text-align: left; cursor: pointer; }
 .profile-picker-menu button:hover, .profile-picker-menu button:focus-visible, .profile-picker-menu button.selected { color: #fffdf7; background: #7e75b5; }
-.setting-feedback { min-height: 1.4em; margin-bottom: 0 !important; color: #514c82 !important; }
+.setting-feedback { margin: 12px 0 0 !important; color: #514c82 !important; }
 .speech-setting { margin-top: 0; }
 .toggle-option { display: flex; align-items: center; gap: 10px; min-height: 44px; color: #514c82; font-weight: 700; cursor: pointer; }
 .toggle-option input { width: 22px; height: 22px; accent-color: #625a9c; }
@@ -94,7 +101,6 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .choice:has(input:checked) { color: #fffdf7; background: #7e75b5; }
 .choice:has(input:checked)::before { border-color: #5b5485; }
 .choice input { position: absolute; opacity: 0; }
-/* 大きく表示では、文字を詰め込まず設定フォームを一列にする。 */
 .font-large .profile-fields { grid-template-columns: 1fr; }
 @media (max-width: 359px) { .app-content, .standalone-page { padding-inline: .875rem; } .bottom-nav { padding-inline: .5rem; } .nav-link { font-size: .75rem; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

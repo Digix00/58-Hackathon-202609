@@ -198,6 +198,7 @@ export function ProfileSettings() {
     saveProfile,
   } = useProfileSettings()
   const isSaving = profileStatus === 'saving'
+  const profileMessage = profileStatus === 'saved' ? '設定を保存しました。' : profileError
 
   return (
     <section className="setting-group" aria-labelledby="profile-title">
@@ -254,7 +255,7 @@ export function ProfileSettings() {
         <button type="button" className="secondary-button" disabled={!canSaveProfile || isSaving} onClick={() => void saveProfile()}>
           {isSaving ? '保存しています…' : '設定を保存する'}
         </button>
-        <p className="setting-feedback" aria-live="polite">{profileStatus === 'saved' ? '設定を保存しました。' : profileError}</p>
+        {profileMessage ? <p className="setting-feedback" aria-live="polite">{profileMessage}</p> : null}
       </>}
     </section>
   )

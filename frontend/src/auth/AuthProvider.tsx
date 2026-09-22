@@ -3,7 +3,8 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
+  useMemo,
+  useReducer,
 } from "react";
 
 import { apiClient } from "../lib/api";
@@ -23,15 +24,60 @@ import {
 const useDevAuthenticatedSession =
   import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === "authenticated";
 
+type AuthState = {
+  status: AuthStatus;
+  user: AuthResponse["user"];
+  error: string | null;
+};
+
+type AuthAction =
+  | { type: "refreshStarted" }
+  | { type: "loginStarted" }
+  | { type: "sessionApplied"; session: AuthResponse }
+  | { type: "sessionFailed"; message: string }
+  | { type: "errorCleared" }
+  | { type: "operationFailed"; message: string };
+
+const initialAuthState: AuthState = {
+  status: "initializing",
+  user: null,
+  error: null,
+};
+
+function authReducer(state: AuthState, action: AuthAction): AuthState {
+  switch (action.type) {
+    case "refreshStarted":
+      return { status: "initializing", user: state.user, error: null };
+    case "loginStarted":
+      return { status: "initializing", user: state.user, error: null };
+    case "sessionApplied":
+      return {
+        status: action.session.authenticated ? "authenticated" : "anonymous",
+        user: action.session.user,
+        error: null,
+      };
+    case "sessionFailed":
+      return { status: "anonymous", user: null, error: action.message };
+    case "errorCleared":
+      return { ...state, error: null };
+    case "operationFailed":
+      return { ...state, error: action.message };
+  }
+}
+
+/**
+ * Intent: LINE セッションの復元・ログイン・ログアウトと、その状態遷移を局所化する。
+ * Boundary: 認証状態と、認証操作の完了を待てる最小限の関数だけを AuthContext へ公開する。
+ * State modeling: status、user、error の同時更新を reducer に集約し、セッション状態の不整合を防ぐ。
+ * Update surface: refresh、login、logout。認証情報や SDK の詳細は外へ漏らさない。
+ * Hidden complexity: 初期化の重複排除、LIFF ログインへのフォールバック、通信失敗時の匿名状態への遷移。
+ */
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [status, setStatus] = useState<AuthStatus>("initializing");
-  const [user, setUser] = useState<AuthResponse["user"]>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(authReducer, initialAuthState);
   const bootPromise = useRef<Promise<void> | null>(null);
 
   const applySession = useCallback((session: AuthResponse) => {
-    setStatus(session.authenticated ? "authenticated" : "anonymous");
-    setUser(session.user);
+    dispatch({ type: "sessionApplied", session });
   }, []);
 
   const requestSession = useCallback(async (): Promise<AuthResponse> => {
@@ -61,8 +107,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     const task = (async () => {
-      setStatus("initializing");
-      setError(null);
+      dispatch({ type: "refreshStarted" });
 
       try {
         if (useDevAuthenticatedSession) {
@@ -90,9 +135,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         applySession(session);
       } catch (cause) {
-        setStatus("anonymous");
-        setUser(null);
-        setError(toErrorMessage(cause));
+        dispatch({ type: "sessionFailed", message: toErrorMessage(cause) });
       }
     })().finally(() => {
       bootPromise.current = null;
@@ -103,7 +146,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [applySession, loginWithIdToken, requestSession]);
 
   const login = useCallback(async (): Promise<void> => {
-    setError(null);
+    dispatch({ type: "errorCleared" });
 
     try {
       const liffInitialized = await initializeLiff();
@@ -121,16 +164,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw new Error("LINE ID tokenを取得できません");
       }
 
-      setStatus("initializing");
+      dispatch({ type: "loginStarted" });
       await loginWithIdToken(idToken);
     } catch (cause) {
-      setStatus("anonymous");
-      setError(toErrorMessage(cause));
+      dispatch({ type: "sessionFailed", message: toErrorMessage(cause) });
     }
   }, [loginWithIdToken]);
 
   const logout = useCallback(async (): Promise<void> => {
-    setError(null);
+    dispatch({ type: "errorCleared" });
     try {
       const response = await apiClient.api.v1.auth.logout.$post();
       if (!response.ok) {
@@ -139,7 +181,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       logoutLine();
       applySession({ authenticated: false, user: null });
     } catch (cause) {
-      setError(toErrorMessage(cause));
+      dispatch({ type: "operationFailed", message: toErrorMessage(cause) });
     }
   }, [applySession]);
 
@@ -147,8 +189,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void refresh();
   }, [refresh]);
 
+  const contextValue = useMemo(
+    () => ({ ...state, refresh, login, logout }),
+    [login, logout, refresh, state],
+  );
+
   return (
-    <AuthContext.Provider value={{ status, user, error, refresh, login, logout }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
