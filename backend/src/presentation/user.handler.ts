@@ -6,10 +6,9 @@ import { getRequestId } from "../app/request-id";
 import {
   UserProfileValidationError,
   type UserProfileInput,
-} from "../application/entity/user-profile";
-import type { UserUseCasePort } from "../application/usecase/user.usecase";
+} from "../application/entity/user";
+import type { IUserUseCase } from "../application/usecase/user.usecase";
 import type { Bindings } from "../types";
-import { toUserResponse } from "./user-response";
 
 const updateUserProfileRequest = z.object({
   birthYear: z.number().int(),
@@ -24,9 +23,9 @@ const factory = createFactory<{
 }>();
 
 export class UserHandler {
-  private readonly userUseCase: UserUseCasePort;
+  private readonly userUseCase: IUserUseCase;
 
-  constructor(userUseCase: UserUseCasePort) {
+  constructor(userUseCase: IUserUseCase) {
     this.userUseCase = userUseCase;
   }
 
@@ -72,7 +71,18 @@ export class UserHandler {
 
       return c.json({
         authenticated: true,
-        user: toUserResponse(user),
+        user: {
+          id: user.id,
+          birthYear: user.birthYear,
+          birthMonth: user.birthMonth,
+          gender: user.gender,
+          regionCode: user.regionCode,
+          profileCompleted:
+            user.birthYear !== null &&
+            user.birthMonth !== null &&
+            user.gender !== null &&
+            user.regionCode !== null,
+        },
       });
     } catch (error) {
       if (error instanceof UserProfileValidationError) {

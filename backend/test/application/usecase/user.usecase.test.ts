@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { User } from "../../../src/application/entity/user";
-import { UserProfileValidationError } from "../../../src/application/entity/user-profile";
+import { UserProfileValidationError } from "../../../src/application/entity/user";
 import type { UserRepository } from "../../../src/application/repository/auth.repository";
 import { UserUseCase } from "../../../src/application/usecase/user.usecase";
 

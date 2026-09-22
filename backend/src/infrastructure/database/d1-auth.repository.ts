@@ -6,11 +6,7 @@ import type {
   UserRepository,
 } from "../../application/repository/auth.repository";
 import type { Session } from "../../application/entity/session";
-import type { User } from "../../application/entity/user";
-import type {
-  Gender,
-  UserProfile,
-} from "../../application/entity/user-profile";
+import type { Gender, User, UserProfile } from "../../application/entity/user";
 import type { RegionCode } from "../../application/entity/region-code";
 import { sessions, users } from "./schema";
 

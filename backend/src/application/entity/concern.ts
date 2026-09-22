@@ -1,8 +1,8 @@
 import { REGION_CODES } from "./region-code";
-import { GENDERS, type Gender } from "./user-profile";
+import { GENDERS, type Gender } from "./user";
 
-export { GENDERS } from "./user-profile";
-export type { Gender } from "./user-profile";
+export { GENDERS } from "./user";
+export type { Gender } from "./user";
 
 export const AGE_GROUPS = [
   "10s",

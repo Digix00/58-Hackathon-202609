@@ -1,15 +1,15 @@
-import type { User } from "../entity/user";
 import {
   validateUserProfile,
+  type User,
   type UserProfileInput,
-} from "../entity/user-profile";
+} from "../entity/user";
 import type { UserRepository } from "../repository/auth.repository";
 
-export interface UserUseCasePort {
+export interface IUserUseCase {
   updateProfile(userId: string, input: UserProfileInput): Promise<User>;
 }
 
-export class UserUseCase implements UserUseCasePort {
+export class UserUseCase implements IUserUseCase {
   private readonly users: UserRepository;
   private readonly now: () => Date;
 

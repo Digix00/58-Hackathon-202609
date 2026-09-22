@@ -1,6 +1,5 @@
 import type { Session } from "../entity/session";
-import type { User } from "../entity/user";
-import type { UserProfile } from "../entity/user-profile";
+import type { User, UserProfile } from "../entity/user";
 
 export interface UserRepository {
   selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;

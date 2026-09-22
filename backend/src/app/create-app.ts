@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
+import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import { createAuthMiddleware } from "./middleware/auth";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { ConcernHandler } from "../presentation/concern.handler";
@@ -13,7 +13,7 @@ import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {
   authHandler: AuthHandler;
-  authUseCase: AuthUseCasePort;
+  authUseCase: IAuthUseCase;
   concernHandler: ConcernHandler;
   healthHandler: HealthHandler;
   userHandler: UserHandler;
@@ -30,7 +30,7 @@ export function createApp({
   const app = new Hono<{
     Bindings: Bindings;
     Variables: {
-      auth: Awaited<ReturnType<AuthUseCasePort["getSession"]>>;
+      auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
     };
   }>();
 

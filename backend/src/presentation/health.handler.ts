@@ -1,6 +1,6 @@
 import { createFactory } from "hono/factory";
 
-import type { CheckHealth } from "../application/usecase/check-health.usecase";
+import type { ICheckHealth } from "../application/usecase/check-health.usecase";
 import type { Bindings } from "../types";
 
 const factory = createFactory<{ Bindings: Bindings }>();
@@ -10,9 +10,9 @@ const factory = createFactory<{ Bindings: Bindings }>();
  * リクエスト処理中にRepositoryやUseCaseを組み立てない。
  */
 export class HealthHandler {
-  private readonly checkHealth: CheckHealth;
+  private readonly checkHealth: ICheckHealth;
 
-  constructor(checkHealth: CheckHealth) {
+  constructor(checkHealth: ICheckHealth) {
     this.checkHealth = checkHealth;
   }
 
