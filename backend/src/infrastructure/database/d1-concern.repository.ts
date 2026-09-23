@@ -304,7 +304,10 @@ function toFeedCandidate(row: {
 }) {
   return {
     concern: toConcern(row.concern),
-    cluster: toConcernCluster(row.cluster),
+    cluster:
+      row.concern.processingStatus === "ready"
+        ? toConcernCluster(row.cluster)
+        : null,
     viewed: row.view !== null,
   };
 }

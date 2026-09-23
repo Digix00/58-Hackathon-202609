@@ -53,8 +53,8 @@ export const concernClusters = sqliteTable(
   "concern_clusters",
   {
     id: text("id").primaryKey(),
-    label: text("label").notNull(),
-    summary: text("summary").notNull(),
+    label: text("label"),
+    summary: text("summary"),
     status: text("status").notNull().default("ready"),
     modelVersion: text("model_version"),
     createdAt: text("created_at").notNull(),

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "58-hackathon-backend",
+  "name": "58-hackathon-backend-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -16,7 +16,8 @@
   "vectorize": [
     {
       "binding": "CONCERN_VECTOR_INDEX",
-      "index_name": "58-hackathon-concern-vectors"
+      "index_name": "58-hackathon-concern-vectors-dev",
+      "remote": true
     }
   ],
   "vars": {

@@ -7,9 +7,14 @@ import {
   CONCERN_PROCESSING_MESSAGE_TYPE,
   type ConcernProcessingMessage,
 } from "../port/concern-processing-queue";
+import type { ConcernVectorIndex } from "../port/concern-vector-index";
 import type { TextEmbeddingGenerator } from "../port/text-embedding-generator";
 import type { TextTranslator } from "../port/text-translator";
 import type { ConcernProcessingRepository } from "../repository/concern-processing.repository";
+
+export const DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD = 0.8;
+
+const NEAREST_CONCERN_LIMIT = 5;
 
 export interface ConcernProcessingResult {
   concernId: string;
@@ -27,28 +32,51 @@ export interface IConcernProcessingUseCase {
 }
 
 export interface ConcernProcessingUseCaseOptions {
+  similarityThreshold?: number;
   now?: () => Date;
 }
 
 /**
  * Generates text representations and embeddings for one concern, then persists
- * the generated text when a repository is configured.
+ * the generated text and assigns a semantic cluster when Vectorize is configured.
  */
 export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
   private readonly translator: TextTranslator;
   private readonly embeddingGenerator: TextEmbeddingGenerator;
   private readonly repository?: ConcernProcessingRepository;
+  private readonly vectorIndex?: ConcernVectorIndex;
+  private readonly similarityThreshold: number;
   private readonly now: () => Date;
 
   constructor(
     translator: TextTranslator,
     embeddingGenerator: TextEmbeddingGenerator,
     repository?: ConcernProcessingRepository,
+    vectorIndex?: ConcernVectorIndex,
     options: ConcernProcessingUseCaseOptions = {},
   ) {
+    if (vectorIndex && !repository) {
+      throw new TypeError(
+        "Vectorize index requires a concern processing repository",
+      );
+    }
+
+    const similarityThreshold =
+      options.similarityThreshold ??
+      DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD;
+    if (
+      !Number.isFinite(similarityThreshold) ||
+      similarityThreshold < 0 ||
+      similarityThreshold > 1
+    ) {
+      throw new RangeError("similarityThreshold must be between 0 and 1");
+    }
+
     this.translator = translator;
     this.embeddingGenerator = embeddingGenerator;
     this.repository = repository;
+    this.vectorIndex = vectorIndex;
+    this.similarityThreshold = similarityThreshold;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -57,6 +85,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
   ): Promise<ConcernProcessingResult | null> => {
     const input = validateMessage(message);
     const repository = this.repository;
+    const vectorIndex = this.vectorIndex;
     const state = repository
       ? await repository.findState(input.concernId)
       : null;
@@ -67,11 +96,13 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
     if (
       state?.status === "ready" &&
-      hasCompleteRepresentations(state.representations)
+      hasCompleteRepresentations(state.representations) &&
+      (!vectorIndex || state.clusterId !== null)
     ) {
       return null;
     }
 
+    const modelVersion = this.embeddingGenerator.modelVersion ?? "unknown";
     const processingTimestamp = this.nowIso();
     try {
       if (repository) {
@@ -79,6 +110,8 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
           new ConcernProcessing({
             concernId: input.concernId,
             status: "processing",
+            clusterId: state?.clusterId,
+            modelVersion,
             updatedAt: processingTimestamp,
           }),
         );
@@ -113,10 +146,44 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             updatedAt: processingTimestamp,
           }),
         ];
+        let clusterId = state?.clusterId ?? null;
+
+        if (vectorIndex) {
+          const proposedClusterId =
+            clusterId ??
+            (await this.findMatchingCluster(vectorIndex, embedding)) ??
+            input.concernId;
+          const assignment = await repository.assignCluster(
+            new ConcernProcessing({
+              concernId: input.concernId,
+              status: "processing",
+              clusterId: proposedClusterId,
+              modelVersion,
+              representations,
+              updatedAt: this.nowIso(),
+            }),
+          );
+          if (!assignment.clusterId) {
+            throw new Error(
+              "Concern processing repository returned no cluster ID",
+            );
+          }
+          clusterId = assignment.clusterId;
+
+          // D1 persists the stable assignment first so Queue retries reuse it.
+          await vectorIndex.upsert({
+            concernId: input.concernId,
+            clusterId,
+            embedding,
+          });
+        }
+
         await repository.saveResult(
           new ConcernProcessing({
             concernId: input.concernId,
             status: "ready",
+            clusterId,
+            modelVersion,
             representations,
             updatedAt: this.nowIso(),
           }),
@@ -130,6 +197,8 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
           new ConcernProcessing({
             concernId: input.concernId,
             status: "failed",
+            clusterId: state?.clusterId,
+            modelVersion,
             updatedAt: this.nowIso(),
           }),
         )
@@ -167,6 +236,22 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
       );
       return null;
     }
+  }
+
+  private async findMatchingCluster(
+    vectorIndex: ConcernVectorIndex,
+    embedding: readonly number[],
+  ): Promise<string | null> {
+    const matches = await vectorIndex.search(embedding, NEAREST_CONCERN_LIMIT);
+
+    return (
+      matches
+        .filter(
+          (match) =>
+            match.score >= this.similarityThreshold && match.clusterId !== null,
+        )
+        .sort((left, right) => right.score - left.score)[0]?.clusterId ?? null
+    );
   }
 }
 

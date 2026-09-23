@@ -266,7 +266,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
-| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
+| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。label/summary は生成前に NULL。画面表示前に長さ・禁止語・個人情報を検査 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
@@ -280,6 +280,8 @@ concerns の processing_status は次の概要値とする。
 - processing: いずれかのジョブを処理中
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗。ただし原文は利用可能
+
+投稿EmbeddingはD1へ複製せず、Cloudflare Vectorizeの `58-hackathon-concern-vectors` indexへ保存する。`@cf/qwen/qwen3-embedding-0.6b` の1024次元出力に合わせ、metricはcosineとする。Vector IDはconcern ID、metadataはcluster IDだけとし、投稿本文・ユーザー属性はVectorize metadataに含めない。Embeddingの次元・metricはindex作成時に固定し、同じindexに異なるモデルのベクトルを混在させない。cluster割当の正はD1の `concerns.cluster_id` であり、Vectorizeの近傍結果は候補として扱う。処理完了前または失敗時はフィード上でclusterを返さず、原文を閲覧できる。
 
 モデレーションの判定不能は、processing の失敗とは別に visibility_status を pending のまま保持する。これにより、AI 処理の失敗で原文を失わず、不適切な投稿だけは公開保留にできる。
 

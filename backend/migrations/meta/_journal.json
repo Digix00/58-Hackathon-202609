@@ -64,6 +64,13 @@
       "when": 1790176587148,
       "tag": "0008_silly_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790177674816,
+      "tag": "0009_green_old_lace",
+      "breakpoints": true
     }
   ]
 }

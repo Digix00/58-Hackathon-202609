@@ -17,9 +17,11 @@ src/
 │   │   └── user.ts
 │   ├── repository/              # 永続化処理のPort
 │   │   ├── auth.repository.ts
+│   │   ├── concern-processing.repository.ts
 │   │   └── health.repository.ts
 │   ├── port/                    # 外部サービスのPort
 │   │   ├── concern-processing-queue.ts
+│   │   ├── concern-vector-index.ts
 │   │   ├── line-token-verifier.ts
 │   │   ├── speech-recognizer.ts
 │   │   ├── text-embedding-generator.ts
@@ -36,12 +38,14 @@ src/
 │   │   └── workers-ai-text.translator.ts
 │   ├── database/
 │   │   ├── d1-auth.repository.ts
+│   │   ├── d1-concern-processing.repository.ts
 │   │   ├── d1-health.repository.ts
 │   │   └── schema.ts
 │   ├── queue/
 │   │   ├── cloudflare-concern-processing.consumer.ts
 │   │   └── cloudflare-concern-processing.queue.ts
-│   └── line/line-api.client.ts
+│   ├── line/line-api.client.ts
+│   └── vectorize/cloudflare-concern-vector-index.ts
 ├── presentation/                # HTTP Handler
 │   ├── auth.handler.ts
 │   └── health.handler.ts
@@ -62,7 +66,7 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 `wrangler.jsonc` の `ai.binding` でWorkers AIを `AI` としてWorkerへ接続する（[binding設定](https://developers.cloudflare.com/workers-ai/configuration/bindings/)）。Application層からはPortだけを呼び出し、Infrastructure層のAdapterが `AI.run(model, input)` を実行する。
 
 - `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、原文（日本語）→英語、原文（日本語）→ひらがなを処理する
-- `WorkersAiTextEmbeddingGenerator`: 日本語Embeddingモデル [PLaMo-Embedding-1B](https://developers.cloudflare.com/workers-ai/models/plamo-embedding-1b/) で入力順を保ったベクトルを生成する
+- `WorkersAiTextEmbeddingGenerator`: [Qwen3-Embedding-0.6B](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/) で入力順を保ったベクトルを生成する
 - `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
@@ -71,7 +75,9 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
 
-UseCaseは原文から英語・ひらがなへの変換とEmbeddingを実行し、英語・ひらがな表現を `concern_representations` へ保存する。処理状態は `concerns.processing_status` で管理し、既に両方の表現が保存済みならQueueの再配信時にAI処理を重複実行しない。Queueの失敗はメッセージ単位で再試行し、最大再試行回数はWrangler設定に従う。
+Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位5件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。ラベル・要約の生成は後続処理であり、この段階ではnullを許容する。
+
+Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。処理が失敗した投稿は未分類として表示し、投稿原文は保持する。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
 
 初回だけQueueを作成する。
 
@@ -97,6 +103,15 @@ wrangler d1 create 58-hackathon-db
 ```bash
 pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
 pnpm dev                # http://localhost:8787
+```
+
+`pnpm dev` は `wrangler.dev.jsonc` を使い、ローカルD1・Queueと開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) に接続する。Vectorizeにはローカルシミュレーターがないため、開発・本番indexをCloudflareアカウントに個別作成する。
+
+PLaMo-Embedding-1Bは2048次元ですが、Cloudflare Vectorizeの現行上限1536次元を超えるため使いません。Qwen3-Embedding-0.6Bは1024次元でVectorizeに対応します（[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Workers AI Qwen3 Embedding](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/)）。初回のみ次を開発・本番環境で個別に実行します。
+
+```bash
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors-dev --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=1024 --metric=cosine
 ```
 
 ## LINE MINI App認証

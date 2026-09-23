@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -6,7 +6,7 @@ import {
   ConcernRepresentation,
 } from "../../application/entity/concern-processing";
 import type { ConcernProcessingRepository } from "../../application/repository/concern-processing.repository";
-import { concernRepresentations, concerns } from "./schema";
+import { concernClusters, concernRepresentations, concerns } from "./schema";
 
 /** D1 implementation of the concern processing persistence port. */
 export class D1ConcernProcessingRepository
@@ -22,10 +22,13 @@ export class D1ConcernProcessingRepository
     const [row, representationRows] = await Promise.all([
       this.db
         .select({
+          clusterId: concerns.clusterId,
+          modelVersion: concernClusters.modelVersion,
           status: concerns.processingStatus,
           updatedAt: concerns.updatedAt,
         })
         .from(concerns)
+        .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
         .where(eq(concerns.id, concernId))
         .get(),
       this.db
@@ -41,6 +44,8 @@ export class D1ConcernProcessingRepository
 
     return new ConcernProcessing({
       concernId,
+      clusterId: row.clusterId,
+      modelVersion: row.modelVersion,
       status: row.status as ConcernProcessing["status"],
       representations: representationRows.map(
         (representation) =>
@@ -54,6 +59,55 @@ export class D1ConcernProcessingRepository
           }),
       ),
       updatedAt: row.updatedAt,
+    });
+  }
+
+  async assignCluster(
+    processing: ConcernProcessing,
+  ): Promise<ConcernProcessing> {
+    const candidateClusterId = processing.clusterId;
+    if (!candidateClusterId) {
+      throw new TypeError("clusterId is required to assign a concern");
+    }
+
+    await this.db
+      .insert(concernClusters)
+      .values({
+        id: candidateClusterId,
+        label: null,
+        summary: null,
+        status: "pending",
+        modelVersion: processing.modelVersion,
+        createdAt: processing.updatedAt,
+        updatedAt: processing.updatedAt,
+      })
+      .onConflictDoNothing()
+      .run();
+
+    await this.db
+      .update(concerns)
+      .set({ clusterId: candidateClusterId, updatedAt: processing.updatedAt })
+      .where(
+        and(eq(concerns.id, processing.concernId), isNull(concerns.clusterId)),
+      )
+      .run();
+
+    const row = await this.db
+      .select({ clusterId: concerns.clusterId })
+      .from(concerns)
+      .where(eq(concerns.id, processing.concernId))
+      .get();
+    if (!row?.clusterId) {
+      throw new Error("Concern disappeared while assigning a cluster");
+    }
+
+    return new ConcernProcessing({
+      concernId: processing.concernId,
+      clusterId: row.clusterId,
+      modelVersion: processing.modelVersion,
+      status: processing.status,
+      representations: processing.representations,
+      updatedAt: processing.updatedAt,
     });
   }
 

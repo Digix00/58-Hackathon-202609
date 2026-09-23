@@ -9,7 +9,7 @@
 | エンティティ | 主な項目 | 用途 |
 | --- | --- | --- |
 | `concerns` | id、user_id、原文、属性、公開状態、処理状態、日時 | 悩み本体 |
-| `concern_clusters` | id、表示ラベル、要約、状態、日時 | 意味の近い悩みのまとまり |
+| `concern_clusters` | id、表示ラベル、要約、状態、Embedding model version、日時 | 意味の近い悩みのまとまり。表示ラベルと要約は生成前にNULLを許容 |
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_processing_jobs` | id、concern_id、処理種別、状態、試行回数 | 翻訳・ひらがな化・クラスタリングなどの非同期処理 |
 | `concern_reactions` | concern_id、user_id、reaction_type、created_at | リアクションの重複防止と集計 |
@@ -24,12 +24,14 @@
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
 
+投稿EmbeddingはD1へ保存せず、Cloudflare Vectorizeのconcern indexへ保存する。VectorizeのIDはconcern ID、metadataはcluster IDのみとする。D1の `concerns.cluster_id` を正とし、投稿の処理状態がreadyになるまでフィード上のcluster割当を公開しない。Vectorizeは非同期クラスタリングの内部検索専用であり、利用者向けの自由入力検索やRAGには使わない。
+
 ### 投稿の状態
 
 投稿は、公開状態と処理状態を分けて持つ。
 
 - 公開状態: `pending`、`published`、`hidden`、`deleted`
-- 処理状態: `not_started`、`transcribing`、`translating`、`clustering`、`ready`、`failed`
+- 処理状態: `pending`、`processing`、`ready`、`failed`
 
 投稿の保存が成功した後に文字起こし、翻訳、クラスタリングのいずれかが失敗しても、原文の投稿は失わず、その処理だけ未完了として閲覧できるようにする。
 
