@@ -67,148 +67,11 @@
   transform: rotate(1.3deg) translate(4px, 5px);
 }
 
-/*
- * とじリング。紙ではなくバインダーに付いているものなので束の側に置き、
- * ページがめくられても動かない。
- */
-.rings {
-  position: absolute;
-  z-index: 3;
-  top: 5%;
-  bottom: 5%;
-  left: -12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 30px;
-  pointer-events: none;
-}
-
-.ring {
-  width: 30px;
-  height: 12px;
-  border: 2.5px solid #9c958a;
-  border-radius: 50%;
-  /* 線だけを揺らす。かすれのマスクは掛けない。細すぎて針金に見えなくなるため。 */
-  filter: url(#crayon-edge);
-  transform: rotate(-7deg);
-}
-
-/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */
-.holes {
-  position: absolute;
-  z-index: 1;
-  top: 5%;
-  bottom: 5%;
-  left: 6px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  width: 11px;
-  pointer-events: none;
-}
-
-.hole {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #eadfc6;
-  box-shadow: inset 1.5px 1.5px 0 #cbbfa5;
-}
-
 .enter {
   /* 紙束の上に重ねる。下に控えた紙より手前で読ませる。 */
   position: relative;
   z-index: 1;
   min-width: 0;
-}
-
-/*
- * 次の手紙へ進むとき、新しい紙は動かない。めくられた紙が去って現れるだけ。
- * 前の手紙へ戻るときだけ、いちど去った紙が綴じ側から降りてくる。
- */
-.fromLeft {
-  transform-origin: left center;
-  animation: turnBack 400ms cubic-bezier(0.22, 0.68, 0.3, 1) both;
-}
-
-@keyframes turnBack {
-  from {
-    opacity: 0.15;
-    transform: perspective(1400px) rotateY(-74deg);
-  }
-  to {
-    opacity: 1;
-    transform: perspective(1400px) rotateY(0deg);
-  }
-}
-
-/*
- * めくられて去っていく1枚。表（.face）と裏（.back）を背中合わせに置き、
- * 90度を越えたところで表が消えて裏が現れる。
- * これがないと、裏返らずに薄れて消えるだけに見える。
- */
-.turning {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  transform-origin: center center;
-  transform-style: preserve-3d;
-  pointer-events: none;
-  animation: turnOut 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
-}
-
-/*
- * 紙が一回転しながら左へ抜けていく。
- * 遠近を弱く（3000px）取るのは、回っている途中で紙が大きく見えないようにするため。
- */
-@keyframes turnOut {
-  0% {
-    transform: perspective(3000px) translate3d(0, 0, 0) rotateY(0deg);
-  }
-  100% {
-    transform: perspective(3000px) translate3d(-126%, 0, 0) rotateY(-360deg);
-  }
-}
-
-.face,
-.back {
-  position: absolute;
-  inset: 0;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-
-/* 紙が起き上がるにつれ、綴じ側に影が溜まる。 */
-.face::after {
-  position: absolute;
-  inset: 0;
-  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 38%, #2f281a00 78%);
-  animation: turnShade 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
-  pointer-events: none;
-  content: '';
-}
-
-@keyframes turnShade {
-  0% {
-    opacity: 0;
-  }
-  35% {
-    opacity: 0.34;
-  }
-  100% {
-    opacity: 0.34;
-  }
-}
-
-/* 紙の裏。文字のない面を見せて、確かに1枚めくったことを伝える。 */
-.back {
-  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  background: linear-gradient(265deg, #fdf8ec 0%, #f4ebd7 56%, #e7dcc1 100%);
-  transform: rotateY(180deg);
 }
 
 .card {
@@ -223,6 +86,7 @@
   padding: clamp(1.4em, 5vw, 1.8em) clamp(1.2em, 5vw, 1.6em) clamp(1.2em, 4vw, 1.5em)
     calc(clamp(1.2em, 5vw, 1.6em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
+  transform-origin: var(--turn-axis) center;
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -597,11 +461,6 @@
 }
 
 @media (prefers-contrast: more) {
-  .ring {
-    border-color: var(--color-outline);
-    filter: none;
-  }
-
   /* 高コントラスト時は、かすれを外して紙としおりのふちを確実に示す。 */
   .sheet::before {
     border-width: 2px;
@@ -623,7 +482,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fromLeft,
   .fitted,
   .nextButton span {
     animation: none;

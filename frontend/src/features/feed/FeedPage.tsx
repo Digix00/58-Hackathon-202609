@@ -15,8 +15,11 @@ import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { SelectField } from '../../shared/components/FormFields'
+import { NotebookBinding } from '../../shared/components/NotebookBinding'
+import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
+import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
@@ -31,65 +34,6 @@ const ALL = '__all__'
 const SWIPE_THRESHOLD = 56
 /** 縦スクロールか横めくりかを決めるまでの遊び。 */
 const SWIPE_SLOP = 8
-/** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
-const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
-/** 紙の左端を x=19 とした、金具と穴に共通の描画座標。 */
-const BINDING_WIDTH = 38
-const HOLE_X = 30.5
-const RING_RADIUS_X = 14.5
-const TURN_AXIS = HOLE_X - RING_RADIUS_X - BINDING_WIDTH / 2
-const RING_LEFT = HOLE_X - RING_RADIUS_X * 2
-const RING_CENTER = HOLE_X - RING_RADIUS_X
-
-const RING_REAR_PATH = `M ${RING_LEFT} 6 C ${RING_LEFT + 0.5} 2.7 ${RING_CENTER - 7} 1.3 ${RING_CENTER} 1.5 C ${RING_CENTER + 8} 1.4 ${HOLE_X - 0.7} 3.2 ${HOLE_X} 6`
-const RING_FRONT_PATH = `M ${HOLE_X} 6 C ${HOLE_X - 0.4} 9.2 ${RING_CENTER + 7.5} 10.7 ${RING_CENTER} 10.5 C ${RING_CENTER - 8} 10.7 ${RING_LEFT + 0.5} 8.9 ${RING_LEFT} 6`
-/** 穴の中心はリングに合わせ、ふちだけをわずかに不揃いにする。 */
-const HOLE_PATH =
-  'M -5.2 -0.8 C -5.5 -3.5 -3.5 -5.4 -0.8 -5.5 C 2.2 -5.7 5 -3.8 5.4 -1 C 5.8 1.8 3.8 5.2 0.9 5.4 C -2.1 5.7 -5 3.7 -5.2 0.8 Z'
-
-function BindingMarks({
-  kind,
-  back = false,
-  between = false,
-}: {
-  kind: 'rearRing' | 'frontRing' | 'holes'
-  back?: boolean
-  between?: boolean
-}) {
-  return (
-    <span
-      className={`${styles.binding} ${
-        kind === 'rearRing'
-          ? between
-            ? styles.ringsBetween
-            : styles.ringsRear
-          : kind === 'frontRing'
-            ? styles.ringsFront
-            : ''
-      } ${back ? styles.bindingBack : ''}`}
-      aria-hidden="true"
-    >
-      {RING_SLOTS.map((slot) => (
-        <svg key={slot} className={styles.bindingMark} viewBox={`0 0 ${BINDING_WIDTH} 12`}>
-          {kind === 'holes' ? (
-            <g transform={`translate(${back ? BINDING_WIDTH - HOLE_X : HOLE_X} 6)`}>
-              <path className={styles.holeFill} d={HOLE_PATH} />
-              <path className={styles.holeEdge} d={HOLE_PATH} />
-            </g>
-          ) : (
-            <path
-              className={`${styles.ringLine} ${
-                kind === 'rearRing' ? styles.ringRearLine : styles.ringFrontLine
-              }`}
-              d={kind === 'rearRing' ? RING_REAR_PATH : RING_FRONT_PATH}
-            />
-          )}
-        </svg>
-      ))}
-    </span>
-  )
-}
-
 /** 指で引いた紙をリング側で回す。裏返る手前で止める。 */
 function angleForDrag(dx: number) {
   return Math.max(-72, Math.min(0, dx * 0.42))
@@ -139,7 +83,7 @@ function FeedCard({
       }
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
-      <BindingMarks kind="holes" />
+      <NotebookBinding part="holes" />
       {/* 上辺のインデックス。テーマのしおりと、公開されている属性の付箋。 */}
       <span className={styles.tabs}>
         {concern.ageGroup ? (
@@ -339,49 +283,45 @@ export function FeedPage() {
             届いた声を読む
           </h1>
           {concern ? (
-            <div
-              className={styles.stack}
-              style={
-                {
-                  '--binding-width': `${BINDING_WIDTH}px`,
-                  '--binding-offset': `${-BINDING_WIDTH / 2}px`,
-                  '--turn-axis': `${TURN_AXIS}px`,
-                } as CSSProperties
-              }
-            >
+            <div className={styles.stack} style={notebookBindingStyle}>
               <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
               <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
               {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-              <BindingMarks kind="rearRing" />
+              <NotebookBinding part="rear" />
               {turning ? (
-                <BindingMarks
+                <NotebookBinding
                   key={`${turning.concern.id}-${turning.page}`}
-                  kind="rearRing"
+                  part="rear"
                   between
                 />
               ) : null}
               {turning ? (
                 <div
                   key={`${turning.concern.id}-${turning.page}`}
-                  className={styles.turning}
-                  style={{ '--turn-start': `${turning.startAngle}deg` } as CSSProperties}
+                  className={turnStyles.turning}
+                  style={
+                    {
+                      '--turn-start': `${turning.startAngle}deg`,
+                      '--turn-back-color': paletteForPage(turning.page).bookmark,
+                    } as CSSProperties
+                  }
                   aria-hidden="true"
                   // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
                   onAnimationEnd={(event) => {
                     if (event.target === event.currentTarget) setTurning(null)
                   }}
                 >
-                  <div className={styles.face}>
+                  <div className={turnStyles.face}>
                     <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
                   </div>
-                  <div className={`${styles.back} ${crayonStyles.edge}`}>
-                    <BindingMarks kind="holes" back />
+                  <div className={`${turnStyles.back} ${crayonStyles.edge}`}>
+                    <NotebookBinding part="holes" back />
                   </div>
                 </div>
               ) : null}
               <div
                 key={`${concern.id}-${index}`}
-                className={`${styles.enter} ${direction < 0 ? styles.fromLeft : ''}`}
+                className={`${styles.enter} ${direction < 0 ? turnStyles.fromLeft : ''}`}
               >
                 <FeedCard
                   concern={concern}
@@ -398,7 +338,7 @@ export function FeedPage() {
                 />
               </div>
               {/* 手前側の線は金具として動かさない。 */}
-              <BindingMarks kind="frontRing" />
+              <NotebookBinding part="front" />
             </div>
           ) : (
             <div className={styles.empty}>

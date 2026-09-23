@@ -11,8 +11,11 @@ import {
 } from 'react'
 import { Link } from 'react-router'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
+import { NotebookBinding } from '../../shared/components/NotebookBinding'
+import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
+import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { answerDemoQuiz, demoQuiz, useDemoState } from '../demo/demoStore'
 import styles from './QuizPage.module.css'
@@ -47,8 +50,6 @@ const PIECE_COLORS: Record<string, string> = {
 }
 /** しおりと切り欠きの型紙。同じ形を使うことで、片方が片方に収まると分かる。 */
 const TAG_PATH = 'M3 3 L50 15 L97 3 V75 H3 Z'
-/** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
-const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
 /** 切り欠きの外でも、これだけ近ければ差し込んだことにする。 */
 const DROP_PAD = 22
 /** つまんで運んだとみなす距離。これ未満なら、押しただけとして扱う。 */
@@ -62,6 +63,10 @@ const initialState: QuizState = { step: 'letters', index: 0, direction: 1, answe
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function angleForDrag(dx: number) {
+  return Math.max(-72, Math.min(0, dx * 0.42))
 }
 
 function personById(id: string | undefined) {
@@ -154,14 +159,12 @@ function Paper({
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
         dragX !== 0 ? styles.dragging : ''
       }`}
-      style={{ transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)` }}
+      style={{
+        transform: dragX < 0 ? `perspective(1400px) rotateY(${angleForDrag(dragX)}deg)` : undefined,
+      }}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
-      <span className={styles.holes} aria-hidden="true">
-        {RING_SLOTS.map((slot) => (
-          <span key={slot} className={styles.hole} />
-        ))}
-      </span>
+      <NotebookBinding part="holes" />
       {children}
       {/* すぐ下のボタンと同じ操作なので、読み上げには重ねて出さない。 */}
       {onNext ? (
@@ -329,7 +332,11 @@ export function QuizPage() {
     height: number
   } | null>(null)
   /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
-  const [turning, setTurning] = useState<{ letter: Letter; personId?: string } | null>(null)
+  const [turning, setTurning] = useState<{
+    letter: Letter
+    personId?: string
+    startAngle: number
+  } | null>(null)
   const slotRef = useRef<HTMLSpanElement | null>(null)
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
 
@@ -344,13 +351,13 @@ export function QuizPage() {
   const canGoPrev = state.index > 0
 
   const go = useCallback(
-    (direction: 1 | -1) => {
+    (direction: 1 | -1, startAngle = 0) => {
       const index = state.index + direction
       if (index < 0 || index >= letters.length) return
       // 進むときは、いま見ている紙がめくれて去る。戻るときに去る紙はない。
       setTurning(
         direction === 1 && !prefersReducedMotion()
-          ? { letter, personId: answers[letter.id] }
+          ? { letter, personId: answers[letter.id], startAngle }
           : null,
       )
       dispatch({ type: 'go', direction })
@@ -376,7 +383,7 @@ export function QuizPage() {
     const open = firstOpenIndex(next)
     // 空いている手紙が別にあるときだけ、この紙はめくれて去る。
     if (open !== -1 && open !== state.index && !prefersReducedMotion()) {
-      setTurning({ letter, personId })
+      setTurning({ letter, personId, startAngle: 0 })
     }
     dispatch({ type: 'fit', letterId: letter.id, personId })
   }
@@ -450,14 +457,19 @@ export function QuizPage() {
     setDragX(dx)
   }
 
-  function handleTouchEnd() {
+  function handleTouchEnd(event: TouchEvent) {
     const start = swipe.current
-    const dx = dragX
+    const dx = start ? event.changedTouches[0].clientX - start.x : 0
     swipe.current = null
     setDragX(0)
     if (!start?.active) return
-    if (dx <= -SWIPE_THRESHOLD) go(1)
+    if (dx <= -SWIPE_THRESHOLD) go(1, angleForDrag(dx))
     else if (dx >= SWIPE_THRESHOLD) go(-1)
+  }
+
+  function handleTouchCancel() {
+    swipe.current = null
+    setDragX(0)
   }
 
   const submit = async () => {
@@ -504,31 +516,33 @@ export function QuizPage() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
         >
           <h1 id="quiz-title" className={styles.srOnly}>
             きょうの3つの手紙。書いた人のしおりを結ぶ
           </h1>
-          <div className={styles.stack}>
+          <div className={styles.stack} style={notebookBindingStyle}>
             <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
             <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-            {/* とじリング。紙ではなくバインダー側にあるので、めくっても動かない。 */}
-            <span className={styles.rings} aria-hidden="true">
-              {RING_SLOTS.map((slot) => (
-                <span key={slot} className={styles.ring} />
-              ))}
-            </span>
+            <NotebookBinding part="rear" />
+            {turning ? <NotebookBinding part="rear" between /> : null}
             {turning ? (
               <div
                 key={`${turning.letter.id}-${turning.personId ?? ''}-${state.index}`}
-                className={styles.turning}
+                className={turnStyles.turning}
+                style={
+                  {
+                    '--turn-start': `${turning.startAngle}deg`,
+                    '--turn-back-color': '#e4d9c2',
+                  } as CSSProperties
+                }
                 aria-hidden="true"
                 // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
                 onAnimationEnd={(event) => {
                   if (event.target === event.currentTarget) setTurning(null)
                 }}
               >
-                <div className={styles.face}>
+                <div className={turnStyles.face}>
                   <Paper>
                     <QuizPaperBody
                       target={turning.letter}
@@ -542,12 +556,14 @@ export function QuizPage() {
                     />
                   </Paper>
                 </div>
-                <div className={`${styles.back} ${crayonStyles.edge}`} />
+                <div className={`${turnStyles.back} ${crayonStyles.edge}`}>
+                  <NotebookBinding part="holes" back />
+                </div>
               </div>
             ) : null}
             <div
               key={`${letter.id}-${state.index}`}
-              className={`${styles.enter} ${state.direction < 0 ? styles.fromLeft : ''}`}
+              className={`${styles.enter} ${state.direction < 0 ? turnStyles.fromLeft : ''}`}
             >
               <Paper dragX={dragX} onNext={canGoNext ? () => go(1) : undefined}>
                 <QuizPaperBody
@@ -562,6 +578,7 @@ export function QuizPage() {
                 />
               </Paper>
             </div>
+            <NotebookBinding part="front" />
           </div>
         </section>
 
