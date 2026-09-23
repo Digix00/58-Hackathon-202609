@@ -45,7 +45,6 @@ export interface IConcernUseCase {
   ): Promise<ListPublishedConcernsResult>;
   findPublishedById(id: string): Promise<Concern | null>;
 
-  /** #63との互換性を保つため、拡張Portは任意メンバーとして扱う。 */
   listFeed?(input: ListFeedInput): Promise<ListFeedResult>;
   findPublishedFeedItem?(
     id: string,

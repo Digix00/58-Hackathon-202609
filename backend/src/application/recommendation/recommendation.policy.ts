@@ -9,7 +9,9 @@ export const RECOMMENDATION_ALGORITHM_VERSION = "v2";
 
 /**
  * 新着順で取得した候補を、既読状況・クラスタ・都道府県の分散で並べ替える。
- * AIや個人情報には依存せず、同じ候補と履歴なら同じ結果になる純粋な処理とする。
+ * 未読候補や閲覧履歴にないクラスタを優先しつつ、直前と同じクラスタが連続しないように
+ * 候補を1件ずつ選出する。異なるクラスタが残っていない場合は、同じクラスタも選出する。
+ * AIや個人情報には依存せず、同じ候補と履歴なら同じ結果になる決定的な処理とする。
  */
 export function rankConcernFeedCandidates(
   candidates: ConcernFeedCandidate[],
@@ -114,6 +116,11 @@ export function rankConcernFeedCandidates(
   return ranked;
 }
 
+/**
+ * 候補の推薦スコアを計算する。未読（クラスタあり1,000点、なし100点）、
+ * 閲覧履歴にないクラスタ（250点）、今回のページで未選択のクラスタ（75点）、
+ * 都道府県の分散（65点、既読地域なら25点）を加点し、選出順を決める。
+ */
 function scoreCandidate(
   candidate: ConcernFeedCandidate,
   viewedClusterIds: Set<string>,
@@ -141,6 +148,11 @@ function scoreCandidate(
   return score;
 }
 
+/**
+ * 候補を選出した理由をレスポンス用のコードに変換する。
+ * 未読クラスタ、未閲覧クラスタ、都道府県の分散、クラスタの分散の順に判定し、
+ * いずれにも該当しない場合は新着順として扱う。
+ */
 function getReasonCode(
   candidate: ConcernFeedCandidate,
   viewedClusterIds: Set<string>,
