@@ -184,6 +184,72 @@ function ReactionSpark() {
   )
 }
 
+function FeedTabs({ concern, showTabs }: { concern: DemoConcern; showTabs: boolean }) {
+  if (!showTabs) return null
+
+  return (
+    <span className={styles.tabs}>
+      {concern.ageGroup ? (
+        <span className={`${styles.tab} ${styles.tabAge}`}>{concern.ageGroup}</span>
+      ) : null}
+      {concern.region ? (
+        <span className={`${styles.tab} ${styles.tabRegion}`}>{concern.region}</span>
+      ) : null}
+    </span>
+  )
+}
+
+function FeedReaction({
+  concern,
+  canReact,
+  onReact,
+}: {
+  concern: DemoConcern
+  canReact: boolean
+  onReact?: () => boolean
+}) {
+  const [sparked, setSparked] = useState(false)
+
+  if (!canReact) return null
+
+  return (
+    <button
+      type="button"
+      className={`${styles.reaction} ${concern.reacted ? styles.reacted : ''} ${
+        sparked ? styles.sparked : ''
+      }`}
+      onClick={() => {
+        if (onReact?.()) setSparked(true)
+      }}
+      disabled={concern.reacted}
+      aria-pressed={concern.reacted}
+    >
+      <span className={styles.stamp}>
+        <CrayonHeart />
+        {sparked ? <ReactionSpark /> : null}
+      </span>
+      <span className={styles.label}>{concern.reacted ? '寄りそいました' : 'そっと寄りそう'}</span>
+      <span className={styles.count} aria-label={`${concern.reactionCount}件の反応`}>
+        {concern.reactionCount}
+      </span>
+    </button>
+  )
+}
+
+function FeedNextCorner({ onNext }: { onNext?: () => void }) {
+  if (!onNext) return null
+
+  return (
+    <button
+      type="button"
+      className={styles.corner}
+      onClick={onNext}
+      tabIndex={-1}
+      aria-hidden="true"
+    />
+  )
+}
+
 function FeedCard({
   concern,
   page,
@@ -209,8 +275,6 @@ function FeedCard({
   showTabs?: boolean
 }) {
   const palette = paletteForPage(page)
-  // この紙を見ている間に押されたかどうか。once だけ線を散らすために持つ。
-  const [sparked, setSparked] = useState(false)
 
   return (
     <article
@@ -231,16 +295,7 @@ function FeedCard({
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
       {/* 上辺のインデックス。公開されている年代・地域の付箋。 */}
-      {showTabs ? (
-        <span className={styles.tabs}>
-          {concern.ageGroup ? (
-            <span className={`${styles.tab} ${styles.tabAge}`}>{concern.ageGroup}</span>
-          ) : null}
-          {concern.region ? (
-            <span className={`${styles.tab} ${styles.tabRegion}`}>{concern.region}</span>
-          ) : null}
-        </span>
-      ) : null}
+      <FeedTabs concern={concern} showTabs={showTabs} />
       <Link
         className={styles.storyLink}
         to={`/concerns/${encodeURIComponent(concern.id)}`}
@@ -250,41 +305,10 @@ function FeedCard({
         <p className={screen.body}>{concern.body}</p>
       </Link>
       <div className={styles.cardFoot}>
-        {canReact ? (
-          <button
-            type="button"
-            className={`${styles.reaction} ${concern.reacted ? styles.reacted : ''} ${
-              sparked ? styles.sparked : ''
-            }`}
-            onClick={() => {
-              if (onReact?.()) setSparked(true)
-            }}
-            disabled={concern.reacted}
-            aria-pressed={concern.reacted}
-          >
-            <span className={styles.stamp}>
-              <CrayonHeart />
-              {sparked ? <ReactionSpark /> : null}
-            </span>
-            <span className={styles.label}>
-              {concern.reacted ? '寄りそいました' : 'そっと寄りそう'}
-            </span>
-            <span className={styles.count} aria-label={`${concern.reactionCount}件の反応`}>
-              {concern.reactionCount}
-            </span>
-          </button>
-        ) : null}
+        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
       </div>
       {/* めくれた角。すぐ下の「つぎの声へ」と同じ操作なので、読み上げには重ねて出さない。 */}
-      {onNext ? (
-        <button
-          type="button"
-          className={styles.corner}
-          onClick={onNext}
-          tabIndex={-1}
-          aria-hidden="true"
-        />
-      ) : null}
+      <FeedNextCorner onNext={onNext} />
     </article>
   )
 }
