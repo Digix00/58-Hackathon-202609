@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type CSSProperties,
@@ -42,6 +43,8 @@ const RING_CENTER = HOLE_X - RING_RADIUS_X
 
 const RING_REAR_PATH = `M ${RING_LEFT} 6 C ${RING_LEFT + 0.5} 2.7 ${RING_CENTER - 7} 1.3 ${RING_CENTER} 1.5 C ${RING_CENTER + 8} 1.4 ${HOLE_X - 0.7} 3.2 ${HOLE_X} 6`
 const RING_FRONT_PATH = `M ${HOLE_X} 6 C ${HOLE_X - 0.4} 9.2 ${RING_CENTER + 7.5} 10.7 ${RING_CENTER} 10.5 C ${RING_CENTER - 8} 10.7 ${RING_LEFT + 0.5} 8.9 ${RING_LEFT} 6`
+/** 穴の中心はリングに合わせ、ふちだけをわずかに不揃いにする。 */
+const HOLE_PATH = 'M -5.2 -0.8 C -5.5 -3.5 -3.5 -5.4 -0.8 -5.5 C 2.2 -5.7 5 -3.8 5.4 -1 C 5.8 1.8 3.8 5.2 0.9 5.4 C -2.1 5.7 -5 3.7 -5.2 0.8 Z'
 
 function BindingMarks({
   kind,
@@ -68,12 +71,10 @@ function BindingMarks({
       {RING_SLOTS.map((slot) => (
         <svg key={slot} className={styles.bindingMark} viewBox={`0 0 ${BINDING_WIDTH} 12`}>
           {kind === 'holes' ? (
-            <circle
-              className={styles.holeFill}
-              cx={back ? BINDING_WIDTH - HOLE_X : HOLE_X}
-              cy="6"
-              r="5.5"
-            />
+            <g transform={`translate(${back ? BINDING_WIDTH - HOLE_X : HOLE_X} 6)`}>
+              <path className={styles.holeFill} d={HOLE_PATH} />
+              <path className={styles.holeEdge} d={HOLE_PATH} />
+            </g>
           ) : (
             <path
               className={`${styles.ringLine} ${
@@ -258,17 +259,19 @@ export function FeedPage() {
     setShowLogin(false)
   }, [])
 
+  const goNextFromKeyboard = useEffectEvent(() => goNext())
+
   // 指と同じ感覚で、キーボードからも前後へ送れるようにする。
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null
       if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return
-      if (event.key === 'ArrowRight') goNext()
+      if (event.key === 'ArrowRight') goNextFromKeyboard()
       else if (event.key === 'ArrowLeft') goPrev()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [goNext, goPrev])
+  }, [goPrev])
 
   function handleTouchStart(event: TouchEvent) {
     const touch = event.touches[0]

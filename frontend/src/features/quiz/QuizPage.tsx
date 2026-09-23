@@ -177,6 +177,144 @@ function Paper({
   )
 }
 
+function QuizPaperBody({
+  target,
+  personId,
+  interactive,
+  showingResults,
+  body,
+  slotRef,
+  dragOver,
+  onPull,
+}: {
+  target: Letter
+  personId: string | undefined
+  interactive: boolean
+  showingResults: boolean
+  body: string | undefined
+  slotRef: React.RefObject<HTMLSpanElement | null>
+  dragOver: boolean
+  onPull: (letterId: string) => void
+}) {
+  const writer = personById(target.correctPerson)
+  const fitted = personById(personId)
+
+  if (showingResults && writer) {
+    const correct = personId === target.correctPerson
+    return (
+      <>
+        <div className={styles.fit}>
+          {/* 結果でも、書いた人のしおりは手紙の上端に貼ったまま見せる。 */}
+          <span className={styles.tag} style={tagStyle(writer.id)}>
+            <TagFace person={writer} />
+          </span>
+        </div>
+        <p className={styles.letter}>{body}</p>
+        <div className={styles.verdict} role="status">
+          <p className={styles.judge}>
+            {correct ? '合っていました' : `ちがいました。書いたのは${writer.label}`}
+          </p>
+          <p className={styles.note}>{target.explanation}</p>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className={styles.fit}>
+        {fitted ? (
+          <button
+            type="button"
+            className={`${styles.tag} ${styles.fitted}`}
+            style={tagStyle(fitted.id)}
+            onClick={() => interactive && onPull(target.id)}
+            aria-label={`${fitted.label}・${fitted.attributes}。この声から外す`}
+          >
+            <TagFace person={fitted} />
+          </button>
+        ) : (
+          <span
+            ref={interactive ? slotRef : undefined}
+            className={`${styles.tag} ${styles.slot} ${dragOver ? styles.over : ''}`}
+            aria-hidden="true"
+          >
+            <svg
+              className={styles.shape}
+              viewBox="0 0 100 78"
+              preserveAspectRatio="none"
+              focusable="false"
+            >
+              <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
+            </svg>
+            <span className={styles.tagLabel}>ここへ</span>
+          </span>
+        )}
+        <p className={styles.ask}>この声は、だれから？</p>
+      </div>
+      <p className={styles.letter}>{body}</p>
+    </>
+  )
+}
+
+function QuizActions({
+  showingResults,
+  canGoNext,
+  complete,
+  submitting,
+  score,
+  onNext,
+  onSubmit,
+}: {
+  showingResults: boolean
+  canGoNext: boolean
+  complete: boolean
+  submitting: boolean
+  score: number | undefined
+  onNext: () => void
+  onSubmit: () => void
+}) {
+  if (showingResults) {
+    return (
+      <div className={styles.actions}>
+        {canGoNext ? (
+          <button
+            type="button"
+            className={`${actionStyles.primary} ${styles.nextButton}`}
+            onClick={onNext}
+          >
+            つぎの手紙へ <span aria-hidden="true">→</span>
+          </button>
+        ) : (
+          <>
+            {score !== undefined ? (
+              <p className={styles.score}>3つのうち{score}つ、言葉から見つけられました。</p>
+            ) : null}
+            <Link className={actionStyles.primary} to="/history">
+              履歴を見る
+            </Link>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.actions}>
+      {complete ? (
+        <button
+          type="button"
+          className={`${actionStyles.primary} ${styles.nextButton}`}
+          onClick={onSubmit}
+          disabled={submitting}
+        >
+          {submitting ? '出しています…' : 'これで出す'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 export function QuizPage() {
   const { concerns, quizResult } = useDemoState()
   const [state, dispatch] = useReducer(quizReducer, initialState)
@@ -329,68 +467,6 @@ export function QuizPage() {
     dispatch({ type: 'showResults' })
   }
 
-  function paperBody(target: Letter, personId: string | undefined, interactive: boolean) {
-    const writer = personById(target.correctPerson)
-    const fitted = personById(personId)
-
-    if (showingResults && writer) {
-      const correct = personId === target.correctPerson
-      return (
-        <>
-          <div className={styles.fit}>
-            {/* 結果でも、書いた人のしおりは手紙の上端に貼ったまま見せる。 */}
-            <span className={styles.tag} style={tagStyle(writer.id)}>
-              <TagFace person={writer} />
-            </span>
-          </div>
-          <p className={styles.letter}>{bodyOf(target)}</p>
-          <div className={styles.verdict} role="status">
-            <p className={styles.judge}>
-              {correct ? '合っていました' : `ちがいました。書いたのは${writer.label}`}
-            </p>
-            <p className={styles.note}>{target.explanation}</p>
-          </div>
-        </>
-      )
-    }
-
-    return (
-      <>
-        <div className={styles.fit}>
-          {fitted ? (
-            <button
-              type="button"
-              className={`${styles.tag} ${styles.fitted}`}
-              style={tagStyle(fitted.id)}
-              onClick={() => interactive && dispatch({ type: 'pull', letterId: target.id })}
-              aria-label={`${fitted.label}・${fitted.attributes}。この声から外す`}
-            >
-              <TagFace person={fitted} />
-            </button>
-          ) : (
-            <span
-              ref={interactive ? slotRef : undefined}
-              className={`${styles.tag} ${styles.slot} ${drag?.over ? styles.over : ''}`}
-              aria-hidden="true"
-            >
-              <svg
-                className={styles.shape}
-                viewBox="0 0 100 78"
-                preserveAspectRatio="none"
-                focusable="false"
-              >
-                <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
-              </svg>
-              <span className={styles.tagLabel}>ここへ</span>
-            </span>
-          )}
-          <p className={styles.ask}>この声は、だれから？</p>
-        </div>
-        <p className={styles.letter}>{bodyOf(target)}</p>
-      </>
-    )
-  }
-
   const dragged = personById(drag?.personId)
 
   return (
@@ -453,7 +529,18 @@ export function QuizPage() {
                 }}
               >
                 <div className={styles.face}>
-                  <Paper>{paperBody(turning.letter, turning.personId, false)}</Paper>
+                  <Paper>
+                    <QuizPaperBody
+                      target={turning.letter}
+                      personId={turning.personId}
+                      interactive={false}
+                      showingResults={showingResults}
+                      body={bodyOf(turning.letter)}
+                      slotRef={slotRef}
+                      dragOver={Boolean(drag?.over)}
+                      onPull={(letterId) => dispatch({ type: 'pull', letterId })}
+                    />
+                  </Paper>
                 </div>
                 <div className={`${styles.back} ${crayonStyles.edge}`} />
               </div>
@@ -463,45 +550,30 @@ export function QuizPage() {
               className={`${styles.enter} ${state.direction < 0 ? styles.fromLeft : ''}`}
             >
               <Paper dragX={dragX} onNext={canGoNext ? () => go(1) : undefined}>
-                {paperBody(letter, answers[letter.id], true)}
+                <QuizPaperBody
+                  target={letter}
+                  personId={answers[letter.id]}
+                  interactive
+                  showingResults={showingResults}
+                  body={bodyOf(letter)}
+                  slotRef={slotRef}
+                  dragOver={Boolean(drag?.over)}
+                  onPull={(letterId) => dispatch({ type: 'pull', letterId })}
+                />
               </Paper>
             </div>
           </div>
         </section>
 
-        <div className={styles.actions}>
-          {showingResults ? (
-            canGoNext ? (
-              <button
-                type="button"
-                className={`${actionStyles.primary} ${styles.nextButton}`}
-                onClick={() => go(1)}
-              >
-                つぎの手紙へ <span aria-hidden="true">→</span>
-              </button>
-            ) : (
-              <>
-                {quizResult ? (
-                  <p className={styles.score}>
-                    3つのうち{quizResult.score}つ、言葉から見つけられました。
-                  </p>
-                ) : null}
-                <Link className={actionStyles.primary} to="/history">
-                  履歴を見る
-                </Link>
-              </>
-            )
-          ) : complete ? (
-            <button
-              type="button"
-              className={`${actionStyles.primary} ${styles.nextButton}`}
-              onClick={() => void submit()}
-              disabled={state.step === 'submitting'}
-            >
-              {state.step === 'submitting' ? '出しています…' : 'これで出す'}
-            </button>
-          ) : null}
-        </div>
+        <QuizActions
+          showingResults={showingResults}
+          canGoNext={canGoNext}
+          complete={complete}
+          submitting={state.step === 'submitting'}
+          score={quizResult?.score}
+          onNext={() => go(1)}
+          onSubmit={() => void submit()}
+        />
 
         {drag && dragged ? (
           <span

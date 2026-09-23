@@ -137,8 +137,18 @@
 
 .holeFill {
   fill: #eadfc6;
+}
+
+/* 穴の地色は保ち、ふちの線だけをクレヨンの粒でかすれさせる。 */
+.holeEdge {
+  fill: none;
   stroke: #cbbfa5;
-  stroke-width: 1px;
+  stroke-width: 1.35px;
+  filter: url(#crayon-edge-fine);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 40px 40px;
+  mask-size: 40px 40px;
 }
 
 .sheetNear {
