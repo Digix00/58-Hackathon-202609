@@ -1,4 +1,12 @@
-import { useState, type RefCallback } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type RefCallback,
+  type TouchEvent,
+} from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
@@ -9,75 +17,70 @@ import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
+import styles from './FeedPage.module.css'
 
 type Filter = { theme: string; region: string }
 
-function FeedView({
+/** 指を離したときに次の声へ送る距離。これ未満なら手元へ戻す。 */
+const SWIPE_THRESHOLD = 56
+/** 縦スクロールか横めくりかを決めるまでの遊び。 */
+const SWIPE_SLOP = 8
+
+function FeedCard({
   concern,
-  position,
-  total,
-  onNext,
   onReact,
   canReact,
-  showLogin,
   articleRef,
+  dragX,
+  onLinkClick,
 }: {
   concern: DemoConcern
-  position: number
-  total: number
-  onNext: () => void
   onReact: () => void
   canReact: boolean
-  showLogin: boolean
   articleRef: RefCallback<HTMLElement>
+  dragX: number
+  onLinkClick: (event: MouseEvent) => void
 }) {
+  const attributes = [concern.ageGroup, concern.region].filter(Boolean).join(' · ')
+
   return (
-    <div className={screen.page}>
-      <header className={screen.heading}>
-        <p className={screen.eyebrow}>
-          読む · {position + 1} / {total}
-        </p>
-        <h1>
-          きょうは、
-          <br />
-          どんな声に会えるかな。
-        </h1>
-      </header>
-      <article ref={articleRef} className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}>
-        <span className={screen.bookmark}>{concern.theme}</span>
+    <article
+      ref={articleRef}
+      className={`${screen.paper} ${screen.taped} ${crayonStyles.edge} ${styles.card} ${
+        dragX !== 0 ? styles.dragging : ''
+      }`}
+      style={{ transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)` }}
+    >
+      <span className={styles.theme}>{concern.theme}</span>
+      <Link
+        className={styles.storyLink}
+        to={`/concerns/${encodeURIComponent(concern.id)}`}
+        aria-label={`${concern.body} 詳しく読む`}
+        onClick={onLinkClick}
+      >
         <p className={screen.body}>{concern.body}</p>
-        <p className={screen.meta}>
-          {[concern.ageGroup, concern.region, concern.createdLabel].filter(Boolean).join(' · ')}
-        </p>
-        <p className={screen.meta}>{concern.reason}</p>
-        <Link className={actionStyles.text} to={`/concerns/${encodeURIComponent(concern.id)}`}>
-          この声を詳しく読む
-        </Link>
+      </Link>
+      <div className={styles.cardFoot}>
+        {attributes ? <p className={styles.attributes}>{attributes}</p> : null}
         {canReact ? (
           <button
             type="button"
-            className={actionStyles.secondary}
+            className={styles.reaction}
             onClick={onReact}
             disabled={concern.reacted}
             aria-pressed={concern.reacted}
           >
-            {concern.reacted ? 'そっと寄りそいました' : 'そっと寄りそう'} · {concern.reactionCount}
-            件
+            <span className={styles.heart} aria-hidden="true">
+              {concern.reacted ? '♥' : '♡'}
+            </span>
+            {concern.reacted ? '寄りそいました' : 'そっと寄りそう'}
+            <span className={styles.count} aria-label={`${concern.reactionCount}件の反応`}>
+              {concern.reactionCount}
+            </span>
           </button>
         ) : null}
-      </article>
-      <p aria-live="polite" className={screen.muted}>
-        {concern.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件` : ''}
-      </p>
-      {showLogin ? <LoginGuide /> : null}
-      <button
-        type="button"
-        className={`${actionStyles.primary} ${screen.fullButton}`}
-        onClick={onNext}
-      >
-        つぎの声
-      </button>
-    </div>
+      </div>
+    </article>
   )
 }
 
@@ -87,8 +90,13 @@ export function FeedPage() {
   const { status: authStatus } = useAuth()
   const [filter, setFilter] = useState<Filter>({ theme: '', region: '' })
   const [index, setIndex] = useState(0)
+  const [direction, setDirection] = useState(1)
   const [showLogin, setShowLogin] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [dragX, setDragX] = useState(0)
+  const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
+  const swiped = useRef(false)
+
   const themes = [...new Set(concerns.map((concern) => concern.theme))]
   const regions = [
     ...new Set(
@@ -100,87 +108,194 @@ export function FeedPage() {
       (!filter.theme || concern.theme === filter.theme) &&
       (!filter.region || concern.region === filter.region),
   )
-  const concern = filtered[index % filtered.length]
+  const total = filtered.length
+  const position = total ? ((index % total) + total) % total : 0
+  const concern = filtered[position]
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
+  const activeFilter = [filter.theme, filter.region].filter(Boolean).join(' · ')
+
+  const goNext = useCallback(() => {
+    setDirection(1)
+    setIndex((current) => current + 1)
+    setShowLogin(false)
+  }, [])
+
+  const goPrev = useCallback(() => {
+    setDirection(-1)
+    setIndex((current) => current - 1)
+    setShowLogin(false)
+  }, [])
+
+  // 指と同じ感覚で、キーボードからも前後へ送れるようにする。
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null
+      if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return
+      if (event.key === 'ArrowRight') goNext()
+      else if (event.key === 'ArrowLeft') goPrev()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [goNext, goPrev])
+
+  function handleTouchStart(event: TouchEvent) {
+    const touch = event.touches[0]
+    swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    const start = swipe.current
+    if (!start) return
+    const touch = event.touches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (!start.active) {
+      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return
+      // 縦に動かし始めたなら、それはスクロール。横めくりには使わない。
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        swipe.current = null
+        return
+      }
+      start.active = true
+    }
+    setDragX(dx)
+  }
+
+  function handleTouchEnd() {
+    const start = swipe.current
+    const dx = dragX
+    swipe.current = null
+    setDragX(0)
+    if (!start?.active) return
+    swiped.current = true
+    if (dx <= -SWIPE_THRESHOLD) goNext()
+    else if (dx >= SWIPE_THRESHOLD) goPrev()
+  }
+
+  // めくった指が、そのまま本文リンクを開いてしまわないようにする。
+  function handleLinkClick(event: MouseEvent) {
+    if (!swiped.current) return
+    swiped.current = false
+    event.preventDefault()
+  }
 
   return (
     <DemoBoundary
       emptyTitle="まだ声が届いていません"
       emptyDescription="しばらくしてから、また読みに来てください。"
     >
-      <div className={screen.page}>
-        <button
-          type="button"
-          className={actionStyles.text}
-          onClick={() => setFiltersOpen((current) => !current)}
-          aria-expanded={filtersOpen}
+      <div className={styles.page}>
+        <section
+          className={styles.stage}
+          aria-labelledby="feed-title"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
-          条件を選ぶ{filter.theme || filter.region ? '（絞り込み中）' : ''}
-        </button>
-        {filtersOpen ? (
-          <section className={screen.stack} aria-label="読む声の条件">
-            <label className={screen.field}>
-              テーマ
-              <select
-                value={filter.theme}
-                onChange={(event) => {
-                  setFilter((current) => ({ ...current, theme: event.target.value }))
+          <h1 id="feed-title" className={styles.srOnly}>
+            届いた声を読む
+          </h1>
+          {concern ? (
+            <div className={styles.stack}>
+              <div
+                key={`${concern.id}-${index}`}
+                className={`${styles.enter} ${direction < 0 ? styles.fromLeft : ''}`}
+              >
+                <FeedCard
+                  concern={concern}
+                  articleRef={articleRef}
+                  canReact={isLiff}
+                  dragX={dragX}
+                  onLinkClick={handleLinkClick}
+                  onReact={() => {
+                    if (authStatus !== 'authenticated') setShowLogin(true)
+                    else reactToDemoConcern(concern.id)
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className={styles.empty}>
+              <p>選んだ条件の声は、まだありません。</p>
+              <button
+                type="button"
+                className={actionStyles.secondary}
+                onClick={() => {
+                  setFilter({ theme: '', region: '' })
                   setIndex(0)
                 }}
               >
-                <option value="">すべて</option>
-                {themes.map((theme) => (
-                  <option key={theme}>{theme}</option>
-                ))}
-              </select>
-            </label>
-            <label className={screen.field}>
-              地域
-              <select
-                value={filter.region}
-                onChange={(event) => {
-                  setFilter((current) => ({ ...current, region: event.target.value }))
-                  setIndex(0)
-                }}
-              >
-                <option value="">すべて</option>
-                {regions.map((region) => (
-                  <option key={region}>{region}</option>
-                ))}
-              </select>
-            </label>
-          </section>
-        ) : null}
-        {concern ? (
-          <FeedView
-            concern={concern}
-            position={index % filtered.length}
-            total={filtered.length}
-            onNext={() => {
-              setIndex((current) => current + 1)
-              setShowLogin(false)
-            }}
-            onReact={() => {
-              if (authStatus !== 'authenticated') setShowLogin(true)
-              else reactToDemoConcern(concern.id)
-            }}
-            canReact={isLiff}
-            showLogin={showLogin}
-            articleRef={articleRef}
-          />
-        ) : (
-          <div className={screen.page}>
-            <p>選んだ条件の声はまだありません。</p>
+                すべての声を読む
+              </button>
+            </div>
+          )}
+        </section>
+
+        <div className={styles.actions}>
+          {showLogin ? <LoginGuide /> : null}
+          {concern ? (
             <button
               type="button"
-              className={actionStyles.secondary}
-              onClick={() => setFilter({ theme: '', region: '' })}
+              className={`${actionStyles.primary} ${styles.nextButton}`}
+              onClick={goNext}
             >
-              条件を解除する
+              つぎの声へ <span aria-hidden="true">→</span>
             </button>
-          </div>
-        )}
+          ) : null}
+          <details
+            className={styles.filters}
+            open={filtersOpen}
+            onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+          >
+            <summary>
+              <span>{activeFilter ? 'えらんだ条件' : 'テーマ・地域でえらぶ'}</span>
+              {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
+              <span className={styles.caret} aria-hidden="true">
+                ▾
+              </span>
+            </summary>
+            <div className={`${screen.stack} ${styles.filterFields}`} aria-label="読む声の条件">
+              <label className={screen.field}>
+                テーマ
+                <select
+                  value={filter.theme}
+                  onChange={(event) => {
+                    setFilter((current) => ({ ...current, theme: event.target.value }))
+                    setIndex(0)
+                    setFiltersOpen(false)
+                  }}
+                >
+                  <option value="">すべて</option>
+                  {themes.map((theme) => (
+                    <option key={theme}>{theme}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={screen.field}>
+                地域
+                <select
+                  value={filter.region}
+                  onChange={(event) => {
+                    setFilter((current) => ({ ...current, region: event.target.value }))
+                    setIndex(0)
+                    setFiltersOpen(false)
+                  }}
+                >
+                  <option value="">すべて</option>
+                  {regions.map((region) => (
+                    <option key={region}>{region}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </details>
+        </div>
+
+        <p className={styles.srOnly} aria-live="polite">
+          {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}
+        </p>
       </div>
     </DemoBoundary>
   )
