@@ -1,55 +1,121 @@
-import { useCallback, useState } from 'react'
-
+import { useCallback, useReducer, useRef } from 'react'
 import { createConcern } from './postApi'
 import type { PostFormFieldErrors, PostFormInput, PostResult } from './postTypes'
 import { validatePostInput } from './postTypes'
 
-export type PostSubmitStatus = 'idle' | 'submitting' | 'succeeded' | 'failed'
+type PostSubmitState =
+  | { status: 'idle'; fieldErrors: PostFormFieldErrors; error: null; result: null }
+  | { status: 'submitting'; fieldErrors: PostFormFieldErrors; error: null; result: null }
+  | { status: 'succeeded'; fieldErrors: PostFormFieldErrors; error: null; result: PostResult }
+  | { status: 'failed'; fieldErrors: PostFormFieldErrors; error: string; result: null }
 
-export interface UsePostSubmitResult {
-  status: PostSubmitStatus
-  fieldErrors: PostFormFieldErrors
-  error: string | null
-  result: PostResult | null
+export type UsePostSubmitResult = PostSubmitState & {
   submit: (input: PostFormInput) => Promise<void>
   reset: () => void
 }
 
-/** 投稿フォームの送信処理・バリデーション・送信中/エラー状態を提供するフック。UIはContainer(#60)が持つ。 */
-export function usePostSubmit(): UsePostSubmitResult {
-  const [status, setStatus] = useState<PostSubmitStatus>('idle')
-  const [fieldErrors, setFieldErrors] = useState<PostFormFieldErrors>({})
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<PostResult | null>(null)
+type PostSubmitAction =
+  | { type: 'validationFailed'; fieldErrors: PostFormFieldErrors }
+  | { type: 'submitStarted' }
+  | { type: 'submitSucceeded'; result: PostResult }
+  | { type: 'submitFailed'; error: string }
+  | { type: 'reset' }
 
-  const submit = useCallback(async (input: PostFormInput): Promise<void> => {
-    const validationErrors = validatePostInput(input)
-    if (Object.keys(validationErrors).length > 0) {
-      setFieldErrors(validationErrors)
-      return
-    }
+const initialPostSubmitState: PostSubmitState = {
+  status: 'idle',
+  fieldErrors: {},
+  error: null,
+  result: null,
+}
 
-    setFieldErrors({})
-    setError(null)
-    setStatus('submitting')
+function postSubmitReducer(_state: PostSubmitState, action: PostSubmitAction): PostSubmitState {
+  switch (action.type) {
+    case 'validationFailed':
+      return {
+        status: 'idle',
+        fieldErrors: action.fieldErrors,
+        error: null,
+        result: null,
+      }
+    case 'submitStarted':
+      return { status: 'submitting', fieldErrors: {}, error: null, result: null }
+    case 'submitSucceeded':
+      return { status: 'succeeded', fieldErrors: {}, error: null, result: action.result }
+    case 'submitFailed':
+      return { status: 'failed', fieldErrors: {}, error: action.error, result: null }
+    case 'reset':
+      return initialPostSubmitState
+  }
+}
 
-    const response = await createConcern(input)
-    if (response.ok) {
-      setStatus('succeeded')
-      setResult(response.concern)
-      return
-    }
+/**
+ * Intent: 投稿入力の検証、送信、結果表示までの状態遷移を局所化する。
+ * Boundary: 投稿入力を受け取り、画面が必要とする状態と submit/reset 操作だけを返す。
+ * State modeling: status、入力エラー、送信結果、通信エラーを reducer で同時に更新し、不整合な組み合わせを防ぐ。
+ */
+export function usePostSubmit(demo = false): UsePostSubmitResult {
+  const [state, dispatch] = useReducer(postSubmitReducer, initialPostSubmitState)
+  const inFlight = useRef(false)
 
-    setStatus('failed')
-    setError(response.message)
-  }, [])
+  const submit = useCallback(
+    async (input: PostFormInput): Promise<void> => {
+      if (inFlight.current || state.status === 'succeeded') return
+      const validationErrors = validatePostInput(input)
+      if (Object.keys(validationErrors).length > 0) {
+        dispatch({ type: 'validationFailed', fieldErrors: validationErrors })
+        return
+      }
+
+      inFlight.current = true
+      dispatch({ type: 'submitStarted' })
+      try {
+        if (import.meta.env.DEV && demo) {
+          const { addDemoConcern, getDemoScenario } = await import('../demo/demoStore')
+          await new Promise((resolve) => setTimeout(resolve, 400))
+          if (getDemoScenario() === 'error')
+            throw new Error('開発用の送信エラーです。もう一度お試しください。')
+          const concern = addDemoConcern(input.body)
+          dispatch({
+            type: 'submitSucceeded',
+            result: {
+              id: concern.id,
+              body: concern.body,
+              attributes: { ageGroup: undefined, gender: undefined, regionCode: undefined },
+              visibilityStatus: 'published',
+              processingStatus: 'pending',
+              representations: { jaHira: null, en: null },
+              cluster: null,
+              reactionCount: 0,
+              createdAt: new Date().toISOString(),
+            },
+          })
+          return
+        }
+        const response = await createConcern(input)
+        if (response.ok) {
+          dispatch({ type: 'submitSucceeded', result: response.concern })
+          return
+        }
+
+        dispatch({ type: 'submitFailed', error: response.message })
+      } catch (cause) {
+        dispatch({
+          type: 'submitFailed',
+          error:
+            cause instanceof Error && demo
+              ? cause.message
+              : '投稿に失敗しました。時間をおいて再度お試しください',
+        })
+      } finally {
+        inFlight.current = false
+      }
+    },
+    [demo, state.status],
+  )
 
   const reset = useCallback((): void => {
-    setStatus('idle')
-    setFieldErrors({})
-    setError(null)
-    setResult(null)
+    dispatch({ type: 'reset' })
   }, [])
 
-  return { status, fieldErrors, error, result, submit, reset }
+  return { ...state, submit, reset }
 }

@@ -1,0 +1,60 @@
+.card {
+  padding: 26px 21px;
+  border-radius: 23px 19px 25px 18px / 19px 25px 18px 23px;
+  background: var(--color-surface);
+  box-shadow: 5px 6px 0 var(--color-paper-shadow);
+}
+
+.card h1 {
+  margin: 0 0 11px;
+  font-size: 1.35em;
+  line-height: 1.5;
+}
+
+.card p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eee8dc 25%, #faf6ef 45%, #eee8dc 65%);
+  background-size: 300% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.line {
+  height: 1.05rem;
+  margin-bottom: 14px;
+}
+
+.short {
+  width: 38%;
+}
+
+.retryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  color: #514c82;
+  background: transparent;
+  text-decoration: underline wavy var(--color-underline) 1px;
+  text-underline-offset: 6px;
+  cursor: pointer;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

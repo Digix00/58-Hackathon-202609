@@ -31,10 +31,6 @@ export function loginWithLiff(redirectUri: string) {
   liff.login({ redirectUri })
 }
 
-export function closeLiffWindow() {
-  if (initialized) liff.closeWindow()
-}
-
 export function isLineLoggedIn() {
   return initialized && liff.isLoggedIn()
 }

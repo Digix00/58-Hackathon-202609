@@ -1,0 +1,80 @@
+import { useState } from 'react'
+import { Link, useParams } from 'react-router'
+import { useAuth } from '../../auth/useAuth'
+import { LoginGuide } from '../../app/router'
+import { useRuntime } from '../../app/providers/RuntimeContext'
+import { DemoBoundary } from '../../shared/components/DemoBoundary'
+import { EmptyState } from '../../shared/components/AsyncStates'
+import actionStyles from '../../shared/styles/Actions.module.css'
+import crayonStyles from '../../shared/styles/Crayon.module.css'
+import screen from '../../shared/styles/Screen.module.css'
+import { reactToDemoConcern, useDemoState } from '../demo/demoStore'
+import { useDemoViewed } from '../demo/useDemoViewed'
+
+export function ConcernDetailPage() {
+  const { id } = useParams()
+  const { concerns } = useDemoState()
+  const concern = concerns.find((item) => item.id === id)
+  const { state: runtime } = useRuntime()
+  const { status: authStatus } = useAuth()
+  const [showLogin, setShowLogin] = useState(false)
+  const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
+  const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
+
+  return (
+    <DemoBoundary
+      emptyTitle="この声は現在読めません"
+      emptyDescription="フィードへ戻って別の声をお読みください。"
+    >
+      {!concern ? (
+        <div className={screen.page}>
+          <EmptyState
+            title="この声は現在読めません"
+            description="公開されていないか、見つかりませんでした。"
+          />
+          <Link className={actionStyles.text} to="/">
+            フィードに戻る
+          </Link>
+        </div>
+      ) : (
+        <div className={screen.page}>
+          <Link className={actionStyles.text} to="/">
+            ← フィードに戻る
+          </Link>
+          <article
+            ref={articleRef}
+            className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}
+          >
+            <span className={screen.bookmark}>{concern.theme}</span>
+            <p className={screen.meta}>
+              {[concern.ageGroup, concern.region, concern.createdLabel].filter(Boolean).join(' · ')}
+            </p>
+            <h1 className={screen.body}>{concern.body}</h1>
+            {isLiff ? (
+              <button
+                type="button"
+                className={actionStyles.secondary}
+                onClick={() => {
+                  if (authStatus !== 'authenticated') setShowLogin(true)
+                  else reactToDemoConcern(concern.id)
+                }}
+                disabled={concern.reacted}
+                aria-pressed={concern.reacted}
+              >
+                {concern.reacted ? 'そっと寄りそいました' : 'そっと寄りそう'} ·{' '}
+                {concern.reactionCount}件
+              </button>
+            ) : null}
+          </article>
+          <p aria-live="polite" className={screen.muted}>
+            {concern.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件` : ''}
+          </p>
+          {showLogin ? <LoginGuide /> : null}
+          <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">
+            次の声を読む
+          </Link>
+        </div>
+      )}
+    </DemoBoundary>
+  )
+}
