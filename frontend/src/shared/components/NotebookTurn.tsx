@@ -7,14 +7,25 @@ type NotebookTurnProps = {
   children: ReactNode
   backColor: string
   startAngle?: number
+  /**
+   * 1 なら、いま読んでいる紙を左へ伏せる。
+   * -1 なら、伏せてあった紙を拾い上げて手前へ降ろす。
+   */
+  direction?: 1 | -1
   onFinish: () => void
 }
 
-/** 紙そのものを一回転させる。リングは静止した NotebookBinding が描く。 */
-export function NotebookTurn({ children, backColor, startAngle = 0, onFinish }: NotebookTurnProps) {
+/** 紙そのものを金具の軸で回す。リングは静止した NotebookBinding が描く。 */
+export function NotebookTurn({
+  children,
+  backColor,
+  startAngle = 0,
+  direction = 1,
+  onFinish,
+}: NotebookTurnProps) {
   return (
     <div
-      className={styles.turning}
+      className={direction === 1 ? styles.turning : styles.turningBack}
       style={
         {
           '--turn-start': `${startAngle}deg`,

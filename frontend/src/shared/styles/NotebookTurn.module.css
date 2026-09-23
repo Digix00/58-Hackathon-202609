@@ -57,6 +57,46 @@
   }
 }
 
+/*
+ * 戻り。伏せてあった紙を拾い上げ、いま読んでいる紙の上へ降ろす。
+ * turnOut をそのまま逆に辿る。目に見えるのは -90 度から先なので、
+ * 時間の配分もそちらへ寄せる。
+ */
+.turningBack {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnIn 640ms both;
+}
+
+@keyframes turnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.67, 0.94);
+  }
+  36% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: linear;
+  }
+  36.01% {
+    z-index: 3;
+  }
+  68% {
+    transform: translateZ(18px) rotateY(-46deg);
+    animation-timing-function: cubic-bezier(0.28, 0.4, 0.35, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg);
+  }
+}
+
 .face,
 .back {
   position: absolute;
@@ -73,8 +113,8 @@
 }
 
 /*
- * 前の声へ戻るとき。こちらの紙には裏面を用意していないので、
- * 裏が見えない角度（真横のすこし先）から起こす。
+ * 簡易の起こし。クイズ画面がまだこちらを使っている。
+ * 裏面を持たない紙なので、裏が見えない角度から立ち上げるだけに留める。
  */
 .fromLeft {
   transform-origin: var(--turn-axis) center;
