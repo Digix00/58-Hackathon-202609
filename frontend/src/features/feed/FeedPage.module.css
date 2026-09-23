@@ -1,7 +1,7 @@
 .page {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: clamp(0.9em, 3vh, 1.6em);
+  gap: clamp(1.15em, 3.5vh, 1.8em);
   width: 100%;
   min-width: 0;
   min-height: 100%;
@@ -16,10 +16,7 @@
   align-content: center;
   min-width: 0;
   min-height: 0;
-  padding-block: clamp(0.4em, 2.5vh, 1.4em);
-  /* 下に控えた紙とクレヨンのふちは見せたまま、横スクロールだけを起こさせない。 */
-  overflow-x: clip;
-  overflow-clip-margin: 24px;
+  padding-block: clamp(0.75em, 2.5vh, 1.4em);
   touch-action: pan-y;
 }
 
@@ -31,28 +28,44 @@
   position: relative;
   display: grid;
   min-width: 0;
+  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
 }
 
-.stack::before,
-.stack::after {
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
   position: absolute;
   inset: 0;
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
   pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
   content: '';
 }
 
 /* 遠い方の紙。先に描かれるので束の一番下になる。 */
-.stack::before {
+.sheetFar {
   background: #fdf5e4;
-  border: 2px solid #d3cabb;
-  transform: rotate(3.4deg) translate(12px, 10px);
+  transform: rotate(2.4deg) translate(8px, 10px);
 }
 
-.stack::after {
+.sheetNear {
   background: #fffaef;
-  border: 2px solid #c8bfb1;
-  transform: rotate(1.7deg) translate(6px, 5px);
+  transform: rotate(1.3deg) translate(4px, 5px);
 }
 
 .enter {
@@ -60,43 +73,48 @@
   position: relative;
   z-index: 1;
   min-width: 0;
-  animation: cardIn 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  /* 紙は綴じ側を軸に倒れてくる。次の声は左とじ、前の声は右とじ。 */
+  transform-origin: left center;
+  animation: cardIn 380ms cubic-bezier(0.19, 0.72, 0.28, 1) both;
 }
 
 .fromLeft {
+  transform-origin: right center;
   animation-name: cardInLeft;
 }
 
 @keyframes cardIn {
   from {
     opacity: 0;
-    transform: translateX(26px) rotate(1.8deg);
+    transform: perspective(900px) rotateY(-18deg) translateX(26px);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: perspective(900px) rotateY(0deg) translateX(0);
   }
 }
 
 @keyframes cardInLeft {
   from {
     opacity: 0;
-    transform: translateX(-26px) rotate(-1.8deg);
+    transform: perspective(900px) rotateY(18deg) translateX(-26px);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: perspective(900px) rotateY(0deg) translateX(0);
   }
 }
 
 .card {
   position: relative;
   z-index: 1;
-  /* しおり・本文・ふもと。本文の行数が変わっても紙の大きさは変えない。 */
-  grid-template-rows: auto 1fr auto;
-  gap: clamp(0.85em, 2.2vh, 1.25em);
+  /* 本文・ふもと。しおりは紙の外へ出すので行に数えない。 */
+  grid-template-rows: 1fr auto;
+  /* テーマごとの地色。見開きごとに景色が変わる絵本にならう。 */
+  background: var(--paper-tint, var(--color-surface));
+  gap: clamp(1.1em, 2.4vh, 1.5em);
   min-height: clamp(19em, 46vh, 27em);
-  padding: clamp(1.4em, 5.5vw, 1.9em) clamp(1.25em, 6vw, 1.75em);
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
@@ -106,19 +124,43 @@
   transition: none;
 }
 
+/* しおりは紙に挟まっているもの。上辺をまたいで外へ出す。 */
 .theme {
-  width: fit-content;
-  max-width: 100%;
-  padding: 0.2em 0.6em 0.25em;
-  border-radius: 5px 9px 4px 8px;
+  position: absolute;
+  z-index: 2;
+  top: -0.9em;
+  left: 1.3em;
+  max-width: calc(100% - 7em);
+  padding: 0.32em 0.75em 0.38em;
+  border-radius: 4px 8px 3px 7px;
   color: var(--color-purple-ink);
-  background: #f3e8b7;
+  background: var(--bookmark, #f3e8b7);
+  box-shadow: 1.5px 2px 0 #b0a894;
   font-size: 0.78em;
   font-weight: 700;
-  overflow-wrap: anywhere;
+  line-height: 1.35;
+  transform: rotate(-1.6deg);
+}
+
+/* しおりのふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
+.theme::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.8;
+  pointer-events: none;
+  content: '';
 }
 
 .storyLink {
+  /* 絵本の1ページのように、本文の塊を紙の中央に置く。 */
+  align-self: center;
   display: block;
   color: inherit;
   text-decoration: none;
@@ -132,8 +174,9 @@
 
 /* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */
 .storyLink p {
-  font-size: clamp(1.25em, 5.6vw, 1.6em);
-  line-height: 1.85;
+  font-size: clamp(1.22em, 5.2vw, 1.45em);
+  line-height: 1.9;
+  letter-spacing: 0.02em;
 }
 
 .cardFoot {
@@ -141,9 +184,72 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.4em 1em;
-  padding-top: 0.6em;
-  border-top: 1px solid #e6dfd0;
+  gap: 0.55em 1em;
+  /* 右下のめくれた角に文字がかぶらないよう逃がす。 */
+  padding: 0.8em 1.6em 0.9em 0;
+}
+
+/*
+ * めくれた角。次があることを示す絵であり、そのまま次の声へ進むボタンでもある。
+ * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
+ */
+.corner {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.corner::before,
+.corner::after {
+  position: absolute;
+  pointer-events: none;
+  content: '';
+}
+
+.corner::before {
+  inset: 0;
+  border-bottom-right-radius: 24px 18px;
+  background: linear-gradient(225deg, #f7eedb 0%, #efe3c8 52%, #e4d5b2 100%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  transform-origin: right bottom;
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.corner::after {
+  top: 50%;
+  left: 50%;
+  width: 80px;
+  height: 0;
+  border-top: 3.5px solid var(--color-outline);
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.corner:hover::before,
+.corner:active::before {
+  transform: scale(1.14);
+}
+
+/* ノンブル。件数ではなく、紙の隅にある小さな数字として置く。 */
+.nombre {
+  position: absolute;
+  bottom: 0.55em;
+  left: 50%;
+  color: var(--color-muted);
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  transform: translateX(-50%);
 }
 
 .attributes {
@@ -187,14 +293,14 @@
 .actions {
   display: grid;
   justify-items: center;
-  gap: 0.35em;
+  gap: 0.7em;
   width: 100%;
 }
 
 .nextButton {
   gap: 0.8em;
   width: min(100%, 20em);
-  min-height: 56px;
+  min-height: 58px;
   font-size: 1.1em;
 }
 
@@ -229,9 +335,9 @@
   align-items: baseline;
   justify-content: center;
   gap: 0.25em 0.6em;
-  min-height: 40px;
-  padding: 0.35em 0;
-  font-size: 0.82em;
+  min-height: 44px;
+  padding: 0.45em 0;
+  font-size: 0.88em;
   font-weight: 700;
   list-style: none;
   cursor: pointer;
@@ -300,7 +406,23 @@
   }
 }
 
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、かすれを外して紙のふちを確実に示す。 */
+  .theme::before,
+  .sheet::before {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .corner::before {
+    transition: none;
+  }
+
   .enter {
     animation: none;
   }

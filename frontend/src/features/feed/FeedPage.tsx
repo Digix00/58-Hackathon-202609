@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type RefCallback,
   type TouchEvent,
@@ -18,6 +19,7 @@ import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
+import { paletteFor } from './themePalette'
 import styles from './FeedPage.module.css'
 
 type Filter = { theme: string; region: string }
@@ -31,28 +33,40 @@ const SWIPE_SLOP = 8
 
 function FeedCard({
   concern,
+  page,
   onReact,
+  onNext,
   canReact,
   articleRef,
   dragX,
   onLinkClick,
 }: {
   concern: DemoConcern
+  page: number
   onReact: () => void
+  onNext: () => void
   canReact: boolean
   articleRef: RefCallback<HTMLElement>
   dragX: number
   onLinkClick: (event: MouseEvent) => void
 }) {
   const attributes = [concern.ageGroup, concern.region].filter(Boolean).join(' · ')
+  const palette = paletteFor(concern.theme)
 
   return (
     <article
       ref={articleRef}
-      className={`${screen.paper} ${screen.taped} ${crayonStyles.edge} ${styles.card} ${
-        dragX !== 0 ? styles.dragging : ''
-      }`}
-      style={{ transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)` }}
+      className={`${screen.paper} ${screen.taped} ${screen.tapeRight} ${crayonStyles.edge} ${
+        styles.card
+      } ${dragX !== 0 ? styles.dragging : ''}`}
+      style={
+        {
+          transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)`,
+          '--tape': palette.tape,
+          '--bookmark': palette.bookmark,
+          '--paper-tint': palette.tint,
+        } as CSSProperties
+      }
     >
       <span className={styles.theme}>{concern.theme}</span>
       <Link
@@ -83,6 +97,17 @@ function FeedCard({
           </button>
         ) : null}
       </div>
+      <span className={styles.nombre} aria-hidden="true">
+        {page}
+      </span>
+      {/* めくれた角。すぐ下の「つぎの声へ」と同じ操作なので、読み上げには重ねて出さない。 */}
+      <button
+        type="button"
+        className={styles.corner}
+        onClick={onNext}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
     </article>
   )
 }
@@ -213,12 +238,16 @@ export function FeedPage() {
           </h1>
           {concern ? (
             <div className={styles.stack}>
+              <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
+              <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
               <div
                 key={`${concern.id}-${index}`}
                 className={`${styles.enter} ${direction < 0 ? styles.fromLeft : ''}`}
               >
                 <FeedCard
                   concern={concern}
+                  page={position + 1}
+                  onNext={goNext}
                   articleRef={articleRef}
                   canReact={isLiff}
                   dragX={dragX}
