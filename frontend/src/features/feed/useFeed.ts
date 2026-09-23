@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { listConcerns } from './feedApi'
-import type { FeedItem, FeedStatus } from './feedTypes'
+import type { FeedItem, FeedQuery, FeedStatus } from './feedTypes'
+
+export type UseFeedOptions = Omit<FeedQuery, 'cursor'>
 
 export interface UseFeedResult {
   status: FeedStatus
@@ -13,11 +15,73 @@ export interface UseFeedResult {
   retry: () => Promise<void>
 }
 
-export function useFeed(limit = 20): UseFeedResult {
-  const [status, setStatus] = useState<FeedStatus>('idle')
-  const [items, setItems] = useState<FeedItem[]>([])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+type FeedState = {
+  status: FeedStatus
+  items: FeedItem[]
+  nextCursor: string | null
+  error: string | null
+}
+
+type FeedAction =
+  | { type: 'loadStarted' }
+  | { type: 'loadSucceeded'; items: FeedItem[]; nextCursor: string | null }
+  | { type: 'loadMoreStarted' }
+  | { type: 'loadMoreSucceeded'; items: FeedItem[]; nextCursor: string | null }
+  | { type: 'loadFailed'; message: string; preserveItems?: boolean }
+
+const initialFeedState: FeedState = {
+  status: 'idle',
+  items: [],
+  nextCursor: null,
+  error: null,
+}
+
+function feedReducer(state: FeedState, action: FeedAction): FeedState {
+  switch (action.type) {
+    case 'loadStarted':
+      return { ...initialFeedState, status: 'loading' }
+    case 'loadSucceeded':
+      return {
+        status: 'success',
+        items: action.items,
+        nextCursor: action.nextCursor,
+        error: null,
+      }
+    case 'loadMoreStarted':
+      return { ...state, status: 'loadingMore', error: null }
+    case 'loadMoreSucceeded':
+      return {
+        status: 'success',
+        items: [...state.items, ...action.items],
+        nextCursor: action.nextCursor,
+        error: null,
+      }
+    case 'loadFailed':
+      return {
+        ...state,
+        status: 'error',
+        items: action.preserveItems ? state.items : [],
+        nextCursor: action.preserveItems ? state.nextCursor : null,
+        error: action.message,
+      }
+  }
+}
+
+/**
+ * Intent: 投稿一覧の取得と loading / success / error の遷移を局所化する。
+ * Boundary: 一覧状態と再取得・追加取得操作だけを公開し、API DTOはHook内に閉じ込める。
+ * State modeling: reducerで一覧・カーソル・状態・エラーを同時に更新し、不整合な組み合わせを防ぐ。
+ * Update surface: refresh、loadMore、retry。
+ * Hidden complexity: 古いリクエストの結果を requestVersion で破棄する。
+ * Composition: FeedのContainerから表示用状態として利用する。
+ * Test notes: 初回取得、追加取得、成功、失敗、再試行、古いレスポンスの破棄を確認する。
+ */
+export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
+  const limit = typeof options === 'number' ? options : (options.limit ?? 20)
+  const sort = typeof options === 'number' ? 'newest' : (options.sort ?? 'newest')
+  const regionCode = typeof options === 'number' ? undefined : options.regionCode
+  const clusterId = typeof options === 'number' ? undefined : options.clusterId
+  const [state, dispatch] = useReducer(feedReducer, initialFeedState)
   const requestVersion = useRef(0)
   const isLoading = useRef(false)
   const cursorRef = useRef<string | null>(null)
@@ -26,26 +90,24 @@ export function useFeed(limit = 20): UseFeedResult {
     const version = ++requestVersion.current
     isLoading.current = true
     cursorRef.current = null
-    setStatus('loading')
-    setError(null)
+    dispatch({ type: 'loadStarted' })
 
-    const result = await listConcerns({ limit })
+    const result = await listConcerns({ limit, sort, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
     if (!result.ok) {
-      setItems([])
-      setNextCursor(null)
-      setError(result.message)
-      setStatus('error')
+      dispatch({ type: 'loadFailed', message: result.message })
       return
     }
 
     cursorRef.current = result.data.nextCursor
-    setItems(result.data.items)
-    setNextCursor(result.data.nextCursor)
-    setStatus('success')
-  }, [limit])
+    dispatch({
+      type: 'loadSucceeded',
+      items: result.data.items,
+      nextCursor: result.data.nextCursor,
+    })
+  }, [clusterId, limit, regionCode, sort])
 
   const loadMore = useCallback(async (): Promise<void> => {
     const cursor = cursorRef.current
@@ -53,41 +115,46 @@ export function useFeed(limit = 20): UseFeedResult {
 
     const version = requestVersion.current
     isLoading.current = true
-    setStatus('loadingMore')
-    setError(null)
+    dispatch({ type: 'loadMoreStarted' })
 
-    const result = await listConcerns({ limit, cursor })
+    const result = await listConcerns({ limit, cursor, sort, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
     if (!result.ok) {
-      setError(result.message)
-      setStatus('error')
+      dispatch({ type: 'loadFailed', message: result.message, preserveItems: true })
       return
     }
 
     cursorRef.current = result.data.nextCursor
-    setItems((current) => [...current, ...result.data.items])
-    setNextCursor(result.data.nextCursor)
-    setStatus('success')
-  }, [limit])
+    dispatch({
+      type: 'loadMoreSucceeded',
+      items: result.data.items,
+      nextCursor: result.data.nextCursor,
+    })
+  }, [clusterId, limit, regionCode, sort])
 
   const retry = useCallback(() => refresh(), [refresh])
 
   useEffect(() => {
-    void refresh()
+    let active = true
+    void Promise.resolve().then(() => {
+      if (!active) return
+      return refresh()
+    })
     return () => {
+      active = false
       requestVersion.current += 1
       isLoading.current = false
     }
   }, [refresh])
 
   return {
-    status,
-    items,
-    nextCursor,
-    hasMore: nextCursor !== null,
-    error,
+    status: state.status,
+    items: state.items,
+    nextCursor: state.nextCursor,
+    hasMore: state.nextCursor !== null,
+    error: state.error,
     refresh,
     loadMore,
     retry,

@@ -1,0 +1,499 @@
+.page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(1.15em, 3.5vh, 1.8em);
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+/*
+ * 一通の手紙だけを置く舞台。
+ * 横のスワイプだけを受け取り、縦スクロールは端末にまかせる。
+ */
+.stage {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding-block: clamp(0.75em, 2.5vh, 1.4em);
+  touch-action: pan-y;
+}
+
+/*
+ * 紙束。残りが何通あるかは、数字ではなく下に控えた紙のふちで伝える。
+ */
+.stack {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
+}
+
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  content: '';
+}
+
+/* 遠い方の紙。先に描かれるので束の一番下になる。 */
+.sheetFar {
+  background: #fdf5e4;
+  transform: rotate(2.4deg) translate(8px, 10px);
+}
+
+.sheetNear {
+  background: #fffaef;
+  transform: rotate(1.3deg) translate(4px, 5px);
+}
+
+.enter {
+  /* 紙束の上に重ねる。下に控えた紙より手前で読ませる。 */
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  /* 上部のしおり、本文、結果表示を収める。 */
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(0.65em, 1.8vh, 1em);
+  /* どの手紙でも紙の大きさは変えない。縦に余白を取り、めくる手応えを保つ。 */
+  height: clamp(22em, 56vh, 32em);
+  /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.4em, 5vw, 1.8em) clamp(1.2em, 5vw, 1.6em) clamp(1.2em, 4vw, 1.5em)
+    calc(clamp(1.2em, 5vw, 1.6em) + 15px);
+  box-shadow: 4px 5px 0 var(--color-paper-shadow);
+  transform-origin: var(--turn-axis) center;
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 指に追従している間は、戻りのトランジションを効かせない。 */
+.dragging {
+  transition: none;
+}
+
+/* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */
+.letter {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  /* 紙に収まらない手紙はここで切る。紙の大きさを変えないため。 */
+  -webkit-line-clamp: 6;
+  align-self: center;
+  overflow: hidden;
+  font-size: clamp(1.08em, 4.5vw, 1.28em);
+  line-height: 1.95;
+  letter-spacing: 0.02em;
+}
+
+/* しおりを差し込む口。手紙の上端に貼り付く位置へ置く。 */
+.fit {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 0.1em;
+  margin-top: -1.65em;
+}
+
+.fit > .tag {
+  top: -1.25em;
+}
+
+.ask {
+  color: var(--color-muted);
+  font-size: 0.85em;
+}
+
+/*
+ * しおりと、その切り欠き。
+ * どちらも同じ型紙（TAG_PATH）で描き、片方がもう片方に収まることを形で示す。
+ */
+.tag {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  min-height: 76px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+
+.shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tagShadow {
+  fill: #b0a894;
+  filter: url(#crayon-edge);
+}
+
+.tagFace {
+  fill: var(--piece, #f3e8b7);
+  stroke: var(--color-outline);
+  stroke-width: 2.5;
+  filter: url(#crayon-edge);
+}
+
+/* 空の切り欠き。紙に開いた口なので、面は塗らず線だけで示す。 */
+.tagHollow {
+  fill: #7e75b510;
+  stroke: var(--color-field-outline);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+
+.tagLabel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.1em;
+  /* 上辺の切り欠きに文字が掛からないよう逃がす。 */
+  padding: 1.1em 0.5em 0.2em;
+  color: var(--color-purple-ink);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.tagLabel strong {
+  font-size: 1.35em;
+}
+
+.tagLabel span {
+  color: var(--color-muted);
+  font-size: 0.66em;
+  overflow-wrap: anywhere;
+}
+
+/* いま開いている口。ここへ置くのだと分かるよう、ゆっくり息をする。 */
+.slot .tagHollow {
+  stroke: var(--color-purple);
+  stroke-width: 2.5;
+  fill: #7e75b518;
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+.slot .tagLabel {
+  color: var(--color-purple-ink);
+  font-size: 0.86em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* しおりが口の上に来ているあいだ。 */
+.over .tagHollow {
+  stroke: var(--color-purple-dark);
+  stroke-width: 3;
+  fill: #7e75b52e;
+  animation: none;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* つまめるしおり。 */
+.piece {
+  cursor: grab;
+  /* 縦スクロールに取られず、そのまま運べるようにする。 */
+  touch-action: none;
+  transition: transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.piece:hover,
+.piece:focus-visible {
+  transform: translateY(-5px) rotate(-1.5deg);
+}
+
+.piece:active {
+  cursor: grabbing;
+}
+
+/* 運ばれている間、手元のしおりは影だけを残す。 */
+.held {
+  opacity: 0.26;
+}
+
+/* 指についてくる1枚。 */
+.ghost {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transform: rotate(-3deg);
+}
+
+/* 紙に差し込まれたしおり。押すと手元へ戻る。 */
+.fitted {
+  animation: drop 340ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes drop {
+  0% {
+    opacity: 0.6;
+    transform: translateY(-14px) scale(1.12) rotate(-4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * めくれた角。次の手紙があることを示す絵であり、そのまま進むボタンでもある。
+ * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
+ */
+.corner {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.corner::before,
+.corner::after {
+  position: absolute;
+  pointer-events: none;
+  content: '';
+}
+
+.corner::before {
+  inset: 0;
+  border-bottom-right-radius: 24px 18px;
+  background: linear-gradient(225deg, #f7eedb 0%, #efe3c8 52%, #e4d5b2 100%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  transform-origin: right bottom;
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.corner::after {
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 0;
+  border-top: 3.5px solid var(--color-outline);
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.corner:hover::before,
+.corner:active::before {
+  transform: scale(1.14);
+}
+
+/* 結果の紙。判定と解説を、本文の下に短く添える。 */
+.verdict {
+  display: grid;
+  justify-items: center;
+  gap: 0.45em;
+  /* 紙の右下のめくれた角に文字が掛からないよう、左右へ逃がす。 */
+  padding-inline: 1.5em;
+  text-align: center;
+}
+
+.judge {
+  color: var(--color-purple-ink);
+  font-weight: 700;
+}
+
+.note {
+  color: var(--color-muted);
+  font-size: 0.88em;
+  line-height: 1.7;
+}
+
+/*
+ * 手元のしおり置き場。
+ * 使ったぶんだけ減っていくので、残りは中央へ寄せて「あと何枚か」を形で見せる。
+ */
+.tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5em;
+  width: 100%;
+  padding-bottom: 0.7em;
+  border-bottom: 2.5px dashed #ddd2b8;
+}
+
+.tray .tag {
+  flex: 0 1 106px;
+  width: auto;
+}
+
+.actions {
+  display: grid;
+  justify-items: center;
+  gap: 0.6em;
+  width: 100%;
+}
+
+.nextButton {
+  gap: 0.8em;
+  width: min(100%, 20em);
+  min-height: 56px;
+  font-size: 1.06em;
+}
+
+/* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
+.nextButton span {
+  font-size: 1.15em;
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
+.score {
+  color: var(--color-purple-ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 背の低い端末では、1画面に収まることを本文の大きさより優先する。 */
+@media (max-height: 700px) {
+  .card {
+    gap: 0.6em;
+    height: clamp(20em, 54vh, 24em);
+    min-height: 0;
+    padding-block: 1.1em;
+  }
+
+  .fit {
+    margin-top: -1.1em;
+  }
+
+  .letter {
+    -webkit-line-clamp: 4;
+    font-size: clamp(1em, 4.2vw, 1.15em);
+    line-height: 1.75;
+  }
+
+  .tag {
+    min-height: 66px;
+  }
+
+  .corner {
+    width: 44px;
+    height: 44px;
+  }
+
+  .corner::after {
+    width: 62px;
+  }
+}
+
+@media (max-width: 359px) {
+  .tagLabel {
+    padding-top: 0.9em;
+  }
+
+  .tagLabel span {
+    font-size: 0.6em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、かすれを外して紙としおりのふちを確実に示す。 */
+  .sheet::before {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .tagFace,
+  .tagShadow {
+    filter: none;
+  }
+
+  .tagHollow {
+    stroke: var(--color-outline);
+    stroke-width: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitted,
+  .nextButton span {
+    animation: none;
+  }
+
+  .slot .tagHollow {
+    animation: none;
+  }
+
+  .card,
+  .piece,
+  .corner::before {
+    transition: none;
+  }
+}

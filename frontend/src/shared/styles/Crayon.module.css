@@ -1,0 +1,27 @@
+.edge {
+  position: relative;
+}
+
+.edge::before {
+  position: absolute;
+  z-index: 1;
+  inset: -2px;
+  border: 4.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+@media (prefers-contrast: more) {
+  .edge::before {
+    border-width: 2px;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

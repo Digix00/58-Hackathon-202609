@@ -9,6 +9,8 @@ import {
   ConcernValidationError,
   type Gender,
 } from "../application/entity/concern";
+import type { RankedConcernFeedItem } from "../application/entity/feed";
+import { REGION_CODES } from "../application/entity/region-code";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -22,13 +24,17 @@ const createConcernRequest = z.object({
   regionCode: z.string().optional(),
 });
 
-const CONCERN_SORT_OPTIONS = ["newest"] as const;
+const CONCERN_SORT_OPTIONS = ["newest", "recommended"] as const;
+const CONCERN_LANGUAGE_OPTIONS = ["original", "jaHira", "en"] as const;
 
 const listConcernQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(50).default(20),
     cursor: z.string().min(1).optional(),
     sort: z.enum(CONCERN_SORT_OPTIONS).default("newest"),
+    clusterId: z.string().min(1).optional(),
+    regionCode: z.enum(REGION_CODES).optional(),
+    language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
   })
   .strict();
 
@@ -126,10 +132,31 @@ export class ConcernHandler {
       );
     }
 
-    const cursor = parsed.data.cursor
-      ? (decodeConcernCursor(parsed.data.cursor) ?? undefined)
+    const auth = c.var.auth;
+    if (parsed.data.sort === "recommended" && !auth?.user) {
+      return c.json(
+        {
+          error: {
+            code: "AUTHENTICATION_REQUIRED",
+            message: "おすすめフィードにはLINEログインが必要です",
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
+    const cursorContext = {
+      sort: parsed.data.sort,
+      regionCode: parsed.data.regionCode,
+      clusterId: parsed.data.clusterId,
+    } as const;
+    const decodedCursor = parsed.data.cursor
+      ? decodeConcernCursor(parsed.data.cursor, cursorContext)
       : undefined;
-    if (parsed.data.cursor && !cursor) {
+    const cursor = decodedCursor?.cursor;
+    const recommendationCursor = decodedCursor?.recommendationCursor;
+    if (parsed.data.cursor && !decodedCursor) {
       return c.json(
         {
           error: {
@@ -142,12 +169,32 @@ export class ConcernHandler {
       );
     }
 
+    if (this.concernUsecase.listFeed) {
+      const result = await this.concernUsecase.listFeed({
+        limit: parsed.data.limit,
+        cursor,
+        sort: parsed.data.sort,
+        regionCode: parsed.data.regionCode,
+        clusterId: parsed.data.clusterId,
+        userId: auth?.user?.id,
+        recommendationCursor,
+      });
+      const nextCursor = result.nextCursor
+        ? encodeConcernCursor(result.nextCursor, cursorContext)
+        : null;
+
+      return c.json({
+        items: result.items.map((item) => toFeedResponse(item, true)),
+        nextCursor,
+      });
+    }
+
     const result = await this.concernUsecase.listPublished({
       limit: parsed.data.limit,
       cursor,
     });
     const nextCursor = result.nextCursor
-      ? encodeConcernCursor(result.nextCursor)
+      ? encodeConcernCursor(result.nextCursor, cursorContext)
       : null;
 
     return c.json({
@@ -158,10 +205,16 @@ export class ConcernHandler {
 
   readonly detail = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
-    const concern = await this.concernUsecase.findPublishedById(
-      c.req.param("concernId") ?? "",
-    );
-    if (!concern) {
+    const userId = c.var.auth?.user?.id;
+    const item = this.concernUsecase.findPublishedFeedItem
+      ? await this.concernUsecase.findPublishedFeedItem(
+          c.req.param("concernId") ?? "",
+          userId,
+        )
+      : await this.concernUsecase.findPublishedById(
+          c.req.param("concernId") ?? "",
+        );
+    if (!item) {
       return c.json(
         {
           error: {
@@ -174,7 +227,7 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(concern, false));
+    return c.json(toFeedResponse(item, false));
   });
 }
 
@@ -196,7 +249,15 @@ function toResponse(concern: Concern) {
   };
 }
 
-function toFeedResponse(concern: Concern, includeRecommendation: boolean) {
+function toFeedResponse(
+  source: Concern | RankedConcernFeedItem,
+  includeRecommendation: boolean,
+) {
+  const candidate = isFeedItem(source)
+    ? source
+    : { concern: source, cluster: null, viewed: false };
+  const concern = candidate.concern;
+
   return {
     id: concern.id,
     body: concern.body,
@@ -210,20 +271,34 @@ function toFeedResponse(concern: Concern, includeRecommendation: boolean) {
       jaHira: toRepresentationStatus(concern),
       en: toRepresentationStatus(concern),
     },
-    cluster: null,
+    cluster: candidate.cluster
+      ? {
+          id: candidate.cluster.id,
+          label: candidate.cluster.label,
+          summary: candidate.cluster.summary,
+        }
+      : null,
     reactionCount: 0,
-    viewed: false,
+    viewed: candidate.viewed,
     reacted: false,
     ...(includeRecommendation
       ? {
-          recommendation: {
-            strategy: "newest" as const,
-            reasonCode: "newest" as const,
-          },
+          recommendation: isFeedItem(source)
+            ? source.recommendation
+            : {
+                strategy: "newest" as const,
+                reasonCode: "newest" as const,
+              },
         }
       : {}),
     createdAt: concern.createdAt,
   };
+}
+
+function isFeedItem(
+  source: Concern | RankedConcernFeedItem,
+): source is RankedConcernFeedItem {
+  return "concern" in source;
 }
 
 function toRepresentationStatus(concern: Concern) {

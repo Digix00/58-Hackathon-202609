@@ -19,15 +19,15 @@ Issue #29「データベース設計」の設計書。
 
 ### 2.1 ユーザー識別を users に統一する
 
-MVPでは、ブラウザだけで利用する匿名セッションと、LINE/LIFFで認証したユーザーの両方を受け付ける。どちらの主体も users に一行を持ち、投稿、既読、リアクション、クイズ回答、推薦履歴はすべて users.id を参照する。匿名セッション用と LINE ユーザー用の別々の外部キーや配信先テーブルは持たず、users.identity_type で主体の種類を区別する。
+公開投稿の閲覧は認証なしで行い、投稿、既読、リアクション、クイズ回答、推薦履歴などの操作は LINE ログイン済みユーザーに限定する。操作主体は users.id に統一し、通常ブラウザや未ログインの LIFF の閲覧用に users 行を作らない。
 
-- 匿名ブラウザでは、バックエンドが暗号学的に安全なランダム値を発行し、HttpOnly、Secure、SameSite のセッション Cookie（または同等のセッションヘッダー）で保持する。生のトークンは保存せず、サーバー側の秘密鍵で HMAC-SHA-256 化した値を users.anonymous_session_hash に保存し、session_expires_at を過ぎたセッションは API から参照できないようにする。
-- LINE/LIFF では、フロントエンドが取得した ID token を Authorization: Bearer <ID_TOKEN> として API に送る。バックエンドは LINE Login v2.1 の Verify ID token API で検証し、検証済みの LINE user ID の HMAC 値を users.line_user_id_hash に保存して内部 users.id を解決する。
-- LINE user ID、ID token、アクセストークン、匿名セッショントークンの生値は保存・ログ出力しない。
-- 匿名セッションの users.friend_status は NULL とし、LINE ユーザーだけが active、unfollowed、blocked の状態を持つ。LINE Broadcast API の配信対象は公式アカウントが管理する友だち全体であり、D1 でユーザーごとの配信明細は持たない。
-- リクエスト本文から送られた user_id は信頼せず、匿名セッションまたは検証済み LINE token の主体から解決した user_id を利用する。
+- LINE/LIFF では、フロントエンドが取得した ID token を認証 API へ送る。バックエンドは LINE Login v2.1 の Verify ID token API で検証し、検証済みの LINE user ID から内部 users.id を解決する。
+- バックエンドはログイン成功後に HttpOnly Cookie のセッションを発行する。以降の操作 API はこのセッションから users.id を解決する。
+- ID token とアクセストークンは保存しない。LINE user ID は `users.line_user_id` に認証用識別子として保存し、APIレスポンスや通常ログへ出力しない。
+- LINE Broadcast API の配信対象は公式アカウントが管理する友だち全体であり、D1 でユーザーごとの配信明細は持たない。
+- リクエスト本文から送られた user_id は信頼せず、Cookie セッションの主体から解決した user_id を利用する。
 
-この構成により、既存の匿名可 API と LINE/LIFF API の両方を users.id に統一でき、匿名利用者用と LINE 利用者用の多態的な外部キーを持たずに済む。
+公開閲覧ではユーザー履歴を記録せず、操作 API だけが Cookie セッションで識別された users.id を利用する。
 
 ### 2.2 非同期処理はジョブ単位で管理する
 
@@ -37,19 +37,19 @@ MVPでは、ブラウザだけで利用する匿名セッションと、LINE/LIF
 
 ### 2.3 クイズは元投稿を参照し、属性はスナップショットする
 
-クイズ参加者には、クイズ生成時点の年代・性別・地域をコピーして保存する。投稿本文は concern_id で元投稿を参照する。
+クイズ参加者には、クイズ生成時点の年代・性別・都道府県コードをコピーして保存する。投稿本文は concern_id で元投稿を参照する。
 
 投稿が削除または非公開になったときは、元投稿をクイズ画面に表示できないため、そのクイズを hidden にする。本文のスナップショットを持たせないことで、削除済み投稿がクイズ経由で再表示されることを防ぐ。
 
 
 ### 2.4 LINEミニアプリとAPIの認証
 
-APIごとに、匿名セッション、LIFF、LINE webhook、内部実行の認証方式を分ける。匿名可の API はセッション Cookie（またはセッションヘッダー）から users.anonymous_session_hash を解決し、LINE 認証済み API は LIFF の ID token から users.line_user_id_hash を解決する。どちらの場合も内部 user_id はサーバー側で決定し、クライアントから送られた user_id は無視する。
+公開閲覧 API は認証情報を要求しない。投稿、リアクション、既読、クイズ、履歴などの操作 API は LINE ログイン後に発行された HttpOnly Cookie セッションを使い、内部 user_id をサーバー側で決定する。クライアントから送られた user_id は無視する。
 
-- LIFF は liff.init() と liff.login() でログイン状態を確立する。バックエンドは ID token と LIFF の channel ID を LINE Login v2.1 の Verify ID token API（POST https://api.line.me/oauth2/v2.1/verify）へ渡し、検証済みの subject（LINE user ID）から users を upsert する。
-- 匿名ブラウザでは、バックエンドが発行した高エントロピーのセッション値を受け付け、保存済みの HMAC 値と有効期限を検証して users を解決する。期限切れの匿名セッションからは投稿・閲覧・履歴を参照できない。
-- 成功した認証結果からのみ内部 user_id を決定する。ID token、アクセストークン、LINE user ID、匿名セッショントークンの生値は保存・ログ出力しない。
-- LINE webhook は LIFF 認証とは別に X-Line-Signature を channel secret で検証し、イベントの LINE user ID を HMAC 化して同じ users に紐付ける。
+- LIFF は liff.init() と liff.login() でログイン状態を確立する。認証 API は ID token と channel ID を LINE Login v2.1 の Verify ID token API（POST https://api.line.me/oauth2/v2.1/verify）へ渡し、検証済みの subject（LINE user ID）から users を upsert して Cookie セッションを発行する。
+- 操作 API は Cookie セッションを検証し、セッションに紐づく users.id を利用する。ID token を各操作 API に送り直さない。
+- 成功した認証結果からのみ内部 user_id を決定する。ID token、アクセストークン、LINE user ID の生値はレスポンスや通常ログへ出力しない。
+- LINE webhook は LIFF 認証とは別に X-Line-Signature を channel secret で検証し、署名検証後の event.source.userId を内部処理にだけ利用する。ログや画面には出力しない。
 - 日次配信の内部 endpoint はエンドユーザーの LIFF token を受け付けず、Worker 間の内部認証を使う。
 
 参照: [LIFFアプリの開発](https://developers.line.biz/en/docs/liff/developing-liff-apps/)、[LINE Loginでユーザーを管理する](https://developers.line.biz/en/docs/line-login/managing-users/)、[LINE Messaging API リファレンス](https://developers.line.biz/en/reference/messaging-api/nojs/)。
@@ -60,7 +60,6 @@ APIごとに、匿名セッション、LIFF、LINE webhook、内部実行の認�
 ```mermaid
 erDiagram
   USERS ||--o{ CONCERNS : "投稿する"
-  REGIONS ||--o{ CONCERNS : "地域"
   CONCERN_CLUSTERS ||--o{ CONCERNS : "分類する"
   CONCERNS ||--o{ CONCERN_REPRESENTATIONS : "翻訳・表記"
   CONCERNS ||--o{ CONCERN_PROCESSING_JOBS : "処理する"
@@ -75,33 +74,19 @@ erDiagram
 
   USERS {
     TEXT id PK
-    TEXT identity_type
-    TEXT line_user_id_hash UK
+    TEXT line_user_id UK
     INTEGER birth_year
     INTEGER birth_month
     TEXT gender_code
     TEXT region_code
-    TEXT anonymous_session_hash UK
-    TEXT friend_status
-    TEXT session_expires_at
     TEXT created_at
-    TEXT joined_at
-    TEXT unfollowed_at
-    TEXT last_seen_at
-    TEXT deleted_at
-  }
-
-  REGIONS {
-    TEXT code PK
-    TEXT level
-    TEXT name_ja
-    TEXT name_en
+    TEXT updated_at
   }
 
   CONCERNS {
     TEXT id PK
     TEXT user_id FK
-    TEXT region_code FK
+    TEXT region_code
     TEXT cluster_id FK
     TEXT body
     TEXT visibility_status
@@ -135,16 +120,14 @@ erDiagram
   CONCERN_REACTIONS {
     TEXT concern_id PK, FK
     TEXT user_id PK, FK
-    TEXT reaction_type
+    TEXT reaction_type PK
     TEXT created_at
   }
 
   CONCERN_VIEWS {
     TEXT concern_id PK, FK
-    TEXT user_id PK, FK
-    TEXT first_viewed_at
-    TEXT last_viewed_at
-    INTEGER view_count
+    TEXT actor_key FK
+    TEXT viewed_at
   }
 
   LEARNING_EVENTS {
@@ -272,23 +255,22 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 ## 4. テーブル定義
 
-### 4.1 主体・地域
+### 4.1 主体・都道府県コード
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| users | id, identity_type, line_user_id_hash, birth_year, birth_month, gender_code, region_code, anonymous_session_hash, friend_status, session_expires_at, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF ユーザーと匿名ブラウザセッションの主体。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力の既存ユーザーは NULL とする |
-| regions | code, level, name_ja, name_en | 都道府県と広域区分のマスタ。投稿には自由入力文字列を保存しない |
+| users | id, line_user_id, birth_year, birth_month, gender_code, region_code, created_at, updated_at | LINE/LIFF ログイン済みユーザー。LINE user ID は認証用に内部保存し、APIや画面には返さない。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力のユーザーは NULL とする |
 
 ### 4.2 投稿・AI処理
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。visibility_status は pending, published, hidden, deleted |
+| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
 | concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
-| concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を一種類に固定し、concern_id と user_id の組を UNIQUE |
-| concern_views | concern_id, user_id, first_viewed_at, last_viewed_at, view_count | 既読判定と推薦用の集約行。concern_id と user_id の組を主キー |
+| concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
+| concern_views | concern_id, actor_key, viewed_at | 既読記録。concern_id と actor_key の組で一意 |
 | learning_events | id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at | view, reaction, quiz_answer などの学習イベントを保存 |
 | feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認用。fallback で新着順にした場合も strategy に記録 |
 
@@ -306,7 +288,7 @@ concerns の processing_status は次の概要値とする。
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | quizzes | id, quiz_date, status, title, created_at, published_at, hidden_at | quiz_date は UNIQUE。status は draft, published, closed, hidden |
-| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE にし、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
+| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。region_code_snapshot は都道府県コードのスナップショット。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE にし、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
 | quiz_options | quiz_id, concern_id, display_order | 3件の投稿を混ぜて表示する。quiz_id と display_order を UNIQUE にし、quiz_id と concern_id を複合主キーにする |
 | quiz_attempts | id, quiz_id, user_id, score, answered_at | quiz_id と user_id を UNIQUE にして二重回答を防ぎ、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
 | quiz_answers | quiz_id, attempt_id, participant_id, selected_concern_id, is_correct | PRIMARY KEY は attempt_id と participant_id。attempt_id と quiz_id、participant_id と quiz_id、quiz_id と selected_concern_id を複合外部キーにして、回答対象を同じクイズに限定する |
@@ -360,11 +342,10 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 
 ### 一意性
 
-- users.line_user_id_hash（LINE 行のみ）
-- users.anonymous_session_hash（匿名セッション行のみ）
+- users.line_user_id
 - quizzes.quiz_date
-- concerns の同一 user によるリアクション
-- concerns の同一 user による既読集約
+- concern_reactions の concern_id、user_id、reaction_type の組
+- concern_views の concern_id と actor_key の組
 - quiz_participants の quiz_id と user_id
 - quiz_participants の id と quiz_id（quiz_answers の複合外部キー先）
 - quiz_attempts の quiz_id と user_id
@@ -376,9 +357,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 
 ### CHECK 制約
 
-- users.identity_type: anonymous, line
-- users.friend_status: NULL（anonymous）または active, unfollowed, blocked（line）
-- users.identity_type と credential hash の組み合わせ: line は line_user_id_hash のみ、anonymous は anonymous_session_hash と session_expires_at のみを持つ
+- concern_reactions.reaction_type: empathy
 - concerns.visibility_status: pending, published, hidden, deleted
 - concern_processing_jobs.status: pending, running, succeeded, failed
 - concern_representations.locale: ja-Hira, en
@@ -387,7 +366,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 - line_broadcasts.status: pending, running, succeeded, failed
 - line_broadcasts.status=running の行は claim_token と lease_expires_at を持ち、succeeded/failed に遷移したら claim を解放する
 - line_broadcast_attempts.status: started, succeeded, failed（LINE の 409 + X-Line-Accepted-Request-Id は succeeded として記録）
-- 数値の display_order, score, view_count, attempt_count, attempt_number は 0 以上
+- 数値の display_order, score, attempt_count, attempt_number は 0 以上
 
 属性値の表示名はデータベースに日本語の自由入力で保存せず、API のコード値を利用する。例えば年代は 10s, 20s, 30s, 40s, 50s, 60s, 70s, 80s, 90s_plus, no_answer、性別は male, female, non_binary, other, no_answer とする。
 
@@ -409,8 +388,11 @@ CREATE INDEX concerns_user_idx
 CREATE INDEX processing_jobs_pickup_idx
   ON concern_processing_jobs (status, available_at);
 
-CREATE INDEX views_user_idx
-  ON concern_views (user_id, last_viewed_at DESC);
+CREATE UNIQUE INDEX concern_views_concern_actor_idx
+  ON concern_views (concern_id, actor_key);
+
+CREATE INDEX concern_views_actor_viewed_at_idx
+  ON concern_views (actor_key, viewed_at);
 
 CREATE INDEX reactions_user_idx
   ON concern_reactions (user_id, created_at DESC);
@@ -438,7 +420,7 @@ LIMIT ?
 
 ### 投稿
 
-1. 匿名セッションまたは LIFF の認証情報を検証し、サーバー側で users.id を解決する。LIFF の場合は ID token を検証し、匿名の場合は HMAC と有効期限を検証する。
+1. LINE ログイン済み Cookie セッションを検証し、サーバー側で users.id を解決する。
 2. 本文・属性をサーバー側で検証する。
 3. concerns を保存する。
 4. concern_processing_jobs に必要なジョブを登録する。
@@ -446,15 +428,15 @@ LIMIT ?
 6. 原文は visibility_status に応じて表示し、翻訳・クラスタリングは完了後に追加表示する。
 ### 既読とリアクション
 
-- 既読は concern_views を INSERT または UPSERT し、learning_events に view を追加する。
+- 既読は認証済みセッションの users.id を actor_key として concern_views に記録する。同じ投稿の再閲覧では viewed_at を維持する。
 - リアクションは INSERT ... ON CONFLICT DO NOTHING を使う。
 - 集計数は concern_reactions の concern_id 件数から求める。必要になった場合だけ concerns に集計キャッシュを追加する。
 
 ### 推薦
 
 1. concern_views から未読投稿を除外する。
-2. 直近の cluster_id と地域の偏りを確認する。
-3. 新着・クラスタ分散・地域分散で候補を並べる。
+2. 直近の cluster_id と都道府県の偏りを確認する。
+3. 新着・クラスタ分散・都道府県分散で候補を並べる。
 4. 各候補を feed_impressions に保存し、strategy と reason_code を返す。
 5. AI や推薦処理が使えない場合は strategy=fallback で新着順を返す。
 
@@ -491,7 +473,7 @@ Cron と scheduled handler の仕様は [Cloudflare Cron Triggers](https://devel
 
 既存の _health は維持し、次の順で migration を追加する。
 
-1. users、regions
+1. users
 2. concern_clusters、concerns
 3. concern_representations、concern_processing_jobs
 4. concern_views、concern_reactions、learning_events、feed_impressions

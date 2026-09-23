@@ -1,0 +1,66 @@
+.standalonePage {
+  display: grid;
+  width: min(100%, var(--content-width));
+  min-height: 100svh;
+  padding: 26px 18px;
+  margin: 0 auto;
+  place-items: center;
+  align-content: center;
+  background-color: var(--color-paper);
+}
+
+.placeholderPage {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+}
+
+.guideCard {
+  display: grid;
+  gap: 16px;
+  padding: 26px 21px;
+  border-radius: 23px 19px 25px 18px / 19px 25px 18px 23px;
+  background: var(--color-surface);
+  box-shadow: 5px 6px 0 var(--color-paper-shadow);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.guideCard h1 {
+  margin: 0;
+  padding-block: 0.08em 0.16em;
+  font-size: 1.35em;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1.58;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.18em;
+  transform: rotate(-0.55deg);
+}
+
+.guideCard p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.guideNote {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f5f0e6;
+  font-size: 0.9em;
+}
+
+@media (max-width: 359px) {
+  .standalonePage {
+    padding-inline: 0.875rem;
+  }
+}

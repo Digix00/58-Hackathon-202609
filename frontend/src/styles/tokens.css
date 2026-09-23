@@ -1,0 +1,23 @@
+:root {
+  --font-sans: 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif;
+  --font-hand:
+    'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', 'Hiragino Sans', system-ui, sans-serif;
+  --color-ink: #292722;
+  --color-paper: #fffdf7;
+  --color-surface: #fffefb;
+  --color-muted: #5c574f;
+  --color-subtle: #716b62;
+  --color-purple-ink: #453d70;
+  --color-purple: #7e75b5;
+  /* 紫の上に白い文字を載せる面に使う。--color-purple では 4.05:1 で指針の 4.5:1 に届かない。 */
+  --color-purple-strong: #6f66a6;
+  --color-purple-dark: #5b5485;
+  --color-focus: #625a9c;
+  --color-outline: #8a847a;
+  --color-field-outline: #9b9285;
+  --color-underline: #aaa2dc;
+  --color-paper-shadow: #f1dfac;
+  --color-paper-strip: #fff6e4;
+  --content-width: 430px;
+  --crayon-grain: url('/crayon-grain.svg');
+}

@@ -1,4 +1,6 @@
 import { ConcernHandler } from "../../src/presentation/concern.handler";
+import { ConcernReactionHandler } from "../../src/presentation/concern-reaction.handler";
+import { ConcernViewHandler } from "../../src/presentation/concern-view.handler";
 
 export function createConcernDependencies() {
   return {
@@ -8,6 +10,14 @@ export function createConcernDependencies() {
       },
       listPublished: async () => ({ items: [], nextCursor: null }),
       findPublishedById: async () => null,
+    }),
+    concernReactionHandler: new ConcernReactionHandler({
+      register: async () => {
+        throw new Error("concern reaction fixture is not used by this test");
+      },
+    }),
+    concernViewHandler: new ConcernViewHandler({
+      record: async () => null,
     }),
   };
 }

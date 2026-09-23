@@ -1,0 +1,11 @@
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 20px 16px;
+  margin: 24px 0;
+}
+
+.feedback {
+  margin: 12px 0 0 !important;
+  color: #514c82 !important;
+}

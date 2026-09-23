@@ -1,0 +1,766 @@
+.page {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: clamp(1.15em, 3.5vh, 1.8em);
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+/*
+ * 一枚の声だけを置く舞台。
+ * 横のスワイプだけを受け取り、縦スクロールは端末にまかせる。
+ */
+.stage {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding-block: clamp(0.75em, 2.5vh, 1.4em);
+  touch-action: pan-y;
+}
+
+/*
+ * 紙束。「次がある」ことを、件数や矢印の文字ではなく、
+ * 下に控えた紙のふちで伝える。
+ */
+.stack {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
+  /*
+   * 表紙が開いたときの押し上げ。--lift は FeedPage が一度だけ入れる。
+   * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
+   */
+  transform: translateY(var(--lift, 0px));
+  transition: transform var(--lift-duration, 0s) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  content: '';
+}
+
+/* 遠い方の紙。先に描かれるので束の一番下になる。 */
+.sheetFar {
+  background: #fdf5e4;
+  transform: rotate(2.4deg) translate(8px, 10px);
+}
+
+.sheetNear {
+  background: #fffaef;
+  transform: rotate(1.3deg) translate(4px, 5px);
+}
+
+.enter {
+  /* 紙束の上に重ねる。下に控えた紙より手前で読ませる。 */
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  /* 本文・ふもと。しおりは紙の外へ出すので行に数えない。 */
+  grid-template-rows: 1fr auto;
+  /* ページごとの地色。見開きごとに景色が変わる絵本にならう。 */
+  background: var(--paper-tint, var(--color-surface));
+  gap: clamp(1.1em, 2.4vh, 1.5em);
+  /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
+  height: clamp(21em, 50vh, 29em);
+  /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
+    calc(clamp(1.55em, 7vw, 2em) + 15px);
+  box-shadow: 4px 5px 0 var(--color-paper-shadow);
+  transform-origin: var(--turn-axis) center;
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/*
+ * 表紙。声の紙と同じ大きさ・同じとじ代にする。
+ * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
+ */
+.cover {
+  /*
+   * 花壇の高さ。CoverArt がこの値からチューリップの背丈を引く。
+   * 空（太陽と雲）は紙の余白に収まるが、花壇は下辺に並ぶので、
+   * そのぶん下の余白を足して題字と操作を上へ寄せる。詰めると花に文字が乗る。
+   */
+  --garden-height: clamp(3em, 9vh, 4.2em);
+  /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
+  --cover-gutter: clamp(1.55em, 7vw, 2em);
+  --cover-binding: 15px;
+
+  grid-template-rows: 1fr auto;
+  align-content: center;
+  justify-items: center;
+  gap: 0.9em;
+  padding-bottom: calc(clamp(1.55em, 5.5vw, 2em) + var(--garden-height));
+  text-align: center;
+}
+
+/*
+ * 題字。ほかの画面の見出し（Screen.module.css の .heading h1）と同じ手で書く。
+ * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ * 表紙の題字なので、大きさと字間だけを見出しより広く取る。
+ */
+.coverTitle {
+  align-self: end;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: 1.7em;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: rotate(-1.4deg);
+}
+
+.coverLead {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 1em;
+  line-height: 1.9;
+}
+
+/* 表紙は束の一番上。下に控えた声の紙より手前へ置く。 */
+.coverLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+}
+
+/* 指に追従している間は、戻りのトランジションを効かせない。 */
+.dragging {
+  transition: none;
+}
+
+/*
+ * 上辺のインデックス。紙に挟んだしおりと付箋なので、上辺をまたいで外へ出す。
+ * 左はとじリングの領分なので、そこまでは伸ばさない。
+ */
+.tabs {
+  position: absolute;
+  z-index: 2;
+  top: -0.9em;
+  right: 1.4em;
+  left: calc(clamp(1.35em, 6vw, 1.8em) + 15px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4em;
+  pointer-events: none;
+}
+
+.tab {
+  position: relative;
+  min-width: 0;
+  padding: 0.32em 0.75em 0.38em;
+  border-radius: 4px 8px 3px 7px;
+  color: var(--color-purple-ink);
+  box-shadow: 1.5px 2px 0 #b0a894;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* 付箋は貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */
+.tabAge {
+  background: var(--tag-age, #f5cdc4);
+  font-size: 0.7em;
+  transform: rotate(-2.4deg);
+}
+
+.tabRegion {
+  background: var(--tag-region, #e9e0bd);
+  font-size: 0.7em;
+  transform: rotate(1.2deg);
+}
+
+/* 付箋のふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
+.tab::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.8;
+  pointer-events: none;
+  content: '';
+}
+
+.storyLink {
+  /* 絵本の1ページのように、本文の塊を紙の中央に置く。 */
+  position: relative;
+  align-self: center;
+  display: block;
+  isolation: isolate;
+  color: inherit;
+  text-decoration: none;
+  font-size: clamp(1.22em, 5.2vw, 1.45em);
+  --story-line-height: 1.9em;
+  --story-rule-color: rgba(138, 132, 122, 0.18);
+}
+
+/*
+ * 本文の下に、ノートへクレヨンで引いたような薄い罫線を置く。
+ * 文字とは別レイヤーにして、線の揺らぎが本文の輪郭を汚さないようにする。
+ */
+.storyLink::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--story-line-height) - 1.5px),
+    var(--story-rule-color) calc(var(--story-line-height) - 1.5px),
+    var(--story-rule-color) var(--story-line-height)
+  );
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+/* 繰り返しの端にかかって消えないよう、最後の行の罫線を別に描く。 */
+.storyLink::after {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.5px;
+  background: var(--story-rule-color);
+  filter: url(#crayon-edge);
+  pointer-events: none;
+  content: '';
+}
+
+.storyLink:focus-visible {
+  border-radius: 5px;
+  outline: 3px solid var(--color-purple);
+  outline-offset: 5px;
+}
+
+/* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */
+.storyLink p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  /* 紙に収まらない声はここで切り、続きは詳細で全文を読む。 */
+  -webkit-line-clamp: 7;
+  overflow: hidden;
+  font-size: inherit;
+  line-height: var(--story-line-height);
+  letter-spacing: 0.02em;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  /* 紙の下はこの一つだけになったので、真ん中に置いて押す先をはっきりさせる。 */
+  justify-content: center;
+  padding-top: 0.8em;
+}
+
+/*
+ * めくれた角。次があることを示す絵であり、そのまま次の声へ進むボタンでもある。
+ * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
+ */
+.corner {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.corner::before,
+.corner::after {
+  position: absolute;
+  pointer-events: none;
+  content: '';
+}
+
+.corner::before {
+  inset: 0;
+  border-bottom-right-radius: 24px 18px;
+  background: linear-gradient(225deg, #f7eedb 0%, #efe3c8 52%, #e4d5b2 100%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  transform-origin: right bottom;
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.corner::after {
+  top: 50%;
+  left: 50%;
+  width: 80px;
+  height: 0;
+  border-top: 3.5px solid var(--color-outline);
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.corner:hover::before,
+.corner:active::before {
+  transform: scale(1.14);
+}
+
+/*
+ * 寄りそうボタン。文字だけのリンクだと押せることが伝わらず、
+ * 濃い色の塊にすると「つぎの声へ」と主役を奪い合う。
+ * 紙に貼った小さなスタンプ台として、紙の世界のまま押せる形にする。
+ */
+.reaction {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 46px;
+  padding: 0 1.1em 0 0.95em;
+  border: 0;
+  border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
+  color: var(--color-purple-ink);
+  background: #fffdf5;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
+  font: inherit;
+  font-size: 0.86em;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
+}
+
+/* ふちはクレヨン。紙・しおり・付箋と同じ引き方にそろえる。 */
+.reaction::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+/* 押している間は紙に沈む。影を薄くして、指の下で動いたことを返す。 */
+.reaction:not(:disabled):active {
+  transform: translate(1px, 2px);
+  box-shadow: 0 0 0 #c3b89f;
+}
+
+.stamp {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.45em;
+  height: 1.45em;
+}
+
+.heart {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--color-purple);
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    fill 220ms ease,
+    stroke 220ms ease;
+}
+
+/* 押したあとは、線画に色が入る。塗り絵の一枚が塗られたのと同じ扱い。 */
+.reacted {
+  background: #fdeef0;
+}
+
+.reacted .heart {
+  fill: #e98d9c;
+  stroke: #c9697a;
+}
+
+.reacted .label {
+  color: #a3495c;
+}
+
+/* 押した瞬間だけ、ハートが一度だけ弾む。 */
+.sparked .heart {
+  animation: heartPop 460ms cubic-bezier(0.32, 1.35, 0.48, 1) both;
+}
+
+@keyframes heartPop {
+  0% {
+    transform: scale(1);
+  }
+  32% {
+    transform: scale(1.5) rotate(-7deg);
+  }
+  58% {
+    transform: scale(0.9) rotate(2deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* スタンプを押した跡の線。散って消える。 */
+.spark {
+  position: absolute;
+  width: 220%;
+  height: 220%;
+  overflow: visible;
+  fill: none;
+  stroke: #e2a0ab;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.spark g {
+  transform-origin: 20px 20px;
+  animation: sparkOut 520ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes sparkOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  28% {
+    opacity: 1;
+    transform: scale(0.72);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.count {
+  color: var(--color-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.reacted .count {
+  color: #a3495c;
+}
+
+.reaction:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.actions {
+  display: grid;
+  justify-items: center;
+  gap: 0.7em;
+  width: 100%;
+}
+
+/* 表紙の中身を静かに保ち、読みはじめる操作だけを紙の外に置く。 */
+.coverOpenSlot {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  padding-inline: 8px;
+}
+
+/*
+ * 送りボタンの居場所。
+ *
+ * 表紙のあいだは高さを持たず、めくった瞬間に一度だけ開く。
+ * 高さを時間をかけて伸ばすと版面を毎フレーム組み直すことになるので、
+ * 目に見える動きは紙束側（.stack の --lift）に持たせている。
+ */
+.nextSlot {
+  display: grid;
+  grid-template-rows: 0fr;
+  justify-items: center;
+  width: 100%;
+}
+
+.nextSlotOpen {
+  grid-template-rows: 1fr;
+}
+
+/* 開くまでボタンをはみ出させない受け皿。行が畳めるよう最小高も外す。 */
+.nextSlotInner {
+  display: grid;
+  justify-items: center;
+  min-height: 0;
+  width: 100%;
+  /* ふちの線・影・矢印の動きが刈り取られないぶんだけ内側に余白を取る。 */
+  padding: 2px 8px 5px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  /* 紙束が上がりきるころ（FeedPage.tsx の LIFT_MS）に、下から顔を出す。 */
+  transition:
+    opacity 240ms ease 240ms,
+    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1) 240ms;
+}
+
+.nextSlotOpen .nextSlotInner {
+  opacity: 1;
+  transform: none;
+}
+
+.nextButton {
+  gap: 0.8em;
+  width: min(100%, 20em);
+  min-height: 58px;
+  font-size: 1.1em;
+}
+
+/* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
+.nextButton span {
+  font-size: 1.15em;
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
+.filters {
+  width: 100%;
+  color: var(--color-subtle);
+}
+
+.filters > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25em 0.6em;
+  min-height: 44px;
+  padding: 0.45em 0;
+  font-size: 0.88em;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.filters > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filterValue {
+  color: var(--color-purple-ink);
+  font-weight: 700;
+}
+
+.caret {
+  font-size: 0.9em;
+  transition: transform 160ms ease;
+}
+
+.filters[open] .caret {
+  transform: rotate(180deg);
+}
+
+.filterFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7em;
+  padding: 0.5em 0 0.3em;
+  font-size: 0.9em;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 1em;
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 359px) {
+  .filterFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 背の低い端末では、1画面に収まることを本文の大きさより優先する。 */
+@media (max-height: 700px) {
+  .card {
+    gap: 0.7em;
+    height: clamp(15.5em, 44vh, 21em);
+    padding-block: 1.15em;
+    padding-inline-start: calc(clamp(1.55em, 7vw, 2em) + 10px);
+  }
+
+  /* 紙が低くなるぶん花壇も低くし、下の余白は花壇のぶんだけ取り直す。 */
+  .cover {
+    --garden-height: clamp(2.2em, 6.5vh, 3em);
+    --cover-binding: 10px;
+
+    padding-bottom: calc(1.15em + var(--garden-height));
+  }
+
+  .storyLink p {
+    font-size: inherit;
+    line-height: 1.7;
+  }
+
+  .storyLink {
+    font-size: clamp(1.05em, 4.6vw, 1.28em);
+    --story-line-height: 1.7em;
+  }
+
+  .stack {
+    --binding-inset: 4%;
+  }
+
+  .storyLink p {
+    -webkit-line-clamp: 5;
+  }
+
+  .corner {
+    width: 46px;
+    height: 46px;
+  }
+
+  .corner::after {
+    width: 66px;
+  }
+
+  .cardFoot {
+    padding-right: 1.2em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .storyLink {
+    --story-rule-color: rgba(93, 88, 80, 0.45);
+  }
+
+  .storyLink::before,
+  .storyLink::after {
+    opacity: 0.8;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  /* 高コントラスト時は、かすれを外して紙のふちを確実に示す。 */
+  .tab::before,
+  .sheet::before {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corner::before {
+    transition: none;
+  }
+
+  .reaction {
+    transition: none;
+  }
+
+  /* 動きを控える設定では、弾みも散る線も出さず、色の変化だけで伝える。 */
+  .sparked .heart {
+    animation: none;
+  }
+
+  .spark {
+    display: none;
+  }
+
+  .card {
+    transition: none;
+  }
+
+  .nextButton span {
+    animation: none;
+  }
+
+  .stack,
+  .nextSlotInner {
+    transition: none;
+  }
+
+  .nextSlotInner {
+    transform: none;
+  }
+
+  .caret {
+    transition: none;
+  }
+}
