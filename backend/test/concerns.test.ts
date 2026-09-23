@@ -39,6 +39,7 @@ function createTestApp() {
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    ...createConcernDependencies(),
     concernHandler,
     ...createUserDependencies(),
     healthHandler: new HealthHandler({

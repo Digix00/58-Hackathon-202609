@@ -1,4 +1,5 @@
 import { ConcernHandler } from "../../src/presentation/concern.handler";
+import { ConcernViewHandler } from "../../src/presentation/concern-view.handler";
 
 export function createConcernDependencies() {
   return {
@@ -8,6 +9,9 @@ export function createConcernDependencies() {
       },
       listPublished: async () => ({ items: [], nextCursor: null }),
       findPublishedById: async () => null,
+    }),
+    concernViewHandler: new ConcernViewHandler({
+      record: async () => null,
     }),
   };
 }

@@ -288,7 +288,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を一種類に固定し、concern_id と user_id の組を UNIQUE |
-| concern_views | concern_id, user_id, first_viewed_at, last_viewed_at, view_count | 既読判定と推薦用の集約行。concern_id と user_id の組を主キー |
+| concern_views | concern_id, actor_key, viewed_at | 既読判定と推薦用の行。同じ concern_id と actor_key の組は一行に集約し、最初の viewed_at を保持 |
 | learning_events | id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at | view, reaction, quiz_answer などの学習イベントを保存 |
 | feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認用。fallback で新着順にした場合も strategy に記録 |
 
@@ -364,7 +364,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 - users.anonymous_session_hash（匿名セッション行のみ）
 - quizzes.quiz_date
 - concerns の同一 user によるリアクション
-- concerns の同一 user による既読集約
+- concern_views の (concern_id, actor_key)
 - quiz_participants の quiz_id と user_id
 - quiz_participants の id と quiz_id（quiz_answers の複合外部キー先）
 - quiz_attempts の quiz_id と user_id
@@ -409,8 +409,8 @@ CREATE INDEX concerns_user_idx
 CREATE INDEX processing_jobs_pickup_idx
   ON concern_processing_jobs (status, available_at);
 
-CREATE INDEX views_user_idx
-  ON concern_views (user_id, last_viewed_at DESC);
+CREATE INDEX concern_views_actor_viewed_at_idx
+  ON concern_views (actor_key, viewed_at);
 
 CREATE INDEX reactions_user_idx
   ON concern_reactions (user_id, created_at DESC);
@@ -446,7 +446,7 @@ LIMIT ?
 6. 原文は visibility_status に応じて表示し、翻訳・クラスタリングは完了後に追加表示する。
 ### 既読とリアクション
 
-- 既読は concern_views を INSERT または UPSERT し、learning_events に view を追加する。
+- 既読は公開中の concern だけを concern_views に記録し、(concern_id, actor_key) の競合時は最初の viewed_at を保持する。
 - リアクションは INSERT ... ON CONFLICT DO NOTHING を使う。
 - 集計数は concern_reactions の concern_id 件数から求める。必要になった場合だけ concerns に集計キャッシュを追加する。
 

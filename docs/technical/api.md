@@ -236,7 +236,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
 | GET | /api/v1/concerns/:concernId | MVP | 不要（閲覧のみ） | 悩み詳細 |
 | POST | /api/v1/concerns/:concernId/reactions | MVP | LINEログイン（LIFF内のみ） | リアクション登録 |
-| PUT | /api/v1/concerns/:concernId/view | MVP | LINEログイン（LIFF内のみ） | 既読登録 |
+| POST | /api/v1/concerns/:concernId/views | MVP | LINEログイン（LIFF内のみ） | 既読登録 |
 | GET | /api/v1/clusters | デモ必須 | 不要（閲覧のみ） | 公開クラスタ一覧 |
 | GET | /api/v1/clusters/:clusterId/concerns | デモ必須 | 不要（閲覧のみ） | クラスタ内の悩み |
 | GET | /api/v1/quizzes/today | デモ必須 | LINEログイン（LIFF内のみ） | Asia/Tokyo の当日クイズ |
@@ -465,9 +465,9 @@ reasonCode の初期値は次のとおり。
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
-### 3.5 PUT /api/v1/concerns/:concernId/view
+### 3.5 POST /api/v1/concerns/:concernId/views
 
-悩みを認証済みユーザーの既読として登録する。Request body は持たない。
+公開中の悩みをLINEログイン済みユーザーの既読として記録する。Request body は持たない。フロントエンドは本文の表示完了後に1回呼び出す。
 
 #### Response: 200 OK
 
@@ -479,11 +479,10 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- 同じ concernId に対して何度呼んでも成功する
-- concern_views は concernId と解決済みの認証主体の組で集約する
-- firstViewedAt は最初の呼び出し時だけ設定し、lastViewedAt は呼び出しごとに更新してよい
-- 同一の既読操作で学習履歴を無制限に増やさない
-- 公開済みでない concernId は 404 NOT_FOUND とする
+- 同じ concernId と actor_key の組は一行に集約し、再送時も最初の viewedAt を返す
+- actor_key は認証セッションから解決した内部 users.id とし、LINE user ID は保存・返却しない
+- 未ログイン時は 401 AUTHENTICATION_REQUIRED
+- hidden、deleted、存在しない concernId は 404 NOT_FOUND とする
 
 ## 4. クラスタ API
 
@@ -1036,7 +1035,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - 他ユーザーの userId を body に入れた場合に無視されること
 - published 以外の concern / quiz が外部へ返らないこと
 - reaction の再送で二重加算されないこと
-- view の再送で既読履歴が無制限に増えないこと
+- view の再送で concern_views の行が重複しないこと
 - quiz answer の participant / concern 重複と回答済み
 - cursor の不正と Query 条件の不一致
 - 音声 MIME type、サイズ、長さ、外部サービス失敗

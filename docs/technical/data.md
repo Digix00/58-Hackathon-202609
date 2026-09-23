@@ -20,7 +20,7 @@
 | `users` | id、LINE user ID、生年月（年・月）、性別、都道府県、日時 | LINE配信とユーザー単位の履歴 |
 | `learning_histories` | actor_key、concern_id、cluster_id、quiz_id、イベント種別、日時 | 閲覧とクイズの履歴 |
 
-`actor_key` は、LINEログインで確認した利用者識別子から生成する内部用の値である。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`actor_key`、既読、リアクション、クイズ回答、学習履歴を記録しない。
+`actor_key` は、認証セッションから解決する内部の `users.id` である。LINE user IDそのものは使わず、APIレスポンスにも返さない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`actor_key`、既読、リアクション、クイズ回答、学習履歴を記録しない。
 
 ### 投稿の状態
 
