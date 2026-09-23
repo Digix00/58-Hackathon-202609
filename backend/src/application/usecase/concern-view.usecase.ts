@@ -18,7 +18,7 @@ export class ConcernViewUseCase implements IConcernViewUseCase {
   }
 
   readonly record = (concernId: string, actorKey: string) =>
-    this.repository.recordForPublishedConcern(
+    this.repository.insert(
       new ConcernView({
         concernId,
         actorKey,

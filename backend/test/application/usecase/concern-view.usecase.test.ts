@@ -8,7 +8,7 @@ describe("ConcernViewUseCase", () => {
   it("records the authenticated actor and injected timestamp", async () => {
     let recorded: ConcernView | undefined;
     const repository: ConcernViewRepository = {
-      recordForPublishedConcern: async (view) => {
+      insert: async (view) => {
         recorded = view;
         return view;
       },
@@ -30,7 +30,7 @@ describe("ConcernViewUseCase", () => {
 
   it("returns null when the repository finds no published concern", async () => {
     const repository: ConcernViewRepository = {
-      recordForPublishedConcern: async () => null,
+      insert: async () => null,
     };
     const useCase = new ConcernViewUseCase(repository);
 
