@@ -17,7 +17,7 @@ export interface ConcernProcessingResult {
     jaHira: string;
     en: string;
   };
-  embedding: readonly number[];
+  embedding: readonly number[] | null;
 }
 
 export interface IConcernProcessingUseCase {
@@ -84,16 +84,11 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
         );
       }
 
-      const [jaHira, en, embeddings] = await Promise.all([
+      const [jaHira, en, embedding] = await Promise.all([
         this.translator.convertToHiragana(input.body),
         this.translator.translateToEnglish(input.body),
-        this.embeddingGenerator.generateEmbeddings([input.body]),
+        this.generateEmbedding(input.concernId, input.body),
       ]);
-      const embedding = embeddings[0];
-
-      if (!embedding) {
-        throw new Error("Workers AI returned no embedding for the concern");
-      }
 
       const result = {
         concernId: input.concernId,
@@ -145,6 +140,33 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
   private nowIso(): string {
     return this.now().toISOString();
+  }
+
+  /**
+   * Embedding is not persisted by this feature yet, so a failure here must
+   * not block saving the ja_hira/en_translation representations that already
+   * succeeded (see docs/technical/api.md §10 processingStatus contract).
+   */
+  private async generateEmbedding(
+    concernId: string,
+    body: string,
+  ): Promise<readonly number[] | null> {
+    try {
+      const embeddings = await this.embeddingGenerator.generateEmbeddings([
+        body,
+      ]);
+      return embeddings[0] ?? null;
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          message: "embedding generation failed",
+          concernId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      return null;
+    }
   }
 }
 
