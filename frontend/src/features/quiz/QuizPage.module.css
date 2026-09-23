@@ -86,13 +86,6 @@
   padding: clamp(1.4em, 5vw, 1.8em) clamp(1.2em, 5vw, 1.6em) clamp(1.2em, 4vw, 1.5em)
     calc(clamp(1.2em, 5vw, 1.6em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
-  transform-origin: var(--turn-axis) center;
-  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-/* 指に追従している間は、戻りのトランジションを効かせない。 */
-.dragging {
-  transition: none;
 }
 
 /* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */

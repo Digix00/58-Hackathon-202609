@@ -20,6 +20,7 @@ import {
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
+import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import { answerDemoQuiz, demoQuiz, useDemoState } from '../demo/demoStore'
 import styles from './QuizPage.module.css'
 
@@ -144,8 +145,8 @@ function Paper({
 }) {
   return (
     <article
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
-        dragX !== 0 ? styles.dragging : ''
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
+        dragX !== 0 ? turnStyles.pageDragging : ''
       }`}
       style={{
         transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,

@@ -141,14 +141,6 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
 
-/**
- * めくり終えて左に伏せたままの紙。
- *
- * 色は当てない。彩度はめくっている最中の演出であって、
- * 伏せたあとも残すと、読み終えた紙束がずっと視界の端で主張してしまう。
- */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
-
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
   return turning.kind === 'cover' ? 'cover' : `${turning.concern.id}-${turning.page}`
@@ -279,8 +271,8 @@ function FeedCard({
   return (
     <article
       ref={articleRef}
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
-        dragX !== 0 ? styles.dragging : ''
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
+        dragX !== 0 ? turnStyles.pageDragging : ''
       }`}
       style={
         {
@@ -375,20 +367,6 @@ function FeedStack({
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
       <NotebookBinding part="rear" />
-      {/*
-       * めくり終えた紙は捨てず、リングの左に伏せたまま残す。
-       * めくりの最終フレームと同じ姿勢なので、めくっていた紙を外しても絵が変わらない。
-       */}
-      {coverOpened ? (
-        <div className={turnStyles.turned} aria-hidden="true">
-          <div
-            className={`${turnStyles.back} ${crayonStyles.edge}`}
-            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
-          >
-            <NotebookBinding part="holes" back />
-          </div>
-        </div>
-      ) : null}
       {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
       {turning ? (
         <NotebookTurn
