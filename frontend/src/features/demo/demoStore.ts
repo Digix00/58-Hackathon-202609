@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 export type DemoConcern = {
   id: string
   body: string
-  theme: string
+  gender?: string
   ageGroup?: string
   region?: string
   createdLabel: string
@@ -27,18 +27,18 @@ const initialConcerns: DemoConcern[] = [
   {
     id: 'sample-cafeteria',
     body: '昼休みの食堂がいつも混んでいて、食べ終わるころには休憩時間がなくなってしまいます。落ち着いて昼食をとれる場所があったらうれしいです。',
-    theme: '昼休み・食堂',
+    gender: '女性',
     ageGroup: '20代',
     region: '大阪府',
     createdLabel: '数日前',
-    reason: 'まだ読んでいないテーマの声です',
+    reason: 'まだ読んでいない声です',
     reactionCount: 12,
     reacted: false,
   },
   {
     id: 'sample-station',
     body: '駅から家までの道が暗く、仕事の帰りが遅い日は少し不安です。明るい道を選ぶと遠回りになるので、毎日迷っています。',
-    theme: '帰り道',
+    gender: '男性',
     ageGroup: '40代',
     region: '兵庫県',
     createdLabel: '今週',
@@ -49,7 +49,7 @@ const initialConcerns: DemoConcern[] = [
   {
     id: 'sample-hospital',
     body: '病院の予約が電話とウェブで分かれていて、どこから申し込めばよいのか分かりにくいと感じます。誰でも迷わず予約できるようになってほしいです。',
-    theme: '暮らしの手続き',
+    gender: '回答しない',
     region: '東京都',
     createdLabel: '今月',
     reason: '新しく届いた声です',
@@ -84,7 +84,6 @@ export function addDemoConcern(body: string) {
   const concern: DemoConcern = {
     id: `sample-new-${Date.now()}`,
     body: body.trim(),
-    theme: 'テーマは準備中',
     createdLabel: 'たった今',
     reason: '新しく届いた声です',
     reactionCount: 0,

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { NavLink, Outlet } from 'react-router'
 import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { NavIcon, type NavIconName } from './NavIcons'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
@@ -21,13 +21,10 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 export function AppShell() {
   const { fontSize } = useDisplaySettings()
-  const { pathname } = useLocation()
 
   return (
     <div
-      className={`${styles.shell} ${fontSize === 'large' ? styles.large : ''} ${
-        pathname === '/' ? notebookBackground.grid : ''
-      }`}
+      className={`${styles.shell} ${notebookBackground.grid} ${fontSize === 'large' ? styles.large : ''}`}
     >
       <main className={styles.content}>
         <Outlet />

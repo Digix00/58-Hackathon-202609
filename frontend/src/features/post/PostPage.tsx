@@ -150,7 +150,7 @@ export function PostPage() {
         <p className={screen.muted}>
           {isDemoSubmit
             ? '開発用の画面に反映しました。再読み込みすると、この投稿は消えます。'
-            : '声を保存しました。テーマなどの処理は後から反映されます。'}
+            : '声を保存しました。必要な処理は後から反映されます。'}
         </p>
         <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">
           声を読む

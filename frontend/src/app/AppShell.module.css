@@ -21,24 +21,59 @@
   padding: calc(26px + env(safe-area-inset-top)) 18px 24px;
 }
 
+/*
+ * 下部ナビは、本文の紙へ貼り込んだ一枚の紙片として置く。
+ * 紙が浮いて見えないよう、上辺のすぐ上へごく薄い影だけを落とす。
+ */
 .nav {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-template-rows: 48px;
-  align-items: center;
+  grid-template-rows: minmax(48px, auto);
+  align-items: stretch;
   gap: 4px;
-  padding: 14px 12px calc(12px + env(safe-area-inset-bottom));
-  border-top: 2px solid var(--color-outline);
+  padding: 15px 12px calc(12px + env(safe-area-inset-bottom));
   background: var(--color-paper-strip);
+  box-shadow: 0 -3px 7px -5px rgb(92 82 60 / 22%);
+}
+
+/*
+ * 本文とナビの境目。
+ *
+ * 定規で引いた罫線ではなく、クレヨンで引いた一本にする。
+ * アイコンと同じく、本線へ細く薄い線をわずかにずらして重ね、
+ * 一筆で引ききれなかった跡に見せる。
+ * 線だけの要素にフィルタをかけると、揺らぎがフィルタ領域から出て切れるため、
+ * 高さのある透明な帯の上辺として引く。
+ */
+.nav::before,
+.nav::after {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 22px;
+  border-top: 2px solid var(--color-outline);
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+.nav::after {
+  border-top-width: 1px;
+  opacity: 0.45;
+  transform: translateY(2px);
 }
 
 .navLink {
+  position: relative;
   display: grid;
   box-sizing: border-box;
-  height: 48px;
   min-width: 0;
   min-height: 48px;
-  gap: 2px;
+  gap: 3px;
   place-items: center;
   align-content: center;
   border: 0;
@@ -48,11 +83,16 @@
   font-family: inherit;
   font-size: 0.94em;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.15;
   overflow-wrap: anywhere;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* 押している間だけ、紙を指で押し下げたぶん沈む。 */
+.navLink:active {
+  transform: translateY(1px);
 }
 
 .active {
@@ -61,9 +101,39 @@
   text-underline-offset: 5px;
 }
 
+/* いま開いている画面の絵だけ、クレヨンを少し強く当てたものとして描く。 */
+.active .navIcon path {
+  stroke-width: 2.45;
+}
+
+.active .navIcon .trace {
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+/*
+ * 中央の「投稿」。高さは他の項目と揃え、淡い紫の紙片として控えめに示す。
+ * 塗りだけの面にすると、この画面でここだけ輪郭を持たない板に見えるため、
+ * 他の紙片と同じクレヨンの輪郭を回す。
+ */
 .postLink {
   color: #413a70;
-  background: #eee9f5;
+  background: #efeaf6;
+  border-radius: 15px 12px 16px 13px / 13px 16px 12px 15px;
+}
+
+.postLink::after {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--color-purple);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
 }
 
 /*
@@ -88,6 +158,27 @@
 .navIcon .trace {
   stroke-width: 1.05;
   opacity: 0.42;
+}
+
+/* 手描きの揺らぎは装飾なので、輪郭の判別を優先する設定では引かない。 */
+@media (prefers-contrast: more) {
+  .nav::before {
+    border-top-color: var(--color-outline);
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .nav::after {
+    display: none;
+  }
+
+  .postLink::after {
+    border-color: var(--color-purple-dark);
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 @media (max-width: 359px) {

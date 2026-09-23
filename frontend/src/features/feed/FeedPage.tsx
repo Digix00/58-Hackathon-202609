@@ -21,13 +21,14 @@ import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
+import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
-type Filter = { theme: string; region: string }
+type Filter = { gender: string; region: string }
 
 /**
  * めくっている最中の1枚。
@@ -54,7 +55,7 @@ type FeedReaderState = {
 }
 
 type FeedReaderAction =
-  | { type: 'coverTurned'; startAngle: number }
+  | { type: 'coverTurned'; turning: TurningPage | null }
   | { type: 'next'; turning: TurningPage | null }
   | { type: 'previous'; turning: TurningPage | null }
   | { type: 'filterChanged'; field: keyof Filter; value: string }
@@ -65,7 +66,7 @@ type FeedReaderAction =
   | { type: 'turningFinished' }
 
 const initialFeedReaderState: FeedReaderState = {
-  filter: { theme: '', region: '' },
+  filter: { gender: '', region: '' },
   index: 0,
   direction: 1,
   coverOpened: false,
@@ -89,11 +90,7 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
   switch (action.type) {
     case 'coverTurned':
       // 表紙はすぐ開く。去っていく表紙だけがめくられて残る。
-      return {
-        ...state,
-        coverOpened: true,
-        turning: { kind: 'cover', startAngle: action.startAngle },
-      }
+      return { ...state, coverOpened: true, turning: action.turning }
     case 'next':
       return {
         ...state,
@@ -120,7 +117,7 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
         turning: null,
       }
     case 'filtersReset':
-      return { ...state, filter: { theme: '', region: '' }, index: 0, turning: null }
+      return { ...state, filter: { gender: '', region: '' }, index: 0, turning: null }
     case 'loginVisibilityChanged':
       return { ...state, showLogin: action.visible }
     case 'filtersVisibilityChanged':
@@ -133,14 +130,22 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
 }
 
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
-const COVER_BACK_COLOR = '#efe6d2'
+const COVER_BACK_COLOR = '#a894dd'
+
+/**
+ * めくり終えて左に伏せたままの紙。
+ *
+ * 色は当てない。彩度はめくっている最中の演出であって、
+ * 伏せたあとも残すと、読み終えた紙束がずっと視界の端で主張してしまう。
+ */
+const TURNED_BACK_COLOR = 'var(--color-surface)'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
   return turning.kind === 'cover' ? 'cover' : `${turning.concern.id}-${turning.page}`
 }
 
-/** しぼりこみなしを表す選択肢の値。テーマ名・地域名とは衝突しない。 */
+/** しぼりこみなしを表す選択肢の値。属性値とは衝突しない。 */
 const ALL = '__all__'
 /** 指を離したときに次の声へ送る距離。これ未満なら手元へ戻す。 */
 const SWIPE_THRESHOLD = 56
@@ -254,6 +259,7 @@ function FeedCard({
   articleRef,
   dragX = 0,
   onLinkClick,
+  showTabs = true,
 }: {
   concern: DemoConcern
   page: number
@@ -265,6 +271,8 @@ function FeedCard({
   articleRef?: RefCallback<HTMLElement>
   dragX?: number
   onLinkClick?: (event: MouseEvent) => void
+  /** 表紙の下に控えているあいだは、上辺のインデックスを出さない。中身の先出しになる。 */
+  showTabs?: boolean
 }) {
   const palette = paletteForPage(page)
   // この紙を見ている間に押されたかどうか。once だけ線を散らすために持つ。
@@ -288,16 +296,17 @@ function FeedCard({
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
-      {/* 上辺のインデックス。テーマのしおりと、公開されている属性の付箋。 */}
-      <span className={styles.tabs}>
-        {concern.ageGroup ? (
-          <span className={`${styles.tab} ${styles.tabAge}`}>{concern.ageGroup}</span>
-        ) : null}
-        {concern.region ? (
-          <span className={`${styles.tab} ${styles.tabRegion}`}>{concern.region}</span>
-        ) : null}
-        <span className={`${styles.tab} ${styles.theme}`}>{concern.theme}</span>
-      </span>
+      {/* 上辺のインデックス。公開されている年代・地域の付箋。 */}
+      {showTabs ? (
+        <span className={styles.tabs}>
+          {concern.ageGroup ? (
+            <span className={`${styles.tab} ${styles.tabAge}`}>{concern.ageGroup}</span>
+          ) : null}
+          {concern.region ? (
+            <span className={`${styles.tab} ${styles.tabRegion}`}>{concern.region}</span>
+          ) : null}
+        </span>
+      ) : null}
       <Link
         className={styles.storyLink}
         to={`/concerns/${encodeURIComponent(concern.id)}`}
@@ -409,6 +418,20 @@ function FeedStack({
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
       <NotebookBinding part="rear" />
+      {/*
+       * めくり終えた紙は捨てず、リングの左に伏せたまま残す。
+       * めくりの最終フレームと同じ姿勢なので、めくっていた紙を外しても絵が変わらない。
+       */}
+      {coverOpened ? (
+        <div className={turnStyles.turned} aria-hidden="true">
+          <div
+            className={`${turnStyles.back} ${crayonStyles.edge}`}
+            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+          >
+            <NotebookBinding part="holes" back />
+          </div>
+        </div>
+      ) : null}
       {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
       {turning ? (
         <NotebookTurn
@@ -416,7 +439,7 @@ function FeedStack({
           startAngle={turning.startAngle}
           direction={turning.kind === 'concern' ? turning.direction : 1}
           backColor={
-            turning.kind === 'concern' ? paletteForPage(turning.page).bookmark : COVER_BACK_COLOR
+            turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
           }
           onFinish={onTurningFinished}
         >
@@ -447,7 +470,7 @@ function FeedStack({
       ) : (
         <>
           <div className={styles.enter} aria-hidden="true">
-            <FeedCard concern={concern} page={position + 1} canReact={false} />
+            <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
           </div>
           <div className={styles.coverLayer}>
             <FeedCover onOpen={onCoverOpen} />
@@ -514,7 +537,7 @@ function FeedActions({
   filtersOpen,
   activeFilter,
   filter,
-  themeOptions,
+  genderOptions,
   regionOptions,
   onNext,
   onFiltersToggle,
@@ -525,7 +548,7 @@ function FeedActions({
   filtersOpen: boolean
   activeFilter: string
   filter: Filter
-  themeOptions: FilterOption[]
+  genderOptions: FilterOption[]
   regionOptions: FilterOption[]
   onNext: () => void
   onFiltersToggle: (open: boolean) => void
@@ -549,7 +572,7 @@ function FeedActions({
         onToggle={(event) => onFiltersToggle(event.currentTarget.open)}
       >
         <summary>
-          <span>{activeFilter ? 'えらんだ条件' : 'テーマ・地域でえらぶ'}</span>
+          <span>{activeFilter ? 'えらんだ条件' : '性別・地域でえらぶ'}</span>
           {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
           <span className={styles.caret} aria-hidden="true">
             ▾
@@ -557,11 +580,11 @@ function FeedActions({
         </summary>
         <div className={styles.filterFields} aria-label="読む声の条件">
           <SelectField
-            label="テーマ"
+            label="性別"
             placement="up"
-            value={filter.theme || ALL}
-            options={themeOptions}
-            onChange={(value) => onFilterChange('theme', value === ALL ? '' : value)}
+            value={filter.gender || ALL}
+            options={genderOptions}
+            onChange={(value) => onFilterChange('gender', value === ALL ? '' : value)}
           />
           <SelectField
             label="地域"
@@ -583,11 +606,17 @@ export function FeedPage() {
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
   const { filter, index, coverOpened, showLogin, filtersOpen, dragX, turning } = reader
 
-  const themeOptions = [
+  const genderOptions = [
     { value: ALL, label: 'すべて' },
-    ...[...new Set(concerns.map((concern) => concern.theme))].map((theme) => ({
-      value: theme,
-      label: theme,
+    ...[
+      ...new Set(
+        concerns
+          .map((concern) => concern.gender)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ].map((gender) => ({
+      value: gender,
+      label: gender,
     })),
   ]
   const regionOptions = [
@@ -602,7 +631,7 @@ export function FeedPage() {
   ]
   const filtered = concerns.filter(
     (concern) =>
-      (!filter.theme || concern.theme === filter.theme) &&
+      (!filter.gender || concern.gender === filter.gender) &&
       (!filter.region || concern.region === filter.region),
   )
   const total = filtered.length
@@ -610,13 +639,16 @@ export function FeedPage() {
   const concern = filtered[position]
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
-  const activeFilter = [filter.theme, filter.region].filter(Boolean).join(' · ')
+  const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
 
   const goNext = useCallback(
     (startAngle = 0) => {
       // 表紙が残っているうちは、めくる相手は声ではなく表紙。
       if (!coverOpened) {
-        dispatch({ type: 'coverTurned', startAngle })
+        dispatch({
+          type: 'coverTurned',
+          turning: prefersReducedMotion() ? null : { kind: 'cover', startAngle },
+        })
         return
       }
       // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
@@ -711,7 +743,7 @@ export function FeedPage() {
           filtersOpen={filtersOpen}
           activeFilter={activeFilter}
           filter={filter}
-          themeOptions={themeOptions}
+          genderOptions={genderOptions}
           regionOptions={regionOptions}
           onNext={goNext}
           onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}

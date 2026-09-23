@@ -80,7 +80,7 @@
   z-index: 1;
   /* 本文・ふもと。しおりは紙の外へ出すので行に数えない。 */
   grid-template-rows: 1fr auto;
-  /* テーマごとの地色。見開きごとに景色が変わる絵本にならう。 */
+  /* ページごとの地色。見開きごとに景色が変わる絵本にならう。 */
   background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
@@ -176,13 +176,6 @@
   font-weight: 700;
   line-height: 1.35;
   overflow-wrap: anywhere;
-}
-
-/* テーマは3枚のうち一番濃く、少し大きく。上辺の主役にする。 */
-.theme {
-  background: var(--bookmark, #f3e8b7);
-  font-size: 0.78em;
-  transform: rotate(1.6deg);
 }
 
 /* 付箋は貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */

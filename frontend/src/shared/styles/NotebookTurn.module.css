@@ -97,6 +97,23 @@
   }
 }
 
+/*
+ * めくり終えて、リングの左に伏せたままの紙。
+ *
+ * めくりの最終フレームとまったく同じ姿勢で置く。こうしておくと、
+ * めくっていた紙を外した瞬間に同じ絵がそのまま残り、伏せた紙が消えない。
+ * 姿勢を変えると、外した瞬間に画面端の紙がずれて見える。
+ */
+.turned {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  transform: translateZ(4px) rotateY(-180deg);
+  pointer-events: none;
+}
+
 .face,
 .back {
   position: absolute;
@@ -107,13 +124,11 @@
 
 .back {
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  /* 裏は同じ紙。ページの色はとじ際にわずかに残すだけにする。 */
-  background: linear-gradient(
-    265deg,
-    #fdf7ea 0%,
-    #f6eddc 58%,
-    var(--turn-back-color, #e8ddc9) 100%
-  );
+  /*
+   * 裏は一色で塗りつぶす。表よりひと段濃くして、めくった面だと分かるようにする。
+   * グラデーションにすると、リングの左に覗く小口だけ色が変わって紙に見えない。
+   */
+  background: var(--turn-back-color, #e3d8c0);
   transform: rotateY(180deg);
 }
 

@@ -21,14 +21,22 @@ export type PagePalette = {
    * 冷たい白を混ぜると紙ではなく画面に見える。
    */
   tint: string
+  /**
+   * 紙の裏。めくっている最中にリングの左へ一瞬だけ覗く面。
+   *
+   * 表の紙は生成りで落ち着かせてあるぶん、ここだけは彩度を上げる。
+   * 見えるのは細い小口で、しかもめくっている間だけなので、
+   * 濃くしても画面がうるさくならない。伏せたあとは色を持たせない。
+   */
+  back: string
 }
 
 const palettes: readonly PagePalette[] = [
-  { bookmark: '#f8d9b0', tagAge: '#f5cdc4', tagRegion: '#e9e0bd', tint: '#fffcf1' },
-  { bookmark: '#cbe3b8', tagAge: '#dfe9c0', tagRegion: '#c2e0dc', tint: '#fcfdf4' },
-  { bookmark: '#c9d6ef', tagAge: '#d6cfe9', tagRegion: '#c8e0e6', tint: '#fbfcf8' },
-  { bookmark: '#f3cad5', tagAge: '#eed2e6', tagRegion: '#f6dcc4', tint: '#fffbf6' },
-  { bookmark: '#f0e199', tagAge: '#dfe7ae', tagRegion: '#f3d9b5', tint: '#fffdec' },
+  { bookmark: '#f8d9b0', tagAge: '#f5cdc4', tagRegion: '#e9e0bd', tint: '#fffcf1', back: '#f5a86d' },
+  { bookmark: '#cbe3b8', tagAge: '#dfe9c0', tagRegion: '#c2e0dc', tint: '#fcfdf4', back: '#93cc78' },
+  { bookmark: '#c9d6ef', tagAge: '#d6cfe9', tagRegion: '#c8e0e6', tint: '#fbfcf8', back: '#84b0e6' },
+  { bookmark: '#f3cad5', tagAge: '#eed2e6', tagRegion: '#f6dcc4', tint: '#fffbf6', back: '#f08fb0' },
+  { bookmark: '#f0e199', tagAge: '#dfe7ae', tagRegion: '#f3d9b5', tint: '#fffdec', back: '#f2cf4e' },
 ]
 
 /** page は1始まりのページ番号。 */
