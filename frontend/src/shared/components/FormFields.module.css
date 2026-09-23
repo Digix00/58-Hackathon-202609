@@ -108,6 +108,10 @@
   border-radius: 12px 10px 0 0;
 }
 
+.select[data-placement='up'][open] .selectTrigger {
+  border-radius: 0 0 12px 10px;
+}
+
 .chevron {
   color: var(--color-focus);
   font-size: 1.2em;
@@ -120,11 +124,20 @@
   top: calc(100% - 2px);
   right: 0;
   left: 0;
-  height: 220px;
+  display: flex;
+  flex-direction: column;
+  /* 選択肢が少ないときは短く、多いときだけ中を送る。 */
+  max-height: 220px;
   padding: 6px;
   border-radius: 0 0 12px 10px;
   background: var(--color-surface);
   overflow: visible;
+}
+
+.select[data-placement='up'] .menu {
+  top: auto;
+  bottom: calc(100% - 2px);
+  border-radius: 12px 10px 0 0;
 }
 
 .menu::before {
@@ -141,13 +154,18 @@
   content: '';
 }
 
+.select[data-placement='up'] .menu::before {
+  border-top: 2.5px solid var(--color-field-outline);
+  border-bottom: 0;
+}
+
 .options {
   position: relative;
   z-index: 1;
   display: grid;
   align-content: start;
   gap: 4px;
-  height: 100%;
+  min-height: 0;
   overflow-y: auto;
 }
 

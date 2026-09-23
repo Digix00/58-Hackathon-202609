@@ -12,6 +12,7 @@ import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
+import { SelectField } from '../../shared/components/FormFields'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
@@ -21,6 +22,8 @@ import styles from './FeedPage.module.css'
 
 type Filter = { theme: string; region: string }
 
+/** しぼりこみなしを表す選択肢の値。テーマ名・地域名とは衝突しない。 */
+const ALL = '__all__'
 /** 指を離したときに次の声へ送る距離。これ未満なら手元へ戻す。 */
 const SWIPE_THRESHOLD = 56
 /** 縦スクロールか横めくりかを決めるまでの遊び。 */
@@ -97,11 +100,22 @@ export function FeedPage() {
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
   const swiped = useRef(false)
 
-  const themes = [...new Set(concerns.map((concern) => concern.theme))]
-  const regions = [
-    ...new Set(
-      concerns.map((concern) => concern.region).filter((value): value is string => Boolean(value)),
-    ),
+  const themeOptions = [
+    { value: ALL, label: 'すべて' },
+    ...[...new Set(concerns.map((concern) => concern.theme))].map((theme) => ({
+      value: theme,
+      label: theme,
+    })),
+  ]
+  const regionOptions = [
+    { value: ALL, label: 'すべて' },
+    ...[
+      ...new Set(
+        concerns
+          .map((concern) => concern.region)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ].map((region) => ({ value: region, label: region })),
   ]
   const filtered = concerns.filter(
     (concern) =>
@@ -256,39 +270,27 @@ export function FeedPage() {
                 ▾
               </span>
             </summary>
-            <div className={`${screen.stack} ${styles.filterFields}`} aria-label="読む声の条件">
-              <label className={screen.field}>
-                テーマ
-                <select
-                  value={filter.theme}
-                  onChange={(event) => {
-                    setFilter((current) => ({ ...current, theme: event.target.value }))
-                    setIndex(0)
-                    setFiltersOpen(false)
-                  }}
-                >
-                  <option value="">すべて</option>
-                  {themes.map((theme) => (
-                    <option key={theme}>{theme}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={screen.field}>
-                地域
-                <select
-                  value={filter.region}
-                  onChange={(event) => {
-                    setFilter((current) => ({ ...current, region: event.target.value }))
-                    setIndex(0)
-                    setFiltersOpen(false)
-                  }}
-                >
-                  <option value="">すべて</option>
-                  {regions.map((region) => (
-                    <option key={region}>{region}</option>
-                  ))}
-                </select>
-              </label>
+            <div className={styles.filterFields} aria-label="読む声の条件">
+              <SelectField
+                label="テーマ"
+                placement="up"
+                value={filter.theme || ALL}
+                options={themeOptions}
+                onChange={(value) => {
+                  setFilter((current) => ({ ...current, theme: value === ALL ? '' : value }))
+                  setIndex(0)
+                }}
+              />
+              <SelectField
+                label="地域"
+                placement="up"
+                value={filter.region || ALL}
+                options={regionOptions}
+                onChange={(value) => {
+                  setFilter((current) => ({ ...current, region: value === ALL ? '' : value }))
+                  setIndex(0)
+                }}
+              />
             </div>
           </details>
         </div>

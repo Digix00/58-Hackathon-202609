@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode }
 import styles from './FormFields.module.css'
 
 type FieldSize = 'regular' | 'compact'
+/** 下に開く余白がない場所（画面の下端など）では、選択肢を上へ開く。 */
+type MenuPlacement = 'down' | 'up'
 type FieldOption<T extends string | number> = { value: T; label: string }
 
 type NumberInputFieldProps = Omit<
@@ -46,6 +48,7 @@ type SelectFieldProps<T extends string | number> = {
   placeholder?: string
   disabled?: boolean
   size?: FieldSize
+  placement?: MenuPlacement
   onChange: (value: T) => void
 }
 
@@ -56,6 +59,7 @@ export function SelectField<T extends string | number>({
   placeholder = '選択してください',
   disabled = false,
   size = 'regular',
+  placement = 'down',
   onChange,
 }: SelectFieldProps<T>) {
   const [open, setOpen] = useState(false)
@@ -78,7 +82,7 @@ export function SelectField<T extends string | number>({
   return (
     <div className={styles.field} data-size={size}>
       <span className={styles.label}>{label}</span>
-      <details ref={selectRef} className={styles.select} open={isOpen}>
+      <details ref={selectRef} className={styles.select} data-placement={placement} open={isOpen}>
         <summary
           className={styles.selectTrigger}
           aria-disabled={disabled}

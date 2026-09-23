@@ -17,6 +17,9 @@
   min-width: 0;
   min-height: 0;
   padding-block: clamp(0.4em, 2.5vh, 1.4em);
+  /* 下に控えた紙とクレヨンのふちは見せたまま、横スクロールだけを起こさせない。 */
+  overflow-x: clip;
+  overflow-clip-margin: 24px;
   touch-action: pan-y;
 }
 
@@ -220,7 +223,7 @@
   color: var(--color-subtle);
 }
 
-.filters summary {
+.filters > summary {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -234,7 +237,7 @@
   cursor: pointer;
 }
 
-.filters summary::-webkit-details-marker {
+.filters > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -253,7 +256,9 @@
 }
 
 .filterFields {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7em;
   padding: 0.5em 0 0.3em;
   font-size: 0.9em;
 }
