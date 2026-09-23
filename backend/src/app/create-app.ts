@@ -61,11 +61,11 @@ export function createApp({
     .get("/api/v1/concerns", ...concernHandler.list)
     .post("/api/v1/concerns", ...concernHandler.create)
     .get("/api/v1/concerns/:concernId", ...concernHandler.detail)
+    .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record)
     .post(
       "/api/v1/concerns/:concernId/reactions",
       ...concernReactionHandler.register,
-    )
-    .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record);
+    );
 }
 
 export type AppType = ReturnType<typeof createApp>;
