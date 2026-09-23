@@ -470,7 +470,7 @@ reasonCode の初期値は次のとおり。
 
 ### 3.5 POST /api/v1/concerns/:concernId/views
 
-悩みを認証済みユーザーの既読として登録する。Request body は持たない。詳細画面で本文を表示した後にフロントエンドが1回呼び出す。
+公開中の悩みをLINEログイン済みユーザーの既読として記録する。Request body は持たない。フロントエンドは本文の表示完了後に1回呼び出す。
 
 #### Response: 200 OK
 
@@ -482,11 +482,10 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- 同じ concernId を同じ認証主体で何度呼んでも成功する
-- concern_views は concernId と解決済みの認証主体（内部 users.id を持つ actor_key）の組で一意にする
-- 同じ組への再送では保存済みの viewedAt を維持する
-- 同一の既読操作で学習履歴を無制限に増やさない
-- 公開済みでない concernId は 404 NOT_FOUND とする
+- 同じ concernId と actor_key の組は一行に集約し、再送時も最初の viewedAt を返す
+- actor_key は認証セッションから解決した内部 users.id とし、LINE user ID は保存・返却しない
+- 未ログイン時は 401 AUTHENTICATION_REQUIRED
+- hidden、deleted、存在しない concernId は 404 NOT_FOUND とする
 
 ## 4. クラスタ API
 
@@ -1040,7 +1039,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - 他ユーザーの userId を body に入れた場合に無視されること
 - published 以外の concern / quiz が外部へ返らないこと
 - reaction の再送で二重加算されないこと
-- view の再送で既読履歴が無制限に増えないこと
+- view の再送で concern_views の行が重複しないこと
 - quiz answer の participant / concern 重複と回答済み
 - cursor の不正と Query 条件の不一致
 - 音声 MIME type、サイズ、長さ、外部サービス失敗
