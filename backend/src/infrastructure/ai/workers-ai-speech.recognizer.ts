@@ -31,8 +31,9 @@ export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
     }
 
     const run = this.ai.run as unknown as WorkersAiRun;
+    const audioBytes = Array.from(new Uint8Array(audio));
     const response: unknown = await run(WHISPER_MODEL, {
-      audio,
+      audio: audioBytes,
       ...(options.language ? { language: options.language } : {}),
     });
 
