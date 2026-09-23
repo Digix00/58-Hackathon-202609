@@ -13,6 +13,15 @@ on:
   # Scans `main` and `develop` on every push to track the health-score trend and catch regressions that slipped past PR review.
   push:
     branches: ["main", "develop"]
+    paths:
+      - "frontend/src/**"
+      - "frontend/index.html"
+      - "frontend/package.json"
+      - "frontend/tsconfig*.json"
+      - "frontend/vite.config.*"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/react-doctor.yml"
 
 permissions:
   contents: read
