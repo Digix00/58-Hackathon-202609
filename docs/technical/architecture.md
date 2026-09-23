@@ -42,9 +42,10 @@ flowchart LR
 ### Workers AI
 
 - `backend/wrangler.jsonc` の AI binding `AI` を Worker の `env.AI` として利用する。API キーは設定しない。
-- Application 層は `TextEmbeddingGenerator` Port に依存し、Infrastructure 層の `WorkersAiTextEmbeddingGenerator` が `env.AI.run(model, input)` を呼び出す。
+- Application 層は `TextTranslator`、`TextEmbeddingGenerator`、`SpeechRecognizer` Portに依存し、Infrastructure層のWorkers AI Adapterが `env.AI.run(model, input)`を呼び出す。
+- 原文から英語への翻訳は `@cf/meta/m2m100-1.2b`、ひらがな変換はInstruction model、音声認識は多言語の `@cf/openai/whisper` を使う。
 - 日本語の意味検索・クラスタリング向けEmbeddingモデルとして `@cf/pfnet/plamo-embedding-1b` を使う。複数テキストを一度に渡し、入力順に対応する数値ベクトルを受け取る。
-- PR1ではBindingとAdapterを用意する段階で、アプリケーションから推論を呼び出さない。後続の非同期処理からPortを使う。
+- AdapterはDIでApplication層や後続の非同期処理へ注入できる。今回の変更ではDBテーブルや投稿作成フローは変更しない。
 - `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
 - 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
 
