@@ -6,6 +6,11 @@ interface EncodedConcernCursor extends ConcernListCursor {
   version: typeof CURSOR_VERSION;
 }
 
+/**
+ * GET /api/v1/concerns のレスポンスに含める nextCursor を生成する。
+ * 次ページの開始位置である createdAt と id をJSON化し、クライアントが
+ * 内容を解釈せずそのまま送信できるBase64URL形式のopaque stringへ変換する。
+ */
 export function encodeConcernCursor(cursor: ConcernListCursor): string {
   const payload: EncodedConcernCursor = {
     version: CURSOR_VERSION,
@@ -23,6 +28,11 @@ export function encodeConcernCursor(cursor: ConcernListCursor): string {
     .replace(/=+$/, "");
 }
 
+/**
+ * GET /api/v1/concerns の query parameter で受け取った cursor を復元する。
+ * Base64URL、JSON、バージョン、createdAt、id のいずれかが不正な場合は
+ * null を返し、Handlerが INVALID_CURSOR として400レスポンスへ変換する。
+ */
 export function decodeConcernCursor(value: string): ConcernListCursor | null {
   try {
     const base64 = value
