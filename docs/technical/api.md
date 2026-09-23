@@ -952,6 +952,8 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
+PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルと派生データの保存は、後続の実装で追加する。
+
 - ja_hira
 - en_translation
 - clustering
