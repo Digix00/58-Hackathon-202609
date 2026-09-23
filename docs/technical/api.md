@@ -182,9 +182,9 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 - other
 - no_answer
 
-#### 地域
+#### 地域（都道府県）
 
-regionCode は regions マスタで定義されたコードを指定する。都道府県や広域区分の名称を自由入力では受け付けない。例として osaka や kansai のようなコードを利用する。
+`regionCode` は、バックエンドの `REGION_CODES`（`backend/src/application/entity/region-code.ts`）で定義された47都道府県コードのいずれかを指定する。`regions` テーブルや外部マスタは参照しない。自由入力と広域区分（例: `kansai`）は受け付けず、`osaka` のような都道府県コードだけを受け付ける。
 
 #### 投稿の公開状態
 
@@ -242,7 +242,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | GET | /api/v1/quizzes/today | デモ必須 | LINEログイン（LIFF内のみ） | Asia/Tokyo の当日クイズ |
 | GET | /api/v1/quizzes/:quizId | デモ必須 | LINEログイン（LIFF内のみ） | 指定クイズ |
 | POST | /api/v1/quizzes/:quizId/answers | デモ必須 | LINEログイン（LIFF内のみ） | 対応付け回答 |
-| GET | /api/v1/history/summary | デモ必須 | LINEログイン（LIFF内のみ） | 閲覧・クラスタ・地域・属性・クイズ集計 |
+| GET | /api/v1/history/summary | デモ必須 | LINEログイン（LIFF内のみ） | 閲覧・クラスタ・都道府県・属性・クイズ集計 |
 | GET | /api/v1/history/quiz-answers | デモ必須 | LINEログイン（LIFF内のみ） | クイズ回答履歴 |
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
@@ -270,7 +270,7 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
 - `birthMonth` は1〜12の整数とし、現在年の場合は現在月以降の未来の月を受け付けない
 - 生年月日は日まで保持せず、年と月だけを保存する
 - `gender` は `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかとする
-- `regionCode` は既定の47都道府県コードのいずれかとする
+- `regionCode` はバックエンドの `REGION_CODES` に定義された47都道府県コードのいずれかとする
 
 #### Response: 200 OK
 
@@ -313,7 +313,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - body は必須。前後の空白を trim した後、1〜1000 文字
 - ageGroup は任意。指定時は定義済みの年代コードだけを受け付ける
 - gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
-- regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
+- regionCode は任意。指定時は `REGION_CODES` に定義された47都道府県コードだけを受け付ける
 - ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
 - 本文の個人情報や緊急性の判定は PoC の API 責務に含めない。実在の個人情報や緊急相談をデモデータに使用しない
@@ -368,7 +368,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | cursor | 任意 | — | 次ページの opaque cursor |
 | sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
 | clusterId | 任意 | — | 指定クラスタに絞る |
-| regionCode | 任意 | — | 指定地域に絞る |
+| regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | original | original、jaHira、en |
 
 #### Response: 200 OK
@@ -413,7 +413,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
-- sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、地域の分散、新しさを使う
+- sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、都道府県の分散、新しさを使う
 - 未ログインの取得で sort=recommended を指定した場合は 400 AUTHENTICATION_REQUIRED を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す
 - 推薦理由の code は画面側で表示文言へ変換する。サーバーは内部のスコアや個人識別情報を返さない
@@ -422,7 +422,7 @@ reasonCode の初期値は次のとおり。
 
 - unread_cluster: 未読のクラスタを優先
 - new_cluster: 最近読んでいないクラスタを優先
-- region_diversity: 地域の偏りを避けるため選択
+- region_diversity: 都道府県の偏りを避けるため選択
 - newest: 新着順
 - fallback_newest: 推薦処理失敗時の新着順
 
@@ -498,7 +498,7 @@ reasonCode の初期値は次のとおり。
 
 - limit: 1〜50、既定値 20
 - cursor: opaque cursor
-- regionCode: 任意。クラスタ内の公開済み悩みを地域で絞る
+- regionCode: 任意。クラスタ内の公開済み悩みを都道府県で絞る
 
 #### Response
 
@@ -561,7 +561,7 @@ reasonCode の初期値は次のとおり。
       "attributes": {
         "ageGroup": "40s",
         "gender": "male",
-        "regionCode": "kansai"
+        "regionCode": "kyoto"
       },
       "displayOrder": 2
     },
@@ -749,7 +749,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
-- clusters と regions は、既読履歴に現れた公開投稿を集計する
+- clusters と `regions` は、既読履歴に現れた公開投稿を集計する。`regions` は都道府県コード別の集計結果であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
 - 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
 - quiz.answeredCount は回答済みクイズ数
