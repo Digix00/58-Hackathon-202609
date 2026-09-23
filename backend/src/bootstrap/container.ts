@@ -2,7 +2,10 @@ import { createApp } from "../app/create-app";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
-import { ConcernProcessingUseCase } from "../application/usecase/concern-processing.usecase";
+import {
+  ConcernProcessingUseCase,
+  DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
+} from "../application/usecase/concern-processing.usecase";
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
@@ -12,11 +15,13 @@ import {
   D1UserRepository,
 } from "../infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
+import { D1ConcernProcessingRepository } from "../infrastructure/database/d1-concern-processing.repository";
 import { D1ConcernReactionRepository } from "../infrastructure/database/d1-concern-reaction.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
+import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
@@ -47,6 +52,13 @@ export function createApplication(bindings: Bindings) {
   const concernProcessingUseCase = new ConcernProcessingUseCase(
     new WorkersAiTextTranslator(bindings.AI),
     new WorkersAiTextEmbeddingGenerator(bindings.AI),
+    new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX),
+    new D1ConcernProcessingRepository(bindings.DB),
+    {
+      similarityThreshold: parseSimilarityThreshold(
+        bindings.CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
+      ),
+    },
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,
@@ -94,4 +106,18 @@ function parseSessionTtl(value: string | undefined): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseSimilarityThreshold(value: string | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new TypeError(
+      "CONCERN_CLUSTER_SIMILARITY_THRESHOLD must be between 0 and 1",
+    );
+  }
+  return parsed;
 }

@@ -50,6 +50,25 @@ export const sessions = sqliteTable(
   }),
 );
 
+export const concernClusters = sqliteTable(
+  "concern_clusters",
+  {
+    id: text("id").primaryKey(),
+    label: text("label"),
+    summary: text("summary"),
+    status: text("status").notNull().default("pending"),
+    modelVersion: text("model_version").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    statusCheck: check(
+      "concern_clusters_status_check",
+      sql`${table.status} in ('pending', 'ready', 'failed')`,
+    ),
+  }),
+);
+
 export const concerns = sqliteTable(
   "concerns",
   {
@@ -63,6 +82,7 @@ export const concerns = sqliteTable(
     regionCode: text("region_code"),
     visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
+    clusterId: text("cluster_id").references(() => concernClusters.id),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -79,6 +99,12 @@ export const concerns = sqliteTable(
       table.id,
     ),
     userIndex: index("concerns_user_idx").on(table.userId, table.createdAt),
+    clusterFeedIndex: index("concerns_cluster_feed_idx").on(
+      table.clusterId,
+      table.visibilityStatus,
+      table.createdAt,
+      table.id,
+    ),
     ageGroupCheck: check(
       "concerns_age_group_check",
       sql`${table.ageGroup} is null or ${table.ageGroup} in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')`,
@@ -94,6 +120,31 @@ export const concerns = sqliteTable(
     processingStatusCheck: check(
       "concerns_processing_status_check",
       sql`${table.processingStatus} in ('pending', 'processing', 'ready', 'failed')`,
+    ),
+  }),
+);
+
+export const concernRepresentations = sqliteTable(
+  "concern_representations",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    locale: text("locale").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("ready"),
+    errorCode: text("error_code"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({ columns: [table.concernId, table.locale] }),
+    localeCheck: check(
+      "concern_representations_locale_check",
+      sql`${table.locale} in ('ja-Hira', 'en')`,
+    ),
+    statusCheck: check(
+      "concern_representations_status_check",
+      sql`${table.status} in ('ready', 'failed')`,
     ),
   }),
 );

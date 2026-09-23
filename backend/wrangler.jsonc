@@ -13,6 +13,15 @@
   "ai": {
     "binding": "AI"
   },
+  "vectorize": [
+    {
+      "binding": "CONCERN_VECTOR_INDEX",
+      "index_name": "58-hackathon-concern-vectors"
+    }
+  ],
+  "vars": {
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8"
+  },
   "queues": {
     "producers": [
       {

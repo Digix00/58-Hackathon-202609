@@ -8,10 +8,11 @@
 
 | エンティティ | 主な項目 | 用途 |
 | --- | --- | --- |
-| `concerns` | id、user_id、原文、属性、公開状態、処理状態、日時 | 悩み本体 |
-| `concern_clusters` | id、表示ラベル、要約、状態、日時 | 意味の近い悩みのまとまり |
+| `concerns` | id、user_id、原文、属性、公開状態、処理状態、cluster_id、日時 | 悩み本体とクラスタ割当 |
+| `concern_clusters` | id、表示ラベル、要約、状態、Embeddingモデル版、日時 | 意味の近い悩みのまとまり。初期状態では表示ラベルと要約は未設定 |
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_processing_jobs` | id、concern_id、処理種別、状態、試行回数 | 翻訳・ひらがな化・クラスタリングなどの非同期処理 |
+| Vectorize index | concern_id、Embedding、cluster_id metadata | 類似投稿検索。Embedding本体はD1へ重複保存しない |
 | `concern_reactions` | concern_id、user_id、reaction_type、created_at | リアクションの重複防止と集計 |
 | `concern_views` | concern_id、user_id、first_viewed_at、last_viewed_at、view_count | 既読と推薦に利用 |
 | `quizzes` | id、対象日、状態、作成日時 | デイリークイズ |
@@ -32,6 +33,8 @@
 - 処理状態: `not_started`、`transcribing`、`translating`、`clustering`、`ready`、`failed`
 
 投稿の保存が成功した後に文字起こし、翻訳、クラスタリングのいずれかが失敗しても、原文の投稿は失わず、その処理だけ未完了として閲覧できるようにする。
+
+クラスタリングでは投稿本文のEmbeddingをCloudflare Vectorizeに保存し、D1にはcluster IDと表示用の派生データを保存する。Vectorizeへ渡すmetadataには投稿本文やユーザー属性を含めない。cosine scoreの初期しきい値は `0.8` とし、近傍5件を検索する。このしきい値は実際の投稿で評価後に調整する。
 
 ### 属性の扱い
 

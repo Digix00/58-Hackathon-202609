@@ -39,6 +39,8 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
 | `AI` (Workers AI binding) | Workers AI 推論 | `backend/wrangler.jsonc` |
 | `CONCERN_PROCESSING_QUEUE` | 投稿後のAI処理Queue producer | `backend/wrangler.jsonc` |
+| `CONCERN_VECTOR_INDEX` | 投稿Embeddingの検索・保存 | `backend/wrangler.jsonc` |
+| `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` | 既存clusterへ割り当てるcosine scoreの下限（初期値 `0.8`） | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINEクイズ配信 | Worker環境変数またはSecret |
 | `E2E_BASE_URL` | E2Eテスト対象のWeb URL | GitHub Actions Secretまたは環境設定 |
@@ -63,7 +65,13 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
 
-Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。現段階では生成結果を保存しない。
+Application層からは `TextTranslator`、`TextEmbeddingGenerator`、`ConcernVectorIndex` Portを呼び出す。投稿後のQueue処理では、ひらがな・英語表現とcluster assignmentをD1へ保存し、PLaMo-Embedding-1Bの2048次元ベクトルをVectorizeへupsertする。初回は次のindexを作成してからWorkerをデプロイする。
+
+```bash
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=2048 --metric=cosine
+```
+
+cosine scoreの初期しきい値は `0.8`。実際の投稿でクラスタ割当を評価し、必要に応じて `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` を調整する。Vectorize upsertが検索へ反映されるまで数秒かかる場合がある。
 
 `wrangler dev` からのWorkers AI推論もCloudflareアカウントへ接続し、利用量に計上される。Vitestは `wrangler.test.jsonc` を使い、実AI bindingなしのローカル環境でFakeを使う。開発時もモデル呼び出しを必要な回数に制限してWorkers AIダッシュボードで利用量を確認する。クラスタリング、翻訳、音声認識の呼び出しは投稿ごとに無制限に実行せず、クラスタ単位、バッチ単位、またはデモ用データ単位で制限する。LINE配信の宛先と回数もデモ用に制限し、課金が発生する外部サービスを採用する場合は、利用量の上限と停止方法をREADMEへ記載する。
 

@@ -17,9 +17,11 @@ src/
 │   │   └── user.ts
 │   ├── repository/              # 永続化処理のPort
 │   │   ├── auth.repository.ts
+│   │   ├── concern-processing.repository.ts
 │   │   └── health.repository.ts
 │   ├── port/                    # 外部サービスのPort
 │   │   ├── concern-processing-queue.ts
+│   │   ├── concern-vector-index.ts
 │   │   ├── line-token-verifier.ts
 │   │   ├── speech-recognizer.ts
 │   │   ├── text-embedding-generator.ts
@@ -36,11 +38,13 @@ src/
 │   │   └── workers-ai-text.translator.ts
 │   ├── database/
 │   │   ├── d1-auth.repository.ts
+│   │   ├── d1-concern-processing.repository.ts
 │   │   ├── d1-health.repository.ts
 │   │   └── schema.ts
 │   ├── queue/
 │   │   ├── cloudflare-concern-processing.consumer.ts
 │   │   └── cloudflare-concern-processing.queue.ts
+│   ├── vectorize/cloudflare-concern-vector-index.ts
 │   └── line/line-api.client.ts
 ├── presentation/                # HTTP Handler
 │   ├── auth.handler.ts
@@ -71,13 +75,18 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
 
-現段階のUseCaseは原文から英語・ひらがなへの変換とEmbeddingを実行する。生成結果の保存先テーブルはまだ追加せず、QueueとUseCaseの接続確認に限定している。Queueの失敗はメッセージ単位で再試行し、最大再試行回数はWrangler設定に従う。
+UseCaseは原文からひらがな・英語表現とEmbeddingを生成する。EmbeddingはPLaMo-Embedding-1B（2048次元）を使い、Vectorizeへ投稿IDをベクトルIDとしてupsertする。近傍5件のうち類似度が `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` 以上でクラスタIDを持つ投稿があれば、そのクラスタへ割り当てる。見つからない場合は新しいクラスタを作る。初期閾値は `0.8`。
 
-初回だけQueueを作成する。
+D1はクラスタ情報、投稿のクラスタID、ひらがな・英語表現を保持する。Queueの再配信時は、完了済み投稿をスキップし、処理途中に保存したクラスタIDを再利用する。Queueの失敗はメッセージ単位で再試行し、最大再試行回数はWrangler設定に従う。Vectorizeのupsertは非同期で反映されるため、新しいベクトルが検索可能になるまで数秒かかることがある。
+
+初回だけQueueとVectorize indexを作成する。
 
 ```bash
 pnpm --filter backend exec wrangler queues create 58-hackathon-concern-processing
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=2048 --metric=cosine
 ```
+
+初回デプロイ前に、PLaMoの出力次元に合わせたVectorize indexを作成する。Vectorizeのindex名、次元数、距離指標は作成後に変更できない。
 
 `wrangler dev` から実際に推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する。
 

@@ -8,6 +8,8 @@ declare global {
       DB: D1Database;
       AI: Ai;
       CONCERN_PROCESSING_QUEUE?: Queue<ConcernProcessingMessage>;
+      CONCERN_VECTOR_INDEX?: Vectorize;
+      CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;
       LINE_CHANNEL_ID?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;

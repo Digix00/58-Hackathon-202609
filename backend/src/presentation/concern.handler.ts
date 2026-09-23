@@ -190,7 +190,7 @@ function toResponse(concern: Concern) {
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
     representations: { jaHira: null, en: null },
-    cluster: null,
+    cluster: toClusterResponse(concern),
     reactionCount: 0,
     createdAt: concern.createdAt,
   };
@@ -210,7 +210,7 @@ function toFeedResponse(concern: Concern, includeRecommendation: boolean) {
       jaHira: toRepresentationStatus(concern),
       en: toRepresentationStatus(concern),
     },
-    cluster: null,
+    cluster: toClusterResponse(concern),
     reactionCount: 0,
     viewed: false,
     reacted: false,
@@ -232,6 +232,18 @@ function toRepresentationStatus(concern: Concern) {
     : concern.processingStatus === "failed"
       ? "failed"
       : "pending";
+}
+
+function toClusterResponse(concern: Concern) {
+  if (concern.processingStatus !== "ready" || !concern.cluster) {
+    return null;
+  }
+
+  return {
+    id: concern.cluster.id,
+    label: concern.cluster.label,
+    summary: concern.cluster.summary,
+  };
 }
 
 function setRequestId(c: {

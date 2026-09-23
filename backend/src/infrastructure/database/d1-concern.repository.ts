@@ -13,7 +13,7 @@ import type {
   ListPublishedConcernsInput,
   ListPublishedConcernsResult,
 } from "../../application/repository/concern.repository";
-import { concerns } from "./schema";
+import { concernClusters, concerns } from "./schema";
 
 /** D1/Drizzleを使ったConcernRepositoryの実装。 */
 export class D1ConcernRepository implements ConcernRepository {
@@ -59,8 +59,9 @@ export class D1ConcernRepository implements ConcernRepository {
       ? and(eq(concerns.visibilityStatus, "published"), cursorCondition)
       : eq(concerns.visibilityStatus, "published");
     const rows = await this.db
-      .select()
+      .select({ concern: concerns, cluster: concernClusters })
       .from(concerns)
+      .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
       .where(where)
       .orderBy(desc(concerns.createdAt), desc(concerns.id))
       .limit(input.limit + 1)
@@ -68,25 +69,31 @@ export class D1ConcernRepository implements ConcernRepository {
     const hasMore = rows.length > input.limit;
 
     return {
-      items: rows.slice(0, input.limit).map(toConcern),
+      items: rows
+        .slice(0, input.limit)
+        .map((row) => toConcern(row.concern, row.cluster)),
       hasMore,
     };
   }
 
   async findPublishedById(id: string): Promise<Concern | null> {
     const row = await this.db
-      .select()
+      .select({ concern: concerns, cluster: concernClusters })
       .from(concerns)
+      .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
       .where(
         and(eq(concerns.id, id), eq(concerns.visibilityStatus, "published")),
       )
       .get();
 
-    return row ? toConcern(row) : null;
+    return row ? toConcern(row.concern, row.cluster) : null;
   }
 }
 
-function toConcern(row: typeof concerns.$inferSelect): Concern {
+function toConcern(
+  row: typeof concerns.$inferSelect,
+  cluster: typeof concernClusters.$inferSelect | null,
+): Concern {
   return new Concern({
     id: row.id,
     userId: row.userId,
@@ -96,6 +103,9 @@ function toConcern(row: typeof concerns.$inferSelect): Concern {
     regionCode: row.regionCode,
     visibilityStatus: row.visibilityStatus as ConcernVisibilityStatus,
     processingStatus: row.processingStatus as ConcernProcessingStatus,
+    cluster: cluster
+      ? { id: cluster.id, label: cluster.label, summary: cluster.summary }
+      : null,
     createdAt: row.createdAt,
   });
 }

@@ -268,7 +268,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
-| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
+| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | 意味の近い悩みのまとまり。labelとsummaryは後続処理で生成するまでNULL |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
@@ -282,6 +282,8 @@ concerns の processing_status は次の概要値とする。
 - processing: いずれかのジョブを処理中
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗。ただし原文は利用可能
+
+Embeddingの数値配列はCloudflare Vectorizeに保存する。Vectorizeのvector IDはconcern IDとし、metadataにはcluster IDだけを保持する。D1のconcerns.cluster_idがcluster割当の正本となり、Vectorizeは近傍検索を担当する。VectorizeのindexはPLaMo-Embedding-1Bの2048次元、cosine metricで作成する。
 
 モデレーションの判定不能は、processing の失敗とは別に visibility_status を pending のまま保持する。これにより、AI 処理の失敗で原文を失わず、不適切な投稿だけは公開保留にできる。
 

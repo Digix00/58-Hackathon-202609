@@ -36,6 +36,12 @@ export const CONCERN_PROCESSING_STATUSES = [
 export type ConcernProcessingStatus =
   (typeof CONCERN_PROCESSING_STATUSES)[number];
 
+export interface ConcernCluster {
+  id: string;
+  label: string | null;
+  summary: string | null;
+}
+
 export const CONCERN_BODY_MAX_LENGTH = 1000;
 
 /** Concernの不変条件（本文長さ・属性値の妥当性）に違反した場合に投げるドメインエラー。 */
@@ -58,6 +64,7 @@ export interface ConcernProps {
   regionCode?: string | null;
   visibilityStatus?: ConcernVisibilityStatus;
   processingStatus?: ConcernProcessingStatus;
+  cluster?: ConcernCluster | null;
   createdAt: string;
 }
 
@@ -75,6 +82,7 @@ export class Concern {
   readonly regionCode: string | null;
   readonly visibilityStatus: ConcernVisibilityStatus;
   readonly processingStatus: ConcernProcessingStatus;
+  readonly cluster: ConcernCluster | null;
   readonly createdAt: string;
 
   constructor(props: ConcernProps) {
@@ -106,6 +114,7 @@ export class Concern {
     this.regionCode = props.regionCode ?? null;
     this.visibilityStatus = props.visibilityStatus ?? "published";
     this.processingStatus = props.processingStatus ?? "pending";
+    this.cluster = props.cluster ?? null;
     this.createdAt = props.createdAt;
   }
 }

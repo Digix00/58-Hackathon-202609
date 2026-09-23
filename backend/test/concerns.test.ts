@@ -12,6 +12,7 @@ import {
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
+import { D1ConcernProcessingRepository } from "../src/infrastructure/database/d1-concern-processing.repository";
 import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-concern-reaction.repository";
 import {
   concernReactions,
@@ -508,6 +509,44 @@ describe("GET /api/v1/concerns", () => {
 });
 
 describe("GET /api/v1/concerns/:concernId", () => {
+  it("returns the persisted cluster after asynchronous processing succeeds", async () => {
+    const createdAt = "9999-03-02T00:00:00.000Z";
+    const id = await seedConcern({
+      body: "同じことで困っている投稿",
+      createdAt,
+    });
+    const processingRepository = new D1ConcernProcessingRepository(env.DB);
+    await processingRepository.markProcessing(id, createdAt);
+    await processingRepository.assignCluster(
+      id,
+      "cluster-processing-test",
+      "@cf/pfnet/plamo-embedding-1b",
+      createdAt,
+    );
+    await processingRepository.saveResult(
+      id,
+      { jaHira: "おなじことでこまっているとうこう", en: "A similar concern." },
+      createdAt,
+    );
+
+    const res = await createTestApp().request(
+      `/api/v1/concerns/${id}`,
+      {},
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      id,
+      cluster: {
+        id: "cluster-processing-test",
+        label: null,
+        summary: null,
+      },
+      representations: { jaHira: "ready", en: "ready" },
+    });
+  });
+
   it("returns a published concern without identifying information", async () => {
     const id = await seedConcern({
       body: "詳細で読む公開投稿",

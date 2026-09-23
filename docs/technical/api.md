@@ -387,12 +387,12 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       },
       "representations": {
         "jaHira": "ready",
-        "en": "pending"
+        "en": "ready"
       },
       "cluster": {
         "id": "cluster_01J...",
-        "label": "昼休み・食堂",
-        "summary": "昼休み中の食事や休憩に関する悩み"
+        "label": null,
+        "summary": null
       },
       "reactionCount": 12,
       "viewed": false,
@@ -516,7 +516,7 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- cluster の label、summary は AI 生成後に長さ、禁止語、個人情報を検査する
+- cluster の label、summary は生成されるまでは null とする。生成後は長さ、禁止語、個人情報を検査する
 - 公開済みの悩みが 0 件のクラスタは返さない
 - concernCount は published の悩みだけを数える
 
@@ -953,7 +953,7 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
-PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルと派生データの保存は、後続の実装で追加する。
+`concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。UseCaseはひらがな化・英訳・Embedding生成を行い、生成した表現とcluster assignmentをD1へ保存する。Embedding本体はVectorizeに保存し、D1にはVectorizeのIDと一致するconcern ID、およびcluster IDを保存する。個別ジョブの試行回数を持つ `concern_processing_jobs` テーブルは別の後続作業とする。
 
 - ja_hira
 - en_translation
@@ -967,6 +967,8 @@ API が返す concerns.processingStatus は処理全体の概要値とする。�
 | processing | いずれかのジョブを実行中 |
 | ready | 画面表示に必要な派生データが生成済み |
 | failed | 一部失敗。ただし原文は利用可能 |
+
+クラスタリングはVectorizeのcosine検索で近傍5件を取得し、scoreが `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` 以上の既存clusterへ割り当てる。一致がなければ新規clusterを作る。初期値は `0.8`。Vectorizeのupsertは非同期のため、書込み後数秒は検索結果へ現れない場合がある。clusterの `label` と `summary` は現段階でnullとし、名前・要約の生成は別の処理で行う。
 
 失敗時の共通ルール:
 
