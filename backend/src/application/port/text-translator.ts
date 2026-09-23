@@ -5,4 +5,5 @@
 export interface TextTranslator {
   translateToEnglish(text: string): Promise<string>;
   convertToHiragana(text: string): Promise<string>;
+  translateHiraganaToEnglish(text: string): Promise<string>;
 }

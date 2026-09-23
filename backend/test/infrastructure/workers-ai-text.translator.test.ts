@@ -12,23 +12,30 @@ function createAiBinding(run: Run): Pick<Ai, "run"> {
 }
 
 describe("WorkersAiTextTranslator", () => {
-  it("translates Japanese text to English with M2M100", async () => {
-    const run = vi
-      .fn<Run>()
-      .mockResolvedValue({ translated_text: "I am tired" });
+  it("translates Japanese text to English with the shared model", async () => {
+    const run = vi.fn<Run>().mockResolvedValue({ response: "I am tired" });
     const translator = new WorkersAiTextTranslator(createAiBinding(run));
 
     await expect(
       translator.translateToEnglish("  疲れています  "),
     ).resolves.toBe("I am tired");
-    expect(run).toHaveBeenCalledWith("@cf/meta/m2m100-1.2b", {
-      text: "疲れています",
-      source_lang: "ja",
-      target_lang: "en",
+    expect(run).toHaveBeenCalledWith("@cf/meta/llama-3.1-8b-instruct-fp8", {
+      messages: [
+        {
+          role: "system",
+          content: "Return only the requested result. Do not explain.",
+        },
+        {
+          role: "user",
+          content: "Translate Japanese to English.\n疲れています",
+        },
+      ],
+      max_tokens: 1024,
+      temperature: 0,
     });
   });
 
-  it("converts Japanese text to hiragana with an instruction prompt", async () => {
+  it("converts Japanese text to hiragana with the shared model", async () => {
     const run = vi.fn<Run>().mockResolvedValue({ response: "つかれています" });
     const translator = new WorkersAiTextTranslator(createAiBinding(run));
 
@@ -39,11 +46,38 @@ describe("WorkersAiTextTranslator", () => {
       messages: [
         {
           role: "system",
-          content:
-            "Convert the user's Japanese text to hiragana. Return only the converted text, with no explanation.",
+          content: "Return only the requested result. Do not explain.",
         },
-        { role: "user", content: "疲れています" },
+        {
+          role: "user",
+          content: "Convert Japanese to hiragana.\n疲れています",
+        },
       ],
+      max_tokens: 1024,
+      temperature: 0,
+    });
+  });
+
+  it("translates hiragana text to English with the same model", async () => {
+    const run = vi.fn<Run>().mockResolvedValue({ response: "I am tired" });
+    const translator = new WorkersAiTextTranslator(createAiBinding(run));
+
+    await expect(
+      translator.translateHiraganaToEnglish("つかれています"),
+    ).resolves.toBe("I am tired");
+    expect(run).toHaveBeenCalledWith("@cf/meta/llama-3.1-8b-instruct-fp8", {
+      messages: [
+        {
+          role: "system",
+          content: "Return only the requested result. Do not explain.",
+        },
+        {
+          role: "user",
+          content: "Translate hiragana Japanese to English.\nつかれています",
+        },
+      ],
+      max_tokens: 1024,
+      temperature: 0,
     });
   });
 
