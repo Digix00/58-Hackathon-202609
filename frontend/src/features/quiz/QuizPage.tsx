@@ -728,6 +728,142 @@ function turningKey(turning: TurningState, index: number) {
 
 type QuizSwipe = ReturnType<typeof useNotebookSwipe>
 
+function QuizTurnedCover({ coverOpened }: { coverOpened: boolean }) {
+  if (!coverOpened) return null
+
+  return (
+    <div className={turnStyles.turned} aria-hidden="true">
+      <div
+        className={`${turnStyles.back} ${crayonStyles.edge}`}
+        style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+      >
+        <NotebookBinding part="holes" back />
+      </div>
+    </div>
+  )
+}
+
+function QuizTurnLayer({
+  turning,
+  stateIndex,
+  showingResults,
+  slotRef,
+  dragOver,
+  bodyOf,
+  onTurnFinish,
+  onPull,
+}: {
+  turning: TurningState | null
+  stateIndex: number
+  showingResults: boolean
+  slotRef: React.RefObject<HTMLSpanElement | null>
+  dragOver: boolean
+  bodyOf: (target: Letter) => string | undefined
+  onTurnFinish: () => void
+  onPull: (letterId: string) => void
+}) {
+  if (!turning) return null
+
+  const key = turningKey(turning, stateIndex)
+  const isCover = turning.kind === 'cover'
+
+  return (
+    <>
+      <NotebookBinding key={key} part="rear" between />
+      <NotebookTurn
+        key={key}
+        variant={isCover ? 'cover' : 'page'}
+        startAngle={turning.startAngle}
+        backColor={isCover ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
+        direction={isCover ? 1 : turning.direction}
+        onFinish={onTurnFinish}
+      >
+        {isCover ? (
+          <QuizCover />
+        ) : (
+          <Paper className={showingResults ? styles.resultCard : ''}>
+            <QuizPaperBody
+              target={turning.letter}
+              personId={turning.personId}
+              interactive={false}
+              showingResults={showingResults}
+              body={bodyOf(turning.letter)}
+              slotRef={slotRef}
+              dragOver={dragOver}
+              onPull={onPull}
+            />
+          </Paper>
+        )}
+      </NotebookTurn>
+    </>
+  )
+}
+
+function QuizFrontPage({
+  coverOpened,
+  letter,
+  answers,
+  stateIndex,
+  showingResults,
+  swipe,
+  slotRef,
+  dragOver,
+  bodyOf,
+  onPull,
+}: {
+  coverOpened: boolean
+  letter: Letter
+  answers: Answers
+  stateIndex: number
+  showingResults: boolean
+  swipe: QuizSwipe
+  slotRef: React.RefObject<HTMLSpanElement | null>
+  dragOver: boolean
+  bodyOf: (target: Letter) => string | undefined
+  onPull: (letterId: string) => void
+}) {
+  if (coverOpened) {
+    return (
+      <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
+        <Paper className={showingResults ? styles.resultCard : ''} dragX={swipe.dragX}>
+          <QuizPaperBody
+            target={letter}
+            personId={answers[letter.id]}
+            interactive
+            showingResults={showingResults}
+            body={bodyOf(letter)}
+            slotRef={slotRef}
+            dragOver={dragOver}
+            onPull={onPull}
+          />
+        </Paper>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
+        <Paper>
+          <QuizPaperBody
+            target={letter}
+            personId={undefined}
+            interactive={false}
+            showingResults={false}
+            body={bodyOf(letter)}
+            slotRef={slotRef}
+            dragOver={false}
+            onPull={onPull}
+          />
+        </Paper>
+      </div>
+      <div className={styles.coverLayer}>
+        <QuizCover />
+      </div>
+    </>
+  )
+}
+
 function QuizStage({
   stateIndex,
   letter,

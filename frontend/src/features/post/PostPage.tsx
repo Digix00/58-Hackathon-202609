@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from 'react'
 import { Link } from 'react-router'
+import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
@@ -192,7 +193,7 @@ function WriteSheet({
           {tooLong ? <span className={styles.srOnly}>。上限を越えています</span> : null}
         </p>
         <p id="post-voice-note" className={styles.voiceNote}>
-          音声入力は準備中です
+          <ComingSoonLabel ariaLabel="音声入力は準備中です" />
         </p>
       </div>
     </article>

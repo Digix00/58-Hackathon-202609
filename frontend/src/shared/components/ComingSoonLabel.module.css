@@ -1,0 +1,62 @@
+.label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9em;
+  padding: 0.22em 0.8em 0.28em;
+  border-radius: 6px 9px 7px 5px;
+  color: #614b36;
+  background: #f6dfb4;
+  box-shadow: 2px 2px 0 #d0b887;
+  font-size: 0.76em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  white-space: nowrap;
+  transform: rotate(-1.6deg);
+  isolation: isolate;
+}
+
+/* 紙に貼った小さなマスキングテープ。 */
+.label::before {
+  position: absolute;
+  z-index: 0;
+  top: -0.35em;
+  left: 1.15em;
+  width: 1.5em;
+  height: 0.55em;
+  background: rgba(255, 247, 216, 0.9);
+  content: '';
+  transform: rotate(4deg);
+}
+
+/* ラベルの輪郭だけをクレヨンでなぞる。 */
+.label::after {
+  position: absolute;
+  z-index: 2;
+  inset: -1px;
+  border: 2px solid #9a805b;
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  pointer-events: none;
+  content: '';
+}
+
+.label > span {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-contrast: more) {
+  .label::after {
+    border-width: 2px;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

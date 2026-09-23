@@ -366,9 +366,10 @@ function FeedStack({
 }: FeedStackProps) {
   return (
     <div
+      ref={stackRef}
       className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
     >
-      <div ref={stackRef} className={styles.stack} style={notebookBindingStyle}>
+      <div className={styles.stack} style={notebookBindingStyle}>
       <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
@@ -602,10 +603,8 @@ export function FeedPage() {
   const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
     // 紙束が上がりきった。ここでようやく表紙に手をかける。
     if (!coverLifting) return
-    // 拡大の最終フレームを1度描画してから、表紙のめくりを始める。
-    window.setTimeout(() => {
-      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
-    }, 120)
+    // 拡大と押し上げを担当する同じ要素の transitionend 後に、表紙をめくり始める。
+    dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
   })
 
   const goNext = useCallback(
