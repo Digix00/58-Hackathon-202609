@@ -33,7 +33,7 @@
 .sun {
   top: 0.5em;
   right: 0.7em;
-  width: clamp(3.4em, 11vw, 4.4em);
+  width: clamp(4.2em, 13vw, 5.4em);
   height: auto;
   transform: rotate(-4deg);
 }
@@ -56,7 +56,7 @@
 .cloud {
   top: 1.5em;
   left: calc(var(--cover-gutter) + var(--cover-binding) + 2px);
-  width: clamp(3.1em, 9.5vw, 3.9em);
+  width: clamp(4em, 11.5vw, 4.9em);
   height: auto;
   transform: rotate(1.6deg);
 }
@@ -128,7 +128,7 @@
   }
 
   .sun {
-    width: clamp(2.6em, 8vw, 3.2em);
+    width: clamp(3em, 9vw, 3.8em);
   }
 }
 

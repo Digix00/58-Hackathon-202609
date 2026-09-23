@@ -107,7 +107,9 @@
    * 空（太陽と雲）は紙の余白に収まるが、花壇は下辺に並ぶので、
    * そのぶん下の余白を足して題字と操作を上へ寄せる。詰めると花に文字が乗る。
    */
-  --garden-height: clamp(3em, 9vh, 4.2em);
+  --garden-height: clamp(4em, 11vh, 5.4em);
+  /* 絵を大きくしたぶん、題字と一言も花壇から少し離して上へ置く。 */
+  --cover-content-lift: clamp(0.35em, 1.4vh, 0.7em);
   /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
   --cover-gutter: clamp(1.55em, 7vw, 2em);
   --cover-binding: 15px;
@@ -116,7 +118,9 @@
   align-content: center;
   justify-items: center;
   gap: 0.9em;
-  padding-bottom: calc(clamp(1.55em, 5.5vw, 2em) + var(--garden-height));
+  padding-bottom: calc(
+    clamp(1.55em, 5.5vw, 2em) + var(--garden-height) + var(--cover-content-lift)
+  );
   text-align: center;
 }
 
@@ -656,10 +660,11 @@
 
   /* 紙が低くなるぶん花壇も低くし、下の余白は花壇のぶんだけ取り直す。 */
   .cover {
-    --garden-height: clamp(2.2em, 6.5vh, 3em);
+    --garden-height: clamp(2.5em, 7vh, 3.4em);
+    --cover-content-lift: 0.2em;
     --cover-binding: 10px;
 
-    padding-bottom: calc(1.15em + var(--garden-height));
+    padding-bottom: calc(1.15em + var(--garden-height) + var(--cover-content-lift));
   }
 
   .storyLink p {

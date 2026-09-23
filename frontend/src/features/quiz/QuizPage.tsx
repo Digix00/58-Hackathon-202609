@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useReducer,
   useRef,
   useState,
@@ -50,6 +51,7 @@ type QuizState = {
 }
 type QuizAction =
   | { type: 'fit'; letterId: string; personId: string }
+  | { type: 'openLetter'; index: number }
   | { type: 'pull'; letterId: string }
   | { type: 'go'; direction: 1 | -1 }
   | { type: 'submitStarted' }
@@ -70,6 +72,12 @@ const TAG_PATH = 'M3 3 L50 15 L97 3 V75 H3 Z'
 const DROP_PAD = 22
 /** つまんで運んだとみなす距離。これ未満なら、押しただけとして扱う。 */
 const TAP_SLOP = 8
+/**
+ * 差し込んでから紙がめくれるまでの間。
+ * 挟まったしおりを目に留める時間であり、ちがったと気づいて
+ * 手を戻すための時間でもある。
+ */
+const SETTLE_MS = 600
 const initialState: QuizState = { step: 'letters', index: 0, answers: {} }
 
 function personById(id: string | undefined) {
@@ -96,12 +104,15 @@ function firstOpenIndex(answers: Answers) {
 
 function quizReducer(state: QuizState, action: QuizAction): QuizState {
   switch (action.type) {
-    case 'fit': {
-      const answers = placeAnswer(state.answers, action.letterId, action.personId)
-      const open = firstOpenIndex(answers)
-      // 挟んだ紙はめくれ、まだ空いている手紙が現れる。
-      return { ...state, answers, index: open === -1 ? state.index : open }
-    }
+    case 'fit':
+      /*
+       * 挟むだけ。紙はその場に残す。
+       * 差した瞬間に次の手紙へ移ると、自分が何を選んだのかを見ないまま
+       * 紙が去ってしまう。めくるのは一拍おいてから（QuizPage の fit）。
+       */
+      return { ...state, answers: placeAnswer(state.answers, action.letterId, action.personId) }
+    case 'openLetter':
+      return { ...state, index: action.index }
     case 'pull': {
       const answers = { ...state.answers }
       delete answers[action.letterId]
@@ -168,17 +179,20 @@ function tagStyle(personId: string) {
 
 /**
  * 紙の一枚。本文と、その下に置くもの（切り欠き、または結果）を受け取る。
- * 右下のめくれた角は、次の手紙があることを示す絵であり、そのまま進むボタンでもある。
+ * 下の両角はめくれている。右は次の手紙、左は前の手紙を示す絵であり、
+ * そのまま行き来するボタンでもある。
  */
 function Paper({
   children,
   dragX = 0,
   onNext,
+  onPrevious,
   className = '',
 }: {
   children: ReactNode
   dragX?: number
   onNext?: () => void
+  onPrevious?: () => void
   /** 紙の中身に合わせた行送り。結果の紙だけ、判定のメモのぶん余白を取り直す。 */
   className?: string
 }) {
@@ -194,7 +208,19 @@ function Paper({
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
       {children}
-      {/* すぐ下のボタンと同じ操作なので、読み上げには重ねて出さない。 */}
+      {/*
+        下の両角。矢印キーとスワイプで同じことができるので、
+        読み上げには重ねて出さない。
+      */}
+      {onPrevious ? (
+        <button
+          type="button"
+          className={`${styles.corner} ${styles.cornerBack}`}
+          onClick={onPrevious}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      ) : null}
       {onNext ? (
         <button
           type="button"
@@ -298,7 +324,8 @@ function QuizPaperBody({
             <span className={styles.tagLabel}>ここへ</span>
           </span>
         )}
-        <p className={styles.ask}>この声は、どの条件？</p>
+        {/* 問いかけの場所は動かさない。挟んだあとは、やり直し方をここで伝える。 */}
+        <p className={styles.ask}>{fitted ? 'ちがったら、しおりを押す' : 'この声は、どの条件？'}</p>
       </div>
       <div className={styles.letterSheet}>
         <p className={styles.letter}>{body}</p>
@@ -384,8 +411,22 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
   const canGoNext = state.index < letters.length - 1 && !turning
   const canGoPrev = state.index > 0 && !turning
 
+  /**
+   * 差し込んでから紙がめくれるまでの、待ちの札。
+   * 待っている間に自分でめくったり、しおりを抜いたりしたら、この札は破る。
+   */
+  const settle = useRef<number | null>(null)
+  const cancelSettle = useCallback(() => {
+    if (settle.current === null) return
+    window.clearTimeout(settle.current)
+    settle.current = null
+  }, [])
+
+  useEffect(() => cancelSettle, [cancelSettle])
+
   const go = useCallback(
     (direction: 1 | -1, startAngle = 0) => {
+      cancelSettle()
       if (turning) return
       const index = state.index + direction
       if (index < 0 || index >= letters.length) return
@@ -410,18 +451,31 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
         })
       }
     },
-    [answers, letter, letters, state.index, turning],
+    [answers, cancelSettle, letter, letters, state.index, turning],
   )
 
   function fit(personId: string) {
     if (showingResults || state.step === 'submitting' || turning || answers[letter.id]) return
     const next = placeAnswer(state.answers, letter.id, personId)
     const open = firstOpenIndex(next)
-    // 空いている手紙が別にあるときだけ、この紙はめくれて去る。
-    if (open !== -1 && open !== state.index && !prefersReducedMotion()) {
-      setTurning({ letter, personId, startAngle: 0, direction: 1 })
-    }
+    const placed = letter
     dispatch({ type: 'fit', letterId: letter.id, personId })
+    // 空いている手紙が別にあるときだけ、この紙はめくれて去る。
+    if (open === -1 || open === state.index) return
+
+    cancelSettle()
+    /*
+     * すぐにはめくらない。挟まったしおりを一拍だけ見せる。
+     * その間に「ちがった」と気づいたら、しおりを押せば手元へ戻り、
+     * 紙もその場に留まる（cancelSettle）。
+     */
+    settle.current = window.setTimeout(() => {
+      settle.current = null
+      if (!prefersReducedMotion()) {
+        setTurning({ letter: placed, personId, startAngle: 0, direction: 1 })
+      }
+      dispatch({ type: 'openLetter', index: open })
+    }, SETTLE_MS)
   }
 
   const submit = async () => {
@@ -436,9 +490,14 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     setTurning(null)
   }, [turning])
 
-  const pull = useCallback((letterId: string) => {
-    dispatch({ type: 'pull', letterId })
-  }, [])
+  const pull = useCallback(
+    (letterId: string) => {
+      // 抜いたなら、めくるのはやめる。選び直す紙が目の前から消えてしまう。
+      cancelSettle()
+      dispatch({ type: 'pull', letterId })
+    },
+    [cancelSettle],
+  )
 
   return {
     state,
@@ -562,8 +621,10 @@ function QuizStage({
   dragOver,
   slotRef,
   canGoNext,
+  canGoPrev,
   bodyOf,
   onNext,
+  onPrevious,
   onTurnFinish,
   onPull,
 }: {
@@ -576,8 +637,10 @@ function QuizStage({
   dragOver: boolean
   slotRef: React.RefObject<HTMLSpanElement | null>
   canGoNext: boolean
+  canGoPrev: boolean
   bodyOf: (target: Letter) => string | undefined
   onNext: () => void
+  onPrevious: () => void
   onTurnFinish: () => void
   onPull: (letterId: string) => void
 }) {
@@ -625,6 +688,7 @@ function QuizStage({
             className={showingResults ? styles.resultCard : ''}
             dragX={swipe.dragX}
             onNext={canGoNext ? onNext : undefined}
+            onPrevious={canGoPrev ? onPrevious : undefined}
           >
             <QuizPaperBody
               target={letter}
@@ -684,7 +748,12 @@ export function QuizPage() {
       emptyDescription="新しいクイズが届くまでお待ちください。"
     >
       <div className={styles.page}>
-        {!quiz.showingResults && !quiz.complete ? (
+        {/*
+          ぜんぶ挟んでも棚は残す。棚ごと消すと版面が跳ね上がり、
+          いま差したばかりの紙から目が外れてしまう。空いた棚は「もう手元にない」
+          ことをそのまま表す。
+        */}
+        {!quiz.showingResults ? (
           <QuizTray
             remaining={quiz.remaining}
             drag={drag}
@@ -702,8 +771,10 @@ export function QuizPage() {
           dragOver={Boolean(drag?.over)}
           slotRef={slotRef}
           canGoNext={quiz.canGoNext}
+          canGoPrev={quiz.canGoPrev}
           bodyOf={bodyOf}
           onNext={() => quiz.go(1)}
+          onPrevious={() => quiz.go(-1)}
           onTurnFinish={quiz.finishTurn}
           onPull={quiz.pull}
         />

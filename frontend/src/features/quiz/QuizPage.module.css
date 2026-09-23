@@ -701,7 +701,8 @@
   /* 高コントラスト時は、かすれを外して紙としおりのふちを確実に示す。 */
   .sheet::before,
   .verdict::before,
-  .score::before {
+  .score::before,
+  .ring {
     border-width: 2px;
     opacity: 1;
     filter: none;
