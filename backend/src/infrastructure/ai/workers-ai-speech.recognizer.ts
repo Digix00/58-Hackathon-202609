@@ -1,7 +1,4 @@
-import type {
-  SpeechRecognitionOptions,
-  SpeechRecognizer,
-} from "../../application/port/speech-recognizer";
+import type { SpeechRecognizer } from "../../application/port/speech-recognizer";
 
 const WHISPER_MODEL = "@cf/openai/whisper";
 
@@ -22,10 +19,7 @@ export class InvalidWorkersAiTranscriptionResponseError extends Error {
 export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
   constructor(private readonly ai: WorkersAiBinding) {}
 
-  async transcribe(
-    audio: ArrayBuffer,
-    options: SpeechRecognitionOptions = {},
-  ): Promise<string> {
+  async transcribe(audio: ArrayBuffer): Promise<string> {
     if (audio.byteLength === 0) {
       throw new TypeError("audio must not be empty");
     }
@@ -34,7 +28,6 @@ export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
     const audioBytes = Array.from(new Uint8Array(audio));
     const response: unknown = await run(WHISPER_MODEL, {
       audio: audioBytes,
-      ...(options.language ? { language: options.language } : {}),
     });
 
     if (
