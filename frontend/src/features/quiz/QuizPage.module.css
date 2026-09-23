@@ -45,7 +45,7 @@
   --card-pad-top: clamp(1.4em, 5vw, 1.8em);
   --card-pad-bottom: clamp(1.2em, 4vw, 1.5em);
   /* 付箋が紙へ差し込まれて隠れる深さ。残りは紙の上端から外へ出る。 */
-  --tab-inset: 1.2em;
+  --tab-inset: 1em;
 
   position: relative;
   display: grid;
@@ -303,6 +303,14 @@
 }
 
 /*
+ * 差し込んで隠れる下端には、字を置かない。
+ * 付箋の中の条件は、紙の外に出ている側だけで読めるようにする。
+ */
+.tabRow .tagLabel {
+  padding-bottom: 1.6em;
+}
+
+/*
  * 付箋の段の置き方。紙に挟んだ1枚（.paperTab）も、閉じた本から出ている3枚
  * （.tabs）も、この同じ式で置く。基準は紙の上端で、--tab-inset のぶんだけが
  * 紙に差し込まれて隠れ、残りは上へ出る。紙を閉じても付箋は動かない。
@@ -326,26 +334,13 @@
 }
 
 /*
- * 閉じたノートから出ている3枚。
- * 位置は紙に挟んだときのまま（.paperTab と同じ式）なので、本を閉じても
- * 付箋は動かない。表紙が降りてきて、付箋だけが残る。
+ * 挟み終えた付箋の段。いま開いている紙より下にある付箋が、ここに並ぶ。
+ *
+ * 紙より奥（.enter の z-index: 1 より下）に置くので、差し込んだ下端は紙や表紙に
+ * 隠れ、残りだけが上端から出る。紙をめくっても、本を閉じても付箋は動かない。
  */
 .tabs {
-  /* 表紙（.coverLayer）より手前、手前側のリングより奥。 */
-  z-index: 4;
-  animation: tabsIn 360ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-
-/* 閉じきってから現れる。紙のあいだから押し出されたように、下から上げる。 */
-@keyframes tabsIn {
-  0% {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
+  z-index: 0;
 }
 
 /* 押せる付箋。つまんで運ぶしおりとは違い、ここは押して開くだけ。 */
@@ -634,11 +629,11 @@
 }
 
 /*
- * ノートを閉じたあとの置き場。高さは残したまま、棚のふちだけを消す。
- * 閉じた本では「これで出す」が出るぶん紙束が上がり、本から出た付箋が
- * 棚のふちと同じ高さに来る。線を引いたままだと、付箋を横切って見える。
+ * しおりを使いきったあとの置き場。高さは残したまま、棚のふちだけを消す。
+ * このとき「これで出す」が出るぶん紙束が上がり、本から出た付箋が棚のふちと
+ * 同じ高さに来る。線を引いたままだと、付箋を横切って見える。
  */
-.trayClosed {
+.trayEmpty {
   border-bottom-color: transparent;
 }
 
@@ -745,7 +740,7 @@
   .stack {
     --card-pad-top: 1.1em;
     --card-pad-bottom: 1.1em;
-    --tab-inset: 1em;
+    --tab-inset: 0.9em;
   }
 
   .card {
@@ -851,7 +846,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fitted,
-  .tabs,
   .nextButton span {
     animation: none;
   }

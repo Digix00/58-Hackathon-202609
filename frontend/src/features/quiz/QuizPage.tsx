@@ -46,7 +46,15 @@ type DragState = {
  */
 type TurningState =
   | { kind: 'cover'; startAngle: number; direction: 1 | -1 }
-  | { kind: 'letter'; letter: Letter; personId?: string; startAngle: number; direction: 1 | -1 }
+  | {
+      kind: 'letter'
+      letter: Letter
+      personId?: string
+      startAngle: number
+      direction: 1 | -1
+      /** 戻すめくりの行き先。付箋から前の手紙へ跳ぶときだけ入る。 */
+      toIndex?: number
+    }
 
 type QuizStep = 'letters' | 'submitting' | 'results'
 type QuizState = {
@@ -634,6 +642,62 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     [beginTurn, dispatch, state.closed, turning],
   )
 
+  /**
+   * 付箋から、その手紙へ移る。
+   *
+   * 閉じていればノートごと開き、開いていればその紙まで一度でめくる。
+   * 何通目かは付箋の持ち場そのものなので、押した先がどこかは迷わない。
+   */
+  const openTab = useCallback(
+    (index: number) => {
+      cancelSettle()
+      if (turning) return
+      if (!state.coverOpened) {
+        reopen(index)
+        return
+      }
+      if (index === state.index) return
+      if (prefersReducedMotion()) {
+        dispatch({ type: 'openLetter', index })
+        return
+      }
+      if (index > state.index) {
+        // 先の手紙へ。いま読んでいる紙をめくって去らせる。
+        beginTurn({
+          kind: 'letter',
+          letter,
+          personId: answers[letter.id],
+          startAngle: 0,
+          direction: 1,
+        })
+        dispatch({ type: 'openLetter', index })
+        return
+      }
+      // 前の手紙へ。伏せていた紙を拾い上げ、降ろし終えてから入れ替える。
+      const target = letters[index]
+      beginTurn({
+        kind: 'letter',
+        letter: target,
+        personId: answers[target.id],
+        startAngle: 0,
+        direction: -1,
+        toIndex: index,
+      })
+    },
+    [
+      answers,
+      beginTurn,
+      cancelSettle,
+      dispatch,
+      letter,
+      letters,
+      reopen,
+      state.coverOpened,
+      state.index,
+      turning,
+    ],
+  )
+
   const go = useCallback(
     (direction: 1 | -1, startAngle = 0) => {
       cancelSettle()
@@ -737,7 +801,9 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
 
   const finishTurn = useCallback(() => {
     if (turning?.kind === 'letter' && turning.direction === -1) {
-      dispatch({ type: 'go', direction: -1 })
+      // 付箋から跳んだときは行き先が決まっている。前後の移動は1通ずつ戻る。
+      if (turning.toIndex === undefined) dispatch({ type: 'go', direction: -1 })
+      else dispatch({ type: 'openLetter', index: turning.toIndex })
     }
     // 表紙が戻りきってから閉じる。先に閉じると、めくる表紙が二重に見える。
     if (turning?.kind === 'cover' && turning.direction === -1) {
@@ -770,6 +836,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     go,
     openCover,
     reopen,
+    openTab,
     fit,
     submit,
     finishTurn,
@@ -832,14 +899,11 @@ function useQuizDrag(fit: (personId: string) => void) {
 }
 
 function QuizTray({
-  closed,
   remaining,
   drag,
   onStartDrag,
   onFit,
 }: {
-  /** ノートを閉じたあとか。棚のふちだけを消し、高さは残す。 */
-  closed: boolean
   remaining: Person[]
   drag: DragState | null
   onStartDrag: (event: ReactPointerEvent<HTMLButtonElement>, personId: string) => void
@@ -847,7 +911,7 @@ function QuizTray({
 }) {
   return (
     <div
-      className={`${styles.tray} ${closed ? styles.trayClosed : ''}`}
+      className={`${styles.tray} ${remaining.length === 0 ? styles.trayEmpty : ''}`}
       role="group"
       aria-label="手元のしおり"
     >
@@ -892,26 +956,43 @@ function turningKey(turning: TurningState, index: number) {
 }
 
 /**
- * 閉じたノートの上に出ている付箋。
+ * 挟み終えた付箋の段。
  *
- * 挟んだときと同じ持ち場に、同じ高さで並ぶ。場所が変わらないので、
- * 表紙の上の1枚が、さっき自分がその手紙に挟んだ1枚だと分かる。
- * 押せばその手紙が開き、確かめるのも挟み替えるのも、そこから続けられる。
+ * 挟んだ紙がめくられて下へ入っても、付箋はその持ち場に出したままにする。
+ * 3枚がいつも見えていれば、どの手紙にどの条件を挟んだかを見比べられるし、
+ * 本を閉じても付箋は動かない。表紙が降りてきて、付箋だけが残る。
+ *
+ * ここに出すのは、いま開いている紙より下にある付箋だけ。開いている紙の付箋は
+ * その紙自身が持っていて（.paperTab）、押すと外せる。二重に描くと、外せる1枚と
+ * 移るための1枚が同じ場所に重なる。
  */
-function QuizTabs({ answers, onReopen }: { answers: Answers; onReopen: (index: number) => void }) {
+function QuizTabs({
+  answers,
+  activeIndex,
+  closed,
+  onSelect,
+}: {
+  answers: Answers
+  /** いま開いている紙。閉じているときは null。 */
+  activeIndex: number | null
+  closed: boolean
+  onSelect: (index: number) => void
+}) {
   return (
     <div className={`${styles.tabRow} ${styles.tabs}`} style={tabSlotStyle(0)}>
       {demoQuiz.letters.map((target, index) => {
         const fitted = personById(answers[target.id])
-        if (!fitted) return null
+        if (!fitted || index === activeIndex) return null
         return (
           <button
             key={target.id}
             type="button"
             className={`${styles.choice} ${styles.tab}`}
             style={{ '--tab-slot': index + 1 } as CSSProperties}
-            onClick={() => onReopen(index)}
-            aria-label={`${index + 1}通目の手紙。条件は${fitted.attributes}。開いて見直す`}
+            onClick={() => onSelect(index)}
+            aria-label={`${index + 1}通目の手紙。条件は${fitted.attributes}。${
+              closed ? '開いて見直す' : 'この手紙へ移る'
+            }`}
           >
             <span className={styles.tag} style={tagStyle(fitted.id)}>
               <TagFace label={fitted.attributes} />
@@ -1011,7 +1092,6 @@ function QuizFrontPage({
   dragOver,
   bodyOf,
   onPull,
-  onReopen,
 }: {
   coverOpened: boolean
   /** 読み終えて閉じたか。表紙の上には、挟んだ付箋だけが出る。 */
@@ -1025,7 +1105,6 @@ function QuizFrontPage({
   dragOver: boolean
   bodyOf: (target: Letter) => string | undefined
   onPull: (letterId: string) => void
-  onReopen: (index: number) => void
 }) {
   if (coverOpened) {
     return (
@@ -1065,7 +1144,6 @@ function QuizFrontPage({
       <div className={styles.coverLayer}>
         <QuizCover answered={closed} />
       </div>
-      {closed ? <QuizTabs answers={answers} onReopen={onReopen} /> : null}
     </>
   )
 }
@@ -1087,7 +1165,7 @@ function QuizStage({
   bodyOf,
   onTurnFinish,
   onPull,
-  onReopen,
+  onSelect,
 }: {
   stateIndex: number
   letter: Letter
@@ -1107,7 +1185,8 @@ function QuizStage({
   bodyOf: (target: Letter) => string | undefined
   onTurnFinish: () => void
   onPull: (letterId: string) => void
-  onReopen: (index: number) => void
+  /** 付箋が押されたとき、その手紙を開く。 */
+  onSelect: (index: number) => void
 }) {
   return (
     <section
@@ -1135,6 +1214,18 @@ function QuizStage({
         <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
         <NotebookBinding part="rear" />
+        {/*
+          挟み終えた付箋は、紙より奥に置く。紙に隠れるのは差し込んだ下端だけで、
+          残りは紙の上端から出る。いま開いている紙の付箋だけは、その紙が持つ。
+        */}
+        {showingResults ? null : (
+          <QuizTabs
+            answers={answers}
+            activeIndex={coverOpened ? stateIndex : null}
+            closed={closed}
+            onSelect={onSelect}
+          />
+        )}
         {/* めくり終えた表紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
         <QuizTurnedCover coverOpened={coverOpened} />
         <QuizTurnLayer
@@ -1164,7 +1255,6 @@ function QuizStage({
           dragOver={dragOver}
           bodyOf={bodyOf}
           onPull={onPull}
-          onReopen={onReopen}
         />
         <NotebookBinding part="front" />
       </div>
@@ -1220,7 +1310,6 @@ export function QuizPage() {
         */}
         {!quiz.showingResults && (quiz.state.coverOpened || quiz.state.closed) ? (
           <QuizTray
-            closed={quiz.state.closed}
             remaining={quiz.remaining}
             drag={drag}
             onStartDrag={startDrag}
@@ -1244,7 +1333,7 @@ export function QuizPage() {
           bodyOf={bodyOf}
           onTurnFinish={quiz.finishTurn}
           onPull={quiz.pull}
-          onReopen={(index) => quiz.reopen(index)}
+          onSelect={quiz.openTab}
         />
 
         <QuizActions
