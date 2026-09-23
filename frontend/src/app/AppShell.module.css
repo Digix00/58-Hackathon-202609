@@ -3,7 +3,6 @@
   grid-template-rows: minmax(0, 1fr) auto;
   width: min(100%, var(--content-width));
   height: 100svh;
-  height: 100dvh;
   margin: 0 auto;
   background-color: var(--color-paper);
 }
