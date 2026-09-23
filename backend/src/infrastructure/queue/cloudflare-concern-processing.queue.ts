@@ -7,7 +7,11 @@ import type {
 export class CloudflareConcernProcessingQueue
   implements ConcernProcessingQueue
 {
-  constructor(private readonly queue: Queue<ConcernProcessingMessage>) {}
+  private readonly queue: Queue<ConcernProcessingMessage>;
+
+  constructor(queue: Queue<ConcernProcessingMessage>) {
+    this.queue = queue;
+  }
 
   async enqueue(message: ConcernProcessingMessage): Promise<void> {
     await this.queue.send(message, { contentType: "json" });

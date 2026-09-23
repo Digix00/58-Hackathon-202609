@@ -25,10 +25,16 @@ export interface IConcernProcessingUseCase {
  * or embedding tables yet.
  */
 export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
+  private readonly translator: TextTranslator;
+  private readonly embeddingGenerator: TextEmbeddingGenerator;
+
   constructor(
-    private readonly translator: TextTranslator,
-    private readonly embeddingGenerator: TextEmbeddingGenerator,
-  ) {}
+    translator: TextTranslator,
+    embeddingGenerator: TextEmbeddingGenerator,
+  ) {
+    this.translator = translator;
+    this.embeddingGenerator = embeddingGenerator;
+  }
 
   readonly execute = async (
     message: ConcernProcessingMessage,
