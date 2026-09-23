@@ -1,19 +1,16 @@
 import { ApiTimeoutError, apiClient, readApiError, withApiTimeout } from '../../lib/api'
-import type { FeedQuery } from './feedTypes'
 import type { ListConcernsResponse } from '../../lib/api'
 
 export type ListConcernsResult =
   | { ok: true; data: ListConcernsResponse }
   | { ok: false; status: number; code: string; message: string }
 
-export async function listConcerns(query: FeedQuery = {}): Promise<ListConcernsResult> {
+export async function listConcerns(): Promise<ListConcernsResult> {
   try {
     const response = await withApiTimeout(() =>
       apiClient.api.v1.concerns.$get({
         query: {
-          limit: String(query.limit ?? 20),
           sort: 'newest',
-          ...(query.cursor ? { cursor: query.cursor } : {}),
         },
       }),
     )

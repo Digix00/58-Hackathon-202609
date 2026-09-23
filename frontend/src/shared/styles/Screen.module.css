@@ -50,8 +50,7 @@
   left: 22px;
   width: 62px;
   height: 16px;
-  /* --tape を置いた画面だけ色が変わる。置かなければ従来どおり。 */
-  background: var(--tape, #b9ded2cc);
+  background: #b9ded2cc;
   clip-path: polygon(0 7%, 100% 0, 97% 94%, 4% 100%);
   transform: rotate(-5deg);
   pointer-events: none;
@@ -61,7 +60,7 @@
 .tapeRight::after {
   right: 23px;
   left: auto;
-  background: var(--tape, #f2ba9ccc);
+  background: #f2ba9ccc;
   transform: rotate(5deg);
 }
 

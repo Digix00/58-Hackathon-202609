@@ -63,6 +63,64 @@
   transform: rotate(2.4deg) translate(8px, 10px);
 }
 
+/*
+ * とじリング。紙の左辺をまたいで、上から重ねる。
+ * 紙ではなくバインダーに付いているものなので .stack 側に置き、
+ * ページがめくられても動かない。
+ */
+.rings {
+  position: absolute;
+  z-index: 3;
+  top: 5%;
+  bottom: 5%;
+  left: -12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 30px;
+  pointer-events: none;
+}
+
+/* とじ穴。リングと同じ間隔で、紙の左のとじ代に開ける。 */
+.holes {
+  position: absolute;
+  z-index: 1;
+  top: 5%;
+  bottom: 5%;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 11px;
+  pointer-events: none;
+}
+
+/* 裏面は鏡像になるので、穴も反対側へ置く。 */
+.holesBack {
+  right: 6px;
+  left: auto;
+}
+
+.hole {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #eadfc6;
+  box-shadow: inset 1.5px 1.5px 0 #cbbfa5;
+}
+
+.ring {
+  width: 30px;
+  height: 12px;
+  border: 2.5px solid #9c958a;
+  border-radius: 50%;
+  /* 線だけを揺らす。かすれのマスクは掛けない。細すぎて針金に見えなくなるため。 */
+  filter: url(#crayon-edge);
+  transform: rotate(-7deg);
+}
+
 .sheetNear {
   background: #fffaef;
   transform: rotate(1.3deg) translate(4px, 5px);
@@ -73,36 +131,92 @@
   position: relative;
   z-index: 1;
   min-width: 0;
-  /* 紙は綴じ側を軸に倒れてくる。次の声は左とじ、前の声は右とじ。 */
-  transform-origin: left center;
-  animation: cardIn 380ms cubic-bezier(0.19, 0.72, 0.28, 1) both;
 }
 
+/*
+ * 次へ進むとき、新しい紙は動かない。めくられた紙が去って現れるだけ。
+ * 前へ戻るときだけ、いちど去った紙が綴じ側から降りてくる。
+ */
 .fromLeft {
-  transform-origin: right center;
-  animation-name: cardInLeft;
+  transform-origin: left center;
+  animation: turnBack 400ms cubic-bezier(0.22, 0.68, 0.3, 1) both;
 }
 
-@keyframes cardIn {
+@keyframes turnBack {
   from {
-    opacity: 0;
-    transform: perspective(900px) rotateY(-18deg) translateX(26px);
+    opacity: 0.15;
+    transform: perspective(1400px) rotateY(-74deg);
   }
   to {
     opacity: 1;
-    transform: perspective(900px) rotateY(0deg) translateX(0);
+    transform: perspective(1400px) rotateY(0deg);
   }
 }
 
-@keyframes cardInLeft {
-  from {
+/*
+ * めくられて去っていく1枚。綴じ側（左辺）を軸に裏返る。
+ * 表（.face）と裏（.back）を背中合わせに置き、90度を越えたところで
+ * 表が消えて裏が現れる。これがないと、裏返らずに薄れて消えるだけに見える。
+ */
+.turning {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnOut 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
+}
+
+/*
+ * 紙が一回転しながら左へ抜けていく。
+ * 遠近を弱く（3000px）取るのは、回っている途中で紙が大きく見えないようにするため。
+ */
+@keyframes turnOut {
+  0% {
+    transform: perspective(3000px) translate3d(0, 0, 0) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(3000px) translate3d(-126%, 0, 0) rotateY(-360deg);
+  }
+}
+
+.face,
+.back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* 紙が起き上がるにつれ、綴じ側に影が溜まる。 */
+.face::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 38%, #2f281a00 78%);
+  animation: turnShade 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
+  pointer-events: none;
+  content: '';
+}
+
+@keyframes turnShade {
+  0% {
     opacity: 0;
-    transform: perspective(900px) rotateY(18deg) translateX(-26px);
   }
-  to {
-    opacity: 1;
-    transform: perspective(900px) rotateY(0deg) translateX(0);
+  35% {
+    opacity: 0.34;
   }
+  100% {
+    opacity: 0.34;
+  }
+}
+
+/* 紙の裏。文字のない面を見せて、確かに裏返ったことを伝える。 */
+.back {
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  background: linear-gradient(265deg, #fdf8ec 0%, #f4ebd7 56%, #e7dcc1 100%);
+  transform: rotateY(180deg);
 }
 
 .card {
@@ -113,8 +227,11 @@
   /* テーマごとの地色。見開きごとに景色が変わる絵本にならう。 */
   background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
-  min-height: clamp(19em, 46vh, 27em);
-  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em);
+  /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
+  height: clamp(19em, 46vh, 27em);
+  /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em) clamp(1.55em, 5.5vw, 2em)
+    calc(clamp(1.35em, 6vw, 1.8em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
@@ -129,7 +246,7 @@
   position: absolute;
   z-index: 2;
   top: -0.9em;
-  left: 1.3em;
+  right: 1.4em;
   max-width: calc(100% - 7em);
   padding: 0.32em 0.75em 0.38em;
   border-radius: 4px 8px 3px 7px;
@@ -139,7 +256,7 @@
   font-size: 0.78em;
   font-weight: 700;
   line-height: 1.35;
-  transform: rotate(-1.6deg);
+  transform: rotate(1.6deg);
 }
 
 /* しおりのふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
@@ -174,6 +291,11 @@
 
 /* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */
 .storyLink p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  /* 紙に収まらない声はここで切り、続きは詳細で全文を読む。 */
+  -webkit-line-clamp: 7;
+  overflow: hidden;
   font-size: clamp(1.22em, 5.2vw, 1.45em);
   line-height: 1.9;
   letter-spacing: 0.02em;
@@ -186,7 +308,7 @@
   justify-content: space-between;
   gap: 0.55em 1em;
   /* 右下のめくれた角に文字がかぶらないよう逃がす。 */
-  padding: 0.8em 1.6em 0.9em 0;
+  padding: 0.8em 1.6em 0.2em 0;
 }
 
 /*
@@ -238,18 +360,6 @@
 .corner:hover::before,
 .corner:active::before {
   transform: scale(1.14);
-}
-
-/* ノンブル。件数ではなく、紙の隅にある小さな数字として置く。 */
-.nombre {
-  position: absolute;
-  bottom: 0.55em;
-  left: 50%;
-  color: var(--color-muted);
-  font-size: 0.72em;
-  letter-spacing: 0.08em;
-  opacity: 0.55;
-  transform: translateX(-50%);
 }
 
 .attributes {
@@ -394,19 +504,50 @@
   }
 }
 
+/* 背の低い端末では、1画面に収まることを本文の大きさより優先する。 */
 @media (max-height: 700px) {
   .card {
     gap: 0.7em;
-    min-height: 0;
+    height: clamp(14em, 41vh, 20em);
     padding-block: 1.15em;
+    padding-inline-start: calc(clamp(1.35em, 6vw, 1.8em) + 10px);
   }
 
   .storyLink p {
+    font-size: clamp(1.05em, 4.6vw, 1.28em);
     line-height: 1.7;
+  }
+
+  .rings,
+  .holes {
+    top: 4%;
+    bottom: 4%;
+  }
+
+  .storyLink p {
+    -webkit-line-clamp: 5;
+  }
+
+  .corner {
+    width: 46px;
+    height: 46px;
+  }
+
+  .corner::after {
+    width: 66px;
+  }
+
+  .cardFoot {
+    padding-right: 1.2em;
   }
 }
 
 @media (prefers-contrast: more) {
+  .ring {
+    border-color: var(--color-outline);
+    filter: none;
+  }
+
   /* 高コントラスト時は、かすれを外して紙のふちを確実に示す。 */
   .theme::before,
   .sheet::before {
@@ -423,7 +564,7 @@
     transition: none;
   }
 
-  .enter {
+  .fromLeft {
     animation: none;
   }
 

@@ -1,30 +1,31 @@
 /**
- * テーマごとの紙の色。
+ * 紙の色。
  *
- * 絵本は見開きごとに地色が変わる。フィードも1件めくるたびに
- * テープ・しおり・紙の地色を替え、「同じページを見ている」感覚を断つ。
- * テーマ名はAIが生成するため固定表では引けない。名前から決まる番号で選び、
- * 同じテーマにはいつも同じ色が付くようにする。
+ * 絵本は見開きごとに地色が変わる。フィードも1枚めくるたびに
+ * しおりと紙の地色を替え、「同じページを見ている」感覚を断つ。
+ * 色はテーマではなくページに従う。テーマから引くと隣り合う2枚が
+ * 同じ色になることがあり、めくっても景色が変わらなくなるため。
  */
-export type ThemePalette = {
-  /** 紙を留めるテープ。半透明で重ねる。 */
-  tape: string
+export type PagePalette = {
   /** テーマのしおり。 */
   bookmark: string
-  /** 紙の地色。彩度は2〜3%まで。これ以上は紙に見えなくなる。 */
+  /**
+   * 紙の地色。まわりが生成りなので、青や桃に振らず暖色寄りのまま濃度だけ変える。
+   * 冷たい白を混ぜると紙ではなく画面に見える。
+   */
   tint: string
 }
 
-const palettes: readonly ThemePalette[] = [
-  { tape: '#f2ba9ccc', bookmark: '#f8d9b0', tint: '#fffcf3' },
-  { tape: '#b9ded2cc', bookmark: '#cbe3b8', tint: '#fbfdf7' },
-  { tape: '#b9cbe4cc', bookmark: '#c9d6ef', tint: '#fbfcff' },
-  { tape: '#e8bcd2cc', bookmark: '#f3cad5', tint: '#fffbfc' },
-  { tape: '#ddd0a5cc', bookmark: '#f0e199', tint: '#fffdef' },
+const palettes: readonly PagePalette[] = [
+  { bookmark: '#f8d9b0', tint: '#fffcf1' },
+  { bookmark: '#cbe3b8', tint: '#fcfdf4' },
+  { bookmark: '#c9d6ef', tint: '#fbfcf8' },
+  { bookmark: '#f3cad5', tint: '#fffbf6' },
+  { bookmark: '#f0e199', tint: '#fffdec' },
 ]
 
-export function paletteFor(theme: string): ThemePalette {
-  let hash = 0
-  for (const character of theme) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) % 1_000_003
-  return palettes[hash % palettes.length]
+/** page は1始まりのページ番号。 */
+export function paletteForPage(page: number): PagePalette {
+  const index = (((page - 1) % palettes.length) + palettes.length) % palettes.length
+  return palettes[index]
 }

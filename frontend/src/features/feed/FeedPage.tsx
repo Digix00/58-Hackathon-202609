@@ -19,7 +19,7 @@ import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
-import { paletteFor } from './themePalette'
+import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
 type Filter = { theme: string; region: string }
@@ -30,44 +30,56 @@ const ALL = '__all__'
 const SWIPE_THRESHOLD = 56
 /** 縦スクロールか横めくりかを決めるまでの遊び。 */
 const SWIPE_SLOP = 8
+/** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
+const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 function FeedCard({
   concern,
   page,
   onReact,
   onNext,
-  canReact,
+  canReact = false,
   articleRef,
-  dragX,
+  dragX = 0,
   onLinkClick,
 }: {
   concern: DemoConcern
   page: number
-  onReact: () => void
-  onNext: () => void
-  canReact: boolean
-  articleRef: RefCallback<HTMLElement>
-  dragX: number
-  onLinkClick: (event: MouseEvent) => void
+  onReact?: () => void
+  /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
+  onNext?: () => void
+  canReact?: boolean
+  articleRef?: RefCallback<HTMLElement>
+  dragX?: number
+  onLinkClick?: (event: MouseEvent) => void
 }) {
   const attributes = [concern.ageGroup, concern.region].filter(Boolean).join(' · ')
-  const palette = paletteFor(concern.theme)
+  const palette = paletteForPage(page)
 
   return (
     <article
       ref={articleRef}
-      className={`${screen.paper} ${screen.taped} ${screen.tapeRight} ${crayonStyles.edge} ${
-        styles.card
-      } ${dragX !== 0 ? styles.dragging : ''}`}
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
+        dragX !== 0 ? styles.dragging : ''
+      }`}
       style={
         {
           transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)`,
-          '--tape': palette.tape,
           '--bookmark': palette.bookmark,
           '--paper-tint': palette.tint,
         } as CSSProperties
       }
     >
+      {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
+      <span className={styles.holes} aria-hidden="true">
+        {RING_SLOTS.map((slot) => (
+          <span key={slot} className={styles.hole} />
+        ))}
+      </span>
       <span className={styles.theme}>{concern.theme}</span>
       <Link
         className={styles.storyLink}
@@ -97,17 +109,16 @@ function FeedCard({
           </button>
         ) : null}
       </div>
-      <span className={styles.nombre} aria-hidden="true">
-        {page}
-      </span>
       {/* めくれた角。すぐ下の「つぎの声へ」と同じ操作なので、読み上げには重ねて出さない。 */}
-      <button
-        type="button"
-        className={styles.corner}
-        onClick={onNext}
-        tabIndex={-1}
-        aria-hidden="true"
-      />
+      {onNext ? (
+        <button
+          type="button"
+          className={styles.corner}
+          onClick={onNext}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      ) : null}
     </article>
   )
 }
@@ -122,6 +133,8 @@ export function FeedPage() {
   const [showLogin, setShowLogin] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [dragX, setDragX] = useState(0)
+  /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
+  const [turning, setTurning] = useState<{ concern: DemoConcern; page: number } | null>(null)
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
   const swiped = useRef(false)
 
@@ -155,12 +168,16 @@ export function FeedPage() {
   const activeFilter = [filter.theme, filter.region].filter(Boolean).join(' · ')
 
   const goNext = useCallback(() => {
+    // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
+    setTurning(concern && !prefersReducedMotion() ? { concern, page: position + 1 } : null)
     setDirection(1)
     setIndex((current) => current + 1)
     setShowLogin(false)
-  }, [])
+  }, [concern, position])
 
   const goPrev = useCallback(() => {
+    // 戻るときは、めくった紙が left 側から降りてくる。去る紙はない。
+    setTurning(null)
     setDirection(-1)
     setIndex((current) => current - 1)
     setShowLogin(false)
@@ -240,6 +257,34 @@ export function FeedPage() {
             <div className={styles.stack}>
               <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
               <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
+              {/* とじリング。紙ではなくバインダー側にあるので、めくっても動かない。 */}
+              <span className={styles.rings} aria-hidden="true">
+                {RING_SLOTS.map((slot) => (
+                  <span key={slot} className={styles.ring} />
+                ))}
+              </span>
+              {turning ? (
+                <div
+                  key={`${turning.concern.id}-${turning.page}`}
+                  className={styles.turning}
+                  aria-hidden="true"
+                  // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
+                  onAnimationEnd={(event) => {
+                    if (event.target === event.currentTarget) setTurning(null)
+                  }}
+                >
+                  <div className={styles.face}>
+                    <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
+                  </div>
+                  <div className={`${styles.back} ${crayonStyles.edge}`}>
+                    <span className={`${styles.holes} ${styles.holesBack}`} aria-hidden="true">
+                      {RING_SLOTS.map((slot) => (
+                        <span key={slot} className={styles.hole} />
+                      ))}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               <div
                 key={`${concern.id}-${index}`}
                 className={`${styles.enter} ${direction < 0 ? styles.fromLeft : ''}`}
