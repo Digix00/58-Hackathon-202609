@@ -37,7 +37,7 @@ MVPでは、ブラウザだけで利用する匿名セッションと、LINE/LIF
 
 ### 2.3 クイズは元投稿を参照し、属性はスナップショットする
 
-クイズ参加者には、クイズ生成時点の年代・性別・地域をコピーして保存する。投稿本文は concern_id で元投稿を参照する。
+クイズ参加者には、クイズ生成時点の年代・性別・都道府県コードをコピーして保存する。投稿本文は concern_id で元投稿を参照する。
 
 投稿が削除または非公開になったときは、元投稿をクイズ画面に表示できないため、そのクイズを hidden にする。本文のスナップショットを持たせないことで、削除済み投稿がクイズ経由で再表示されることを防ぐ。
 
@@ -60,7 +60,6 @@ APIごとに、匿名セッション、LIFF、LINE webhook、内部実行の認�
 ```mermaid
 erDiagram
   USERS ||--o{ CONCERNS : "投稿する"
-  REGIONS ||--o{ CONCERNS : "地域"
   CONCERN_CLUSTERS ||--o{ CONCERNS : "分類する"
   CONCERNS ||--o{ CONCERN_REPRESENTATIONS : "翻訳・表記"
   CONCERNS ||--o{ CONCERN_PROCESSING_JOBS : "処理する"
@@ -91,17 +90,10 @@ erDiagram
     TEXT deleted_at
   }
 
-  REGIONS {
-    TEXT code PK
-    TEXT level
-    TEXT name_ja
-    TEXT name_en
-  }
-
   CONCERNS {
     TEXT id PK
     TEXT user_id FK
-    TEXT region_code FK
+    TEXT region_code
     TEXT cluster_id FK
     TEXT body
     TEXT visibility_status
@@ -272,18 +264,17 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 ## 4. テーブル定義
 
-### 4.1 主体・地域
+### 4.1 主体・都道府県コード
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | users | id, identity_type, line_user_id_hash, birth_year, birth_month, gender_code, region_code, anonymous_session_hash, friend_status, session_expires_at, created_at, joined_at, unfollowed_at, last_seen_at, deleted_at | LINE/LIFF ユーザーと匿名ブラウザセッションの主体。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力の既存ユーザーは NULL とする |
-| regions | code, level, name_ja, name_en | 都道府県と広域区分のマスタ。投稿には自由入力文字列を保存しない |
 
 ### 4.2 投稿・AI処理
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。visibility_status は pending, published, hidden, deleted |
+| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
 | concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
@@ -306,7 +297,7 @@ concerns の processing_status は次の概要値とする。
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | quizzes | id, quiz_date, status, title, created_at, published_at, hidden_at | quiz_date は UNIQUE。status は draft, published, closed, hidden |
-| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE にし、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
+| quiz_participants | id, quiz_id, user_id, concern_id, display_order, age_group_snapshot, gender_snapshot, region_code_snapshot, explanation | クイズに登場する3人。region_code_snapshot は都道府県コードのスナップショット。quiz_id と user_id、quiz_id と concern_id をそれぞれ UNIQUE にし、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
 | quiz_options | quiz_id, concern_id, display_order | 3件の投稿を混ぜて表示する。quiz_id と display_order を UNIQUE にし、quiz_id と concern_id を複合主キーにする |
 | quiz_attempts | id, quiz_id, user_id, score, answered_at | quiz_id と user_id を UNIQUE にして二重回答を防ぎ、id と quiz_id の複合 UNIQUE を quiz_answers の外部キー先として持つ |
 | quiz_answers | quiz_id, attempt_id, participant_id, selected_concern_id, is_correct | PRIMARY KEY は attempt_id と participant_id。attempt_id と quiz_id、participant_id と quiz_id、quiz_id と selected_concern_id を複合外部キーにして、回答対象を同じクイズに限定する |
@@ -453,8 +444,8 @@ LIMIT ?
 ### 推薦
 
 1. concern_views から未読投稿を除外する。
-2. 直近の cluster_id と地域の偏りを確認する。
-3. 新着・クラスタ分散・地域分散で候補を並べる。
+2. 直近の cluster_id と都道府県の偏りを確認する。
+3. 新着・クラスタ分散・都道府県分散で候補を並べる。
 4. 各候補を feed_impressions に保存し、strategy と reason_code を返す。
 5. AI や推薦処理が使えない場合は strategy=fallback で新着順を返す。
 
@@ -491,7 +482,7 @@ Cron と scheduled handler の仕様は [Cloudflare Cron Triggers](https://devel
 
 既存の _health は維持し、次の順で migration を追加する。
 
-1. users、regions
+1. users
 2. concern_clusters、concerns
 3. concern_representations、concern_processing_jobs
 4. concern_views、concern_reactions、learning_events、feed_impressions
