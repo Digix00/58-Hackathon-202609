@@ -22,11 +22,13 @@ const createConcernRequest = z.object({
   regionCode: z.string().optional(),
 });
 
+const CONCERN_SORT_OPTIONS = ["newest"] as const;
+
 const listConcernQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(50).default(20),
     cursor: z.string().min(1).optional(),
-    sort: z.literal("newest").default("newest"),
+    sort: z.enum(CONCERN_SORT_OPTIONS).default("newest"),
   })
   .strict();
 
