@@ -7,6 +7,7 @@ import type { ConcernHandler } from "../presentation/concern.handler";
 import type { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import type { ConcernViewHandler } from "../presentation/concern-view.handler";
 import type { HealthHandler } from "../presentation/health.handler";
+import type { QuizHandler } from "../presentation/quiz.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
@@ -20,6 +21,7 @@ export interface ApplicationDependencies {
   concernReactionHandler: ConcernReactionHandler;
   concernViewHandler: ConcernViewHandler;
   healthHandler: HealthHandler;
+  quizHandler: QuizHandler;
   userHandler: UserHandler;
 }
 
@@ -31,6 +33,7 @@ export function createApp({
   concernReactionHandler,
   concernViewHandler,
   healthHandler,
+  quizHandler,
   userHandler,
 }: ApplicationDependencies) {
   const app = new Hono<{
@@ -65,7 +68,10 @@ export function createApp({
       "/api/v1/concerns/:concernId/reactions",
       ...concernReactionHandler.register,
     )
-    .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record);
+    .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record)
+    .get("/api/v1/quizzes/today", ...quizHandler.getToday)
+    .get("/api/v1/quizzes/:quizId", ...quizHandler.getById)
+    .post("/api/v1/quizzes/:quizId/answers", ...quizHandler.answer);
 }
 
 export type AppType = ReturnType<typeof createApp>;

@@ -1,0 +1,317 @@
+import { env } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import { describe, expect, it } from "vitest";
+
+import { createApp } from "../src/app/create-app";
+import { AuthUseCase } from "../src/application/usecase/auth.usecase";
+import { QuizUseCase } from "../src/application/usecase/quiz.usecase";
+import {
+  D1SessionRepository,
+  D1UserRepository,
+} from "../src/infrastructure/database/d1-auth.repository";
+import { D1QuizRepository } from "../src/infrastructure/database/d1-quiz.repository";
+import {
+  concerns,
+  quizAttempts,
+  quizzes,
+  users,
+} from "../src/infrastructure/database/schema";
+import { AuthHandler } from "../src/presentation/auth.handler";
+import { HealthHandler } from "../src/presentation/health.handler";
+import { QuizHandler } from "../src/presentation/quiz.handler";
+import { createConcernDependencies } from "./support/concern-fixture";
+import { createUserDependencies } from "./support/user-fixture";
+
+const fixedNow = "2099-01-02T00:20:00.000Z";
+
+function createTestApp(
+  nowIso = fixedNow,
+  lineUserId = `quiz-answerer-${crypto.randomUUID()}`,
+) {
+  const userRepository = new D1UserRepository(env.DB);
+  const authUseCase = new AuthUseCase(
+    userRepository,
+    new D1SessionRepository(env.DB),
+    {
+      verify: async (idToken) => {
+        if (idToken !== "valid-id-token") {
+          throw new Error("unexpected token");
+        }
+        return { lineUserId };
+      },
+    },
+  );
+  const quizUseCase = new QuizUseCase(
+    new D1QuizRepository(env.DB),
+    () => new Date(nowIso),
+  );
+
+  const app = createApp({
+    ...createConcernDependencies(),
+    ...createUserDependencies(),
+    authHandler: new AuthHandler(authUseCase),
+    authUseCase,
+    healthHandler: new HealthHandler({
+      execute: async () => ({
+        status: "ok",
+        checkedAt: nowIso,
+        database: "ok",
+        version: "0.1.0",
+      }),
+    }),
+    quizHandler: new QuizHandler(quizUseCase),
+  });
+
+  return { app, quizUseCase };
+}
+
+function cookieFrom(response: Response): string {
+  const value = response.headers.get("set-cookie");
+  if (!value) {
+    throw new Error("session cookie was not set");
+  }
+  return value.split(";", 1)[0];
+}
+
+async function loginCookie(
+  app: ReturnType<typeof createTestApp>["app"],
+): Promise<string> {
+  const anonymous = await app.request("/api/v1/auth/session", {}, env);
+  const login = await app.request(
+    "/api/v1/auth/line",
+    {
+      method: "POST",
+      headers: {
+        Cookie: cookieFrom(anonymous),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ idToken: "valid-id-token" }),
+    },
+    env,
+  );
+  return cookieFrom(login);
+}
+
+async function seedCandidates(prefix: string): Promise<void> {
+  const db = drizzle(env.DB);
+  const createdAt = "2099-01-01T00:00:00.000Z";
+  const candidateRows = [
+    {
+      suffix: "a",
+      ageGroup: "10s",
+      genderCode: "male",
+      regionCode: "tokyo",
+    },
+    {
+      suffix: "b",
+      ageGroup: "20s",
+      genderCode: "female",
+      regionCode: "osaka",
+    },
+    {
+      suffix: "c",
+      ageGroup: "30s",
+      genderCode: "non_binary",
+      regionCode: "hyogo",
+    },
+  ] as const;
+
+  await db.insert(users).values(
+    candidateRows.map((row) => ({
+      id: `${prefix}-user-${row.suffix}`,
+      lineUserId: `${prefix}-line-${row.suffix}`,
+      createdAt,
+      updatedAt: createdAt,
+    })),
+  );
+  await db.insert(concerns).values(
+    candidateRows.map((row) => ({
+      id: `${prefix}-concern-${row.suffix}`,
+      userId: `${prefix}-user-${row.suffix}`,
+      body: `${prefix}の${row.suffix}さんの投稿`,
+      ageGroup: row.ageGroup,
+      genderCode: row.genderCode,
+      regionCode: row.regionCode,
+      visibilityStatus: "published" as const,
+      processingStatus: "pending" as const,
+      createdAt,
+      updatedAt: createdAt,
+    })),
+  );
+}
+
+type QuizResponse = {
+  id: string;
+  quizDate: string;
+  participants: Array<{
+    participantId: string;
+    attributes: Record<string, string | null>;
+    displayOrder: number;
+  }>;
+  concerns: Array<{
+    concernId: string;
+    body: string;
+    language: string;
+    displayOrder: number;
+  }>;
+  answered: boolean;
+  answerResult?: {
+    score: number;
+    total: number;
+    results: Array<Record<string, unknown>>;
+  };
+};
+
+describe("quiz routes", () => {
+  it("requires a logged-in user and returns 404 without a generated today quiz", async () => {
+    const { app } = createTestApp("2099-01-01T00:20:00.000Z");
+
+    const withoutSession = await app.request("/api/v1/quizzes/today", {}, env);
+    expect(withoutSession.status).toBe(401);
+
+    const cookie = await loginCookie(app);
+    const response = await app.request(
+      "/api/v1/quizzes/today",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: { code: "QUIZ_NOT_AVAILABLE" },
+    });
+  });
+
+  it("returns a pre-generated quiz without exposing the correct mapping", async () => {
+    const prefix = `quiz-get-${crypto.randomUUID()}`;
+    await seedCandidates(prefix);
+    const { app, quizUseCase } = createTestApp("2099-01-02T00:20:00.000Z");
+    const generated = await quizUseCase.generate("2099-01-02");
+    expect(generated).not.toBeNull();
+
+    const cookie = await loginCookie(app);
+    const response = await app.request(
+      "/api/v1/quizzes/today?language=en",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json<QuizResponse>();
+
+    expect(body).toMatchObject({
+      id: generated?.id,
+      quizDate: "2099-01-02",
+      answered: false,
+    });
+    expect(body.participants).toHaveLength(3);
+    expect(body.concerns).toHaveLength(3);
+    expect(
+      body.concerns.every((concern) => concern.language === "original"),
+    ).toBe(true);
+    expect(JSON.stringify(body)).not.toContain(prefix + "-user-");
+    expect(JSON.stringify(body)).not.toContain("line-");
+    expect(
+      body.participants.every((participant) => !("concernId" in participant)),
+    ).toBe(true);
+  });
+
+  it("records one answer per user and returns the result on subsequent reads", async () => {
+    const prefix = `quiz-answer-${crypto.randomUUID()}`;
+    await seedCandidates(prefix);
+    const { app, quizUseCase } = createTestApp("2099-01-03T00:20:00.000Z");
+    const generated = await quizUseCase.generate("2099-01-03");
+    if (!generated) throw new Error("quiz was not generated");
+    const cookie = await loginCookie(app);
+
+    const matches = [
+      {
+        participantId: generated.participants[0].id,
+        concernId: generated.participants[1].concernId,
+      },
+      {
+        participantId: generated.participants[1].id,
+        concernId: generated.participants[0].concernId,
+      },
+      {
+        participantId: generated.participants[2].id,
+        concernId: generated.participants[2].concernId,
+      },
+    ];
+    const request = {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ matches }),
+    };
+
+    const first = await app.request(
+      `/api/v1/quizzes/${generated.id}/answers`,
+      request,
+      env,
+    );
+    expect(first.status).toBe(201);
+    expect(await first.json()).toMatchObject({
+      quizId: generated.id,
+      score: 1,
+      total: 3,
+    });
+
+    const duplicate = await app.request(
+      `/api/v1/quizzes/${generated.id}/answers`,
+      request,
+      env,
+    );
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toMatchObject({
+      error: { code: "QUIZ_ALREADY_ANSWERED" },
+    });
+
+    const reread = await app.request(
+      `/api/v1/quizzes/${generated.id}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(reread.status).toBe(200);
+    expect(await reread.json()).toMatchObject({
+      answered: true,
+      answerResult: { score: 1, total: 3 },
+    });
+
+    const db = drizzle(env.DB);
+    const attempts = await db
+      .select()
+      .from(quizAttempts)
+      .where(eq(quizAttempts.quizId, generated.id));
+    expect(attempts).toHaveLength(1);
+  });
+
+  it("hides a quiz when one of its source concerns is no longer public", async () => {
+    const prefix = `quiz-hidden-${crypto.randomUUID()}`;
+    await seedCandidates(prefix);
+    const { app, quizUseCase } = createTestApp("2099-01-04T00:20:00.000Z");
+    const generated = await quizUseCase.generate("2099-01-04");
+    if (!generated) throw new Error("quiz was not generated");
+    const cookie = await loginCookie(app);
+    const db = drizzle(env.DB);
+
+    await db
+      .update(concerns)
+      .set({ visibilityStatus: "hidden" })
+      .where(eq(concerns.id, generated.participants[0].concernId));
+
+    const response = await app.request(
+      `/api/v1/quizzes/${generated.id}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: { code: "QUIZ_NOT_AVAILABLE" },
+    });
+
+    const hidden = await db
+      .select({ status: quizzes.status })
+      .from(quizzes)
+      .where(and(eq(quizzes.id, generated.id), eq(quizzes.status, "hidden")));
+    expect(hidden).toHaveLength(1);
+  });
+});
