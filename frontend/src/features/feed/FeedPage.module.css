@@ -80,12 +80,8 @@
   z-index: 1;
   /* 本文・ふもと。しおりは紙の外へ出すので行に数えない。 */
   grid-template-rows: 1fr auto;
-  /* 約5mm間隔の淡い方眼を、ページごとの紙色に重ねる。 */
-  background-color: var(--paper-tint, var(--color-surface));
-  background-image:
-    linear-gradient(to right, rgb(110 102 88 / 10%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(110 102 88 / 10%) 1px, transparent 1px);
-  background-size: 19px 19px;
+  /* テーマごとの地色。見開きごとに景色が変わる絵本にならう。 */
+  background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
   height: clamp(19em, 46vh, 27em);

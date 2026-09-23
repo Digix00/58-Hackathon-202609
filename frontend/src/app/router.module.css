@@ -6,7 +6,7 @@
   margin: 0 auto;
   place-items: center;
   align-content: center;
-  background: var(--color-paper);
+  background-color: var(--color-paper);
 }
 
 .placeholderPage {

@@ -5,6 +5,7 @@ import { CrayonFilters } from '../shared/components/CrayonFilters'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
 import crayonStyles from '../shared/styles/Crayon.module.css'
+import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import styles from './router.module.css'
@@ -49,7 +50,11 @@ export function AppLayout() {
       {state.mode === 'liff' ? (
         <AppShell />
       ) : (
-        <main className={styles.standalonePage}>
+        <main
+          className={`${styles.standalonePage} ${
+            location.pathname === '/' ? notebookBackground.grid : ''
+          }`}
+        >
           <Outlet />
         </main>
       )}

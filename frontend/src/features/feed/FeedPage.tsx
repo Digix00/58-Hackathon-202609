@@ -112,6 +112,68 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
+function useFeedSwipe({
+  goNext,
+  goPrev,
+  onDragChanged,
+}: {
+  goNext: (startAngle?: number) => void
+  goPrev: () => void
+  onDragChanged: (x: number) => void
+}) {
+  const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
+  const swiped = useRef(false)
+
+  function handleTouchStart(event: TouchEvent) {
+    const touch = event.touches[0]
+    swiped.current = false
+    swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    const start = swipe.current
+    if (!start) return
+    const touch = event.touches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (!start.active) {
+      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return
+      // 縦に動かし始めたなら、それはスクロール。横めくりには使わない。
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        swipe.current = null
+        return
+      }
+      start.active = true
+    }
+    onDragChanged(dx)
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    const start = swipe.current
+    const dx = start ? event.changedTouches[0].clientX - start.x : 0
+    swipe.current = null
+    onDragChanged(0)
+    if (!start?.active) return
+    swiped.current = true
+    if (dx <= -SWIPE_THRESHOLD) goNext(angleForDrag(dx))
+    else if (dx >= SWIPE_THRESHOLD) goPrev()
+  }
+
+  function handleTouchCancel() {
+    swipe.current = null
+    onDragChanged(0)
+  }
+
+  // めくった指が、そのまま本文リンクを開いてしまわないようにする。
+  function handleLinkClick(event: MouseEvent) {
+    if (!swiped.current) return
+    swiped.current = false
+    event.preventDefault()
+  }
+
+  return { handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, handleLinkClick }
+}
+
 function FeedCard({
   concern,
   page,
@@ -204,14 +266,197 @@ function FeedCard({
   )
 }
 
+type FeedStackProps = {
+  concern: DemoConcern
+  index: number
+  position: number
+  direction: 1 | -1
+  turning: TurningConcern | null
+  dragX: number
+  isLiff: boolean
+  articleRef: RefCallback<HTMLElement>
+  onNext: () => void
+  onReact: () => void
+  onLinkClick: (event: MouseEvent) => void
+  onTurningFinished: () => void
+}
+
+function FeedStack({
+  concern,
+  index,
+  position,
+  direction,
+  turning,
+  dragX,
+  isLiff,
+  articleRef,
+  onNext,
+  onReact,
+  onLinkClick,
+  onTurningFinished,
+}: FeedStackProps) {
+  return (
+    <div className={styles.stack} style={notebookBindingStyle}>
+      <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
+      <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
+      {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
+      <NotebookBinding part="rear" />
+      {turning ? (
+        <NotebookBinding key={`${turning.concern.id}-${turning.page}`} part="rear" between />
+      ) : null}
+      {turning ? (
+        <NotebookTurn
+          key={`${turning.concern.id}-${turning.page}`}
+          startAngle={turning.startAngle}
+          backColor={paletteForPage(turning.page).bookmark}
+          onFinish={onTurningFinished}
+        >
+          <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
+        </NotebookTurn>
+      ) : null}
+      <div
+        key={`${concern.id}-${index}`}
+        className={`${styles.enter} ${direction < 0 ? turnStyles.fromLeft : ''}`}
+      >
+        <FeedCard
+          concern={concern}
+          page={position + 1}
+          onNext={onNext}
+          articleRef={articleRef}
+          canReact={isLiff}
+          dragX={dragX}
+          onLinkClick={onLinkClick}
+          onReact={onReact}
+        />
+      </div>
+      {/* 手前側の線は金具として動かさない。 */}
+      <NotebookBinding part="front" />
+    </div>
+  )
+}
+
+function FeedEmpty({ onReset }: { onReset: () => void }) {
+  return (
+    <div className={styles.empty}>
+      <p>選んだ条件の声は、まだありません。</p>
+      <button type="button" className={actionStyles.secondary} onClick={onReset}>
+        すべての声を読む
+      </button>
+    </div>
+  )
+}
+
+type FeedStageProps = Omit<FeedStackProps, 'concern'> & {
+  concern: DemoConcern | undefined
+  onReset: () => void
+  onTouchStart: (event: TouchEvent) => void
+  onTouchMove: (event: TouchEvent) => void
+  onTouchEnd: (event: TouchEvent) => void
+  onTouchCancel: () => void
+}
+
+function FeedStage({
+  concern,
+  onReset,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+  onTouchCancel,
+  ...stackProps
+}: FeedStageProps) {
+  return (
+    <section
+      className={styles.stage}
+      aria-labelledby="feed-title"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
+    >
+      <h1 id="feed-title" className={styles.srOnly}>
+        届いた声を読む
+      </h1>
+      {concern ? <FeedStack concern={concern} {...stackProps} /> : <FeedEmpty onReset={onReset} />}
+    </section>
+  )
+}
+
+type FilterOption = { value: string; label: string }
+
+function FeedActions({
+  showLogin,
+  concern,
+  filtersOpen,
+  activeFilter,
+  filter,
+  themeOptions,
+  regionOptions,
+  onNext,
+  onFiltersToggle,
+  onFilterChange,
+}: {
+  showLogin: boolean
+  concern: DemoConcern | undefined
+  filtersOpen: boolean
+  activeFilter: string
+  filter: Filter
+  themeOptions: FilterOption[]
+  regionOptions: FilterOption[]
+  onNext: () => void
+  onFiltersToggle: (open: boolean) => void
+  onFilterChange: (field: keyof Filter, value: string) => void
+}) {
+  return (
+    <div className={styles.actions}>
+      {showLogin ? <LoginGuide /> : null}
+      {concern ? (
+        <button
+          type="button"
+          className={`${actionStyles.primary} ${styles.nextButton}`}
+          onClick={onNext}
+        >
+          つぎの声へ <span aria-hidden="true">→</span>
+        </button>
+      ) : null}
+      <details
+        className={styles.filters}
+        open={filtersOpen}
+        onToggle={(event) => onFiltersToggle(event.currentTarget.open)}
+      >
+        <summary>
+          <span>{activeFilter ? 'えらんだ条件' : 'テーマ・地域でえらぶ'}</span>
+          {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
+          <span className={styles.caret} aria-hidden="true">
+            ▾
+          </span>
+        </summary>
+        <div className={styles.filterFields} aria-label="読む声の条件">
+          <SelectField
+            label="テーマ"
+            placement="up"
+            value={filter.theme || ALL}
+            options={themeOptions}
+            onChange={(value) => onFilterChange('theme', value === ALL ? '' : value)}
+          />
+          <SelectField
+            label="地域"
+            placement="up"
+            value={filter.region || ALL}
+            options={regionOptions}
+            onChange={(value) => onFilterChange('region', value === ALL ? '' : value)}
+          />
+        </div>
+      </details>
+    </div>
+  )
+}
+
 export function FeedPage() {
   const { concerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
   const { filter, index, direction, showLogin, filtersOpen, dragX, turning } = reader
-  const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
-  const swiped = useRef(false)
 
   const themeOptions = [
     { value: ALL, label: 'すべて' },
@@ -259,6 +504,12 @@ export function FeedPage() {
     dispatch({ type: 'previous' })
   }, [])
 
+  const swipe = useFeedSwipe({
+    goNext,
+    goPrev,
+    onDragChanged: (x) => dispatch({ type: 'dragChanged', x }),
+  })
+
   const goNextFromKeyboard = useEffectEvent(() => goNext())
 
   // 指と同じ感覚で、キーボードからも前後へ送れるようにする。
@@ -273,189 +524,47 @@ export function FeedPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [goPrev])
 
-  function handleTouchStart(event: TouchEvent) {
-    const touch = event.touches[0]
-    swiped.current = false
-    swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
-  }
-
-  function handleTouchMove(event: TouchEvent) {
-    const start = swipe.current
-    if (!start) return
-    const touch = event.touches[0]
-    const dx = touch.clientX - start.x
-    const dy = touch.clientY - start.y
-    if (!start.active) {
-      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return
-      // 縦に動かし始めたなら、それはスクロール。横めくりには使わない。
-      if (Math.abs(dy) >= Math.abs(dx)) {
-        swipe.current = null
-        return
-      }
-      start.active = true
-    }
-    dispatch({ type: 'dragChanged', x: dx })
-  }
-
-  function handleTouchEnd(event: TouchEvent) {
-    const start = swipe.current
-    const dx = start ? event.changedTouches[0].clientX - start.x : 0
-    swipe.current = null
-    dispatch({ type: 'dragChanged', x: 0 })
-    if (!start?.active) return
-    swiped.current = true
-    if (dx <= -SWIPE_THRESHOLD) goNext(angleForDrag(dx))
-    else if (dx >= SWIPE_THRESHOLD) goPrev()
-  }
-
-  function handleTouchCancel() {
-    swipe.current = null
-    dispatch({ type: 'dragChanged', x: 0 })
-  }
-
-  // めくった指が、そのまま本文リンクを開いてしまわないようにする。
-  function handleLinkClick(event: MouseEvent) {
-    if (!swiped.current) return
-    swiped.current = false
-    event.preventDefault()
-  }
-
   return (
     <DemoBoundary
       emptyTitle="まだ声が届いていません"
       emptyDescription="しばらくしてから、また読みに来てください。"
     >
       <div className={styles.page}>
-        <section
-          className={styles.stage}
-          aria-labelledby="feed-title"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchCancel}
-        >
-          <h1 id="feed-title" className={styles.srOnly}>
-            届いた声を読む
-          </h1>
-          {concern ? (
-            <div className={styles.stack} style={notebookBindingStyle}>
-              <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-              <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-              {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-              <NotebookBinding part="rear" />
-              {turning ? (
-                <NotebookBinding
-                  key={`${turning.concern.id}-${turning.page}`}
-                  part="rear"
-                  between
-                />
-              ) : null}
-              {turning ? (
-                <NotebookTurn
-                  key={`${turning.concern.id}-${turning.page}`}
-                  startAngle={turning.startAngle}
-                  backColor={paletteForPage(turning.page).bookmark}
-                  onFinish={() => dispatch({ type: 'turningFinished' })}
-                >
-                  <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
-                </NotebookTurn>
-              ) : null}
-              <div
-                key={`${concern.id}-${index}`}
-                className={`${styles.enter} ${direction < 0 ? turnStyles.fromLeft : ''}`}
-              >
-                <FeedCard
-                  concern={concern}
-                  page={position + 1}
-                  onNext={() => goNext()}
-                  articleRef={articleRef}
-                  canReact={isLiff}
-                  dragX={dragX}
-                  onLinkClick={handleLinkClick}
-                  onReact={() => {
-                    if (authStatus !== 'authenticated')
-                      dispatch({ type: 'loginVisibilityChanged', visible: true })
-                    else reactToDemoConcern(concern.id)
-                  }}
-                />
-              </div>
-              {/* 手前側の線は金具として動かさない。 */}
-              <NotebookBinding part="front" />
-            </div>
-          ) : (
-            <div className={styles.empty}>
-              <p>選んだ条件の声は、まだありません。</p>
-              <button
-                type="button"
-                className={actionStyles.secondary}
-                onClick={() => {
-                  dispatch({ type: 'filtersReset' })
-                }}
-              >
-                すべての声を読む
-              </button>
-            </div>
-          )}
-        </section>
-
-        <div className={styles.actions}>
-          {showLogin ? <LoginGuide /> : null}
-          {concern ? (
-            <button
-              type="button"
-              className={`${actionStyles.primary} ${styles.nextButton}`}
-              onClick={() => goNext()}
-            >
-              つぎの声へ <span aria-hidden="true">→</span>
-            </button>
-          ) : null}
-          <details
-            className={styles.filters}
-            open={filtersOpen}
-            onToggle={(event) =>
-              dispatch({
-                type: 'filtersVisibilityChanged',
-                open: event.currentTarget.open,
-              })
-            }
-          >
-            <summary>
-              <span>{activeFilter ? 'えらんだ条件' : 'テーマ・地域でえらぶ'}</span>
-              {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
-              <span className={styles.caret} aria-hidden="true">
-                ▾
-              </span>
-            </summary>
-            <div className={styles.filterFields} aria-label="読む声の条件">
-              <SelectField
-                label="テーマ"
-                placement="up"
-                value={filter.theme || ALL}
-                options={themeOptions}
-                onChange={(value) => {
-                  dispatch({
-                    type: 'filterChanged',
-                    field: 'theme',
-                    value: value === ALL ? '' : value,
-                  })
-                }}
-              />
-              <SelectField
-                label="地域"
-                placement="up"
-                value={filter.region || ALL}
-                options={regionOptions}
-                onChange={(value) => {
-                  dispatch({
-                    type: 'filterChanged',
-                    field: 'region',
-                    value: value === ALL ? '' : value,
-                  })
-                }}
-              />
-            </div>
-          </details>
-        </div>
+        <FeedStage
+          concern={concern}
+          index={index}
+          position={position}
+          direction={direction}
+          turning={turning}
+          dragX={dragX}
+          isLiff={isLiff}
+          articleRef={articleRef}
+          onNext={goNext}
+          onReact={() => {
+            if (authStatus !== 'authenticated')
+              dispatch({ type: 'loginVisibilityChanged', visible: true })
+            else if (concern) reactToDemoConcern(concern.id)
+          }}
+          onLinkClick={swipe.handleLinkClick}
+          onTurningFinished={() => dispatch({ type: 'turningFinished' })}
+          onReset={() => dispatch({ type: 'filtersReset' })}
+          onTouchStart={swipe.handleTouchStart}
+          onTouchMove={swipe.handleTouchMove}
+          onTouchEnd={swipe.handleTouchEnd}
+          onTouchCancel={swipe.handleTouchCancel}
+        />
+        <FeedActions
+          showLogin={showLogin}
+          concern={concern}
+          filtersOpen={filtersOpen}
+          activeFilter={activeFilter}
+          filter={filter}
+          themeOptions={themeOptions}
+          regionOptions={regionOptions}
+          onNext={goNext}
+          onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
+          onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
+        />
 
         <p className={styles.srOnly} aria-live="polite">
           {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}

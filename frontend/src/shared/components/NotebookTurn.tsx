@@ -11,12 +11,7 @@ type NotebookTurnProps = {
 }
 
 /** 紙そのものを一回転させる。リングは静止した NotebookBinding が描く。 */
-export function NotebookTurn({
-  children,
-  backColor,
-  startAngle = 0,
-  onFinish,
-}: NotebookTurnProps) {
+export function NotebookTurn({ children, backColor, startAngle = 0, onFinish }: NotebookTurnProps) {
   return (
     <div
       className={styles.turning}

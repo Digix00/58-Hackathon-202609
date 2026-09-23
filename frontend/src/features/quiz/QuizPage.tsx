@@ -346,7 +346,8 @@ export function QuizPage() {
   const letter = letters[state.index]
   const answers = quizResult ? quizResult.answers : state.answers
   const bodyOf = (target: Letter) => concerns.find((concern) => concern.id === target.id)?.body
-  const remaining = demoQuiz.people.filter((person) => !Object.values(answers).includes(person.id))
+  const answeredPersonIds = new Set(Object.values(answers))
+  const remaining = demoQuiz.people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = remaining.length === 0
   const canGoNext = state.index < letters.length - 1
   const canGoPrev = state.index > 0

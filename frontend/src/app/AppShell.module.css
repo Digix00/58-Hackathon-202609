@@ -5,7 +5,7 @@
   height: 100svh;
   height: 100dvh;
   margin: 0 auto;
-  background: var(--color-paper);
+  background-color: var(--color-paper);
 }
 
 .large {
