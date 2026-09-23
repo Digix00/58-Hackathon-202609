@@ -89,7 +89,7 @@ export const concerns = sqliteTable(
     ),
     visibilityStatusCheck: check(
       "concerns_visibility_status_check",
-      sql`${table.visibilityStatus} in ('published', 'hidden', 'deleted')`,
+      sql`${table.visibilityStatus} in ('pending', 'published', 'hidden', 'deleted')`,
     ),
     processingStatusCheck: check(
       "concerns_processing_status_check",
