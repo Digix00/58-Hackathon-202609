@@ -74,42 +74,47 @@ export class D1ConcernProcessingRepository
   }
 
   async saveResult(processing: ConcernProcessing): Promise<void> {
-    if (processing.representations.length > 0) {
-      await this.db
-        .insert(concernRepresentations)
-        .values(
-          processing.representations.map((representation) => ({
-            concernId: representation.concernId,
-            locale: representation.locale,
-            body: representation.body,
-            status: representation.status,
-            errorCode: representation.errorCode,
-            updatedAt: representation.updatedAt,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: [
-            concernRepresentations.concernId,
-            concernRepresentations.locale,
-          ],
-          set: {
-            body: sql.raw("excluded.body"),
-            status: sql.raw("excluded.status"),
-            errorCode: sql.raw("excluded.error_code"),
-            updatedAt: sql.raw("excluded.updated_at"),
-          },
-        })
-        .run();
-    }
-
-    await this.db
+    const updateConcern = this.db
       .update(concerns)
       .set({
         processingStatus: processing.status,
         updatedAt: processing.updatedAt,
       })
-      .where(eq(concerns.id, processing.concernId))
-      .run();
+      .where(eq(concerns.id, processing.concernId));
+
+    if (processing.representations.length === 0) {
+      await updateConcern.run();
+      return;
+    }
+
+    const upsertRepresentations = this.db
+      .insert(concernRepresentations)
+      .values(
+        processing.representations.map((representation) => ({
+          concernId: representation.concernId,
+          locale: representation.locale,
+          body: representation.body,
+          status: representation.status,
+          errorCode: representation.errorCode,
+          updatedAt: representation.updatedAt,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [
+          concernRepresentations.concernId,
+          concernRepresentations.locale,
+        ],
+        set: {
+          body: sql.raw("excluded.body"),
+          status: sql.raw("excluded.status"),
+          errorCode: sql.raw("excluded.error_code"),
+          updatedAt: sql.raw("excluded.updated_at"),
+        },
+      });
+
+    // Batch commits both statements atomically so a mid-write failure never
+    // leaves representations saved with the concern status still stale.
+    await this.db.batch([upsertRepresentations, updateConcern]);
   }
 
   async markFailed(processing: ConcernProcessing): Promise<void> {
