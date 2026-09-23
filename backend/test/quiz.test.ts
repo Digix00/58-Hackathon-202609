@@ -93,9 +93,12 @@ async function loginCookie(
   return cookieFrom(login);
 }
 
-async function seedCandidates(prefix: string): Promise<void> {
+async function seedCandidates(
+  prefix: string,
+  missingFirstAttributes = false,
+  createdAt = "2099-01-01T00:00:00.000Z",
+): Promise<void> {
   const db = drizzle(env.DB);
-  const createdAt = "2099-01-01T00:00:00.000Z";
   const candidateRows = [
     {
       suffix: "a",
@@ -116,9 +119,16 @@ async function seedCandidates(prefix: string): Promise<void> {
       regionCode: "hyogo",
     },
   ] as const;
+  const rows = missingFirstAttributes
+    ? candidateRows.map((row, index) =>
+        index === 0
+          ? { ...row, ageGroup: null, genderCode: null, regionCode: null }
+          : row,
+      )
+    : candidateRows;
 
   await db.insert(users).values(
-    candidateRows.map((row) => ({
+    rows.map((row) => ({
       id: `${prefix}-user-${row.suffix}`,
       lineUserId: `${prefix}-line-${row.suffix}`,
       createdAt,
@@ -126,7 +136,7 @@ async function seedCandidates(prefix: string): Promise<void> {
     })),
   );
   await db.insert(concerns).values(
-    candidateRows.map((row) => ({
+    rows.map((row) => ({
       id: `${prefix}-concern-${row.suffix}`,
       userId: `${prefix}-user-${row.suffix}`,
       body: `${prefix}の${row.suffix}さんの投稿`,
@@ -213,6 +223,42 @@ describe("quiz routes", () => {
     expect(
       body.participants.every((participant) => !("concernId" in participant)),
     ).toBe(true);
+  });
+
+  it("normalizes missing participant attributes to no_answer", async () => {
+    const prefix = `quiz-attributes-${crypto.randomUUID()}`;
+    await seedCandidates(prefix, true, "2099-01-06T00:00:00.000Z");
+    const { app, quizUseCase } = createTestApp("2099-01-05T00:20:00.000Z");
+    const generated = await quizUseCase.generate("2099-01-05");
+    expect(generated).not.toBeNull();
+
+    const cookie = await loginCookie(app);
+    const response = await app.request(
+      "/api/v1/quizzes/today",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json<QuizResponse>();
+
+    expect(
+      body.participants.every((participant) =>
+        Object.values(participant.attributes).every(
+          (attribute) => attribute !== null,
+        ),
+      ),
+    ).toBe(true);
+    expect(body.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          attributes: {
+            ageGroup: "no_answer",
+            gender: "no_answer",
+            regionCode: "no_answer",
+          },
+        }),
+      ]),
+    );
   });
 
   it("records one answer per user and returns the result on subsequent reads", async () => {

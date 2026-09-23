@@ -157,9 +157,9 @@ function toResponse(quiz: Quiz) {
   const participants = shuffle(quiz.participants).map((participant, index) => ({
     participantId: participant.id,
     attributes: {
-      ageGroup: participant.ageGroup,
-      gender: participant.gender,
-      regionCode: participant.regionCode,
+      ageGroup: participant.ageGroup ?? "no_answer",
+      gender: participant.gender ?? "no_answer",
+      regionCode: participant.regionCode ?? "no_answer",
     },
     displayOrder: index + 1,
   }));
