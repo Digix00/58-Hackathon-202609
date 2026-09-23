@@ -1,7 +1,7 @@
 /**
- * regionsマスタテーブルを持たないため、暫定的な固定リストでコード値を検証する。
- * frontend/src/features/post/postTypes.ts と値を同期させること。
- * 将来regionsテーブルが必要になった場合は、このファイルをDB参照へ差し替える。
+ * アプリケーションで扱う47都道府県コードを定義する。
+ * この定義をバックエンド側の正とし、frontend/src/features/post/postTypes.ts と値を同期させること。
+ * regionsテーブルや外部マスタは参照しない。
  */
 export const REGION_CODES = [
   "hokkaido",
