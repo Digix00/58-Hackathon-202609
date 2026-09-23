@@ -151,10 +151,12 @@ export class ConcernHandler {
       regionCode: parsed.data.regionCode,
       clusterId: parsed.data.clusterId,
     } as const;
-    const cursor = parsed.data.cursor
-      ? (decodeConcernCursor(parsed.data.cursor, cursorContext) ?? undefined)
+    const decodedCursor = parsed.data.cursor
+      ? decodeConcernCursor(parsed.data.cursor, cursorContext)
       : undefined;
-    if (parsed.data.cursor && !cursor) {
+    const cursor = decodedCursor?.cursor;
+    const recommendationCursor = decodedCursor?.recommendationCursor;
+    if (parsed.data.cursor && !decodedCursor) {
       return c.json(
         {
           error: {
@@ -175,6 +177,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
         userId: auth?.user?.id,
+        recommendationCursor,
       });
       const nextCursor = result.nextCursor
         ? encodeConcernCursor(result.nextCursor, cursorContext)

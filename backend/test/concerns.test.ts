@@ -529,6 +529,72 @@ describe("GET /api/v1/concerns", () => {
     });
   });
 
+  it("does not skip candidates across recommended pages", async () => {
+    const suffix = crypto.randomUUID();
+    const clusterId = await seedCluster({
+      id: `recommended-pagination-cluster-${suffix}`,
+      label: "推薦ページング",
+      summary: "推薦ページングのテスト用クラスタ",
+    });
+    const expectedIds = Array.from(
+      { length: 101 },
+      (_, index) =>
+        `recommended-pagination-${suffix}-${String(index).padStart(3, "0")}`,
+    );
+    for (const id of expectedIds) {
+      await seedConcern({
+        id,
+        body: "推薦ページングのテスト投稿",
+        clusterId,
+        createdAt: "9998-06-01T00:00:00.000Z",
+      });
+    }
+
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const receivedIds: string[] = [];
+    let cursor: string | null = null;
+    let pageCount = 0;
+
+    while (true) {
+      const query = new URLSearchParams({
+        clusterId,
+        limit: "20",
+        sort: "recommended",
+      });
+      if (cursor) {
+        query.set("cursor", cursor);
+      }
+
+      const response = await app.request(
+        `/api/v1/concerns?${query.toString()}`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      const body = await response.json<{
+        items: Array<{ id: string }>;
+        nextCursor: string | null;
+      }>();
+
+      expect(response.status).toBe(200);
+      receivedIds.push(...body.items.map((item) => item.id));
+      pageCount += 1;
+      cursor = body.nextCursor;
+
+      if (!cursor) {
+        break;
+      }
+      if (pageCount > 10) {
+        throw new Error("recommended pagination did not terminate");
+      }
+    }
+
+    expect(pageCount).toBe(6);
+    expect(receivedIds).toHaveLength(expectedIds.length);
+    expect(new Set(receivedIds).size).toBe(expectedIds.length);
+    expect(new Set(receivedIds)).toEqual(new Set(expectedIds));
+  });
+
   it("paginates with an opaque cursor without duplicating items", async () => {
     const suffix = crypto.randomUUID();
     const createdAt = "9999-02-01T00:00:00.000Z";

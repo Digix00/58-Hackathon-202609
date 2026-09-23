@@ -1,8 +1,15 @@
 import type { ConcernSort } from "../application/entity/feed";
-import type { ConcernListCursor } from "../application/repository/concern.repository";
+import type {
+  ConcernFeedCursor,
+  ConcernListCursor,
+  RecommendedConcernCursor,
+} from "../application/repository/concern.repository";
 
 const LEGACY_CURSOR_VERSION = 1;
 const CURSOR_VERSION = 2;
+const RECOMMENDED_CURSOR_VERSION = 3;
+const MAX_PENDING_CONCERN_IDS = 250;
+const MAX_CURSOR_ID_LENGTH = 200;
 
 export interface ConcernCursorContext {
   sort: ConcernSort;
@@ -21,27 +28,50 @@ interface EncodedConcernCursor extends ConcernListCursor {
   clusterId: string | null;
 }
 
+interface EncodedRecommendedConcernCursor extends RecommendedConcernCursor {
+  version: typeof RECOMMENDED_CURSOR_VERSION;
+  sort: "recommended";
+  regionCode: string | null;
+  clusterId: string | null;
+}
+
+export interface DecodedConcernCursor {
+  cursor?: ConcernListCursor;
+  recommendationCursor?: RecommendedConcernCursor;
+}
+
 /**
  * GET /api/v1/concerns のレスポンスに含める nextCursor を生成する。
  * 次ページの開始位置と取得条件をJSON化し、クライアントが内容を解釈せず
  * そのまま送信できるBase64URL形式のopaque stringへ変換する。
  */
 export function encodeConcernCursor(
-  cursor: ConcernListCursor,
+  cursor: ConcernFeedCursor,
   context?: ConcernCursorContext,
 ): string {
-  const payload: EncodedConcernCursor | EncodedLegacyConcernCursor = context
+  const payload:
+    | EncodedConcernCursor
+    | EncodedRecommendedConcernCursor
+    | EncodedLegacyConcernCursor = isRecommendedConcernCursor(cursor)
     ? {
-        version: CURSOR_VERSION,
+        version: RECOMMENDED_CURSOR_VERSION,
         ...cursor,
-        sort: context.sort,
-        regionCode: context.regionCode ?? null,
-        clusterId: context.clusterId ?? null,
+        sort: "recommended",
+        regionCode: context?.regionCode ?? null,
+        clusterId: context?.clusterId ?? null,
       }
-    : {
-        version: LEGACY_CURSOR_VERSION,
-        ...cursor,
-      };
+    : context
+      ? {
+          version: CURSOR_VERSION,
+          ...cursor,
+          sort: context.sort,
+          regionCode: context.regionCode ?? null,
+          clusterId: context.clusterId ?? null,
+        }
+      : {
+          version: LEGACY_CURSOR_VERSION,
+          ...cursor,
+        };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let binary = "";
   for (const byte of bytes) {
@@ -62,7 +92,7 @@ export function encodeConcernCursor(
 export function decodeConcernCursor(
   value: string,
   expectedContext?: ConcernCursorContext,
-): ConcernListCursor | null {
+): DecodedConcernCursor | null {
   try {
     const base64 = value
       .replaceAll("-", "+")
@@ -74,20 +104,29 @@ export function decodeConcernCursor(
     );
     const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
 
-    if (isEncodedConcernCursor(parsed)) {
-      if (
-        expectedContext &&
-        (parsed.sort !== expectedContext.sort ||
-          parsed.regionCode !== (expectedContext.regionCode ?? null) ||
-          parsed.clusterId !== (expectedContext.clusterId ?? null))
-      ) {
+    if (isEncodedRecommendedConcernCursor(parsed)) {
+      if (!matchesContext(parsed, expectedContext)) {
         return null;
       }
-      return { createdAt: parsed.createdAt, id: parsed.id };
+      return {
+        cursor: parsed.sourceCursor ?? undefined,
+        recommendationCursor: {
+          type: "recommended",
+          sourceCursor: parsed.sourceCursor,
+          pendingConcernIds: parsed.pendingConcernIds,
+        },
+      };
+    }
+
+    if (isEncodedConcernCursor(parsed)) {
+      if (!matchesContext(parsed, expectedContext)) {
+        return null;
+      }
+      return { cursor: { createdAt: parsed.createdAt, id: parsed.id } };
     }
 
     return isEncodedLegacyConcernCursor(parsed)
-      ? { createdAt: parsed.createdAt, id: parsed.id }
+      ? { cursor: { createdAt: parsed.createdAt, id: parsed.id } }
       : null;
   } catch {
     return null;
@@ -105,10 +144,36 @@ function isEncodedConcernCursor(value: unknown): value is EncodedConcernCursor {
     (cursor.sort === "newest" || cursor.sort === "recommended") &&
     (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
     (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
-    typeof cursor.createdAt === "string" &&
-    cursor.createdAt.length > 0 &&
-    typeof cursor.id === "string" &&
-    cursor.id.length > 0
+    isConcernListCursor(cursor)
+  );
+}
+
+function isEncodedRecommendedConcernCursor(
+  value: unknown,
+): value is EncodedRecommendedConcernCursor {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const cursor = value as Record<string, unknown>;
+  const sourceCursor = cursor.sourceCursor;
+  const pendingConcernIds = cursor.pendingConcernIds;
+  return (
+    cursor.version === RECOMMENDED_CURSOR_VERSION &&
+    cursor.type === "recommended" &&
+    cursor.sort === "recommended" &&
+    (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
+    (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
+    (sourceCursor === null || isConcernListCursor(sourceCursor)) &&
+    Array.isArray(pendingConcernIds) &&
+    pendingConcernIds.length <= MAX_PENDING_CONCERN_IDS &&
+    new Set(pendingConcernIds).size === pendingConcernIds.length &&
+    pendingConcernIds.every(
+      (id) =>
+        typeof id === "string" &&
+        id.length > 0 &&
+        id.length <= MAX_CURSOR_ID_LENGTH,
+    )
   );
 }
 
@@ -121,10 +186,43 @@ function isEncodedLegacyConcernCursor(
 
   const cursor = value as Record<string, unknown>;
   return (
-    cursor.version === LEGACY_CURSOR_VERSION &&
+    cursor.version === LEGACY_CURSOR_VERSION && isConcernListCursor(cursor)
+  );
+}
+
+function isRecommendedConcernCursor(
+  cursor: ConcernFeedCursor,
+): cursor is RecommendedConcernCursor {
+  return "type" in cursor && cursor.type === "recommended";
+}
+
+function isConcernListCursor(value: unknown): value is ConcernListCursor {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const cursor = value as Record<string, unknown>;
+  return (
     typeof cursor.createdAt === "string" &&
     cursor.createdAt.length > 0 &&
     typeof cursor.id === "string" &&
-    cursor.id.length > 0
+    cursor.id.length > 0 &&
+    cursor.id.length <= MAX_CURSOR_ID_LENGTH
+  );
+}
+
+function matchesContext(
+  cursor: {
+    sort: ConcernSort;
+    regionCode: string | null;
+    clusterId: string | null;
+  },
+  expectedContext?: ConcernCursorContext,
+): boolean {
+  return (
+    !expectedContext ||
+    (cursor.sort === expectedContext.sort &&
+      cursor.regionCode === (expectedContext.regionCode ?? null) &&
+      cursor.clusterId === (expectedContext.clusterId ?? null))
   );
 }

@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -11,6 +11,7 @@ import {
 import { ConcernCluster } from "../../application/entity/concern-cluster";
 import type {
   ConcernRepository,
+  ListConcernFeedByIdsInput,
   ListConcernFeedInput,
   ListConcernFeedResult,
   ListPublishedConcernsInput,
@@ -140,6 +141,45 @@ export class D1ConcernRepository implements ConcernRepository {
       items: rows.slice(0, input.limit).map(toFeedCandidate),
       hasMore,
     };
+  }
+
+  async listFeedByIds(
+    input: ListConcernFeedByIdsInput,
+  ): Promise<ReturnType<typeof toFeedCandidate>[]> {
+    if (input.ids.length === 0) {
+      return [];
+    }
+
+    const conditions = [
+      eq(concerns.visibilityStatus, "published"),
+      inArray(concerns.id, input.ids),
+    ];
+    if (input.regionCode) {
+      conditions.push(eq(concerns.regionCode, input.regionCode));
+    }
+    if (input.clusterId) {
+      conditions.push(eq(concerns.clusterId, input.clusterId));
+    }
+
+    const viewJoin = input.userId
+      ? and(
+          eq(concernViews.concernId, concerns.id),
+          eq(concernViews.actorKey, input.userId),
+        )
+      : sql`1 = 0`;
+    const rows = await this.db
+      .select({
+        concern: concerns,
+        cluster: concernClusters,
+        view: concernViews,
+      })
+      .from(concerns)
+      .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
+      .leftJoin(concernViews, viewJoin)
+      .where(and(...conditions))
+      .all();
+
+    return rows.map(toFeedCandidate);
   }
 
   async findPublishedFeedCandidate(id: string, userId?: string) {
