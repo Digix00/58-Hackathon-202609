@@ -10,6 +10,9 @@ export function createAuthDependencies() {
       selectById: async () => {
         throw new Error("auth fixture is not used by this test");
       },
+      updateProfile: async () => {
+        throw new Error("auth fixture is not used by this test");
+      },
     },
     {
       insert: async () => {

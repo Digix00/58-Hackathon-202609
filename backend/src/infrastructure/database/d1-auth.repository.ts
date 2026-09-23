@@ -1,13 +1,22 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-
+import type { RegionCode } from "../../application/entity/region-code";
+import type { Session } from "../../application/entity/session";
+import type { Gender, User, UserProfile } from "../../application/entity/user";
 import type {
   SessionRepository,
   UserRepository,
 } from "../../application/repository/auth.repository";
-import type { Session } from "../../application/entity/session";
-import type { User } from "../../application/entity/user";
 import { sessions, users } from "./schema";
+
+const userColumns = {
+  id: users.id,
+  lineUserId: users.lineUserId,
+  birthYear: users.birthYear,
+  birthMonth: users.birthMonth,
+  gender: users.genderCode,
+  regionCode: users.regionCode,
+};
 
 export class D1UserRepository implements UserRepository {
   private readonly db: ReturnType<typeof drizzle>;
@@ -48,20 +57,60 @@ export class D1UserRepository implements UserRepository {
   }
 
   async selectById(userId: string): Promise<User | null> {
-    return (await this.db
-      .select({ id: users.id, lineUserId: users.lineUserId })
+    const user = await this.db
+      .select(userColumns)
       .from(users)
       .where(eq(users.id, userId))
-      .get()) ?? null;
+      .get();
+
+    return user ? toUser(user) : null;
+  }
+
+  async updateProfile(userId: string, profile: UserProfile): Promise<User> {
+    await this.db
+      .update(users)
+      .set({
+        birthYear: profile.birthYear,
+        birthMonth: profile.birthMonth,
+        genderCode: profile.gender,
+        regionCode: profile.regionCode,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, userId))
+      .run();
+
+    const updated = await this.selectById(userId);
+    if (!updated) {
+      throw new Error("failed to update user profile");
+    }
+
+    return updated;
   }
 
   private async selectByLineUserId(lineUserId: string): Promise<User | null> {
-    return (await this.db
-      .select({ id: users.id, lineUserId: users.lineUserId })
+    const user = await this.db
+      .select(userColumns)
       .from(users)
       .where(eq(users.lineUserId, lineUserId))
-      .get()) ?? null;
+      .get();
+
+    return user ? toUser(user) : null;
   }
+}
+
+function toUser(user: {
+  id: string;
+  lineUserId: string;
+  birthYear: number | null;
+  birthMonth: number | null;
+  gender: string | null;
+  regionCode: string | null;
+}): User {
+  return {
+    ...user,
+    gender: user.gender as Gender | null,
+    regionCode: user.regionCode as RegionCode | null,
+  };
 }
 
 export class D1SessionRepository implements SessionRepository {
@@ -100,21 +149,23 @@ export class D1SessionRepository implements SessionRepository {
     tokenHash: string,
     now: string,
   ): Promise<Session | null> {
-    return (await this.db
-      .select({
-        id: sessions.id,
-        userId: sessions.userId,
-        expiresAt: sessions.expiresAt,
-      })
-      .from(sessions)
-      .where(
-        and(
-          eq(sessions.tokenHash, tokenHash),
-          isNull(sessions.revokedAt),
-          gt(sessions.expiresAt, now),
-        ),
-      )
-      .get()) ?? null;
+    return (
+      (await this.db
+        .select({
+          id: sessions.id,
+          userId: sessions.userId,
+          expiresAt: sessions.expiresAt,
+        })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.tokenHash, tokenHash),
+            isNull(sessions.revokedAt),
+            gt(sessions.expiresAt, now),
+          ),
+        )
+        .get()) ?? null
+    );
   }
 
   async updateRevokedAtByTokenHash(
@@ -124,9 +175,7 @@ export class D1SessionRepository implements SessionRepository {
     await this.db
       .update(sessions)
       .set({ revokedAt })
-      .where(
-        and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)),
-      )
+      .where(and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)))
       .run();
   }
 }

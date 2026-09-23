@@ -1,9 +1,10 @@
 import type { Session } from "../entity/session";
-import type { User } from "../entity/user";
+import type { User, UserProfile } from "../entity/user";
 
 export interface UserRepository {
   selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
   selectById(userId: string): Promise<User | null>;
+  updateProfile(userId: string, profile: UserProfile): Promise<User>;
 }
 
 export interface SessionRepository {
@@ -15,5 +16,8 @@ export interface SessionRepository {
     createdAt: string;
   }): Promise<Session>;
   selectByTokenHash(tokenHash: string, now: string): Promise<Session | null>;
-  updateRevokedAtByTokenHash(tokenHash: string, revokedAt: string): Promise<void>;
+  updateRevokedAtByTokenHash(
+    tokenHash: string,
+    revokedAt: string,
+  ): Promise<void>;
 }

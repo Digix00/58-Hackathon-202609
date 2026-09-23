@@ -1,30 +1,36 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
-import { createAuthMiddleware } from "./middleware/auth";
+import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { AuthHandler } from "../presentation/auth.handler";
+import type { ConcernHandler } from "../presentation/concern.handler";
 import type { HealthHandler } from "../presentation/health.handler";
+import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
+import { createAuthMiddleware } from "./middleware/auth";
 import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {
   authHandler: AuthHandler;
-  authUseCase: AuthUseCasePort;
+  authUseCase: IAuthUseCase;
+  concernHandler: ConcernHandler;
   healthHandler: HealthHandler;
+  userHandler: UserHandler;
 }
 
 /** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
 export function createApp({
   authHandler,
   authUseCase,
+  concernHandler,
   healthHandler,
+  userHandler,
 }: ApplicationDependencies) {
   const app = new Hono<{
     Bindings: Bindings;
     Variables: {
-      auth: Awaited<ReturnType<AuthUseCasePort["getSession"]>>;
+      auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
     };
   }>();
 
@@ -44,7 +50,11 @@ export function createApp({
     .get("/health", ...healthHandler.get)
     .post("/api/v1/auth/line", ...authHandler.line)
     .get("/api/v1/auth/session", ...authHandler.session)
-    .post("/api/v1/auth/logout", ...authHandler.logout);
+    .post("/api/v1/auth/logout", ...authHandler.logout)
+    .put("/api/v1/users/me", ...userHandler.updateProfile)
+    .get("/api/v1/concerns", ...concernHandler.list)
+    .post("/api/v1/concerns", ...concernHandler.create)
+    .get("/api/v1/concerns/:concernId", ...concernHandler.detail);
 }
 
 export type AppType = ReturnType<typeof createApp>;

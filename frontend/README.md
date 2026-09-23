@@ -11,6 +11,28 @@ cp .env.example .env.local
 `VITE_LINE_LIFF_ID`は公開されるフロントエンド設定値であり、チャネルシークレットは設定しない。
 認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
 
+### 開発用の認証状態確認
+
+LINEログインなしで認証後の画面を確認する場合は、`.env.local` に次を設定する。
+
+```env
+VITE_DEV_LIFF_MODE=true
+VITE_DEV_AUTH_MODE=authenticated
+```
+
+`VITE_DEV_AUTH_MODE=authenticated` は Vite の開発時だけ有効な表示確認用のモックで、バックエンドの認証セッションやLINEログインを作成しない。実際の認証連携を確認するときは、この設定を外し、`VITE_LINE_LIFF_ID` を設定する。
+
+## コード整形
+
+フロントエンドのコード整形には Prettier を使用する。
+
+```bash
+pnpm --filter frontend format
+pnpm --filter frontend format:check
+```
+
+`format:check` は、整形が必要なファイルがないことを確認するCI向けのコマンド。
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
@@ -61,7 +83,7 @@ backendと共通。詳細は[`backend/README.md`](../backend/README.md#ciに必�
 ビルド時はGitHub Actions Variablesから以下を注入する。未設定の場合はBuildステップで
 Workflowを失敗させる。
 
-| Variable | 説明 |
-| --- | --- |
+| Variable            | 説明                                         |
+| ------------------- | -------------------------------------------- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するバックエンドAPIのURL |
-| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID |
+| `VITE_LINE_LIFF_ID` | LINE Developers Consoleで発行したLIFF ID     |

@@ -1,4 +1,4 @@
-.PHONY: help install db-migrate dev backend frontend dev-vars
+.PHONY: help install db-migrate dev backend frontend format-frontend format-check-frontend format-backend format-check-backend lint-frontend lint-backend build-frontend build-backend test-backend check-frontend check-backend check dev-vars
 
 help:
 	@echo "make dev         - 依存インストール + ローカルD1へのマイグレーション適用 + backend/frontend同時起動"
@@ -6,6 +6,18 @@ help:
 	@echo "make db-migrate  - ローカルD1にマイグレーションを適用"
 	@echo "make backend     - backendのみ起動 (http://localhost:8787)"
 	@echo "make frontend    - frontendのみ起動 (http://localhost:5173)"
+	@echo "make format-frontend       - frontendのコードを整形"
+	@echo "make format-check-frontend - frontendのコード整形を確認"
+	@echo "make format-backend        - backendのコードを整形"
+	@echo "make format-check-backend  - backendのコード整形を確認"
+	@echo "make lint-frontend         - frontendをlint"
+	@echo "make lint-backend          - backendをlint"
+	@echo "make build-frontend        - frontendを型検査・ビルド"
+	@echo "make build-backend         - backendを型検査・ビルド"
+	@echo "make test-backend          - backendのテスト"
+	@echo "make check-frontend        - frontendのCI相当チェック"
+	@echo "make check-backend         - backendのCI相当チェック"
+	@echo "make check                 - frontend/backendのCI相当チェック"
 
 install:
 	pnpm install
@@ -29,3 +41,36 @@ backend: install dev-vars
 
 frontend: install
 	pnpm --filter frontend dev
+
+format-frontend:
+	pnpm --filter frontend format
+
+format-check-frontend:
+	pnpm --filter frontend format:check
+
+format-backend:
+	pnpm --filter backend format
+
+format-check-backend:
+	pnpm --filter backend format:check
+
+lint-frontend:
+	pnpm --filter frontend lint
+
+lint-backend:
+	pnpm --filter backend lint
+
+build-frontend:
+	pnpm --filter frontend build
+
+build-backend:
+	pnpm --filter backend build
+
+test-backend:
+	pnpm --filter backend test
+
+check-frontend: format-check-frontend lint-frontend build-frontend
+
+check-backend: format-check-backend lint-backend build-backend test-backend
+
+check: check-frontend check-backend

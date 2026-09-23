@@ -14,6 +14,18 @@ make dev
 
 バックエンドは `http://localhost:8787`、フロントエンドは `http://localhost:5173` を利用する。D1はWranglerのローカル環境を使い、独立したDBサーバーを起動しない。
 
+### CI前のローカル確認
+
+Pull Requestを作成する前に、GitHub Actions相当の確認をまとめて実行できる。
+
+```bash
+make check
+```
+
+frontendのみは `make check-frontend`、backendのみは `make check-backend` を使う。
+
+`pnpm build` / `pnpm lint` / `pnpm test` はワークスペース全体の基本コマンド、`make check` はformat checkを含むGitHub Actions相当の総合確認として使い分ける。`make check` は、frontendのformat check・lint・buildと、backendのformat check・lint・build・testを順に実行する。
+
 ### 環境変数と秘密情報
 
 | 変数 | 用途 | 配置 |

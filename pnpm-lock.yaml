@@ -24,6 +24,9 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.5.14
+        version: 2.5.14
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.22.0
         version: 0.22.0(@cloudflare/workers-types@5.20260911.1)(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(@types/node@26.5.0)(vite@8.3.0(@types/node@26.5.0)(esbuild@0.28.2)(tsx@4.23.13)))
@@ -50,7 +53,7 @@ importers:
     dependencies:
       '@line/liff':
         specifier: ^2.31.0
-        version: 2.31.0
+        version: 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
       backend:
         specifier: workspace:*
         version: link:../backend
@@ -85,6 +88,9 @@ importers:
       oxlint:
         specifier: ^1.82.0
         version: 1.82.0
+      prettier:
+        specifier: ^3.6.2
+        version: 3.9.8
       typescript:
         specifier: ~7.0.2
         version: 7.0.2
@@ -96,6 +102,63 @@ importers:
         version: 4.131.1(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.0)
 
 packages:
+
+  '@biomejs/biome@2.5.14':
+    resolution: {integrity: sha512-0FabLIjd4M/dm8VFI86RMaLLdgepzbdfiAL2R8cr7V81OYYrP1w7Z73KfAwPK5h9SrEBXTzNG2y+mBwPo9xRnw==}
+    engines: {node: '>=14.21.3'}
+    hasBin: true
+
+  '@biomejs/cli-darwin-arm64@2.5.14':
+    resolution: {integrity: sha512-UnzaXO65L4tsZimFITFP2M121GyhDcWFrT3pL5ZJ5U4XcS/0L5VHYytVohdCf/gnDUFHgl2I9xnt5bV/J1kxHQ==}
+    engines: {node: '>=14.21.3'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@biomejs/cli-darwin-x64@2.5.14':
+    resolution: {integrity: sha512-kiy8qA16K93J7uvFfWi4LgjqDpnRKyePAna6A0Y4jxyUga35SYpIZ2cNWlhy0lsfgqRenCpfymnJWEZ6mgpRgA==}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@biomejs/cli-linux-arm64-musl@2.5.14':
+    resolution: {integrity: sha512-SJ9PrZkBnnH9dHJDnxk34vKs0GB2dbsioaft6/hPhWJ7AHpwYH83Isnhj0FSRpFkGgpVfJ1lds23ApB2czUDLQ==}
+    engines: {node: '>=14.21.3'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@biomejs/cli-linux-arm64@2.5.14':
+    resolution: {integrity: sha512-vO/9BaU1n30CiFNLx49gMTMtbCAAqlo/EqFoG0BU3deQInTbJrmXSmTQ9e3FoDZIKQnvSLDVNL4lx1ci7y1T1Q==}
+    engines: {node: '>=14.21.3'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@biomejs/cli-linux-x64-musl@2.5.14':
+    resolution: {integrity: sha512-2kI5PrMgW5dcEZYrstLPmUmCwkUwZY39rP4BN93Vxbwcs2O57LDQOktUZZYPvvspN5i0mhGr3TJtF5sU26NUWg==}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@biomejs/cli-linux-x64@2.5.14':
+    resolution: {integrity: sha512-VHZRa7CCQBUWKxNwUvHJeuW03WFRgN5NWO//SDGOitc9QIeNyfA42V9zlKm+x82xFSG9Bzi5fi+hbhm9anO8yA==}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@biomejs/cli-win32-arm64@2.5.14':
+    resolution: {integrity: sha512-pHgAFffmZtaYoxavEsWEYNvcA7NwOIjLyqw2HXyLbt16xYryX0L4fMV2u0G9ag6LNYPIoqWaWqzUcnc6rLGGXg==}
+    engines: {node: '>=14.21.3'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@biomejs/cli-win32-x64@2.5.14':
+    resolution: {integrity: sha512-oJWmBhoHsnhUKIke+0gXDX0mltJrWHA1UyHsrTlXwX0TL64ilVZAo+TYZm97baecV0esBdpzy3k96q+09JaZUQ==}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [win32]
 
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
@@ -2273,6 +2336,11 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  prettier@3.9.8:
+    resolution: {integrity: sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==}
+    engines: {node: '>=14'}
+    hasBin: true
+
   proxy-from-env@2.1.0:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
     engines: {node: '>=10'}
@@ -2575,6 +2643,41 @@ packages:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
+
+  '@biomejs/biome@2.5.14':
+    optionalDependencies:
+      '@biomejs/cli-darwin-arm64': 2.5.14
+      '@biomejs/cli-darwin-x64': 2.5.14
+      '@biomejs/cli-linux-arm64': 2.5.14
+      '@biomejs/cli-linux-arm64-musl': 2.5.14
+      '@biomejs/cli-linux-x64': 2.5.14
+      '@biomejs/cli-linux-x64-musl': 2.5.14
+      '@biomejs/cli-win32-arm64': 2.5.14
+      '@biomejs/cli-win32-x64': 2.5.14
+
+  '@biomejs/cli-darwin-arm64@2.5.14':
+    optional: true
+
+  '@biomejs/cli-darwin-x64@2.5.14':
+    optional: true
+
+  '@biomejs/cli-linux-arm64-musl@2.5.14':
+    optional: true
+
+  '@biomejs/cli-linux-arm64@2.5.14':
+    optional: true
+
+  '@biomejs/cli-linux-x64-musl@2.5.14':
+    optional: true
+
+  '@biomejs/cli-linux-x64@2.5.14':
+    optional: true
+
+  '@biomejs/cli-win32-arm64@2.5.14':
+    optional: true
+
+  '@biomejs/cli-win32-x64@2.5.14':
+    optional: true
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
@@ -3423,7 +3526,7 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@liff/liff-types@2.31.0(tslib@2.8.1)':
+  '@liff/liff-types@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/activity': 2.31.0(tslib@2.8.1)
       '@liff/analytics': 2.31.0(tslib@2.8.1)
@@ -3454,8 +3557,8 @@ snapshots:
       '@liff/ready': 2.31.0(tslib@2.8.1)
       '@liff/request-friendship': 2.31.0(tslib@2.8.1)
       '@liff/scan-code-v2': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
-      '@liff/share-target-picker': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
+      '@liff/share-target-picker': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/sub-window': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
@@ -3569,7 +3672,7 @@ snapshots:
       '@liff/types': 2.31.0
       tslib: 2.8.1
 
-  '@liff/send-messages@2.31.0(tslib@2.8.1)':
+  '@liff/send-messages@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/consts': 2.31.0(tslib@2.8.1)
       '@liff/get-line-version': 2.31.0(tslib@2.8.1)
@@ -3578,7 +3681,7 @@ snapshots:
       '@liff/server-api': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
       '@liff/util': 2.31.0(tslib@2.8.1)
-      '@line/bot-sdk': 10.8.0
+      '@line/bot-sdk': 10.8.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
       tslib: 2.8.1
     transitivePeerDependencies:
       - debug
@@ -3591,7 +3694,7 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@liff/share-target-picker@2.31.0(tslib@2.8.1)':
+  '@liff/share-target-picker@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/analytics': 2.31.0(tslib@2.8.1)
       '@liff/consts': 2.31.0(tslib@2.8.1)
@@ -3602,7 +3705,7 @@ snapshots:
       '@liff/is-logged-in': 2.31.0(tslib@2.8.1)
       '@liff/is-sub-window': 2.31.0(tslib@2.8.1)
       '@liff/logger': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/server-api': 2.31.0(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/types': 2.31.0
@@ -3667,16 +3770,16 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@line/bot-sdk@10.8.0':
+  '@line/bot-sdk@10.8.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
       '@types/node': 24.13.5
     optionalDependencies:
-      axios: 1.20.0
+      axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
     transitivePeerDependencies:
       - debug
       - supports-color
 
-  '@line/liff@2.31.0':
+  '@line/liff@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
       '@liff/activity': 2.31.0(tslib@2.8.1)
       '@liff/analytics': 2.31.0(tslib@2.8.1)
@@ -3702,7 +3805,7 @@ snapshots:
       '@liff/is-in-client': 2.31.0(tslib@2.8.1)
       '@liff/is-logged-in': 2.31.0(tslib@2.8.1)
       '@liff/is-sub-window': 2.31.0(tslib@2.8.1)
-      '@liff/liff-types': 2.31.0(tslib@2.8.1)
+      '@liff/liff-types': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/login': 2.31.0(tslib@2.8.1)
       '@liff/logout': 2.31.0(tslib@2.8.1)
       '@liff/native-bridge': 2.31.0(tslib@2.8.1)
@@ -3712,9 +3815,9 @@ snapshots:
       '@liff/ready': 2.31.0(tslib@2.8.1)
       '@liff/request-friendship': 2.31.0(tslib@2.8.1)
       '@liff/scan-code-v2': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/server-api': 2.31.0(tslib@2.8.1)
-      '@liff/share-target-picker': 2.31.0(tslib@2.8.1)
+      '@liff/share-target-picker': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/sub-window': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
@@ -3982,9 +4085,9 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
 
-  agent-base@6.0.2:
+  agent-base@6.0.2(supports-color@10.2.2):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -3998,11 +4101,11 @@ snapshots:
   asynckit@0.4.0:
     optional: true
 
-  axios@1.20.0:
+  axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
-      follow-redirects: 1.16.0
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@10.2.2))
       form-data: 4.0.6
-      https-proxy-agent: 5.0.1
+      https-proxy-agent: 5.0.1(supports-color@10.2.2)
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
@@ -4053,9 +4156,11 @@ snapshots:
 
   csstype@3.2.3: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@10.2.2):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 10.2.2
     optional: true
 
   delayed-stream@1.0.0:
@@ -4230,7 +4335,9 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
-  follow-redirects@1.16.0:
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@10.2.2)):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@10.2.2)
     optional: true
 
   form-data@4.0.6:
@@ -4294,10 +4401,10 @@ snapshots:
 
   hono@4.13.7: {}
 
-  https-proxy-agent@5.0.1:
+  https-proxy-agent@5.0.1(supports-color@10.2.2):
     dependencies:
-      agent-base: 6.0.2
-      debug: 4.4.3
+      agent-base: 6.0.2(supports-color@10.2.2)
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -4435,6 +4542,8 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  prettier@3.9.8: {}
 
   proxy-from-env@2.1.0:
     optional: true

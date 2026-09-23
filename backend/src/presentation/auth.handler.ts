@@ -1,14 +1,14 @@
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
-
-import type { AuthUseCasePort } from "../application/usecase/auth.usecase";
+import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import { getRequestId } from "../app/request-id";
+import { isUserProfileCompleted, type User } from "../application/entity/user";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
-import { getRequestId } from "../app/request-id";
-import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -19,11 +19,11 @@ const lineLoginRequest = z.object({
 const factory = createFactory<{ Bindings: Bindings }>();
 
 export class AuthHandler {
-  private readonly authUseCase: AuthUseCasePort;
+  private readonly authUseCase: IAuthUseCase;
   private readonly sessionMaxAgeSeconds: number;
 
   constructor(
-    authUseCase: AuthUseCasePort,
+    authUseCase: IAuthUseCase,
     sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS,
   ) {
     this.authUseCase = authUseCase;
@@ -131,10 +131,21 @@ function setSessionCookie(
   });
 }
 
-function toResponse(result: { user: { id: string } | null }) {
+function toResponse(result: { user: User | null }) {
   return {
     authenticated: result.user !== null,
-    user: result.user ? { id: result.user.id } : null,
+    user: result.user ? toUserResponse(result.user) : null,
+  };
+}
+
+function toUserResponse(user: User) {
+  return {
+    id: user.id,
+    birthYear: user.birthYear,
+    birthMonth: user.birthMonth,
+    gender: user.gender,
+    regionCode: user.regionCode,
+    profileCompleted: isUserProfileCompleted(user),
   };
 }
 

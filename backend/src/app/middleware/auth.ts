@@ -1,16 +1,16 @@
-import { getCookie } from "hono/cookie";
 import type { MiddlewareHandler } from "hono";
+import { getCookie } from "hono/cookie";
 
-import type { AuthUseCasePort } from "../../application/usecase/auth.usecase";
-import { SESSION_COOKIE_NAME } from "../auth-cookie";
+import type { IAuthUseCase } from "../../application/usecase/auth.usecase";
 import type { Bindings } from "../../types";
+import { SESSION_COOKIE_NAME } from "../auth-cookie";
 
 export type AuthVariables = {
-  auth: Awaited<ReturnType<AuthUseCasePort["getSession"]>>;
+  auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
 };
 
 export function createAuthMiddleware(
-  authUseCase: AuthUseCasePort,
+  authUseCase: IAuthUseCase,
 ): MiddlewareHandler<{ Bindings: Bindings; Variables: AuthVariables }> {
   return async (c, next) => {
     const auth = await authUseCase.getSession(

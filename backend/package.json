@@ -9,6 +9,8 @@
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy --minify",
     "lint": "oxlint",
+    "format": "biome check --write .",
+    "format:check": "biome check .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -21,6 +23,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "5.20260911.1",
     "drizzle-kit": "^0.31.10",

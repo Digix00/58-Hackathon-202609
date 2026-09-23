@@ -65,6 +65,10 @@ Accept: application/json
 6. バックエンドが HttpOnly Cookie のセッションを発行し、以降の API へ自動送信させる
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
+`POST /api/v1/auth/line` と `GET /api/v1/auth/session` の認証済みレスポンスには、
+ログインユーザー自身のプロフィール情報と `profileCompleted` を含める。プロフィール未入力の
+ユーザーは `profileCompleted=false` となり、`PUT /api/v1/users/me` で登録する。
+
 次の値は信頼しない。
 
 - Request body や Query に含まれる userId
@@ -95,7 +99,7 @@ ID token の検証に失敗した場合は 401 INVALID_ID_TOKEN を返す。生�
 
 ~~~json
 {
-  "sessionId": "session_01J...",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
   "expiresAt": "2026-09-28T00:00:00.000Z"
 }
 ~~~
@@ -163,7 +167,11 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 - 20s
 - 30s
 - 40s
-- 50s_plus
+- 50s
+- 60s
+- 70s
+- 80s
+- 90s_plus
 - no_answer
 
 #### 性別
@@ -177,15 +185,6 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 #### 地域
 
 regionCode は regions マスタで定義されたコードを指定する。都道府県や広域区分の名称を自由入力では受け付けない。例として osaka や kansai のようなコードを利用する。
-
-#### 入力経路
-
-- web: 旧仕様。現行MVPでは通常ブラウザからの投稿に利用しない
-- voice: LINEミニアプリ内で音声文字起こし結果を確認してから投稿
-- line: 旧仕様。現行MVPではLINE Webhookから投稿しない
-- liff: LINEミニアプリの投稿フォームから入力
-
-通常の POST /api/v1/concerns では liff または voice だけを受け付ける。通常ブラウザおよびLINE Webhookからの投稿リクエストは受け付けない。
 
 #### 投稿の公開状態
 
@@ -231,6 +230,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | セッションを復元し、未存在時は匿名セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
+| PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -250,6 +250,47 @@ representations.jaHira と representations.en は、作成 API では未生成�
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
 
+### 2.1 PUT /api/v1/users/me
+
+LINEログイン済みユーザー自身のプロフィールを更新する。ユーザー識別子はリクエストから受け取らず、
+HttpOnly Cookieのセッションから解決する。プロフィールは初回ログイン後に登録する。
+
+#### Request
+
+~~~json
+{
+  "birthYear": 2002,
+  "birthMonth": 9,
+  "gender": "no_answer",
+  "regionCode": "hyogo"
+}
+~~~
+
+- `birthYear` は1900年から現在年までの整数とする
+- `birthMonth` は1〜12の整数とし、現在年の場合は現在月以降の未来の月を受け付けない
+- 生年月日は日まで保持せず、年と月だけを保存する
+- `gender` は `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかとする
+- `regionCode` は既定の47都道府県コードのいずれかとする
+
+#### Response: 200 OK
+
+~~~json
+{
+  "authenticated": true,
+  "user": {
+    "id": "opaque-user-id",
+    "birthYear": 2002,
+    "birthMonth": 9,
+    "gender": "no_answer",
+    "regionCode": "hyogo",
+    "profileCompleted": true
+  }
+}
+~~~
+
+`id` は既存の認証レスポンスとの互換性のために返す内部 opaque IDであり、LINE user IDは返さない。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、入力値が不正な場合は400 `INVALID_REQUEST`を返す。
+
 ## 3. 悩み API
 
 ### 3.1 POST /api/v1/concerns
@@ -263,8 +304,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
   "body": "食堂が混んでいて、昼休みにゆっくり食べられない",
   "ageGroup": "20s",
   "gender": "no_answer",
-  "regionCode": "osaka",
-  "inputMethod": "liff"
+  "regionCode": "osaka"
 }
 ~~~
 
@@ -274,7 +314,6 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - ageGroup は任意。指定時は定義済みの年代コードだけを受け付ける
 - gender は任意。指定しない場合はキーを省略し、明示的に回答しない場合は no_answer を指定する
 - regionCode は任意。指定時は regions マスタに存在するコードだけを受け付ける
-- inputMethod は必須で、liff または voice のいずれか
 - ユーザー識別子は Request body に含めない
 - 正確な年齢、住所、緯度経度、IP アドレスは受け付けない
 - 本文の個人情報や緊急性の判定は PoC の API 責務に含めない。実在の個人情報や緊急相談をデモデータに使用しない
@@ -292,14 +331,13 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 ~~~json
 {
-  "id": "concern_01J...",
+  "id": "550e8400-e29b-41d4-a716-446655440001",
   "body": "食堂が混んでいて、昼休みにゆっくり食べられない",
   "attributes": {
     "ageGroup": "20s",
     "gender": "no_answer",
     "regionCode": "osaka"
   },
-  "inputMethod": "liff",
   "visibilityStatus": "published",
   "processingStatus": "pending",
   "representations": {
@@ -339,7 +377,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 {
   "items": [
     {
-      "id": "concern_01J...",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "body": "食堂が混んでいて昼休みに休めない",
       "language": "original",
       "attributes": {
@@ -415,7 +453,7 @@ reasonCode の初期値は次のとおり。
 
 ~~~json
 {
-  "concernId": "concern_01J...",
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
   "reactionType": "empathy",
   "reactionCount": 13,
   "reacted": true
@@ -435,7 +473,7 @@ reasonCode の初期値は次のとおり。
 
 ~~~json
 {
-  "concernId": "concern_01J...",
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
   "viewed": true,
   "viewedAt": "2026-09-21T00:10:00.000Z"
 }
@@ -762,7 +800,7 @@ Content-Type は multipart/form-data とする。
 
 - 音声の最大長は 60 秒
 - 生音声は D1、R2、ログへ保存しない
-- 文字起こし結果をユーザーが編集してから concerns API を呼び、inputMethod=voice とする
+- 文字起こし結果をユーザーが編集してから、編集後の本文で concerns API を呼ぶ
 - 音声ファイルが大きすぎる場合は 413 PAYLOAD_TOO_LARGE
 - MIME type が未対応の場合は 415 UNSUPPORTED_MEDIA_TYPE
 - 音声認識サービスが失敗した場合は 503 UPSTREAM_UNAVAILABLE
@@ -819,7 +857,7 @@ LINE Platform からの Webhook 専用 endpoint。
 
 1. event.source.userId から内部 users.id を解決する
 2. text を trim し、1〜1000 文字で validation する
-3. concerns を inputMethod=line で保存する
+3. concerns を保存する
 4. Web 投稿と同じ非同期処理ジョブを登録する
 5. replyToken が有効な間に受付結果を reply message で返す
 
