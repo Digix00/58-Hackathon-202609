@@ -111,9 +111,9 @@ export function reactToDemoConcern(id: string) {
 
 export const demoQuiz = {
   people: [
-    { id: 'a', label: 'Aさん', attributes: '20代・女性・大阪府' },
-    { id: 'b', label: 'Bさん', attributes: '40代・男性・兵庫県' },
-    { id: 'c', label: 'Cさん', attributes: '年代・性別は回答なし・東京都' },
+    { id: 'a', attributes: '20代・女性・大阪府' },
+    { id: 'b', attributes: '40代・男性・兵庫県' },
+    { id: 'c', attributes: '年代・性別は回答なし・東京都' },
   ],
   letters: [
     {

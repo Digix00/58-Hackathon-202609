@@ -42,7 +42,7 @@ type QuizAction =
   | { type: 'showResults' }
 
 /**
- * しおりの色。人物ごとに固定し、どの紙に挟んでも同じ人だと分かるようにする。
+ * しおりの色。条件ごとに固定し、どの紙に挟んでも同じ選択肢だと分かるようにする。
  * 正誤を示す色ではないので、回答の前後で変えない。
  */
 const PIECE_COLORS: Record<string, string> = {
@@ -119,8 +119,7 @@ function TagFace({ person }: { person: Person }) {
         <path className={styles.tagFace} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
       </svg>
       <span className={styles.tagLabel}>
-        <strong>{person.label}</strong>
-        <span>{person.attributes}</span>
+        <strong>{person.attributes}</strong>
       </span>
     </>
   )
@@ -204,7 +203,7 @@ function QuizPaperBody({
         <p className={styles.letter}>{body}</p>
         <div className={styles.verdict} role="status">
           <p className={styles.judge}>
-            {correct ? '合っていました' : `ちがいました。書いたのは${writer.label}`}
+            {correct ? '合っていました' : `ちがいました。書いた条件は${writer.attributes}`}
           </p>
           <p className={styles.note}>{target.explanation}</p>
         </div>
@@ -221,7 +220,7 @@ function QuizPaperBody({
             className={`${styles.tag} ${styles.fitted}`}
             style={tagStyle(fitted.id)}
             onClick={() => interactive && onPull(target.id)}
-            aria-label={`${fitted.label}・${fitted.attributes}。この声から外す`}
+            aria-label={`条件は${fitted.attributes}。この声から外す`}
           >
             <TagFace person={fitted} />
           </button>
@@ -463,7 +462,7 @@ export function QuizPage() {
                 onClick={(event) => {
                   if (event.detail === 0) fit(person.id)
                 }}
-                aria-label={`${person.label}・${person.attributes}。この声のしおりにする`}
+                aria-label={`条件は${person.attributes}。この声のしおりにする`}
               >
                 <TagFace person={person} />
               </button>

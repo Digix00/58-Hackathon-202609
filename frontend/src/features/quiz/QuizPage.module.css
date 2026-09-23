@@ -167,7 +167,6 @@
   position: relative;
   display: grid;
   justify-items: center;
-  gap: 0.1em;
   /* 上辺の切り欠きに文字が掛からないよう逃がす。 */
   padding: 1.1em 0.5em 0.2em;
   color: var(--color-purple-ink);
@@ -176,12 +175,9 @@
 }
 
 .tagLabel strong {
-  font-size: 1.35em;
-}
-
-.tagLabel span {
-  color: var(--color-muted);
-  font-size: 0.66em;
+  /* しおりの外形は変えず、旧来の属性表示より大きく読みやすくする。 */
+  font-size: 0.82em;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -446,10 +442,6 @@
 @media (max-width: 359px) {
   .tagLabel {
     padding-top: 0.9em;
-  }
-
-  .tagLabel span {
-    font-size: 0.6em;
   }
 }
 
