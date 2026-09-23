@@ -4,6 +4,7 @@ import { PostPage } from '../features/post/PostPage'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
 
+// TODO: 閲覧・クイズ・履歴の API が揃ったら、開発用モックルートを実データの画面に置き換える。
 const DevFeedPage = import.meta.env.DEV
   ? lazy(async () => ({ default: (await import('../features/feed/FeedPage')).FeedPage }))
   : null

@@ -80,6 +80,7 @@ export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetP
             ))}
           </div>
         </fieldset>
+        {/* TODO: 表示言語の変換を実装し、選択した言語を投稿本文へ反映できるようにする。 */}
         <fieldset className={styles.group} disabled>
           <legend>表示することば（準備中）</legend>
           <p>ひらがな・英語表示は現在準備中です。原文でお読みください。</p>
@@ -98,6 +99,7 @@ export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetP
           </div>
         </fieldset>
         {profileSettings}
+        {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
         <fieldset className={styles.group} disabled>
           <legend>読み上げ（準備中）</legend>
           <p>読み上げ機能は現在準備中です。</p>

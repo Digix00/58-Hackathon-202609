@@ -77,6 +77,7 @@ function PostView({
               {fieldError}
             </p>
           ) : null}
+          {/* TODO: 音声入力と文字起こしを接続し、投稿前に結果を確認・修正できるようにする。 */}
           <p className={screen.notice}>「話して書く」は準備中です。今は文章で入力してください。</p>
           <button
             type="button"
