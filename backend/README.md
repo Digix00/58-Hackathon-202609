@@ -124,10 +124,12 @@ D1データベース自体の作成(`wrangler d1 create`)はリソースを一�
 pnpm db:generate
 ```
 
-## テスト/Lint
+## テスト/Lint/Format
 
 ```bash
-pnpm test    # vitest + @cloudflare/vitest-pool-workers (ローカルD1をエミュレート)
-pnpm lint    # oxlint
-pnpm build   # tsc --noEmit
+pnpm test           # vitest + @cloudflare/vitest-pool-workers (ローカルD1をエミュレート)
+pnpm lint           # oxlint
+pnpm format         # biome check --write . (フォーマットのみ。lintはoxlintが担当)
+pnpm format:check   # biome check .
+pnpm build          # tsc --noEmit
 ```

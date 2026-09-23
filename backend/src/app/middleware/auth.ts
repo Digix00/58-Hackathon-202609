@@ -1,9 +1,9 @@
-import { getCookie } from "hono/cookie";
 import type { MiddlewareHandler } from "hono";
+import { getCookie } from "hono/cookie";
 
 import type { IAuthUseCase } from "../../application/usecase/auth.usecase";
-import { SESSION_COOKIE_NAME } from "../auth-cookie";
 import type { Bindings } from "../../types";
+import { SESSION_COOKIE_NAME } from "../auth-cookie";
 
 export type AuthVariables = {
   auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;

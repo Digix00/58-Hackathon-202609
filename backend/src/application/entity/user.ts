@@ -78,10 +78,7 @@ export function validateUserProfile(
   }
 
   if (!REGION_CODES.includes(input.regionCode as RegionCode)) {
-    throw new UserProfileValidationError(
-      "regionCode",
-      "regionCode is invalid",
-    );
+    throw new UserProfileValidationError("regionCode", "regionCode is invalid");
   }
 
   return {

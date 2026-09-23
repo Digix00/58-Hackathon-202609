@@ -1,13 +1,12 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-
+import type { RegionCode } from "../../application/entity/region-code";
+import type { Session } from "../../application/entity/session";
+import type { Gender, User, UserProfile } from "../../application/entity/user";
 import type {
   SessionRepository,
   UserRepository,
 } from "../../application/repository/auth.repository";
-import type { Session } from "../../application/entity/session";
-import type { Gender, User, UserProfile } from "../../application/entity/user";
-import type { RegionCode } from "../../application/entity/region-code";
 import { sessions, users } from "./schema";
 
 const userColumns = {
@@ -150,21 +149,23 @@ export class D1SessionRepository implements SessionRepository {
     tokenHash: string,
     now: string,
   ): Promise<Session | null> {
-    return (await this.db
-      .select({
-        id: sessions.id,
-        userId: sessions.userId,
-        expiresAt: sessions.expiresAt,
-      })
-      .from(sessions)
-      .where(
-        and(
-          eq(sessions.tokenHash, tokenHash),
-          isNull(sessions.revokedAt),
-          gt(sessions.expiresAt, now),
-        ),
-      )
-      .get()) ?? null;
+    return (
+      (await this.db
+        .select({
+          id: sessions.id,
+          userId: sessions.userId,
+          expiresAt: sessions.expiresAt,
+        })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.tokenHash, tokenHash),
+            isNull(sessions.revokedAt),
+            gt(sessions.expiresAt, now),
+          ),
+        )
+        .get()) ?? null
+    );
   }
 
   async updateRevokedAtByTokenHash(
@@ -174,9 +175,7 @@ export class D1SessionRepository implements SessionRepository {
     await this.db
       .update(sessions)
       .set({ revokedAt })
-      .where(
-        and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)),
-      )
+      .where(and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)))
       .run();
   }
 }

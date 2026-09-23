@@ -1,8 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-
-import type { HealthStatus } from "../src/application/entity/health-status.entity";
 import { createApp } from "../src/app/create-app";
+import type { HealthStatus } from "../src/application/entity/health-status.entity";
 import { CheckHealthUseCase } from "../src/application/usecase/check-health.usecase";
 import { D1HealthRepository } from "../src/infrastructure/database/d1-health.repository";
 import { HealthHandler } from "../src/presentation/health.handler";
@@ -84,35 +83,40 @@ describe("GET /health", () => {
       expectedOrigin: "*",
       expectedCredentials: null,
     },
-  ])("$scenario", async ({ corsOrigin, expectedOrigin, expectedCredentials }) => {
-    const healthHandler = new HealthHandler({
-      execute: async () => ({
-        status: "ok",
-        checkedAt: "2026-09-17T00:00:00.000Z",
-        database: "ok",
-        version: "0.1.0",
-      }),
-    });
-    const app = createApp({
-      ...createAuthDependencies(),
-      ...createConcernDependencies(),
-      ...createUserDependencies(),
-      healthHandler,
-    });
-    const bindings = {
-      DB: env.DB,
-      ...(corsOrigin === undefined ? {} : { CORS_ORIGIN: corsOrigin }),
-    };
+  ])(
+    "$scenario",
+    async ({ corsOrigin, expectedOrigin, expectedCredentials }) => {
+      const healthHandler = new HealthHandler({
+        execute: async () => ({
+          status: "ok",
+          checkedAt: "2026-09-17T00:00:00.000Z",
+          database: "ok",
+          version: "0.1.0",
+        }),
+      });
+      const app = createApp({
+        ...createAuthDependencies(),
+        ...createConcernDependencies(),
+        ...createUserDependencies(),
+        healthHandler,
+      });
+      const bindings = {
+        DB: env.DB,
+        ...(corsOrigin === undefined ? {} : { CORS_ORIGIN: corsOrigin }),
+      };
 
-    const res = await app.request(
-      "/health",
-      { headers: { Origin: "https://request-origin.example" } },
-      bindings,
-    );
+      const res = await app.request(
+        "/health",
+        { headers: { Origin: "https://request-origin.example" } },
+        bindings,
+      );
 
-    expect(res.headers.get("access-control-allow-origin")).toBe(expectedOrigin);
-    expect(res.headers.get("access-control-allow-credentials")).toBe(
-      expectedCredentials,
-    );
-  });
+      expect(res.headers.get("access-control-allow-origin")).toBe(
+        expectedOrigin,
+      );
+      expect(res.headers.get("access-control-allow-credentials")).toBe(
+        expectedCredentials,
+      );
+    },
+  );
 });

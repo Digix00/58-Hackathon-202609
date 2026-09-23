@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { Concern, ConcernValidationError } from "../../../src/application/entity/concern";
+import {
+  Concern,
+  ConcernValidationError,
+} from "../../../src/application/entity/concern";
 import type { ConcernRepository } from "../../../src/application/repository/concern.repository";
 import { ConcernUseCase } from "../../../src/application/usecase/concern.usecase";
 

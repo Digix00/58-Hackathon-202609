@@ -60,9 +60,7 @@ export const concerns = sqliteTable(
     ageGroup: text("age_group"),
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
-    visibilityStatus: text("visibility_status")
-      .notNull()
-      .default("published"),
+    visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
