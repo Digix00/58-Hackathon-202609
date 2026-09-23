@@ -107,9 +107,9 @@
    * 空（太陽と雲）は紙の余白に収まるが、花壇は下辺に並ぶので、
    * そのぶん下の余白を足して題字と操作を上へ寄せる。詰めると花に文字が乗る。
    */
-  --garden-height: clamp(4em, 11vh, 5.4em);
+  --garden-height: clamp(5em, 14vh, 6.8em);
   /* 絵を大きくしたぶん、題字と一言も花壇から少し離して上へ置く。 */
-  --cover-content-lift: clamp(0.35em, 1.4vh, 0.7em);
+  --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
   /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
   --cover-gutter: clamp(1.55em, 7vw, 2em);
   --cover-binding: 15px;
@@ -130,6 +130,8 @@
  * 表紙の題字なので、大きさと字間だけを見出しより広く取る。
  */
 .coverTitle {
+  position: relative;
+  z-index: 1;
   align-self: end;
   margin: 0;
   color: var(--color-purple-ink);
@@ -145,6 +147,8 @@
 }
 
 .coverLead {
+  position: relative;
+  z-index: 1;
   margin: 0;
   color: var(--color-muted);
   font-size: 1em;
@@ -660,8 +664,8 @@
 
   /* 紙が低くなるぶん花壇も低くし、下の余白は花壇のぶんだけ取り直す。 */
   .cover {
-    --garden-height: clamp(2.5em, 7vh, 3.4em);
-    --cover-content-lift: 0.2em;
+    --garden-height: clamp(3.3em, 8.5vh, 4.2em);
+    --cover-content-lift: 0.35em;
     --cover-binding: 10px;
 
     padding-bottom: calc(1.15em + var(--garden-height) + var(--cover-content-lift));

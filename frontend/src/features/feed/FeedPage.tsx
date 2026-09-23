@@ -141,6 +141,9 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
 
+/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
+const TURNED_BACK_COLOR = 'var(--color-surface)'
+
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
   return turning.kind === 'cover' ? 'cover' : `${turning.concern.id}-${turning.page}`
@@ -367,6 +370,17 @@ function FeedStack({
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
       <NotebookBinding part="rear" />
+      {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
+      {coverOpened ? (
+        <div className={turnStyles.turned} aria-hidden="true">
+          <div
+            className={`${turnStyles.back} ${crayonStyles.edge}`}
+            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+          >
+            <NotebookBinding part="holes" back />
+          </div>
+        </div>
+      ) : null}
       {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
       {turning ? (
         <NotebookTurn

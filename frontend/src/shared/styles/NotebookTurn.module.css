@@ -97,6 +97,21 @@
   }
 }
 
+/*
+ * めくり終えた紙を、めくりの最終フレームと同じ姿勢で左側に残す。
+ * 固定した紙をあとから別の角度へ置くと、アニメーション終了時に
+ * リング左側の紙がずれて見えるため、金具の軸と奥行きを共有する。
+ */
+.turned {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  transform: translateZ(4px) rotateY(-180deg);
+  pointer-events: none;
+}
+
 /* 紙を指で引いているあいだも、確定しためくりと同じ回転軸を使う。 */
 .page {
   transform-origin: var(--turn-axis) center;
