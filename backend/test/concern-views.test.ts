@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
+import { ConcernReactionUseCase } from "../src/application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../src/application/usecase/concern-view.usecase";
 import { UserUseCase } from "../src/application/usecase/user.usecase";
 import {
@@ -13,6 +14,7 @@ import {
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
+import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-concern-reaction.repository";
 import { D1ConcernViewRepository } from "../src/infrastructure/database/d1-concern-view.repository";
 import {
   concerns,
@@ -21,6 +23,7 @@ import {
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
+import { ConcernReactionHandler } from "../src/presentation/concern-reaction.handler";
 import { ConcernViewHandler } from "../src/presentation/concern-view.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
@@ -45,6 +48,9 @@ function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
     authUseCase,
     concernHandler: new ConcernHandler(
       new ConcernUseCase(new D1ConcernRepository(env.DB)),
+    ),
+    concernReactionHandler: new ConcernReactionHandler(
+      new ConcernReactionUseCase(new D1ConcernReactionRepository(env.DB)),
     ),
     concernViewHandler: new ConcernViewHandler(
       new ConcernViewUseCase(new D1ConcernViewRepository(env.DB)),

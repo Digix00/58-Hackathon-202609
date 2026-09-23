@@ -1,11 +1,11 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "407e596d-d40a-4df9-ae8d-93de80161057",
+  "id": "b0fdd56e-1f07-43a1-aad5-de6d46147811",
   "prevId": "bff14592-ce26-4a5d-af7f-c1a61a081c29",
   "tables": {
-    "concern_views": {
-      "name": "concern_views",
+    "concern_reactions": {
+      "name": "concern_reactions",
       "columns": {
         "concern_id": {
           "name": "concern_id",
@@ -14,15 +14,22 @@
           "notNull": true,
           "autoincrement": false
         },
-        "actor_key": {
-          "name": "actor_key",
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "viewed_at": {
-          "name": "viewed_at",
+        "reaction_type": {
+          "name": "reaction_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -30,27 +37,19 @@
         }
       },
       "indexes": {
-        "concern_views_concern_actor_idx": {
-          "name": "concern_views_concern_actor_idx",
+        "reactions_user_idx": {
+          "name": "reactions_user_idx",
           "columns": [
-            "concern_id",
-            "actor_key"
-          ],
-          "isUnique": true
-        },
-        "concern_views_actor_viewed_at_idx": {
-          "name": "concern_views_actor_viewed_at_idx",
-          "columns": [
-            "actor_key",
-            "viewed_at"
+            "user_id",
+            "created_at"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "concern_views_concern_id_concerns_id_fk": {
-          "name": "concern_views_concern_id_concerns_id_fk",
-          "tableFrom": "concern_views",
+        "concern_reactions_concern_id_concerns_id_fk": {
+          "name": "concern_reactions_concern_id_concerns_id_fk",
+          "tableFrom": "concern_reactions",
           "tableTo": "concerns",
           "columnsFrom": [
             "concern_id"
@@ -61,12 +60,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "concern_views_actor_key_users_id_fk": {
-          "name": "concern_views_actor_key_users_id_fk",
-          "tableFrom": "concern_views",
+        "concern_reactions_user_id_users_id_fk": {
+          "name": "concern_reactions_user_id_users_id_fk",
+          "tableFrom": "concern_reactions",
           "tableTo": "users",
           "columnsFrom": [
-            "actor_key"
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -75,9 +74,23 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "concern_reactions_concern_id_user_id_reaction_type_pk": {
+          "columns": [
+            "concern_id",
+            "user_id",
+            "reaction_type"
+          ],
+          "name": "concern_reactions_concern_id_user_id_reaction_type_pk"
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "concern_reactions_type_check": {
+          "name": "concern_reactions_type_check",
+          "value": "reaction_type in ('empathy')"
+        }
+      }
     },
     "concerns": {
       "name": "concerns",

@@ -21,6 +21,16 @@ export type ConcernDetailResponse = InferResponseType<
   200
 >
 
+export type ConcernReactionResponse = Extract<
+  InferResponseType<(typeof apiClient.api.v1.concerns)[':concernId']['reactions']['$post'], 201>,
+  {
+    concernId: string
+    reactionType: 'empathy'
+    reactionCount: number
+    reacted: true
+  }
+>
+
 export const API_REQUEST_TIMEOUT_MS = 10_000
 
 export class ApiTimeoutError extends Error {

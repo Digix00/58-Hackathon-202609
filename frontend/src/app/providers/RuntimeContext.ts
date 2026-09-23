@@ -11,7 +11,6 @@ export type RuntimeState =
 export type RuntimeContextValue = {
   state: RuntimeState
   liffUrl: (path: string) => string | null
-  closeWindow: () => void
 }
 
 export const RuntimeContext = createContext<RuntimeContextValue | null>(null)
