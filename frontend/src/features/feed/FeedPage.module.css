@@ -25,6 +25,9 @@
  * 下に控えた紙のふちで伝える。
  */
 .stack {
+  --hole-axis: 11.5px;
+  --turn-axis: 2.5px;
+
   position: relative;
   display: grid;
   min-width: 0;
@@ -73,7 +76,8 @@
   z-index: 3;
   top: 5%;
   bottom: 5%;
-  left: -12px;
+  /* 右端が穴の右端に掛かる位置。リング全体を穴の上に重ねない。 */
+  left: calc(var(--turn-axis) - 15px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -88,24 +92,24 @@
   z-index: 1;
   top: 5%;
   bottom: 5%;
-  left: 6px;
+  left: calc(var(--hole-axis) - 6px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  width: 11px;
+  width: 12px;
   pointer-events: none;
 }
 
 /* 裏面は鏡像になるので、穴も反対側へ置く。 */
 .holesBack {
-  right: 6px;
+  right: calc(var(--hole-axis) - 6px);
   left: auto;
 }
 
 .hole {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: #eadfc6;
   box-shadow: inset 1.5px 1.5px 0 #cbbfa5;
@@ -138,7 +142,7 @@
  * 前へ戻るときだけ、いちど去った紙が綴じ側から降りてくる。
  */
 .fromLeft {
-  transform-origin: 12px center;
+  transform-origin: var(--turn-axis) center;
   animation: turnBack 420ms cubic-bezier(0.24, 0.72, 0.32, 1) both;
 }
 
@@ -161,35 +165,29 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  /* 回転の軸はとじ穴の列。紙はここでリングに通っている。 */
-  transform-origin: 12px center;
+  /* 穴より左のリング側を軸にして、紙が金具から離れながらめくれる。 */
+  transform-origin: var(--turn-axis) center;
   transform-style: preserve-3d;
   pointer-events: none;
-  animation: turnOut 580ms linear both;
+  animation: turnOut 540ms both;
 }
 
 /*
- * 紙の動きを3つに分ける。
- *   持ち上げ  … 指がかかって手前へ浮く
- *   起き上がり… 立っていく。見えているのはここまでなので、時間を多く使う
- *   倒れ込み  … 垂直を越えたら重さで一気に落ちる
- * 等速で 0 から 180 まで回すと、紙ではなく板が回っているように見える。
+ * 指で引いた途中の角度からも同じ方向に進む。
+ * 紙が立つところまでゆっくり進み、裏面が綴じ側へ抜ける。
  */
 @keyframes turnOut {
   0% {
-    transform: perspective(1350px) translateZ(0) rotateY(0deg);
-    animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
-  }
-  18% {
-    transform: perspective(1350px) translateZ(13px) rotateY(-13deg);
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+    transform: perspective(1350px) translateZ(0) rotateY(var(--turn-start, 0deg));
+    animation-timing-function: cubic-bezier(0.38, 0, 0.68, 1);
   }
   62% {
-    transform: perspective(1350px) translateZ(13px) rotateY(-88deg);
-    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 1);
+    transform: perspective(1350px) translateZ(18px) rotateY(-88deg);
+    animation-timing-function: cubic-bezier(0.38, 0, 0.68, 1);
   }
   100% {
-    transform: perspective(1350px) translateZ(0) rotateY(-180deg);
+    /* 裏面全体で次の紙を覆わず、綴じ側へ抜けて次のページを残す。 */
+    transform: perspective(1350px) translateZ(0) rotateY(-164deg);
   }
 }
 
@@ -217,11 +215,11 @@
   0% {
     opacity: 0;
   }
-  62% {
-    opacity: 0.36;
+  50% {
+    opacity: 0.32;
   }
   100% {
-    opacity: 0.36;
+    opacity: 0;
   }
 }
 
@@ -246,6 +244,7 @@
   padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em) clamp(1.55em, 5.5vw, 2em)
     calc(clamp(1.35em, 6vw, 1.8em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
+  transform-origin: var(--turn-axis) center;
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 

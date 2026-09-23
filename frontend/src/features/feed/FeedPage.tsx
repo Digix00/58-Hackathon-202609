@@ -33,6 +33,11 @@ const SWIPE_SLOP = 8
 /** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
 const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
+/** 指で引いた紙をリング側で回す。裏返る手前で止める。 */
+function angleForDrag(dx: number) {
+  return Math.max(-72, Math.min(0, dx * 0.42))
+}
+
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
@@ -67,7 +72,8 @@ function FeedCard({
       }`}
       style={
         {
-          transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)`,
+          transform:
+            dragX < 0 ? `perspective(1350px) rotateY(${angleForDrag(dragX)}deg)` : undefined,
           '--bookmark': palette.bookmark,
           '--tag-age': palette.tagAge,
           '--tag-region': palette.tagRegion,
@@ -143,7 +149,11 @@ export function FeedPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [dragX, setDragX] = useState(0)
   /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
-  const [turning, setTurning] = useState<{ concern: DemoConcern; page: number } | null>(null)
+  const [turning, setTurning] = useState<{
+    concern: DemoConcern
+    page: number
+    startAngle: number
+  } | null>(null)
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
   const swiped = useRef(false)
 
@@ -176,13 +186,18 @@ export function FeedPage() {
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
   const activeFilter = [filter.theme, filter.region].filter(Boolean).join(' · ')
 
-  const goNext = useCallback(() => {
-    // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
-    setTurning(concern && !prefersReducedMotion() ? { concern, page: position + 1 } : null)
-    setDirection(1)
-    setIndex((current) => current + 1)
-    setShowLogin(false)
-  }, [concern, position])
+  const goNext = useCallback(
+    (startAngle = 0) => {
+      // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
+      setTurning(
+        concern && !prefersReducedMotion() ? { concern, page: position + 1, startAngle } : null,
+      )
+      setDirection(1)
+      setIndex((current) => current + 1)
+      setShowLogin(false)
+    },
+    [concern, position],
+  )
 
   const goPrev = useCallback(() => {
     // 戻るときは、めくった紙が left 側から降りてくる。去る紙はない。
@@ -206,6 +221,7 @@ export function FeedPage() {
 
   function handleTouchStart(event: TouchEvent) {
     const touch = event.touches[0]
+    swiped.current = false
     swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
   }
 
@@ -227,15 +243,20 @@ export function FeedPage() {
     setDragX(dx)
   }
 
-  function handleTouchEnd() {
+  function handleTouchEnd(event: TouchEvent) {
     const start = swipe.current
-    const dx = dragX
+    const dx = start ? event.changedTouches[0].clientX - start.x : 0
     swipe.current = null
     setDragX(0)
     if (!start?.active) return
     swiped.current = true
-    if (dx <= -SWIPE_THRESHOLD) goNext()
+    if (dx <= -SWIPE_THRESHOLD) goNext(angleForDrag(dx))
     else if (dx >= SWIPE_THRESHOLD) goPrev()
+  }
+
+  function handleTouchCancel() {
+    swipe.current = null
+    setDragX(0)
   }
 
   // めくった指が、そのまま本文リンクを開いてしまわないようにする。
@@ -257,7 +278,7 @@ export function FeedPage() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
         >
           <h1 id="feed-title" className={styles.srOnly}>
             届いた声を読む
@@ -276,6 +297,7 @@ export function FeedPage() {
                 <div
                   key={`${turning.concern.id}-${turning.page}`}
                   className={styles.turning}
+                  style={{ '--turn-start': `${turning.startAngle}deg` } as CSSProperties}
                   aria-hidden="true"
                   // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
                   onAnimationEnd={(event) => {
@@ -301,7 +323,7 @@ export function FeedPage() {
                 <FeedCard
                   concern={concern}
                   page={position + 1}
-                  onNext={goNext}
+                  onNext={() => goNext()}
                   articleRef={articleRef}
                   canReact={isLiff}
                   dragX={dragX}
@@ -336,7 +358,7 @@ export function FeedPage() {
             <button
               type="button"
               className={`${actionStyles.primary} ${styles.nextButton}`}
-              onClick={goNext}
+              onClick={() => goNext()}
             >
               つぎの声へ <span aria-hidden="true">→</span>
             </button>
