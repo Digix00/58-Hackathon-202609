@@ -18,7 +18,11 @@ export class InvalidWorkersAiEmbeddingResponseError extends Error {
 
 /** Adapts the Japanese PLaMo model to the application embedding port. */
 export class WorkersAiTextEmbeddingGenerator implements TextEmbeddingGenerator {
-  constructor(private readonly ai: WorkersAiBinding) {}
+  private readonly ai: WorkersAiBinding;
+
+  constructor(ai: WorkersAiBinding) {
+    this.ai = ai;
+  }
 
   async generateEmbeddings(
     texts: readonly string[],
