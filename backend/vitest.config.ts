@@ -9,7 +9,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => ({
-      wrangler: { configPath: "./wrangler.jsonc" },
+      // Keep Workers AI remote calls out of the test runtime.
+      wrangler: { configPath: "./wrangler.test.jsonc" },
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations(

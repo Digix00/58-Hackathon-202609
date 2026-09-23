@@ -39,7 +39,16 @@ flowchart LR
 
 リクエストごとにRepositoryやUseCaseを生成せず、現在のComposition Rootの方針を踏襲する。
 
-### 非同期処理
+### Workers AI
+
+- `backend/wrangler.jsonc` の AI binding `AI` を Worker の `env.AI` として利用する。API キーは設定しない。
+- Application 層は `TextEmbeddingGenerator` Port に依存し、Infrastructure 層の `WorkersAiTextEmbeddingGenerator` が `env.AI.run(model, input)` を呼び出す。
+- 日本語の意味検索・クラスタリング向けEmbeddingモデルとして `@cf/pfnet/plamo-embedding-1b` を使う。複数テキストを一度に渡し、入力順に対応する数値ベクトルを受け取る。
+- PR1ではBindingとAdapterを用意する段階で、アプリケーションから推論を呼び出さない。後続の非同期処理からPortを使う。
+- `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
+- 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
+
+## 非同期処理
 
 投稿の保存は、AI処理や外部通知の成否に依存させない。少なくとも次の順序を守る。
 
