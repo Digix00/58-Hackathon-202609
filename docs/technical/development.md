@@ -44,7 +44,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ### CIとPR
 
-- すべてのPRでは、変更された領域に対応するbackend/frontendのlint・build・testとReact Doctorを実行し、`main`または`develop`へのpush後も各workflowの`paths`に該当する場合だけ同じCIを実行する。Required check対象のjobは、変更がない場合もjob単位でskipして成功として完了する。マージ必須のRequired checkは、GitHub Rulesetで`develop`向けPRにだけ設定する
+- PRでは、変更したパッケージに応じてlint、build、testを実行する
 - D1スキーマを変更した場合はDrizzleのmigrationを同じ変更に含める
 - API仕様を変更した場合は、バックエンドとフロントエンドの型検査を同時に行う
 - 投稿からクイズ回答までのE2EテストをPRまたはデモ前のCIで実行する
