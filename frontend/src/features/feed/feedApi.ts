@@ -12,8 +12,10 @@ export async function listConcerns(query: FeedQuery = {}): Promise<ListConcernsR
       apiClient.api.v1.concerns.$get({
         query: {
           limit: String(query.limit ?? 20),
-          sort: 'newest',
+          sort: query.sort ?? 'newest',
           ...(query.cursor ? { cursor: query.cursor } : {}),
+          ...(query.regionCode ? { regionCode: query.regionCode } : {}),
+          ...(query.clusterId ? { clusterId: query.clusterId } : {}),
         },
       }),
     )

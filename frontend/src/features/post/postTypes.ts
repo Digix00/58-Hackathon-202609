@@ -1,7 +1,7 @@
 import type { CreateConcernResponse } from '../../lib/api'
 
 /**
- * backend/src/application/entity/concern.ts, region-code.ts と値を同期させること。
+ * backend/src/application/entity/region-code.ts の定義を正とし、値を同期させること。
  */
 export const AGE_GROUPS = [
   '10s',

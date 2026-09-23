@@ -56,6 +56,7 @@ export interface ConcernProps {
   ageGroup?: AgeGroup | null;
   gender?: Gender | null;
   regionCode?: string | null;
+  clusterId?: string | null;
   visibilityStatus?: ConcernVisibilityStatus;
   processingStatus?: ConcernProcessingStatus;
   createdAt: string;
@@ -73,6 +74,7 @@ export class Concern {
   readonly ageGroup: AgeGroup | null;
   readonly gender: Gender | null;
   readonly regionCode: string | null;
+  readonly clusterId: string | null;
   readonly visibilityStatus: ConcernVisibilityStatus;
   readonly processingStatus: ConcernProcessingStatus;
   readonly createdAt: string;
@@ -97,6 +99,11 @@ export class Concern {
     ) {
       throw new ConcernValidationError("regionCode", "regionCode is invalid");
     }
+    if (props.clusterId !== undefined && props.clusterId !== null) {
+      if (props.clusterId.trim().length === 0) {
+        throw new ConcernValidationError("clusterId", "clusterId is invalid");
+      }
+    }
 
     this.id = props.id;
     this.userId = props.userId;
@@ -104,6 +111,7 @@ export class Concern {
     this.ageGroup = props.ageGroup ?? null;
     this.gender = props.gender ?? null;
     this.regionCode = props.regionCode ?? null;
+    this.clusterId = props.clusterId?.trim() ?? null;
     this.visibilityStatus = props.visibilityStatus ?? "published";
     this.processingStatus = props.processingStatus ?? "pending";
     this.createdAt = props.createdAt;

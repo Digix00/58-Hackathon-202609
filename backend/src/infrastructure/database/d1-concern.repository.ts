@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -8,12 +8,21 @@ import {
   type ConcernVisibilityStatus,
   type Gender,
 } from "../../application/entity/concern";
+import { ConcernCluster } from "../../application/entity/concern-cluster";
+import { ConcernView } from "../../application/entity/concern-view";
 import type {
   ConcernRepository,
+  ListConcernFeedInput,
+  ListConcernFeedResult,
   ListPublishedConcernsInput,
   ListPublishedConcernsResult,
 } from "../../application/repository/concern.repository";
-import { concerns } from "./schema";
+import {
+  concernClusters,
+  concerns,
+  concernViews,
+  feedImpressions,
+} from "./schema";
 
 /** D1/Drizzleを使ったConcernRepositoryの実装。 */
 export class D1ConcernRepository implements ConcernRepository {
@@ -33,6 +42,7 @@ export class D1ConcernRepository implements ConcernRepository {
         ageGroup: concern.ageGroup,
         genderCode: concern.gender,
         regionCode: concern.regionCode,
+        clusterId: concern.clusterId,
         visibilityStatus: concern.visibilityStatus,
         processingStatus: concern.processingStatus,
         createdAt: concern.createdAt,
@@ -84,6 +94,163 @@ export class D1ConcernRepository implements ConcernRepository {
 
     return row ? toConcern(row) : null;
   }
+
+  async listFeed(input: ListConcernFeedInput): Promise<ListConcernFeedResult> {
+    const conditions = [eq(concerns.visibilityStatus, "published")];
+    if (input.regionCode) {
+      conditions.push(eq(concerns.regionCode, input.regionCode));
+    }
+    if (input.clusterId) {
+      conditions.push(eq(concerns.clusterId, input.clusterId));
+    }
+    if (input.cursor) {
+      const cursorCondition = or(
+        lt(concerns.createdAt, input.cursor.createdAt),
+        and(
+          eq(concerns.createdAt, input.cursor.createdAt),
+          lt(concerns.id, input.cursor.id),
+        ),
+      );
+      if (cursorCondition) {
+        conditions.push(cursorCondition);
+      }
+    }
+
+    const viewJoin = input.userId
+      ? and(
+          eq(concernViews.concernId, concerns.id),
+          eq(concernViews.userId, input.userId),
+        )
+      : sql`1 = 0`;
+    const rows = await this.db
+      .select({
+        concern: concerns,
+        cluster: concernClusters,
+        view: concernViews,
+      })
+      .from(concerns)
+      .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
+      .leftJoin(concernViews, viewJoin)
+      .where(and(...conditions))
+      .orderBy(desc(concerns.createdAt), desc(concerns.id))
+      .limit(input.limit + 1)
+      .all();
+    const hasMore = rows.length > input.limit;
+
+    return {
+      items: rows.slice(0, input.limit).map(toFeedCandidate),
+      hasMore,
+    };
+  }
+
+  async findPublishedFeedCandidate(id: string, userId?: string) {
+    const viewJoin = userId
+      ? and(
+          eq(concernViews.concernId, concerns.id),
+          eq(concernViews.userId, userId),
+        )
+      : sql`1 = 0`;
+    const row = await this.db
+      .select({
+        concern: concerns,
+        cluster: concernClusters,
+        view: concernViews,
+      })
+      .from(concerns)
+      .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
+      .leftJoin(concernViews, viewJoin)
+      .where(
+        and(eq(concerns.id, id), eq(concerns.visibilityStatus, "published")),
+      )
+      .get();
+
+    return row ? toFeedCandidate(row) : null;
+  }
+
+  async listRecommendationHistory(userId: string, limit: number) {
+    const rows = await this.db
+      .select({
+        clusterId: concerns.clusterId,
+        regionCode: concerns.regionCode,
+        viewedAt: concernViews.lastViewedAt,
+      })
+      .from(concernViews)
+      .innerJoin(concerns, eq(concernViews.concernId, concerns.id))
+      .where(
+        and(
+          eq(concernViews.userId, userId),
+          eq(concerns.visibilityStatus, "published"),
+        ),
+      )
+      .orderBy(desc(concernViews.lastViewedAt))
+      .limit(limit)
+      .all();
+
+    return rows;
+  }
+
+  async recordView(view: ConcernView): Promise<ConcernView> {
+    await this.db
+      .insert(concernViews)
+      .values({
+        concernId: view.concernId,
+        userId: view.userId,
+        firstViewedAt: view.firstViewedAt,
+        lastViewedAt: view.lastViewedAt,
+        viewCount: view.viewCount,
+      })
+      .onConflictDoUpdate({
+        target: [concernViews.concernId, concernViews.userId],
+        set: {
+          lastViewedAt: view.lastViewedAt,
+          viewCount: sql`${concernViews.viewCount} + 1`,
+        },
+      })
+      .run();
+
+    const row = await this.db
+      .select()
+      .from(concernViews)
+      .where(
+        and(
+          eq(concernViews.concernId, view.concernId),
+          eq(concernViews.userId, view.userId),
+        ),
+      )
+      .get();
+    if (!row) {
+      throw new Error("concern view was not persisted");
+    }
+
+    return toConcernView(row);
+  }
+
+  async recordFeedImpressions(
+    impressions: Parameters<
+      NonNullable<ConcernRepository["recordFeedImpressions"]>
+    >[0],
+  ): Promise<void> {
+    if (impressions.length === 0) {
+      return;
+    }
+
+    await this.db
+      .insert(feedImpressions)
+      .values(
+        impressions.map((impression) => ({
+          id: impression.id,
+          userId: impression.userId,
+          concernId: impression.concernId,
+          strategy: impression.strategy,
+          reasonCode: impression.reasonCode,
+          algorithmVersion: impression.algorithmVersion,
+          position: impression.position,
+          exposedAt: impression.exposedAt,
+          openedAt: impression.openedAt ?? null,
+        })),
+      )
+      .run();
+  }
 }
 
 function toConcern(row: typeof concerns.$inferSelect): Concern {
@@ -94,8 +261,47 @@ function toConcern(row: typeof concerns.$inferSelect): Concern {
     ageGroup: row.ageGroup as AgeGroup | null,
     gender: row.genderCode as Gender | null,
     regionCode: row.regionCode,
+    clusterId: row.clusterId,
     visibilityStatus: row.visibilityStatus as ConcernVisibilityStatus,
     processingStatus: row.processingStatus as ConcernProcessingStatus,
     createdAt: row.createdAt,
+  });
+}
+
+function toConcernCluster(
+  row: typeof concernClusters.$inferSelect | null,
+): ConcernCluster | null {
+  return row
+    ? new ConcernCluster({
+        id: row.id,
+        label: row.label,
+        summary: row.summary,
+        status: row.status,
+        modelVersion: row.modelVersion,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })
+    : null;
+}
+
+function toFeedCandidate(row: {
+  concern: typeof concerns.$inferSelect;
+  cluster: typeof concernClusters.$inferSelect | null;
+  view: typeof concernViews.$inferSelect | null;
+}) {
+  return {
+    concern: toConcern(row.concern),
+    cluster: toConcernCluster(row.cluster),
+    viewed: row.view !== null,
+  };
+}
+
+function toConcernView(row: typeof concernViews.$inferSelect): ConcernView {
+  return new ConcernView({
+    concernId: row.concernId,
+    userId: row.userId,
+    firstViewedAt: row.firstViewedAt,
+    lastViewedAt: row.lastViewedAt,
+    viewCount: row.viewCount,
   });
 }
