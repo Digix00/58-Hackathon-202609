@@ -99,5 +99,12 @@ export function useNotebookSwipe({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  return { dragX, handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, handleLinkClick }
+  return {
+    dragX,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleTouchCancel,
+    handleLinkClick,
+  }
 }

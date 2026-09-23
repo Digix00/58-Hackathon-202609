@@ -32,11 +32,41 @@ export type PagePalette = {
 }
 
 const palettes: readonly PagePalette[] = [
-  { bookmark: '#f8d9b0', tagAge: '#f5cdc4', tagRegion: '#e9e0bd', tint: '#fffcf1', back: '#f5a86d' },
-  { bookmark: '#cbe3b8', tagAge: '#dfe9c0', tagRegion: '#c2e0dc', tint: '#fcfdf4', back: '#93cc78' },
-  { bookmark: '#c9d6ef', tagAge: '#d6cfe9', tagRegion: '#c8e0e6', tint: '#fbfcf8', back: '#84b0e6' },
-  { bookmark: '#f3cad5', tagAge: '#eed2e6', tagRegion: '#f6dcc4', tint: '#fffbf6', back: '#f08fb0' },
-  { bookmark: '#f0e199', tagAge: '#dfe7ae', tagRegion: '#f3d9b5', tint: '#fffdec', back: '#f2cf4e' },
+  {
+    bookmark: '#f8d9b0',
+    tagAge: '#f5cdc4',
+    tagRegion: '#e9e0bd',
+    tint: '#fffcf1',
+    back: '#f5a86d',
+  },
+  {
+    bookmark: '#cbe3b8',
+    tagAge: '#dfe9c0',
+    tagRegion: '#c2e0dc',
+    tint: '#fcfdf4',
+    back: '#93cc78',
+  },
+  {
+    bookmark: '#c9d6ef',
+    tagAge: '#d6cfe9',
+    tagRegion: '#c8e0e6',
+    tint: '#fbfcf8',
+    back: '#84b0e6',
+  },
+  {
+    bookmark: '#f3cad5',
+    tagAge: '#eed2e6',
+    tagRegion: '#f6dcc4',
+    tint: '#fffbf6',
+    back: '#f08fb0',
+  },
+  {
+    bookmark: '#f0e199',
+    tagAge: '#dfe7ae',
+    tagRegion: '#f3d9b5',
+    tint: '#fffdec',
+    back: '#f2cf4e',
+  },
 ]
 
 /** page は1始まりのページ番号。 */

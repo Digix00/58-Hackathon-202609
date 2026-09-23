@@ -77,7 +77,9 @@ function HistoryDetailView({
           )}
         </ul>
       )}
-      {detail === 'regions' ? <p className={screen.muted}>読んだ声: {model.viewedCount}件</p> : null}
+      {detail === 'regions' ? (
+        <p className={screen.muted}>読んだ声: {model.viewedCount}件</p>
+      ) : null}
     </section>
   )
 }

@@ -148,8 +148,7 @@ function Paper({
         dragX !== 0 ? styles.dragging : ''
       }`}
       style={{
-        transform:
-          dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
+        transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
       }}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
@@ -511,10 +510,7 @@ export function QuizPage() {
                 </Paper>
               </NotebookTurn>
             ) : null}
-            <div
-              key={`${letter.id}-${state.index}`}
-              className={styles.enter}
-            >
+            <div key={`${letter.id}-${state.index}`} className={styles.enter}>
               <Paper dragX={swipe.dragX} onNext={canGoNext ? () => go(1) : undefined}>
                 <QuizPaperBody
                   target={letter}
