@@ -18,7 +18,7 @@ const LIFT_MS = 560
  * 上がりきったら onLifted で知らせる。押し上げとめくりを重ねず、
  * 紙束が落ち着いてから表紙をめくるため。
  */
-export function useStackLift(open: boolean, onLifted: () => void) {
+export function useStackLift(open: boolean, onLifted: () => void, duration = LIFT_MS) {
   const stackRef = useRef<HTMLDivElement | null>(null)
   const liftFrom = useRef<number | null>(null)
   const lifted = useEffectEvent(onLifted)
@@ -38,13 +38,9 @@ export function useStackLift(open: boolean, onLifted: () => void) {
     if (!node || from === null) return
 
     const delta = from - node.getBoundingClientRect().top
-    let finished = false
-    let finishTimer: number | null = null
-
-    const finish = () => {
-      if (finished) return
-      finished = true
-      if (finishTimer !== null) window.clearTimeout(finishTimer)
+    const onEnd = (event: TransitionEvent) => {
+      // 紙の上で起きた別のうつろいは数えない。
+      if (event.target !== node || event.propertyName !== 'transform') return
       node.removeEventListener('transitionend', onEnd)
       node.style.willChange = ''
       node.style.removeProperty('--lift')
@@ -52,21 +48,15 @@ export function useStackLift(open: boolean, onLifted: () => void) {
       lifted()
     }
 
-    const onEnd = (event: TransitionEvent) => {
-      // 紙の上で起きた別のうつろいは数えない。
-      if (event.target !== node || event.propertyName !== 'transform') return
-      // scale と lift を同じ transform で動かすため、ブラウザが早く通知しても
-      // 表紙のめくりを始める規定時間までは完了扱いにしない。
-      if (event.elapsedTime * 1000 < LIFT_MS - 16) return
-      finish()
-    }
-
     // 紙束の位置が変わらなくても、縮めていた本を広げる時間は確保する。
     if (Math.abs(delta) < 1) {
-      node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
-      finishTimer = window.setTimeout(finish, LIFT_MS + 32)
+      node.style.setProperty('--lift-duration', `${duration}ms`)
+      const timer = window.setTimeout(() => {
+        node.style.removeProperty('--lift-duration')
+        lifted()
+      }, duration)
       return () => {
-        if (finishTimer !== null) window.clearTimeout(finishTimer)
+        window.clearTimeout(timer)
       }
     }
 
@@ -74,15 +64,11 @@ export function useStackLift(open: boolean, onLifted: () => void) {
     node.style.setProperty('--lift', `${delta}px`)
     // ここで一度位置を確定させないと、元の高さを飛ばして新しい高さへ跳ぶ。
     void node.offsetHeight
-    node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
+    node.style.setProperty('--lift-duration', `${duration}ms`)
     node.style.setProperty('--lift', '0px')
     node.addEventListener('transitionend', onEnd)
-    finishTimer = window.setTimeout(finish, LIFT_MS + 32)
-    return () => {
-      if (finishTimer !== null) window.clearTimeout(finishTimer)
-      node.removeEventListener('transitionend', onEnd)
-    }
-  }, [open])
+    return () => node.removeEventListener('transitionend', onEnd)
+  }, [duration, open])
 
   return { stackRef, rememberStackPosition }
 }

@@ -498,11 +498,13 @@ function QuizActions({
   )
 }
 
-function useQuizNavigation(quizResult: DemoQuizResult | null) {
+/**
+ * Intent: クイズの回答状態と、そこから導ける表示状態を局所化する。
+ * Boundary: 初期結果を受け取り、状態・表示用の値・reducer dispatchだけを返す。
+ * State modeling: 依存する状態遷移をquizReducerに集約し、無効な組み合わせを画面側で作らない。
+ */
+function useQuizState(quizResult: DemoQuizResult | null) {
   const [state, dispatch] = useReducer(quizReducer, Boolean(quizResult), createInitialState)
-  /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
-  const [turning, setTurning] = useState<TurningState | null>(null)
-
   const letters = demoQuiz.letters
   const showingResults = Boolean(quizResult) || state.step === 'results'
   const letter = letters[state.index]
@@ -510,10 +512,18 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
   const answeredPersonIds = new Set(Object.values(answers))
   const remaining = demoQuiz.people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = remaining.length === 0
-  const canGoNext = state.coverOpened && state.index < letters.length - 1 && !turning
-  const canGoPrev = state.coverOpened && state.index > 0 && !turning
-  /** 表紙を開きはじめたか。ここから先、ふもとに表紙を開く操作は置かない。 */
-  const coverOpening = state.coverLifting || state.coverOpened
+
+  return { state, dispatch, letters, letter, answers, remaining, complete, showingResults }
+}
+
+/**
+ * Intent: 紙送りのアニメーションと、回答後に次の紙へ移る待ち時間を局所化する。
+ * Boundary: 表紙の状態を受け取り、紙束参照・紙送り操作・settle待ち操作だけを返す。
+ * Hidden complexity: アニメーション中の紙とsettle timerを同時に一つだけ保持し、unmount時に待ち時間を破棄する。
+ */
+function useQuizAnimation(coverOpening: boolean, coverLifting: boolean, onCoverLifted: () => void) {
+  /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
+  const [turning, setTurning] = useState<TurningState | null>(null)
 
   /**
    * 差し込んでから紙がめくれるまでの、待ちの札。
@@ -528,12 +538,58 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
 
   useEffect(() => cancelSettle, [cancelSettle])
 
-  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
+  const beginTurn = useCallback((next: TurningState) => setTurning(next), [])
+  const clearTurning = useCallback(() => setTurning(null), [])
+
+  const scheduleSettle = useCallback(
+    (onSettled: () => void) => {
+      cancelSettle()
+      settle.current = window.setTimeout(() => {
+        settle.current = null
+        onSettled()
+      }, SETTLE_MS)
+    },
+    [cancelSettle],
+  )
+
+  const handleCoverLifted = useCallback(() => {
     // 紙束が上がりきった。ここでようやく表紙に手をかける。
-    if (!state.coverLifting) return
-    setTurning({ kind: 'cover', startAngle: 0, direction: 1 })
-    dispatch({ type: 'coverTurned' })
-  })
+    if (!coverLifting) return
+    beginTurn({ kind: 'cover', startAngle: 0, direction: 1 })
+    onCoverLifted()
+  }, [beginTurn, coverLifting, onCoverLifted])
+
+  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, handleCoverLifted)
+
+  return {
+    turning,
+    stackRef,
+    rememberStackPosition,
+    beginTurn,
+    clearTurning,
+    cancelSettle,
+    scheduleSettle,
+  }
+}
+
+function useQuizNavigation(quizResult: DemoQuizResult | null) {
+  const { state, dispatch, letters, letter, answers, remaining, complete, showingResults } =
+    useQuizState(quizResult)
+  /** 表紙を開きはじめたか。ここから先、ふもとに表紙を開く操作は置かない。 */
+  const coverOpening = state.coverLifting || state.coverOpened
+  const onCoverLifted = useCallback(() => dispatch({ type: 'coverTurned' }), [dispatch])
+  const animation = useQuizAnimation(coverOpening, state.coverLifting, onCoverLifted)
+  const {
+    turning,
+    stackRef,
+    rememberStackPosition,
+    beginTurn,
+    clearTurning,
+    cancelSettle,
+    scheduleSettle,
+  } = animation
+  const canGoNext = state.coverOpened && state.index < letters.length - 1 && !turning
+  const canGoPrev = state.coverOpened && state.index > 0 && !turning
 
   /**
    * 表紙を開く。
@@ -552,7 +608,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       }
       if (startAngle !== 0) {
         if (!state.coverLifting) rememberStackPosition()
-        setTurning({ kind: 'cover', startAngle, direction: 1 })
+        beginTurn({ kind: 'cover', startAngle, direction: 1 })
         dispatch({ type: 'coverTurned' })
         return
       }
@@ -560,7 +616,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       rememberStackPosition()
       dispatch({ type: 'coverLifting' })
     },
-    [rememberStackPosition, state.coverLifting, state.coverOpened],
+    [beginTurn, dispatch, rememberStackPosition, state.coverLifting, state.coverOpened],
   )
 
   /**
@@ -576,10 +632,10 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
         dispatch({ type: 'reopen', index })
         return
       }
-      setTurning({ kind: 'cover', startAngle, direction: 1 })
+      beginTurn({ kind: 'cover', startAngle, direction: 1 })
       dispatch({ type: 'reopen', index })
     },
-    [state.closed, turning],
+    [beginTurn, dispatch, state.closed, turning],
   )
 
   const go = useCallback(
@@ -597,14 +653,14 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       const index = state.index + direction
       if (index < 0 || index >= letters.length) return
       if (prefersReducedMotion()) {
-        setTurning(null)
+        clearTurning()
         dispatch({ type: 'go', direction })
         return
       }
 
       if (direction === 1) {
         // 進むときは、いま見ている紙をめくって下の紙を出す。
-        setTurning({
+        beginTurn({
           kind: 'letter',
           letter,
           personId: answers[letter.id],
@@ -615,7 +671,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       } else {
         // 戻るときは、伏せていた前の紙を同じ共有アニメーションで拾い上げる。
         const previous = letters[index]
-        setTurning({
+        beginTurn({
           kind: 'letter',
           letter: previous,
           personId: answers[previous.id],
@@ -626,7 +682,10 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     },
     [
       answers,
+      beginTurn,
       cancelSettle,
+      clearTurning,
+      dispatch,
       letter,
       letters,
       openCover,
@@ -653,22 +712,21 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
      * その間に「ちがった」と気づいたら、しおりを押せば手元へ戻り、
      * 紙もその場に留まる（cancelSettle）。
      */
-    settle.current = window.setTimeout(() => {
-      settle.current = null
+    scheduleSettle(() => {
       if (open === -1) {
         /*
          * 空いている手紙はもうない。読み終えたノートとして閉じる。
          * 閉じた表紙には挟んだ付箋だけが出るので、見直す先はそこから選ぶ。
          */
         if (prefersReducedMotion()) dispatch({ type: 'close' })
-        else setTurning({ kind: 'cover', startAngle: 0, direction: -1 })
+        else beginTurn({ kind: 'cover', startAngle: 0, direction: -1 })
         return
       }
       if (!prefersReducedMotion()) {
-        setTurning({ kind: 'letter', letter: placed, personId, startAngle: 0, direction: 1 })
+        beginTurn({ kind: 'letter', letter: placed, personId, startAngle: 0, direction: 1 })
       }
       dispatch({ type: 'openLetter', index: open })
-    }, SETTLE_MS)
+    })
   }
 
   const submit = async () => {
@@ -676,7 +734,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     answerDemoQuiz(state.answers)
     if (state.closed && !prefersReducedMotion()) {
-      setTurning({ kind: 'cover', startAngle: 0, direction: 1 })
+      beginTurn({ kind: 'cover', startAngle: 0, direction: 1 })
     }
     dispatch({ type: 'showResults' })
   }
@@ -689,8 +747,8 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     if (turning?.kind === 'cover' && turning.direction === -1) {
       dispatch({ type: 'close' })
     }
-    setTurning(null)
-  }, [turning])
+    clearTurning()
+  }, [clearTurning, dispatch, turning])
 
   const pull = useCallback(
     (letterId: string) => {
@@ -698,7 +756,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       cancelSettle()
       dispatch({ type: 'pull', letterId })
     },
-    [cancelSettle],
+    [cancelSettle, dispatch],
   )
 
   return {

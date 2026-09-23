@@ -333,7 +333,7 @@
   padding: 0 1em 0 0.85em;
   border: 0;
   border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
-  color: var(--color-purple-ink);
+  color: var(--color-ink);
   background: #fffdf5;
   box-shadow: 1.5px 2.5px 0 #c3b89f;
   font: inherit;
@@ -377,7 +377,7 @@
   height: 1.3em;
   overflow: visible;
   fill: none;
-  stroke: var(--color-purple);
+  stroke: var(--color-outline);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;

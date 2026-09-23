@@ -37,7 +37,8 @@ import styles from './FeedPage.module.css'
 type Filter = { gender: string; region: string }
 
 /** 表紙を大きく見せる時間。拡大が見えきってから、次の状態へ進める。 */
-const COVER_LIFT_SETTLE_MS = 760
+const COVER_LIFT_DURATION_MS = 760
+const COVER_LIFT_SETTLE_MS = COVER_LIFT_DURATION_MS + 120
 
 /**
  * めくっている最中の1枚。
@@ -604,7 +605,11 @@ export function FeedPage() {
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
   const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
 
-  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => undefined)
+  const { stackRef, rememberStackPosition } = useStackLift(
+    coverOpening,
+    () => undefined,
+    COVER_LIFT_DURATION_MS,
+  )
 
   useEffect(() => {
     if (!coverLifting || prefersReducedMotion()) return
