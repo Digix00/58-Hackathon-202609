@@ -54,7 +54,8 @@ export function createApp({
     .put("/api/v1/users/me", ...userHandler.updateProfile)
     .get("/api/v1/concerns", ...concernHandler.list)
     .post("/api/v1/concerns", ...concernHandler.create)
-    .get("/api/v1/concerns/:concernId", ...concernHandler.detail);
+    .get("/api/v1/concerns/:concernId", ...concernHandler.detail)
+    .put("/api/v1/concerns/:concernId/view", ...concernHandler.view);
 }
 
 export type AppType = ReturnType<typeof createApp>;

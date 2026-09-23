@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -49,6 +50,22 @@ export const sessions = sqliteTable(
   }),
 );
 
+export const concernClusters = sqliteTable(
+  "concern_clusters",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    summary: text("summary").notNull(),
+    status: text("status").notNull().default("ready"),
+    modelVersion: text("model_version"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    statusIndex: index("concern_clusters_status_idx").on(table.status),
+  }),
+);
+
 export const concerns = sqliteTable(
   "concerns",
   {
@@ -60,6 +77,7 @@ export const concerns = sqliteTable(
     ageGroup: text("age_group"),
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
+    clusterId: text("cluster_id").references(() => concernClusters.id),
     visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
@@ -73,6 +91,12 @@ export const concerns = sqliteTable(
     ),
     regionFeedIndex: index("concerns_region_feed_idx").on(
       table.regionCode,
+      table.visibilityStatus,
+      table.createdAt,
+      table.id,
+    ),
+    clusterFeedIndex: index("concerns_cluster_feed_idx").on(
+      table.clusterId,
       table.visibilityStatus,
       table.createdAt,
       table.id,
@@ -93,6 +117,56 @@ export const concerns = sqliteTable(
     processingStatusCheck: check(
       "concerns_processing_status_check",
       sql`${table.processingStatus} in ('pending', 'processing', 'ready', 'failed')`,
+    ),
+  }),
+);
+
+export const concernViews = sqliteTable(
+  "concern_views",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    firstViewedAt: text("first_viewed_at").notNull(),
+    lastViewedAt: text("last_viewed_at").notNull(),
+    viewCount: integer("view_count").notNull().default(1),
+  },
+  (table) => ({
+    primaryKey: primaryKey({
+      columns: [table.concernId, table.userId],
+      name: "concern_views_pk",
+    }),
+    userIndex: index("concern_views_user_idx").on(
+      table.userId,
+      table.lastViewedAt,
+    ),
+  }),
+);
+
+export const feedImpressions = sqliteTable(
+  "feed_impressions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    strategy: text("strategy").notNull(),
+    reasonCode: text("reason_code").notNull(),
+    algorithmVersion: text("algorithm_version").notNull(),
+    position: integer("position").notNull(),
+    exposedAt: text("exposed_at").notNull(),
+    openedAt: text("opened_at"),
+  },
+  (table) => ({
+    userIndex: index("feed_impressions_user_idx").on(
+      table.userId,
+      table.exposedAt,
     ),
   }),
 );

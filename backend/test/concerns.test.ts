@@ -11,7 +11,12 @@ import {
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
-import { concerns, users } from "../src/infrastructure/database/schema";
+import {
+  concernClusters,
+  concerns,
+  concernViews,
+  users,
+} from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
@@ -108,6 +113,8 @@ async function seedConcern(input: {
   body: string;
   createdAt: string;
   id?: string;
+  regionCode?: string | null;
+  clusterId?: string | null;
   visibilityStatus?: "published" | "hidden" | "deleted";
 }): Promise<string> {
   const suffix = crypto.randomUUID();
@@ -132,7 +139,8 @@ async function seedConcern(input: {
       body: input.body,
       ageGroup: null,
       genderCode: null,
-      regionCode: null,
+      regionCode: input.regionCode ?? null,
+      clusterId: input.clusterId ?? null,
       visibilityStatus: input.visibilityStatus ?? "published",
       processingStatus: "pending",
       createdAt: input.createdAt,
@@ -141,6 +149,28 @@ async function seedConcern(input: {
     .run();
 
   return concernId;
+}
+
+async function seedCluster(input: {
+  id?: string;
+  label?: string;
+  summary?: string;
+}): Promise<string> {
+  const id = input.id ?? `cluster-${crypto.randomUUID()}`;
+  const timestamp = new Date().toISOString();
+  await drizzle(env.DB)
+    .insert(concernClusters)
+    .values({
+      id,
+      label: input.label ?? "食事のテーマ",
+      summary: input.summary ?? "食事や休憩に関する悩み",
+      status: "ready",
+      modelVersion: "test",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  return id;
 }
 
 describe("POST /api/v1/concerns", () => {
@@ -404,6 +434,72 @@ describe("GET /api/v1/concerns", () => {
     expect(ids.indexOf(publishedNew)).toBeLessThan(ids.indexOf(publishedOld));
   });
 
+  it("filters by the exact prefecture code", async () => {
+    const osaka = await seedConcern({
+      body: "大阪の投稿",
+      regionCode: "osaka",
+      createdAt: "9999-01-10T00:00:00.000Z",
+    });
+    const tokyo = await seedConcern({
+      body: "東京の投稿",
+      regionCode: "tokyo",
+      createdAt: "9999-01-11T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?regionCode=osaka",
+      {},
+      env,
+    );
+    const body = await response.json<{ items: Array<{ id: string }> }>();
+
+    expect(response.status).toBe(200);
+    expect(body.items.map((item) => item.id)).toContain(osaka);
+    expect(body.items.map((item) => item.id)).not.toContain(tokyo);
+  });
+
+  it("returns a recommendation reason and cluster for a logged-in feed", async () => {
+    const clusterId = await seedCluster({
+      label: "昼休み・食堂",
+      summary: "昼休み中の食事や休憩に関する悩み",
+    });
+    const concernId = await seedConcern({
+      body: "おすすめ対象の投稿",
+      clusterId,
+      regionCode: "osaka",
+      createdAt: "9999-01-12T00:00:00.000Z",
+    });
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+
+    const response = await app.request(
+      "/api/v1/concerns?sort=recommended&limit=10",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{
+        id: string;
+        cluster: { id: string; label: string; summary: string } | null;
+        recommendation: { strategy: string; reasonCode: string };
+      }>;
+    }>();
+    const item = body.items.find((value) => value.id === concernId);
+
+    expect(response.status).toBe(200);
+    expect(item).toMatchObject({
+      id: concernId,
+      cluster: {
+        id: clusterId,
+        label: "昼休み・食堂",
+      },
+      recommendation: {
+        strategy: "recommended",
+        reasonCode: "unread_cluster",
+      },
+    });
+  });
+
   it("paginates with an opaque cursor without duplicating items", async () => {
     const suffix = crypto.randomUUID();
     const createdAt = "9999-02-01T00:00:00.000Z";
@@ -460,7 +556,8 @@ describe("GET /api/v1/concerns", () => {
   it.each([
     ["limit=0", "INVALID_REQUEST"],
     ["limit=51", "INVALID_REQUEST"],
-    ["sort=recommended", "INVALID_REQUEST"],
+    ["sort=unknown", "INVALID_REQUEST"],
+    ["regionCode=kanto", "INVALID_REQUEST"],
     ["cursor=invalid", "INVALID_CURSOR"],
   ])("rejects invalid query %s", async (query, code) => {
     const res = await createTestApp().request(
@@ -472,6 +569,18 @@ describe("GET /api/v1/concerns", () => {
     expect(res.status).toBe(400);
     const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe(code);
+  });
+
+  it("requires authentication for recommended sorting", async () => {
+    const res = await createTestApp().request(
+      "/api/v1/concerns?sort=recommended",
+      {},
+      env,
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: { code: string } }>();
+    expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
   });
 });
 
@@ -518,5 +627,56 @@ describe("GET /api/v1/concerns/:concernId", () => {
       const body = await res.json<{ error: { code: string } }>();
       expect(body.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+describe("PUT /api/v1/concerns/:concernId/view", () => {
+  it("records an idempotent authenticated view", async () => {
+    const concernId = await seedConcern({
+      body: "既読登録する投稿",
+      createdAt: "9999-05-01T00:00:00.000Z",
+    });
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+
+    const first = await app.request(
+      `/api/v1/concerns/${concernId}/view`,
+      { method: "PUT", headers: { Cookie: cookie } },
+      env,
+    );
+    const second = await app.request(
+      `/api/v1/concerns/${concernId}/view`,
+      { method: "PUT", headers: { Cookie: cookie } },
+      env,
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({
+      concernId,
+      viewed: true,
+    });
+
+    const viewRows = await drizzle(env.DB)
+      .select()
+      .from(concernViews)
+      .where(eq(concernViews.concernId, concernId))
+      .all();
+    expect(viewRows).toHaveLength(1);
+    expect(viewRows[0]?.viewCount).toBe(2);
+  });
+
+  it("rejects anonymous view registration", async () => {
+    const concernId = await seedConcern({
+      body: "匿名では既読にできない投稿",
+      createdAt: "9999-05-02T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      `/api/v1/concerns/${concernId}/view`,
+      { method: "PUT" },
+      env,
+    );
+    expect(response.status).toBe(401);
   });
 });
