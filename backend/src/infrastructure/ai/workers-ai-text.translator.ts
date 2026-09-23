@@ -20,7 +20,11 @@ export class InvalidWorkersAiTextResponseError extends Error {
  * Application layer call the operations without provider details.
  */
 export class WorkersAiTextTranslator implements TextTranslator {
-  constructor(private readonly ai: WorkersAiBinding) {}
+  private readonly ai: WorkersAiBinding;
+
+  constructor(ai: WorkersAiBinding) {
+    this.ai = ai;
+  }
 
   readonly translateToEnglish = (text: string): Promise<string> =>
     this.runInstruction(text, "Translate Japanese to English.");

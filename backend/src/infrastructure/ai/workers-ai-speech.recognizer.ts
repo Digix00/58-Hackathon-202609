@@ -17,7 +17,11 @@ export class InvalidWorkersAiTranscriptionResponseError extends Error {
 
 /** Adapts the multilingual Whisper model to the application port. */
 export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
-  constructor(private readonly ai: WorkersAiBinding) {}
+  private readonly ai: WorkersAiBinding;
+
+  constructor(ai: WorkersAiBinding) {
+    this.ai = ai;
+  }
 
   async transcribe(audio: ArrayBuffer): Promise<string> {
     if (audio.byteLength === 0) {
