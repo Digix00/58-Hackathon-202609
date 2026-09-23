@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getConcernDetail } from './concernDetailApi'
 import type { ConcernDetail, ConcernDetailStatus } from './concernDetailTypes'
+import { useConcernViewOnDisplay } from './useConcernViewOnDisplay'
 
 export interface UseConcernDetailResult {
   status: ConcernDetailStatus
@@ -14,6 +15,10 @@ export function useConcernDetail(id: string | undefined): UseConcernDetailResult
   const [concern, setConcern] = useState<ConcernDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const requestVersion = useRef(0)
+
+  useConcernViewOnDisplay(
+    status === 'success' && concern && concern.id === id ? concern.id : undefined,
+  )
 
   const load = useCallback(async (): Promise<void> => {
     const version = ++requestVersion.current

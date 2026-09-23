@@ -3,6 +3,7 @@ import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
+import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import {
   D1SessionRepository,
@@ -10,11 +11,13 @@ import {
 } from "../infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
 import { D1ConcernReactionRepository } from "../infrastructure/database/d1-concern-reaction.repository";
+import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
+import { ConcernViewHandler } from "../presentation/concern-view.handler";
 import { HealthHandler } from "../presentation/health.handler";
 import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -50,6 +53,9 @@ export function createApplication(bindings: Bindings) {
   const concernReactionHandler = new ConcernReactionHandler(
     concernReactionUseCase,
   );
+  const concernViewRepository = new D1ConcernViewRepository(bindings.DB);
+  const concernViewUseCase = new ConcernViewUseCase(concernViewRepository);
+  const concernViewHandler = new ConcernViewHandler(concernViewUseCase);
   const userUseCase = new UserUseCase(userRepository);
   const authHandler = new AuthHandler(authUseCase, sessionTtlSeconds);
   const userHandler = new UserHandler(userUseCase);
@@ -59,6 +65,7 @@ export function createApplication(bindings: Bindings) {
     authUseCase,
     concernHandler,
     concernReactionHandler,
+    concernViewHandler,
     healthHandler,
     userHandler,
   });

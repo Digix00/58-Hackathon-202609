@@ -121,3 +121,26 @@ export const concernReactions = sqliteTable(
     userIndex: index("reactions_user_idx").on(table.userId, table.createdAt),
   }),
 );
+
+export const concernViews = sqliteTable(
+  "concern_views",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    actorKey: text("actor_key")
+      .notNull()
+      .references(() => users.id),
+    viewedAt: text("viewed_at").notNull(),
+  },
+  (table) => ({
+    concernActorUniqueIndex: uniqueIndex("concern_views_concern_actor_idx").on(
+      table.concernId,
+      table.actorKey,
+    ),
+    actorViewedAtIndex: index("concern_views_actor_viewed_at_idx").on(
+      table.actorKey,
+      table.viewedAt,
+    ),
+  }),
+);

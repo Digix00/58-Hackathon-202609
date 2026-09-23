@@ -13,7 +13,7 @@
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_processing_jobs` | id、concern_id、処理種別、状態、試行回数 | 翻訳・ひらがな化・クラスタリングなどの非同期処理 |
 | `concern_reactions` | concern_id、user_id、reaction_type、created_at | リアクションの重複防止と集計 |
-| `concern_views` | concern_id、user_id、first_viewed_at、last_viewed_at、view_count | 既読と推薦に利用 |
+| `concern_views` | concern_id、actor_key、viewed_at | ユーザーごとの既読記録。concern_id と actor_key の組で一意 |
 | `quizzes` | id、対象日、状態、作成日時 | デイリークイズ |
 | `quiz_participants` | id、quiz_id、user_id、concern_id、属性スナップショット、表示順 | クイズに登場する3ユーザー |
 | `quiz_options` | quiz_id、concern_id、表示順 | 順番を混ぜて表示する3件の実投稿 |
@@ -22,7 +22,7 @@
 | `users` | id、LINE user ID、生年月（年・月）、性別、都道府県、日時 | LINE配信とユーザー単位の履歴 |
 | `learning_events` | id、user_id、concern_id、cluster_id、quiz_id、event_type、occurred_at | 閲覧・リアクション・クイズの履歴 |
 
-`user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
+`user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
 
 ### 投稿の状態
 

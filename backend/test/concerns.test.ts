@@ -49,6 +49,7 @@ function createTestApp(lineUserId = "line_concern_test_user") {
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    ...createConcernDependencies(),
     concernHandler,
     concernReactionHandler,
     ...createUserDependencies(),
