@@ -6,7 +6,7 @@
   margin: 0 auto;
   place-items: center;
   align-content: center;
-  background: var(--color-paper);
+  background-color: var(--color-paper);
 }
 
 .placeholderPage {
@@ -34,8 +34,16 @@
 
 .guideCard h1 {
   margin: 0;
+  padding-block: 0.08em 0.16em;
   font-size: 1.35em;
-  line-height: 1.5;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1.58;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.18em;
+  transform: rotate(-0.55deg);
 }
 
 .guideCard p {

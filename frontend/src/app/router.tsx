@@ -5,6 +5,7 @@ import { CrayonFilters } from '../shared/components/CrayonFilters'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
 import crayonStyles from '../shared/styles/Crayon.module.css'
+import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import styles from './router.module.css'
@@ -22,7 +23,7 @@ export function AppLayout() {
     return (
       <>
         {crayonFilters}
-        <main className={styles.standalonePage}>
+        <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
           <LoadingState label="目安箱を準備しています…" />
         </main>
       </>
@@ -33,7 +34,7 @@ export function AppLayout() {
     return (
       <>
         {crayonFilters}
-        <main className={styles.standalonePage}>
+        <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
           <ErrorState
             title="LINEを準備できませんでした"
             description="LINEミニアプリで開き直してください。"
@@ -49,7 +50,7 @@ export function AppLayout() {
       {state.mode === 'liff' ? (
         <AppShell />
       ) : (
-        <main className={styles.standalonePage}>
+        <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
           <Outlet />
         </main>
       )}

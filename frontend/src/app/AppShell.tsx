@@ -1,63 +1,57 @@
 import { NavLink, Outlet } from 'react-router'
-import { ProfileSettings } from '../features/profile/ProfileSettings'
-import { SettingsSheet } from '../shared/components/SettingsSheet'
-import crayonStyles from '../shared/styles/Crayon.module.css'
-import { useBottomSheet } from './hooks/useBottomSheet'
+import notebookBackground from '../shared/styles/NotebookBackground.module.css'
+import { NavIcon, type NavIconName } from './NavIcons'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
 import styles from './AppShell.module.css'
 
-const navigation = [
-  { to: '/', label: '読む', end: true },
-  { to: '/quiz/today', label: 'クイズ' },
-  { to: '/post', label: '投稿', prominent: true },
-  { to: '/history', label: '履歴' },
+/** 下部ナビは「投稿」を中央に置き、設定から専用画面へ移動する。 */
+const leftNavigation: Array<{ to: string; label: string; icon: NavIconName; end?: boolean }> = [
+  { to: '/', label: '読む', icon: 'read', end: true },
+  { to: '/quiz/today', label: 'クイズ', icon: 'quiz' },
 ]
 
+const rightNavigation: Array<{ to: string; label: string; icon: NavIconName }> = [
+  { to: '/history', label: '履歴', icon: 'history' },
+  { to: '/settings', label: '設定', icon: 'settings' },
+]
+
+function navLinkClass({ isActive }: { isActive: boolean }) {
+  return `${styles.navLink}${isActive ? ` ${styles.active}` : ''}`
+}
+
 export function AppShell() {
-  const settings = useBottomSheet()
   const { fontSize } = useDisplaySettings()
 
   return (
-    <div className={`${styles.shell} ${fontSize === 'large' ? styles.large : ''}`}>
-      <header className={`${styles.header} ${crayonStyles.edge} ${crayonStyles.headerRule}`}>
-        <p className={styles.appName}>目安箱</p>
-        <div className={styles.headerActions}>
-          <button
-            className={styles.settingsButton}
-            type="button"
-            onClick={(event) => settings.open(event.currentTarget)}
-            aria-label="設定を開く"
-            aria-haspopup="dialog"
-          >
-            設定
-          </button>
-        </div>
-      </header>
+    <div
+      className={`${styles.shell} ${notebookBackground.grid} ${fontSize === 'large' ? styles.large : ''}`}
+    >
       <main className={styles.content}>
         <Outlet />
       </main>
-      <nav
-        className={`${styles.nav} ${crayonStyles.edge} ${crayonStyles.navRule}`}
-        aria-label="画面移動"
-      >
-        {navigation.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `${styles.navLink}${isActive ? ` ${styles.active}` : ''}${item.prominent ? ` ${styles.prominent}` : ''}`
-            }
-          >
+      <nav className={styles.nav} aria-label="画面移動と設定">
+        {leftNavigation.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
+            <NavIcon name={item.icon} />
+            {item.label}
+          </NavLink>
+        ))}
+        <NavLink
+          to="/post"
+          className={({ isActive }) =>
+            `${styles.navLink} ${styles.postLink}${isActive ? ` ${styles.active}` : ''}`
+          }
+        >
+          <NavIcon name="post" />
+          投稿
+        </NavLink>
+        {rightNavigation.map((item) => (
+          <NavLink key={item.to} to={item.to} className={navLinkClass}>
+            <NavIcon name={item.icon} />
             {item.label}
           </NavLink>
         ))}
       </nav>
-      <SettingsSheet
-        open={settings.isOpen}
-        onClose={settings.close}
-        profileSettings={<ProfileSettings />}
-      />
     </div>
   )
 }

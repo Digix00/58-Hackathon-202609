@@ -1,0 +1,149 @@
+/*
+ * 表紙の絵の置きかた。
+ *
+ * 絵は題字と一言を囲むように、紙の上（空）と下（花壇）に分けて置く。
+ * 文字の後ろへ回すと、絵が透けた紙に書いた字になって読みにくい。
+ * どれも装飾なので指も読み上げも通さない。
+ */
+.sun,
+.cloud,
+.garden {
+  position: absolute;
+  pointer-events: none;
+}
+
+/*
+ * クレヨンの目。ふち・付箋と同じ砂目を絵にもかける。
+ * 線と塗りの両方にかけるのは、クレヨンでは輪郭も紙の目に負けるため。
+ *
+ * 目の大きさは紙のふち（160px）より細かくする。太陽の光のような短く細い線は、
+ * 粗い目にかけると線が点線に割れて、かすれではなく欠けに見える。
+ */
+.sun,
+.cloud,
+.tulip {
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 110px 110px;
+  mask-size: 110px 110px;
+  overflow: visible;
+}
+
+/* 太陽は右上。題字より先に目に入らないよう、紙の角に寄せる。 */
+.sun {
+  top: 0.5em;
+  right: 0.7em;
+  width: clamp(3.4em, 11vw, 4.4em);
+  height: auto;
+  transform: rotate(-4deg);
+}
+
+.sunFill {
+  fill: #f8d878;
+  opacity: 0.9;
+}
+
+.sunLine {
+  fill: none;
+  stroke: #e0a72f;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 雲は左上。太陽と向かい合わせにして、空を二つの絵で持たせる。 */
+.cloud {
+  top: 1.5em;
+  left: calc(var(--cover-gutter) + var(--cover-binding) + 2px);
+  width: clamp(3.1em, 9.5vw, 3.9em);
+  height: auto;
+  transform: rotate(1.6deg);
+}
+
+.cloudFill {
+  fill: #dbe8f2;
+  opacity: 0.95;
+}
+
+.cloudLine {
+  fill: none;
+  stroke: #9fb8cc;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 花壇。紙の下辺を地面に見立てて、そこに並べる。
+ * 左はとじリングの領分なので、本文と同じとじ代の内側から並べはじめる。
+ */
+.garden {
+  right: var(--cover-gutter);
+  bottom: 0;
+  left: calc(var(--cover-gutter) + var(--cover-binding));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* 背の高さは花壇の高さから引く。1本ずつ違う背丈にして、列に見せない。 */
+.tulip {
+  width: auto;
+  height: calc(var(--garden-height) * var(--grown, 1));
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: bottom center;
+}
+
+.petalFill {
+  fill: var(--petal);
+  opacity: 0.92;
+}
+
+.petalLine {
+  fill: none;
+  stroke: var(--petal-line);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.leafFill {
+  fill: #a9cd8b;
+  opacity: 0.9;
+}
+
+.leafLine {
+  fill: none;
+  stroke: #79a95f;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 背の低い端末では、絵より題字と操作を先に収める。 */
+@media (max-height: 700px) {
+  .cloud {
+    display: none;
+  }
+
+  .sun {
+    width: clamp(2.6em, 8vw, 3.2em);
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .sun,
+  .cloud,
+  .tulip {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .sun g,
+  .cloud g,
+  .tulip g {
+    filter: none;
+  }
+}

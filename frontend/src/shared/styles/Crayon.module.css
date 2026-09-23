@@ -17,100 +17,11 @@
   content: '';
 }
 
-/*
- * ヘッダーと下部ナビは、本文の紙に貼り込んだ一枚の紙片として扱う。
- * 境界は定規の直線ではなく、手でちぎった紙のふち。
- * 紙の面（::before）とふちのクレヨン線（::after）を分けるのは、
- * 紙の目のマスクを面にかけると、紙片が汚れて見えるため。
- */
-.headerRule::before,
-.headerRule::after,
-.navRule::before,
-.navRule::after {
-  position: absolute;
-  z-index: 1;
-  height: 28px;
-  border: 0;
-  border-radius: 0;
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  pointer-events: none;
-  content: '';
-}
-
-/* 紙の面。かすれは使わず、ちぎり跡の形だけを揺らす。 */
-.headerRule::before,
-.navRule::before {
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-
-/* ふちの線。ここだけクレヨンのかすれを効かせる。 */
-.headerRule::after,
-.navRule::after {
-  filter: url(#crayon-edge);
-  -webkit-mask-image: var(--crayon-grain);
-  mask-image: var(--crayon-grain);
-  -webkit-mask-size: 160px 160px;
-  mask-size: 160px 160px;
-}
-
-/* ちぎり跡が紙片の内側へ食い込まないよう、帯は境界より外側へ寄せる。 */
-.headerRule::before,
-.headerRule::after {
-  inset: auto 0 -18px;
-}
-
-.navRule::before,
-.navRule::after {
-  inset: -18px 0 auto;
-}
-
-.headerRule::before {
-  background-image: var(--torn-paper-header);
-}
-
-.headerRule::after {
-  background-image: var(--torn-line-header);
-}
-
-.navRule::before {
-  background-image: var(--torn-paper-nav);
-}
-
-.navRule::after {
-  background-image: var(--torn-line-nav);
-}
-
 @media (prefers-contrast: more) {
   .edge::before {
     border-width: 2px;
     filter: none;
     -webkit-mask-image: none;
     mask-image: none;
-  }
-
-  /* 高コントラスト時は、ちぎり跡とかすれを外して境界を確実に示す。 */
-  .headerRule::before,
-  .navRule::before {
-    background-image: none;
-  }
-
-  .headerRule::after,
-  .navRule::after {
-    height: 2px;
-    background-image: none;
-    background-color: #57514a;
-    filter: none;
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-
-  .headerRule::after {
-    inset: auto 0 0;
-  }
-
-  .navRule::after {
-    inset: 0 0 auto;
   }
 }

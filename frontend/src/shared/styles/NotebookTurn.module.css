@@ -1,0 +1,133 @@
+/*
+ * リングノートの1枚を、金具を軸にめくる。
+ *
+ * 紙は綴じられているので、束から離れて飛んでいかない。動かすのは角度だけで、
+ * 位置はずらさない。回転軸 --turn-axis はリングの中心（紙の左端より外）にあり、
+ * とじ穴はそこから RING_RADIUS_X だけ右にある。だから軸のまわりに回すだけで、
+ * 穴はリングの上をなぞって反対側へ渡る。
+ *
+ * 奥行きは束（.stack）側の perspective が作る。ここで perspective() を変形に
+ * 混ぜると、消失点が回転軸の上に乗り、めくりではなく飛んでいく動きになる。
+ */
+.turning {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnOut 640ms both;
+}
+
+/*
+ * 紙は180度で伏せきる。めくった紙が左ページに重なる、という紙の挙動どおり。
+ *
+ * 目に見えるのは 0〜90度だけ。90度で見た目の幅がゼロになり、そこから先は
+ * 束の左に残る十数pxと2枚目の裏へ入るので、ほとんど映らない。
+ * だから時間の配分も 0〜90度へ寄せ、伏せきるまではひと息に落とす。
+ */
+@keyframes turnOut {
+  0% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg));
+    animation-timing-function: cubic-bezier(0.42, 0, 0.72, 0.62);
+  }
+  32% {
+    /* リングの太さを越えるぶん、紙がいちど持ち上がる。 */
+    transform: translateZ(18px) rotateY(-46deg);
+    animation-timing-function: linear;
+  }
+  64% {
+    /*
+     * 真横。紙の見た目の幅がここでゼロになる。
+     * 上下の入れ替えはこの一瞬でしか行えない。幅を持ったまま入れ替えると、
+     * 紙が2枚目の裏へ飛んだように見える。
+     */
+    z-index: 3;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: cubic-bezier(0.33, 0.06, 0.4, 1);
+  }
+  64.01% {
+    z-index: 0;
+  }
+  100% {
+    /* 2枚目の裏へ入りながら、左へ伏せきる。 */
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg);
+  }
+}
+
+/*
+ * 戻り。伏せてあった紙を拾い上げ、いま読んでいる紙の上へ降ろす。
+ * turnOut をそのまま逆に辿る。目に見えるのは -90 度から先なので、
+ * 時間の配分もそちらへ寄せる。
+ */
+.turningBack {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnIn 640ms both;
+}
+
+@keyframes turnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.67, 0.94);
+  }
+  36% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: linear;
+  }
+  36.01% {
+    z-index: 3;
+  }
+  68% {
+    transform: translateZ(18px) rotateY(-46deg);
+    animation-timing-function: cubic-bezier(0.28, 0.4, 0.35, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg);
+  }
+}
+
+/*
+ * めくり終えて、リングの左に伏せたままの紙。
+ *
+ * めくりの最終フレームとまったく同じ姿勢で置く。こうしておくと、
+ * めくっていた紙を外した瞬間に同じ絵がそのまま残り、伏せた紙が消えない。
+ * 姿勢を変えると、外した瞬間に画面端の紙がずれて見える。
+ */
+.turned {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  transform: translateZ(4px) rotateY(-180deg);
+  pointer-events: none;
+}
+
+.face,
+.back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.back {
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  /*
+   * 裏は一色で塗りつぶす。表よりひと段濃くして、めくった面だと分かるようにする。
+   * グラデーションにすると、リングの左に覗く小口だけ色が変わって紙に見えない。
+   */
+  background: var(--turn-back-color, #e3d8c0);
+  transform: rotateY(180deg);
+}

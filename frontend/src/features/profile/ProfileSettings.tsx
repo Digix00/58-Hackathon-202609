@@ -1,8 +1,8 @@
 import { useCallback, useReducer } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
+import settingsStyles from '../../shared/styles/Settings.module.css'
 import actionStyles from '../../shared/styles/Actions.module.css'
-import sheetStyles from '../../shared/components/SettingsSheet.module.css'
 import {
   GENDERS,
   REGION_OPTIONS,
@@ -141,7 +141,7 @@ export function ProfileSettings() {
   const profileMessage = profileStatus === 'saved' ? '設定を保存しました。' : profileError
 
   return (
-    <section className={sheetStyles.group} aria-labelledby="profile-title">
+    <section className={settingsStyles.group} aria-labelledby="profile-title">
       <h3 id="profile-title">あなたの設定</h3>
       {authStatus !== 'authenticated' ? (
         <p>年代・性別・地域の設定は、LINEでログインすると保存できます。</p>

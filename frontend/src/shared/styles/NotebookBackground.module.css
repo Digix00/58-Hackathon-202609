@@ -1,0 +1,8 @@
+.grid {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(to right, rgb(126 117 181 / 8%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(126 117 181 / 8%) 1px, transparent 1px);
+  /* 96 CSS px/in で約5mm。画面の余白まで同じ間隔で敷く。 */
+  background-size: 19px 19px;
+}
