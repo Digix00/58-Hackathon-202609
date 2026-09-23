@@ -108,7 +108,12 @@
 .back {
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
   /* 裏は同じ紙。ページの色はとじ際にわずかに残すだけにする。 */
-  background: linear-gradient(265deg, #fdf7ea 0%, #f6eddc 58%, var(--turn-back-color, #e8ddc9) 100%);
+  background: linear-gradient(
+    265deg,
+    #fdf7ea 0%,
+    #f6eddc 58%,
+    var(--turn-back-color, #e8ddc9) 100%
+  );
   transform: rotateY(180deg);
 }
 

@@ -21,7 +21,6 @@ import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
-import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
@@ -377,13 +376,13 @@ type FeedStackProps = {
   concern: DemoConcern
   index: number
   position: number
-  direction: 1 | -1
   turning: TurningPage | null
   coverOpened: boolean
   dragX: number
   isLiff: boolean
   articleRef: RefCallback<HTMLElement>
   onNext: () => void
+  onCoverOpen: () => void
   onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
@@ -393,7 +392,6 @@ function FeedStack({
   concern,
   index,
   position,
-  direction,
   turning,
   coverOpened,
   dragX,
@@ -411,9 +409,7 @@ function FeedStack({
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
       <NotebookBinding part="rear" />
-      {turning ? (
-        <NotebookBinding key={turningKey(turning)} part="rear" between />
-      ) : null}
+      {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
       {turning ? (
         <NotebookTurn
           key={turningKey(turning)}
@@ -585,8 +581,7 @@ export function FeedPage() {
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
-  const { filter, index, direction, coverOpened, showLogin, filtersOpen, dragX, turning } =
-    reader
+  const { filter, index, coverOpened, showLogin, filtersOpen, dragX, turning } = reader
 
   const themeOptions = [
     { value: ALL, label: 'すべて' },
@@ -686,7 +681,6 @@ export function FeedPage() {
           concern={concern}
           index={index}
           position={position}
-          direction={direction}
           turning={turning}
           coverOpened={coverOpened}
           dragX={dragX}

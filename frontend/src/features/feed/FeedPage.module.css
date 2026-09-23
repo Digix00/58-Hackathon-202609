@@ -93,6 +93,57 @@
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/*
+ * 表紙。声の紙と同じ大きさ・同じとじ代にする。
+ * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
+ */
+.cover {
+  grid-template-rows: 1fr auto;
+  align-content: center;
+  justify-items: center;
+  gap: 0.9em;
+  text-align: center;
+}
+
+.coverTitle {
+  align-self: end;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: 1.7em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  transform: rotate(-1.4deg);
+}
+
+.coverLead {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 1em;
+  line-height: 1.9;
+}
+
+.coverOpen {
+  min-height: 48px;
+  margin-top: 0.4em;
+  padding: 0 1.1em;
+  border: 0;
+  border-radius: 18px 15px 17px 14px;
+  color: var(--color-paper);
+  background: var(--color-purple-strong);
+  box-shadow: 2px 3px 0 var(--color-purple-dark);
+  font: inherit;
+  font-weight: 700;
+  transform: rotate(0.6deg);
+  cursor: pointer;
+}
+
+/* 表紙は束の一番上。下に控えた声の紙より手前へ置く。 */
+.coverLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+}
+
 /* 指に追従している間は、戻りのトランジションを効かせない。 */
 .dragging {
   transition: none;
