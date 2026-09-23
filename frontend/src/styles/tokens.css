@@ -7,6 +7,8 @@
   --color-subtle: #716b62;
   --color-purple-ink: #453d70;
   --color-purple: #7e75b5;
+  /* 紫の上に白い文字を載せる面に使う。--color-purple では 4.05:1 で指針の 4.5:1 に届かない。 */
+  --color-purple-strong: #6f66a6;
   --color-purple-dark: #5b5485;
   --color-focus: #625a9c;
   --color-outline: #8a847a;
@@ -16,8 +18,6 @@
   --color-paper-strip: #fff6e4;
   --content-width: 430px;
   --crayon-grain: url('/crayon-grain.svg');
-  --torn-paper-header: url('/torn-paper-header.svg');
   --torn-paper-nav: url('/torn-paper-nav.svg');
-  --torn-line-header: url('/torn-line-header.svg');
   --torn-line-nav: url('/torn-line-nav.svg');
 }

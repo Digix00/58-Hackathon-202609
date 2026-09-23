@@ -6,12 +6,20 @@ import { useBottomSheet } from './hooks/useBottomSheet'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
 import styles from './AppShell.module.css'
 
-const navigation = [
+/**
+ * 下部ナビは「投稿」を真ん中の紙のボタンにするため、左右へ2つずつ分けて並べる。
+ * 右側の2つめは設定シートを開くボタンで、画面移動ではない。
+ */
+const leftNavigation = [
   { to: '/', label: '読む', end: true },
   { to: '/quiz/today', label: 'クイズ' },
-  { to: '/post', label: '投稿', prominent: true },
-  { to: '/history', label: '履歴' },
 ]
+
+const rightNavigation = [{ to: '/history', label: '履歴' }]
+
+function navLinkClass({ isActive }: { isActive: boolean }) {
+  return `${styles.navLink}${isActive ? ` ${styles.active}` : ''}`
+}
 
 export function AppShell() {
   const settings = useBottomSheet()
@@ -19,39 +27,39 @@ export function AppShell() {
 
   return (
     <div className={`${styles.shell} ${fontSize === 'large' ? styles.large : ''}`}>
-      <header className={`${styles.header} ${crayonStyles.edge} ${crayonStyles.headerRule}`}>
-        <p className={styles.appName}>目安箱</p>
-        <div className={styles.headerActions}>
-          <button
-            className={styles.settingsButton}
-            type="button"
-            onClick={(event) => settings.open(event.currentTarget)}
-            aria-label="設定を開く"
-            aria-haspopup="dialog"
-          >
-            設定
-          </button>
-        </div>
-      </header>
       <main className={styles.content}>
         <Outlet />
       </main>
       <nav
         className={`${styles.nav} ${crayonStyles.edge} ${crayonStyles.navRule}`}
-        aria-label="画面移動"
+        aria-label="画面移動と設定"
       >
-        {navigation.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `${styles.navLink}${isActive ? ` ${styles.active}` : ''}${item.prominent ? ` ${styles.prominent}` : ''}`
-            }
-          >
+        {leftNavigation.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
             {item.label}
           </NavLink>
         ))}
+        <NavLink
+          to="/post"
+          className={({ isActive }) =>
+            `${styles.postLink}${isActive ? ` ${styles.active}` : ''}`
+          }
+        >
+          投稿
+        </NavLink>
+        {rightNavigation.map((item) => (
+          <NavLink key={item.to} to={item.to} className={navLinkClass}>
+            {item.label}
+          </NavLink>
+        ))}
+        <button
+          className={styles.navLink}
+          type="button"
+          onClick={(event) => settings.open(event.currentTarget)}
+          aria-haspopup="dialog"
+        >
+          設定
+        </button>
       </nav>
       <SettingsSheet
         open={settings.isOpen}

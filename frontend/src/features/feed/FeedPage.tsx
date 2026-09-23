@@ -57,7 +57,6 @@ function FeedCard({
   dragX?: number
   onLinkClick?: (event: MouseEvent) => void
 }) {
-  const attributes = [concern.ageGroup, concern.region].filter(Boolean).join(' · ')
   const palette = paletteForPage(page)
 
   return (
@@ -70,6 +69,8 @@ function FeedCard({
         {
           transform: `translateX(${dragX * 0.72}px) rotate(${dragX * 0.016}deg)`,
           '--bookmark': palette.bookmark,
+          '--tag-age': palette.tagAge,
+          '--tag-region': palette.tagRegion,
           '--paper-tint': palette.tint,
         } as CSSProperties
       }
@@ -80,7 +81,16 @@ function FeedCard({
           <span key={slot} className={styles.hole} />
         ))}
       </span>
-      <span className={styles.theme}>{concern.theme}</span>
+      {/* 上辺のインデックス。テーマのしおりと、公開されている属性の付箋。 */}
+      <span className={styles.tabs}>
+        {concern.ageGroup ? (
+          <span className={`${styles.tab} ${styles.tabAge}`}>{concern.ageGroup}</span>
+        ) : null}
+        {concern.region ? (
+          <span className={`${styles.tab} ${styles.tabRegion}`}>{concern.region}</span>
+        ) : null}
+        <span className={`${styles.tab} ${styles.theme}`}>{concern.theme}</span>
+      </span>
       <Link
         className={styles.storyLink}
         to={`/concerns/${encodeURIComponent(concern.id)}`}
@@ -90,7 +100,6 @@ function FeedCard({
         <p className={screen.body}>{concern.body}</p>
       </Link>
       <div className={styles.cardFoot}>
-        {attributes ? <p className={styles.attributes}>{attributes}</p> : null}
         {canReact ? (
           <button
             type="button"

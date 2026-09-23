@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: min(100%, var(--content-width));
   height: 100svh;
   height: 100dvh;
@@ -12,60 +12,24 @@
   font-size: 1.25rem;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 68px;
-  padding: 16px 18px 10px;
-  background: var(--color-paper-strip);
-  font-size: 1rem;
-}
-
-.shell > .header {
-  position: sticky;
-  z-index: 3;
-  top: 0;
-}
-
-.appName {
-  margin: 0;
-  color: var(--color-purple-ink);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.headerActions {
-  display: flex;
-  gap: 8px;
-}
-
-.settingsButton {
-  min-height: 36px;
-  padding: 0 4px;
-  border: 0;
-  color: #514c82;
-  background: transparent;
-  font-size: 0.86rem;
-  font-weight: 700;
-  text-decoration: underline wavy var(--color-underline) 1px;
-  text-underline-offset: 5px;
-  cursor: pointer;
-}
-
 .content {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  padding: 26px 18px;
+  /*
+   * ヘッダーを持たないので、上端は端末の安全領域から測る。
+   * 下端は、中央の「投稿」が紙面へせり上がるぶんを空けておく。
+   */
+  padding: calc(26px + env(safe-area-inset-top)) 18px 44px;
 }
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(2, minmax(0, 1fr));
+  align-items: center;
   gap: 4px;
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 14px 12px calc(12px + env(safe-area-inset-bottom));
   background: var(--color-paper-strip);
 }
 
@@ -74,13 +38,17 @@
   min-width: 0;
   min-height: 48px;
   place-items: center;
+  border: 0;
   border-radius: 14px 12px 15px 13px;
   color: #6f695f;
+  background: transparent;
+  font-family: inherit;
   font-size: 0.94em;
   font-weight: 700;
   overflow-wrap: anywhere;
   text-align: center;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .active {
@@ -89,15 +57,40 @@
   text-underline-offset: 5px;
 }
 
-.prominent {
+/*
+ * 「投稿」は画面の主操作なので、紙をまるく切り抜いたボタンとして扱い、
+ * ナビの上辺から少しせり上げる。丸は定規の正円にせず、わずかに崩す。
+ * 紙片のちぎり跡より前に出す必要があるため、重なりを明示する。
+ */
+.postLink {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 4.2em;
+  height: 4.2em;
+  /*
+   * ちぎり跡は帯の上辺より18px外へ出ているので、そこを越えるぶんだけ持ち上げる。
+   * align-items: center のままだと、負の余白で縮んだぶんを中央揃えが取り返してしまい、
+   * 紙のふちを破って出てこない。この一つだけ行の頭へ揃えて、持ち上げ量を確定させる。
+   */
+  align-self: start;
+  margin-top: -2.9em;
+  place-items: center;
+  border-radius: 49% 51% 48% 52%;
   color: var(--color-paper);
-  background: var(--color-purple);
+  background: var(--color-purple-strong);
   box-shadow: 2px 3px 0 var(--color-purple-dark);
-  transform: rotate(-0.5deg);
+  font-size: 0.94em;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  transform: rotate(0.7deg);
 }
 
-.prominent.active {
-  text-decoration-color: var(--color-paper);
+.postLink.active {
+  color: var(--color-paper);
+  text-decoration: underline wavy var(--color-paper) 1.5px;
+  text-underline-offset: 5px;
 }
 
 @media (max-width: 359px) {

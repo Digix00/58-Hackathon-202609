@@ -138,18 +138,17 @@
  * 前へ戻るときだけ、いちど去った紙が綴じ側から降りてくる。
  */
 .fromLeft {
-  transform-origin: left center;
-  animation: turnBack 400ms cubic-bezier(0.22, 0.68, 0.3, 1) both;
+  transform-origin: 12px center;
+  animation: turnBack 420ms cubic-bezier(0.24, 0.72, 0.32, 1) both;
 }
 
+/* 戻るときは、立っていた紙が手前へ倒れて元の位置に着く。 */
 @keyframes turnBack {
   from {
-    opacity: 0.15;
-    transform: perspective(1400px) rotateY(-74deg);
+    transform: perspective(1350px) translateZ(13px) rotateY(-88deg);
   }
   to {
-    opacity: 1;
-    transform: perspective(1400px) rotateY(0deg);
+    transform: perspective(1350px) translateZ(0) rotateY(0deg);
   }
 }
 
@@ -162,22 +161,35 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  transform-origin: center center;
+  /* 回転の軸はとじ穴の列。紙はここでリングに通っている。 */
+  transform-origin: 12px center;
   transform-style: preserve-3d;
   pointer-events: none;
-  animation: turnOut 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
+  animation: turnOut 580ms linear both;
 }
 
 /*
- * 紙が一回転しながら左へ抜けていく。
- * 遠近を弱く（3000px）取るのは、回っている途中で紙が大きく見えないようにするため。
+ * 紙の動きを3つに分ける。
+ *   持ち上げ  … 指がかかって手前へ浮く
+ *   起き上がり… 立っていく。見えているのはここまでなので、時間を多く使う
+ *   倒れ込み  … 垂直を越えたら重さで一気に落ちる
+ * 等速で 0 から 180 まで回すと、紙ではなく板が回っているように見える。
  */
 @keyframes turnOut {
   0% {
-    transform: perspective(3000px) translate3d(0, 0, 0) rotateY(0deg);
+    transform: perspective(1350px) translateZ(0) rotateY(0deg);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
+  }
+  18% {
+    transform: perspective(1350px) translateZ(13px) rotateY(-13deg);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  62% {
+    transform: perspective(1350px) translateZ(13px) rotateY(-88deg);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 1);
   }
   100% {
-    transform: perspective(3000px) translate3d(-126%, 0, 0) rotateY(-360deg);
+    transform: perspective(1350px) translateZ(0) rotateY(-180deg);
   }
 }
 
@@ -194,21 +206,22 @@
   position: absolute;
   inset: 0;
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 38%, #2f281a00 78%);
-  animation: turnShade 700ms cubic-bezier(0.3, 0.06, 0.32, 1) both;
+  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 36%, #2f281a00 76%);
+  animation: turnShade 580ms linear both;
   pointer-events: none;
   content: '';
 }
 
+/* 起き上がるほど、とじ側に影が溜まる。立ち切るまでに濃くなりきる。 */
 @keyframes turnShade {
   0% {
     opacity: 0;
   }
-  35% {
-    opacity: 0.34;
+  62% {
+    opacity: 0.36;
   }
   100% {
-    opacity: 0.34;
+    opacity: 0.36;
   }
 }
 
@@ -241,26 +254,57 @@
   transition: none;
 }
 
-/* しおりは紙に挟まっているもの。上辺をまたいで外へ出す。 */
-.theme {
+/*
+ * 上辺のインデックス。紙に挟んだしおりと付箋なので、上辺をまたいで外へ出す。
+ * 左はとじリングの領分なので、そこまでは伸ばさない。
+ */
+.tabs {
   position: absolute;
   z-index: 2;
   top: -0.9em;
   right: 1.4em;
-  max-width: calc(100% - 7em);
+  left: calc(clamp(1.35em, 6vw, 1.8em) + 15px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4em;
+  pointer-events: none;
+}
+
+.tab {
+  position: relative;
+  min-width: 0;
   padding: 0.32em 0.75em 0.38em;
   border-radius: 4px 8px 3px 7px;
   color: var(--color-purple-ink);
-  background: var(--bookmark, #f3e8b7);
   box-shadow: 1.5px 2px 0 #b0a894;
-  font-size: 0.78em;
   font-weight: 700;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* テーマは3枚のうち一番濃く、少し大きく。上辺の主役にする。 */
+.theme {
+  background: var(--bookmark, #f3e8b7);
+  font-size: 0.78em;
   transform: rotate(1.6deg);
 }
 
-/* しおりのふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
-.theme::before {
+/* 付箋は貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */
+.tabAge {
+  background: var(--tag-age, #f5cdc4);
+  font-size: 0.7em;
+  transform: rotate(-2.4deg);
+}
+
+.tabRegion {
+  background: var(--tag-region, #e9e0bd);
+  font-size: 0.7em;
+  transform: rotate(1.2deg);
+}
+
+/* 付箋のふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
+.tab::before {
   position: absolute;
   inset: -1px;
   border: 2.5px solid var(--color-outline);
@@ -360,13 +404,6 @@
 .corner:hover::before,
 .corner:active::before {
   transform: scale(1.14);
-}
-
-.attributes {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.85em;
-  line-height: 1.5;
 }
 
 .reaction {
@@ -549,7 +586,7 @@
   }
 
   /* 高コントラスト時は、かすれを外して紙のふちを確実に示す。 */
-  .theme::before,
+  .tab::before,
   .sheet::before {
     border-width: 2px;
     opacity: 1;
