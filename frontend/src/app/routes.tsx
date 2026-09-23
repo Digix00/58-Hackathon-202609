@@ -1,11 +1,39 @@
+import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router'
-import {
-  AppLayout,
-  NotFoundPage,
-  ProtectedPlaceholder,
-  PublicPlaceholder,
-  RouteErrorBoundary,
-} from './router'
+import { PostPage } from '../features/post/PostPage'
+import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
+import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
+
+const DevFeedPage = import.meta.env.DEV
+  ? lazy(async () => ({ default: (await import('../features/feed/FeedPage')).FeedPage }))
+  : null
+const DevConcernDetailPage = import.meta.env.DEV
+  ? lazy(async () => ({
+      default: (await import('../features/concern-detail/ConcernDetailPage')).ConcernDetailPage,
+    }))
+  : null
+const DevQuizPage = import.meta.env.DEV
+  ? lazy(async () => ({ default: (await import('../features/quiz/QuizPage')).QuizPage }))
+  : null
+const DevHistoryPage = import.meta.env.DEV
+  ? lazy(async () => ({ default: (await import('../features/history/HistoryPage')).HistoryPage }))
+  : null
+
+function demoPage(Page: ComponentType | null) {
+  if (!Page) {
+    return (
+      <ErrorState
+        title="この画面は準備中です"
+        description="データの接続が完了していません。しばらくお待ちください。"
+      />
+    )
+  }
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <Page />
+    </Suspense>
+  )
+}
 
 export const router = createBrowserRouter([
   {
@@ -13,34 +41,23 @@ export const router = createBrowserRouter([
     Component: AppLayout,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, Component: PublicPlaceholder },
-      { path: 'concerns/:id', Component: () => <PublicPlaceholder detail /> },
+      { index: true, element: demoPage(DevFeedPage) },
+      { path: 'concerns/:id', element: demoPage(DevConcernDetailPage) },
       {
         path: 'post',
-        Component: () => (
-          <ProtectedPlaceholder
-            title="投稿を準備しています"
-            description="匿名で声を置く画面を準備中です。"
-          />
+        element: (
+          <ProtectedRoute>
+            <PostPage />
+          </ProtectedRoute>
         ),
       },
       {
         path: 'quiz/today',
-        Component: () => (
-          <ProtectedPlaceholder
-            title="今日のクイズを準備しています"
-            description="3つの声を読むクイズを準備中です。"
-          />
-        ),
+        element: <ProtectedRoute>{demoPage(DevQuizPage)}</ProtectedRoute>,
       },
       {
         path: 'history',
-        Component: () => (
-          <ProtectedPlaceholder
-            title="履歴を準備しています"
-            description="これまでに出会った声を振り返る画面を準備中です。"
-          />
-        ),
+        element: <ProtectedRoute>{demoPage(DevHistoryPage)}</ProtectedRoute>,
       },
       { path: '*', Component: NotFoundPage },
     ],

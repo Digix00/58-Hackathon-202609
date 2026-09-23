@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CrayonFilters } from '../shared/components/CrayonFilters'
-import { EmptyState, ErrorState, LoadingState } from '../shared/components/AsyncStates'
+import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
 import crayonStyles from '../shared/styles/Crayon.module.css'
 import { AppShell } from './AppShell'
@@ -57,19 +57,6 @@ export function AppLayout() {
   )
 }
 
-export function PublicPlaceholder({ detail = false }: { detail?: boolean }) {
-  return (
-    <CenteredState>
-      <EmptyState
-        title={detail ? 'この声を準備しています' : '声を読む準備中です'}
-        description={
-          detail ? '投稿詳細はこれから表示されます。' : 'ここに、みんなから届いた声が並びます。'
-        }
-      />
-    </CenteredState>
-  )
-}
-
 export function OpenInLiffGuide() {
   const { liffUrl } = useRuntime()
   const location = useLocation()
@@ -112,13 +99,7 @@ export function LoginGuide() {
   )
 }
 
-export function ProtectedPlaceholder({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
+export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { state } = useRuntime()
   const { status } = useAuth()
 
@@ -132,11 +113,7 @@ export function ProtectedPlaceholder({
     )
   }
   if (status === 'anonymous') return <LoginGuide />
-  return (
-    <CenteredState>
-      <EmptyState title={title} description={description} />
-    </CenteredState>
-  )
+  return children
 }
 
 export function NotFoundPage() {

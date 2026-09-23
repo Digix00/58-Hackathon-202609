@@ -80,8 +80,9 @@ export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetP
             ))}
           </div>
         </fieldset>
-        <fieldset className={styles.group}>
-          <legend>表示することば</legend>
+        <fieldset className={styles.group} disabled>
+          <legend>表示することば（準備中）</legend>
+          <p>ひらがな・英語表示は現在準備中です。原文でお読みください。</p>
           <div className={styles.choiceRow}>
             {languageOptions.map((option) => (
               <label key={option.value} className={styles.choice}>
@@ -97,8 +98,9 @@ export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetP
           </div>
         </fieldset>
         {profileSettings}
-        <fieldset className={styles.group}>
-          <legend>読み上げ</legend>
+        <fieldset className={styles.group} disabled>
+          <legend>読み上げ（準備中）</legend>
+          <p>読み上げ機能は現在準備中です。</p>
           <label className={styles.toggle}>
             <input
               type="checkbox"
