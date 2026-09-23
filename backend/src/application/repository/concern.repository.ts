@@ -1,5 +1,4 @@
 import type { Concern } from "../entity/concern";
-import type { ConcernView } from "../entity/concern-view";
 import type {
   ConcernFeedCandidate,
   FeedImpression,
@@ -53,6 +52,5 @@ export interface ConcernRepository {
     userId: string,
     limit: number,
   ): Promise<RecommendationHistory[]>;
-  recordView?(view: ConcernView): Promise<ConcernView>;
   recordFeedImpressions?(impressions: FeedImpression[]): Promise<void>;
 }

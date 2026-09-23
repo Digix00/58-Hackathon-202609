@@ -226,49 +226,6 @@ export class ConcernHandler {
 
     return c.json(toFeedResponse(item, false));
   });
-
-  readonly view = factory.createHandlers(async (c) => {
-    const requestId = setRequestId(c);
-    const auth = c.var.auth;
-    if (!auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "既読登録にはLINEログインが必要です",
-            requestId,
-          },
-        },
-        401,
-      );
-    }
-    if (!this.concernUsecase.markViewed) {
-      throw new Error("view use case is not configured");
-    }
-
-    const view = await this.concernUsecase.markViewed({
-      userId: auth.user.id,
-      concernId: c.req.param("concernId") ?? "",
-    });
-    if (!view) {
-      return c.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "投稿が見つかりません",
-            requestId,
-          },
-        },
-        404,
-      );
-    }
-
-    return c.json({
-      concernId: view.concernId,
-      viewed: true,
-      viewedAt: view.lastViewedAt,
-    });
-  });
 }
 
 function toResponse(concern: Concern) {

@@ -17,7 +17,6 @@ import {
   concernClusters,
   concernReactions,
   concerns,
-  concernViews,
   users,
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
@@ -51,6 +50,7 @@ function createTestApp(lineUserId = "line_concern_test_user") {
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
+    ...createConcernDependencies(),
     concernHandler,
     concernReactionHandler,
     ...createUserDependencies(),
@@ -656,57 +656,6 @@ describe("GET /api/v1/concerns/:concernId", () => {
       const body = await res.json<{ error: { code: string } }>();
       expect(body.error.code).toBe("NOT_FOUND");
     }
-  });
-});
-
-describe("PUT /api/v1/concerns/:concernId/view", () => {
-  it("records an idempotent authenticated view", async () => {
-    const concernId = await seedConcern({
-      body: "既読登録する投稿",
-      createdAt: "9999-05-01T00:00:00.000Z",
-    });
-    const app = createTestApp();
-    const cookie = await loginCookie(app);
-
-    const first = await app.request(
-      `/api/v1/concerns/${concernId}/view`,
-      { method: "PUT", headers: { Cookie: cookie } },
-      env,
-    );
-    const second = await app.request(
-      `/api/v1/concerns/${concernId}/view`,
-      { method: "PUT", headers: { Cookie: cookie } },
-      env,
-    );
-
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({
-      concernId,
-      viewed: true,
-    });
-
-    const viewRows = await drizzle(env.DB)
-      .select()
-      .from(concernViews)
-      .where(eq(concernViews.concernId, concernId))
-      .all();
-    expect(viewRows).toHaveLength(1);
-    expect(viewRows[0]?.viewCount).toBe(2);
-  });
-
-  it("rejects anonymous view registration", async () => {
-    const concernId = await seedConcern({
-      body: "匿名では既読にできない投稿",
-      createdAt: "9999-05-02T00:00:00.000Z",
-    });
-
-    const response = await createTestApp().request(
-      `/api/v1/concerns/${concernId}/view`,
-      { method: "PUT" },
-      env,
-    );
-    expect(response.status).toBe(401);
   });
 });
 

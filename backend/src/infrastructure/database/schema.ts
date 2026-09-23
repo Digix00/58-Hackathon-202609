@@ -126,21 +126,19 @@ export const concernViews = sqliteTable(
     concernId: text("concern_id")
       .notNull()
       .references(() => concerns.id),
-    userId: text("user_id")
+    actorKey: text("actor_key")
       .notNull()
       .references(() => users.id),
-    firstViewedAt: text("first_viewed_at").notNull(),
-    lastViewedAt: text("last_viewed_at").notNull(),
-    viewCount: integer("view_count").notNull().default(1),
+    viewedAt: text("viewed_at").notNull(),
   },
   (table) => ({
-    primaryKey: primaryKey({
-      columns: [table.concernId, table.userId],
-      name: "concern_views_pk",
-    }),
-    userIndex: index("concern_views_user_idx").on(
-      table.userId,
-      table.lastViewedAt,
+    concernActorUniqueIndex: uniqueIndex("concern_views_concern_actor_idx").on(
+      table.concernId,
+      table.actorKey,
+    ),
+    actorViewedAtIndex: index("concern_views_actor_viewed_at_idx").on(
+      table.actorKey,
+      table.viewedAt,
     ),
   }),
 );

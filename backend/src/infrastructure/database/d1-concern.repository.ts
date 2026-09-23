@@ -9,7 +9,6 @@ import {
   type Gender,
 } from "../../application/entity/concern";
 import { ConcernCluster } from "../../application/entity/concern-cluster";
-import { ConcernView } from "../../application/entity/concern-view";
 import type {
   ConcernRepository,
   ListConcernFeedInput,
@@ -119,7 +118,7 @@ export class D1ConcernRepository implements ConcernRepository {
     const viewJoin = input.userId
       ? and(
           eq(concernViews.concernId, concerns.id),
-          eq(concernViews.userId, input.userId),
+          eq(concernViews.actorKey, input.userId),
         )
       : sql`1 = 0`;
     const rows = await this.db
@@ -147,7 +146,7 @@ export class D1ConcernRepository implements ConcernRepository {
     const viewJoin = userId
       ? and(
           eq(concernViews.concernId, concerns.id),
-          eq(concernViews.userId, userId),
+          eq(concernViews.actorKey, userId),
         )
       : sql`1 = 0`;
     const row = await this.db
@@ -172,57 +171,21 @@ export class D1ConcernRepository implements ConcernRepository {
       .select({
         clusterId: concerns.clusterId,
         regionCode: concerns.regionCode,
-        viewedAt: concernViews.lastViewedAt,
+        viewedAt: concernViews.viewedAt,
       })
       .from(concernViews)
       .innerJoin(concerns, eq(concernViews.concernId, concerns.id))
       .where(
         and(
-          eq(concernViews.userId, userId),
+          eq(concernViews.actorKey, userId),
           eq(concerns.visibilityStatus, "published"),
         ),
       )
-      .orderBy(desc(concernViews.lastViewedAt))
+      .orderBy(desc(concernViews.viewedAt))
       .limit(limit)
       .all();
 
     return rows;
-  }
-
-  async recordView(view: ConcernView): Promise<ConcernView> {
-    await this.db
-      .insert(concernViews)
-      .values({
-        concernId: view.concernId,
-        userId: view.userId,
-        firstViewedAt: view.firstViewedAt,
-        lastViewedAt: view.lastViewedAt,
-        viewCount: view.viewCount,
-      })
-      .onConflictDoUpdate({
-        target: [concernViews.concernId, concernViews.userId],
-        set: {
-          lastViewedAt: view.lastViewedAt,
-          viewCount: sql`${concernViews.viewCount} + 1`,
-        },
-      })
-      .run();
-
-    const row = await this.db
-      .select()
-      .from(concernViews)
-      .where(
-        and(
-          eq(concernViews.concernId, view.concernId),
-          eq(concernViews.userId, view.userId),
-        ),
-      )
-      .get();
-    if (!row) {
-      throw new Error("concern view was not persisted");
-    }
-
-    return toConcernView(row);
   }
 
   async recordFeedImpressions(
@@ -294,14 +257,4 @@ function toFeedCandidate(row: {
     cluster: toConcernCluster(row.cluster),
     viewed: row.view !== null,
   };
-}
-
-function toConcernView(row: typeof concernViews.$inferSelect): ConcernView {
-  return new ConcernView({
-    concernId: row.concernId,
-    userId: row.userId,
-    firstViewedAt: row.firstViewedAt,
-    lastViewedAt: row.lastViewedAt,
-    viewCount: row.viewCount,
-  });
 }

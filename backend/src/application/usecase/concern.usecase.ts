@@ -1,6 +1,5 @@
 import type { AgeGroup, Gender } from "../entity/concern";
 import { Concern } from "../entity/concern";
-import { ConcernView } from "../entity/concern-view";
 import {
   type ConcernSort,
   type FeedImpression,
@@ -35,11 +34,6 @@ export interface ListFeedResult {
   nextCursor: ConcernListCursor | null;
 }
 
-export interface MarkConcernViewedInput {
-  userId: string;
-  concernId: string;
-}
-
 export interface IConcernUseCase {
   create(input: CreateConcernInput): Promise<Concern>;
   listPublished(
@@ -53,7 +47,6 @@ export interface IConcernUseCase {
     id: string,
     userId?: string,
   ): Promise<RankedConcernFeedItem | null>;
-  markViewed?(input: MarkConcernViewedInput): Promise<ConcernView | null>;
 }
 
 export interface ListPublishedConcernsResult {
@@ -151,25 +144,6 @@ export class ConcernUseCase implements IConcernUseCase {
           },
         }
       : null;
-  };
-
-  readonly markViewed = async (
-    input: MarkConcernViewedInput,
-  ): Promise<ConcernView | null> => {
-    const concern = await this.repository.findPublishedById(input.concernId);
-    if (!concern || !this.repository.recordView) {
-      return null;
-    }
-
-    const viewedAt = this.now().toISOString();
-    return this.repository.recordView(
-      new ConcernView({
-        concernId: concern.id,
-        userId: input.userId,
-        firstViewedAt: viewedAt,
-        lastViewedAt: viewedAt,
-      }),
-    );
   };
 
   private async listRecommendedFeed(

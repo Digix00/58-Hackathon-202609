@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "814f6a55-9332-4972-bdfa-5fa8881f4cc7",
+  "id": "a97bc891-fb24-4f4d-b57c-f3bcd41ba9b4",
   "prevId": "b0fdd56e-1f07-43a1-aad5-de6d46147811",
   "tables": {
     "concern_clusters": {
@@ -170,42 +170,35 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "actor_key": {
+          "name": "actor_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "first_viewed_at": {
-          "name": "first_viewed_at",
+        "viewed_at": {
+          "name": "viewed_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "last_viewed_at": {
-          "name": "last_viewed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "view_count": {
-          "name": "view_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
         }
       },
       "indexes": {
-        "concern_views_user_idx": {
-          "name": "concern_views_user_idx",
+        "concern_views_concern_actor_idx": {
+          "name": "concern_views_concern_actor_idx",
           "columns": [
-            "user_id",
-            "last_viewed_at"
+            "concern_id",
+            "actor_key"
+          ],
+          "isUnique": true
+        },
+        "concern_views_actor_viewed_at_idx": {
+          "name": "concern_views_actor_viewed_at_idx",
+          "columns": [
+            "actor_key",
+            "viewed_at"
           ],
           "isUnique": false
         }
@@ -224,12 +217,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "concern_views_user_id_users_id_fk": {
-          "name": "concern_views_user_id_users_id_fk",
+        "concern_views_actor_key_users_id_fk": {
+          "name": "concern_views_actor_key_users_id_fk",
           "tableFrom": "concern_views",
           "tableTo": "users",
           "columnsFrom": [
-            "user_id"
+            "actor_key"
           ],
           "columnsTo": [
             "id"
@@ -238,15 +231,7 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "concern_views_pk": {
-          "columns": [
-            "concern_id",
-            "user_id"
-          ],
-          "name": "concern_views_pk"
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
