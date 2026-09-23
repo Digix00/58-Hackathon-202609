@@ -33,9 +33,9 @@
 .sun {
   top: 0.5em;
   right: 0.7em;
-  width: clamp(4.2em, 13vw, 5.4em);
+  width: clamp(5em, 16vw, 6.4em);
   height: auto;
-  transform: rotate(-4deg);
+  transform: rotate(-7deg);
 }
 
 .sunFill {
@@ -56,9 +56,9 @@
 .cloud {
   top: 1.5em;
   left: calc(var(--cover-gutter) + var(--cover-binding) + 2px);
-  width: clamp(4em, 11.5vw, 4.9em);
+  width: clamp(4.8em, 14vw, 5.8em);
   height: auto;
-  transform: rotate(1.6deg);
+  transform: rotate(3.5deg);
 }
 
 .cloudFill {
@@ -124,11 +124,12 @@
 /* 背の低い端末では、絵より題字と操作を先に収める。 */
 @media (max-height: 700px) {
   .cloud {
-    display: none;
+    top: 1em;
+    width: clamp(4.1em, 11.5vw, 5em);
   }
 
   .sun {
-    width: clamp(3em, 9vw, 3.8em);
+    width: clamp(3.8em, 11vw, 4.6em);
   }
 }
 

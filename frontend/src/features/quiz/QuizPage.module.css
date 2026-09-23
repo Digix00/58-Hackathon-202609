@@ -358,8 +358,9 @@
 }
 
 /*
- * めくれた角。次の手紙があることを示す絵であり、そのまま進むボタンでもある。
- * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
+ * めくれた角。次の手紙／前の手紙があることを示す絵であり、そのまま行き来する
+ * ボタンでもある。裏面（::before）と折り線（::after）に分ける。
+ * 折り線だけにクレヨンのかすれを効かせる。
  */
 .corner {
   position: absolute;
@@ -406,6 +407,34 @@
 .corner:hover::before,
 .corner:active::before {
   transform: scale(1.14);
+}
+
+/*
+ * 左下の角。前の手紙へ戻る。
+ *
+ * 紙はとじ穴で綴じられているので、綴じ側から先はめくれない。
+ * 角はリングの列より右から立ち上げ、折り目もその内側だけに引く。
+ * 進む角より小さいのは、主たる向きが「つぎへ」だからで、
+ * 戻りは道があると分かればよい。
+ */
+.cornerBack {
+  right: auto;
+  left: 16px;
+  width: 42px;
+  height: 42px;
+}
+
+.cornerBack::before {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 14px 10px;
+  background: linear-gradient(135deg, #f7eedb 0%, #efe3c8 52%, #e4d5b2 100%);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  transform-origin: left bottom;
+}
+
+.cornerBack::after {
+  width: 58px;
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 /*
@@ -508,6 +537,8 @@
 /*
  * 手元のしおり置き場。
  * 使ったぶんだけ減っていくので、残りは中央へ寄せて「あと何枚か」を形で見せる。
+ * 空になっても棚の高さは保つ。ここが畳まると紙束が跳ね上がり、
+ * いま差したばかりの手紙から目が外れる。
  */
 .tray {
   grid-row: 1;
@@ -517,6 +548,7 @@
   justify-content: center;
   gap: 0.5em;
   width: 100%;
+  min-height: 5.6em;
   padding-bottom: 0.7em;
   border-bottom: 2.5px dashed #ddd2b8;
 }
