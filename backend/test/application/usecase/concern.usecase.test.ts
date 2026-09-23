@@ -1,15 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Concern,
   ConcernValidationError,
 } from "../../../src/application/entity/concern";
+import type { ConcernProcessingQueue } from "../../../src/application/port/concern-processing-queue";
 import type { ConcernRepository } from "../../../src/application/repository/concern.repository";
 import { ConcernUseCase } from "../../../src/application/usecase/concern.usecase";
 
 describe("ConcernUseCase", () => {
   it("saves a concern with the authenticated userId and injected id/time", async () => {
     let saved: Concern | undefined;
+    const processingQueue: ConcernProcessingQueue = {
+      enqueue: vi.fn(),
+    };
     const repository: ConcernRepository = {
       insert: async (concern) => {
         saved = concern;
@@ -22,6 +26,7 @@ describe("ConcernUseCase", () => {
       repository,
       () => new Date("2026-09-22T00:00:00.000Z"),
       () => "fixed-id",
+      processingQueue,
     );
 
     const result = await useCase.create({
@@ -43,6 +48,11 @@ describe("ConcernUseCase", () => {
       visibilityStatus: "published",
       processingStatus: "pending",
       createdAt: "2026-09-22T00:00:00.000Z",
+    });
+    expect(processingQueue.enqueue).toHaveBeenCalledWith({
+      type: "concern.process",
+      concernId: "fixed-id",
+      body: "食堂が混んでいて昼休みに休めない",
     });
   });
 

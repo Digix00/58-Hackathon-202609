@@ -10,6 +10,10 @@ import {
   RECOMMENDATION_ALGORITHM_VERSION,
   rankConcernFeedCandidates,
 } from "../recommendation/recommendation.policy";
+import {
+  CONCERN_PROCESSING_MESSAGE_TYPE,
+  type ConcernProcessingQueue,
+} from "../port/concern-processing-queue";
 import type {
   ConcernFeedCursor,
   ConcernListCursor,
@@ -66,15 +70,18 @@ export class ConcernUseCase implements IConcernUseCase {
   private readonly repository: ConcernRepository;
   private readonly now: () => Date;
   private readonly createId: () => string;
+  private readonly processingQueue?: ConcernProcessingQueue;
 
   constructor(
     repository: ConcernRepository,
     now: () => Date = () => new Date(),
     createId: () => string = generateId,
+    processingQueue?: ConcernProcessingQueue,
   ) {
     this.repository = repository;
     this.now = now;
     this.createId = createId;
+    this.processingQueue = processingQueue;
   }
 
   readonly create = async (input: CreateConcernInput): Promise<Concern> => {
@@ -88,7 +95,16 @@ export class ConcernUseCase implements IConcernUseCase {
       createdAt: this.now().toISOString(),
     });
 
-    return this.repository.insert(concern);
+    const savedConcern = await this.repository.insert(concern);
+    if (this.processingQueue) {
+      await this.processingQueue.enqueue({
+        type: CONCERN_PROCESSING_MESSAGE_TYPE,
+        concernId: savedConcern.id,
+        body: savedConcern.body,
+      });
+    }
+
+    return savedConcern;
   };
 
   readonly listPublished = async (
