@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { AuthHandler } from "../presentation/auth.handler";
 import type { ConcernHandler } from "../presentation/concern.handler";
+import type { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import type { HealthHandler } from "../presentation/health.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -15,6 +16,7 @@ export interface ApplicationDependencies {
   authHandler: AuthHandler;
   authUseCase: IAuthUseCase;
   concernHandler: ConcernHandler;
+  concernReactionHandler: ConcernReactionHandler;
   healthHandler: HealthHandler;
   userHandler: UserHandler;
 }
@@ -24,6 +26,7 @@ export function createApp({
   authHandler,
   authUseCase,
   concernHandler,
+  concernReactionHandler,
   healthHandler,
   userHandler,
 }: ApplicationDependencies) {
@@ -54,7 +57,11 @@ export function createApp({
     .put("/api/v1/users/me", ...userHandler.updateProfile)
     .get("/api/v1/concerns", ...concernHandler.list)
     .post("/api/v1/concerns", ...concernHandler.create)
-    .get("/api/v1/concerns/:concernId", ...concernHandler.detail);
+    .get("/api/v1/concerns/:concernId", ...concernHandler.detail)
+    .post(
+      "/api/v1/concerns/:concernId/reactions",
+      ...concernReactionHandler.register,
+    );
 }
 
 export type AppType = ReturnType<typeof createApp>;

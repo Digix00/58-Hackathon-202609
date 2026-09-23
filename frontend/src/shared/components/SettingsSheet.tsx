@@ -1,61 +1,74 @@
-import { useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import {
-  useDisplaySettings,
   type DisplayLanguage,
   type FontSize,
+  useDisplaySettings,
 } from '../../app/providers/DisplaySettingsContext'
+import { useSettingsDialog } from '../hooks/useSettingsDialog'
+import styles from './SettingsSheet.module.css'
 
-type SettingsSheetProps = { open: boolean; onClose: () => void }
+type SettingsSheetProps = {
+  open: boolean
+  onClose: () => void
+  profileSettings: ReactNode
+}
 
 const languageOptions: Array<{ value: DisplayLanguage; label: string }> = [
   { value: 'original', label: '原文' },
   { value: 'hira', label: 'ひらがな' },
   { value: 'en', label: '英語' },
 ]
+
 const fontSizeOptions: Array<{ value: FontSize; label: string }> = [
   { value: 'normal', label: '標準' },
   { value: 'large', label: '大きく表示' },
 ]
 
-export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const { fontSize, language, setFontSize, setLanguage } = useDisplaySettings()
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open) {
-      if (!dialog.open) dialog.showModal()
-      dialog.querySelector<HTMLElement>('button, input')?.focus()
-      return
-    }
-    if (dialog.open) dialog.close()
-  }, [open])
-
-  const handleDialogClose = () => {
-    if (open) onClose()
-  }
+export function SettingsSheet({ open, onClose, profileSettings }: SettingsSheetProps) {
+  const { dialogRef, handleClose } = useSettingsDialog({ open, onClose })
+  const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
+    useDisplaySettings()
 
   return (
     <dialog
       ref={dialogRef}
-      className="sheet-dialog"
+      className={styles.dialog}
       aria-labelledby="settings-title"
-      onClose={handleDialogClose}
+      onClose={handleClose}
     >
-      <div className="settings-sheet" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sheet-handle" aria-hidden="true" />
-        <div className="sheet-heading">
-          <h2 id="settings-title">表示の設定</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="設定を閉じる">
-            ×
+      <div
+        className={`${styles.sheet} ${fontSize === 'large' ? styles.large : ''}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className={styles.handle} aria-hidden="true" />
+        <div className={styles.heading}>
+          <h2 id="settings-title">設定</h2>
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={onClose}
+            aria-label="設定を閉じる"
+          >
+            <svg
+              className={styles.closeIcon}
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <g filter="url(#crayon-edge)">
+                <path d="M5.2 5.1C8.6 8.4 12.2 12.1 18.8 18.7" />
+                <path d="M18.8 5.2C15.1 8.6 11.8 12.2 5.1 18.9" />
+                <path className={styles.closeTrace} d="M5.5 5.4C8.8 8.8 12.3 12.3 18.4 18.4" />
+                <path className={styles.closeTrace} d="M18.5 5.5C15.1 8.8 11.8 12.4 5.5 18.6" />
+              </g>
+            </svg>
           </button>
         </div>
-        <fieldset className="setting-group">
+        <fieldset className={styles.group}>
           <legend>文字サイズ</legend>
-          <div className="choice-row">
+          <div className={styles.choiceRow}>
             {fontSizeOptions.map((option) => (
-              <label key={option.value} className="choice">
+              <label key={option.value} className={styles.choice}>
                 <input
                   type="radio"
                   name="font-size"
@@ -67,11 +80,13 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
             ))}
           </div>
         </fieldset>
-        <fieldset className="setting-group">
-          <legend>表示することば</legend>
-          <div className="choice-row">
+        {/* TODO: 表示言語の変換を実装し、選択した言語を投稿本文へ反映できるようにする。 */}
+        <fieldset className={styles.group} disabled>
+          <legend>表示することば（準備中）</legend>
+          <p>ひらがな・英語表示は現在準備中です。原文でお読みください。</p>
+          <div className={styles.choiceRow}>
             {languageOptions.map((option) => (
-              <label key={option.value} className="choice">
+              <label key={option.value} className={styles.choice}>
                 <input
                   type="radio"
                   name="display-language"
@@ -83,16 +98,23 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
             ))}
           </div>
         </fieldset>
-        <section className="setting-group" aria-labelledby="speech-title">
-          <h3 id="speech-title">読み上げ</h3>
-          <p>投稿を開くと、ここから読み上げられます。</p>
-          <button type="button" className="secondary-button" disabled>
-            読み上げる文章がありません
-          </button>
-        </section>
+        {profileSettings}
+        {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
+        <fieldset className={styles.group} disabled>
+          <legend>読み上げ（準備中）</legend>
+          <p>読み上げ機能は現在準備中です。</p>
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={speechEnabled}
+              onChange={(event) => setSpeechEnabled(event.target.checked)}
+            />
+            <span>投稿を開いたら読み上げる</span>
+          </label>
+        </fieldset>
       </div>
       <button
-        className="sheet-backdrop"
+        className={styles.backdrop}
         type="button"
         onClick={onClose}
         aria-label="背景を選んで設定を閉じる"

@@ -6,20 +6,27 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
+import { ConcernReactionUseCase } from "../src/application/usecase/concern-reaction.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
-import { concerns, users } from "../src/infrastructure/database/schema";
+import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-concern-reaction.repository";
+import {
+  concernReactions,
+  concerns,
+  users,
+} from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
+import { ConcernReactionHandler } from "../src/presentation/concern-reaction.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
-function createTestApp() {
+function createTestApp(lineUserId = "line_concern_test_user") {
   const authUseCase = new AuthUseCase(
     new D1UserRepository(env.DB),
     new D1SessionRepository(env.DB),
@@ -28,18 +35,22 @@ function createTestApp() {
         if (idToken !== "valid-id-token") {
           throw new Error("unexpected token");
         }
-        return { lineUserId: "line_concern_test_user" };
+        return { lineUserId };
       },
     },
   );
   const concernHandler = new ConcernHandler(
     new ConcernUseCase(new D1ConcernRepository(env.DB)),
   );
+  const concernReactionHandler = new ConcernReactionHandler(
+    new ConcernReactionUseCase(new D1ConcernReactionRepository(env.DB)),
+  );
 
   return createApp({
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler,
+    concernReactionHandler,
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
@@ -95,6 +106,27 @@ async function loginCookie(
     env,
   );
   return cookieFrom(login);
+}
+
+async function createConcern(
+  app: ReturnType<typeof createTestApp>,
+  cookie: string,
+): Promise<string> {
+  const response = await app.request(
+    "/api/v1/concerns",
+    {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify(validBody),
+    },
+    env,
+  );
+  if (response.status !== 201) {
+    throw new Error("failed to create concern for reaction test");
+  }
+
+  const created = await response.json<{ id: string }>();
+  return created.id;
 }
 
 const validBody = {
@@ -518,5 +550,169 @@ describe("GET /api/v1/concerns/:concernId", () => {
       const body = await res.json<{ error: { code: string } }>();
       expect(body.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+describe("POST /api/v1/concerns/:concernId/reactions", () => {
+  it("creates a reaction and treats a retry as an idempotent success", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const concernId = await createConcern(app, cookie);
+    const request = {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ reactionType: "empathy" }),
+    } as const;
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    const first = await app.request(path, request, env);
+    const firstBody = await first.json<Record<string, unknown>>();
+    expect(first.status).toBe(201);
+    expect(firstBody).toEqual({
+      concernId,
+      reactionType: "empathy",
+      reactionCount: 1,
+      reacted: true,
+    });
+
+    const retry = await app.request(path, request, env);
+    const retryBody = await retry.json<Record<string, unknown>>();
+    expect(retry.status).toBe(200);
+    expect(retryBody).toEqual(firstBody);
+
+    const rows = await drizzle(env.DB)
+      .select()
+      .from(concernReactions)
+      .where(eq(concernReactions.concernId, concernId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("counts a reaction from a different user separately", async () => {
+    const ownerApp = createTestApp("line_concern_reaction_owner");
+    const ownerCookie = await loginCookie(ownerApp);
+    const concernId = await createConcern(ownerApp, ownerCookie);
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    const reactorApp = createTestApp("line_concern_reaction_other");
+    const reactorCookie = await loginCookie(reactorApp);
+    const response = await reactorApp.request(
+      path,
+      {
+        method: "POST",
+        headers: {
+          Cookie: reactorCookie,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      concernId,
+      reactionType: "empathy",
+      reactionCount: 1,
+      reacted: true,
+    });
+
+    const ownerResponse = await ownerApp.request(
+      path,
+      {
+        method: "POST",
+        headers: {
+          Cookie: ownerCookie,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+    expect(ownerResponse.status).toBe(201);
+    await expect(ownerResponse.json()).resolves.toMatchObject({
+      reactionCount: 2,
+    });
+  });
+
+  it.each([{ status: "hidden" as const }, { status: "deleted" as const }])(
+    "rejects a $status concern",
+    async ({ status }) => {
+      const app = createTestApp();
+      const cookie = await loginCookie(app);
+      const concernId = await createConcern(app, cookie);
+      await drizzle(env.DB)
+        .update(concerns)
+        .set({ visibilityStatus: status })
+        .where(eq(concerns.id, concernId));
+
+      const response = await app.request(
+        "/api/v1/concerns/" + concernId + "/reactions",
+        {
+          method: "POST",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify({ reactionType: "empathy" }),
+        },
+        env,
+      );
+
+      expect(response.status).toBe(404);
+      const body = await response.json<{ error: { code: string } }>();
+      expect(body.error.code).toBe("NOT_FOUND");
+    },
+  );
+
+  it.each([
+    { scenario: "missing reactionType", payload: {} },
+    { scenario: "unsupported reactionType", payload: { reactionType: "like" } },
+  ])("rejects $scenario with 400 INVALID_REQUEST", async ({ payload }) => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const concernId = await createConcern(app, cookie);
+
+    const response = await app.request(
+      "/api/v1/concerns/" + concernId + "/reactions",
+      {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          "Content-Type": "application/json",
+          "X-Request-Id": "reaction-validation",
+        },
+        body: JSON.stringify(payload),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.json<{
+      error: { code: string; requestId: string };
+    }>();
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.requestId).toBe(response.headers.get("X-Request-Id"));
+    expect(body.error.requestId).toBe("reaction-validation");
+  });
+
+  it("requires a LINE-authenticated session", async () => {
+    const app = anonymousTestApp();
+    const response = await app.request(
+      "/api/v1/concerns/not-a-concern/reactions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": "reaction-auth",
+        },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    const body = await response.json<{
+      error: { code: string; requestId: string };
+    }>();
+    expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
+    expect(body.error.requestId).toBe(response.headers.get("X-Request-Id"));
+    expect(body.error.requestId).toBe("reaction-auth");
   });
 });

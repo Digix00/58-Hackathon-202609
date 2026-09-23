@@ -6,8 +6,10 @@ export type FontSize = 'normal' | 'large'
 type DisplaySettingsContextValue = {
   language: DisplayLanguage
   fontSize: FontSize
+  speechEnabled: boolean
   setLanguage: (language: DisplayLanguage) => void
   setFontSize: (fontSize: FontSize) => void
+  setSpeechEnabled: (enabled: boolean) => void
 }
 
 export const DisplaySettingsContext = createContext<DisplaySettingsContextValue | null>(null)

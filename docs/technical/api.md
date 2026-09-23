@@ -228,7 +228,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
-| GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | セッションを復元し、未存在時は匿名セッションを発行 |
+| GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | ログイン状態を復元し、Cookie がない場合は未認証セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
@@ -461,6 +461,9 @@ reasonCode の初期値は次のとおり。
 ~~~
 
 - hidden、deleted の悩みには登録できない
+- LINEログイン済みセッションがない場合は 401 AUTHENTICATION_REQUIRED を返す
+- reactionType が欠落または未対応の場合は 400 INVALID_REQUEST を返す
+- 存在しない、hidden、deleted の concernId は 404 NOT_FOUND とする
 - concernId と解決済みの認証主体と reactionType の組を一意にする
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
@@ -998,6 +1001,7 @@ PoCでは公開前の人手確認や自動判定を行わない。実在の個�
 フロントエンドから直接呼び出す次の endpoint は、Hono RPC の型共有対象とする。
 
 - concerns
+- concern reactions
 - clusters
 - quizzes
 - history
@@ -1032,7 +1036,7 @@ Hono の route chaining の型推論を維持するため、機能単位の rout
 - 正常系の Request / Response
 - 必須項目欠落、空文字、範囲外、未知の enum
 - 不正・期限切れの LIFF ID token
-- 不正・期限切れの匿名セッションID（旧仕様）
+- 匿名セッションID の検証（旧仕様のみ）
 - 他ユーザーの userId を body に入れた場合に無視されること
 - published 以外の concern / quiz が外部へ返らないこと
 - reaction の再送で二重加算されないこと
