@@ -37,7 +37,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `AUTH_SESSION_TTL_SECONDS` | アプリセッションの有効秒数 | Worker環境変数（任意） |
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
-| AIサービスのAPIキー | クラスタリング、翻訳、音声認識 | Worker環境変数またはSecret |
+| `AI` (Workers AI binding) | Workers AI 推論 | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINEクイズ配信 | Worker環境変数またはSecret |
 | `E2E_BASE_URL` | E2Eテスト対象のWeb URL | GitHub Actions Secretまたは環境設定 |
@@ -60,7 +60,9 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ### コスト
 
-ハッカソン期間は無料枠または低額で動作する構成を優先する。AI、翻訳、音声認識の呼び出しは投稿ごとに無制限に実行せず、クラスタ単位、バッチ単位、またはデモ用データ単位で回数を制限する。LINE配信の宛先と回数もデモ用に制限し、課金が発生する外部サービスを採用する場合は、利用量の上限と停止方法をREADMEへ記載する。
+ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
+
+`wrangler dev` からのWorkers AI推論もCloudflareアカウントへ接続し、利用量に計上される。Vitestは `wrangler.test.jsonc` を使い、実AI bindingなしのローカル環境でFakeを使う。開発時もモデル呼び出しを必要な回数に制限してWorkers AIダッシュボードで利用量を確認する。クラスタリング、翻訳、音声認識の呼び出しは投稿ごとに無制限に実行せず、クラスタ単位、バッチ単位、またはデモ用データ単位で制限する。LINE配信の宛先と回数もデモ用に制限し、課金が発生する外部サービスを採用する場合は、利用量の上限と停止方法をREADMEへ記載する。
 
 
 ## 実装前に決める事項
