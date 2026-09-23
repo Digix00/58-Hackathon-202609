@@ -179,20 +179,15 @@ function tagStyle(personId: string) {
 
 /**
  * 紙の一枚。本文と、その下に置くもの（切り欠き、または結果）を受け取る。
- * 下の両角はめくれている。右は次の手紙、左は前の手紙を示す絵であり、
- * そのまま行き来するボタンでもある。
+ * 前後の手紙へは左右のスワイプと矢印キーで移動する。
  */
 function Paper({
   children,
   dragX = 0,
-  onNext,
-  onPrevious,
   className = '',
 }: {
   children: ReactNode
   dragX?: number
-  onNext?: () => void
-  onPrevious?: () => void
   /** 紙の中身に合わせた行送り。結果の紙だけ、判定のメモのぶん余白を取り直す。 */
   className?: string
 }) {
@@ -208,28 +203,6 @@ function Paper({
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
       {children}
-      {/*
-        下の両角。矢印キーとスワイプで同じことができるので、
-        読み上げには重ねて出さない。
-      */}
-      {onPrevious ? (
-        <button
-          type="button"
-          className={`${styles.corner} ${styles.cornerBack}`}
-          onClick={onPrevious}
-          tabIndex={-1}
-          aria-hidden="true"
-        />
-      ) : null}
-      {onNext ? (
-        <button
-          type="button"
-          className={styles.corner}
-          onClick={onNext}
-          tabIndex={-1}
-          aria-hidden="true"
-        />
-      ) : null}
     </article>
   )
 }
@@ -620,11 +593,7 @@ function QuizStage({
   swipe,
   dragOver,
   slotRef,
-  canGoNext,
-  canGoPrev,
   bodyOf,
-  onNext,
-  onPrevious,
   onTurnFinish,
   onPull,
 }: {
@@ -636,11 +605,7 @@ function QuizStage({
   swipe: QuizSwipe
   dragOver: boolean
   slotRef: React.RefObject<HTMLSpanElement | null>
-  canGoNext: boolean
-  canGoPrev: boolean
   bodyOf: (target: Letter) => string | undefined
-  onNext: () => void
-  onPrevious: () => void
   onTurnFinish: () => void
   onPull: (letterId: string) => void
 }) {
@@ -684,12 +649,7 @@ function QuizStage({
           </NotebookTurn>
         ) : null}
         <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
-          <Paper
-            className={showingResults ? styles.resultCard : ''}
-            dragX={swipe.dragX}
-            onNext={canGoNext ? onNext : undefined}
-            onPrevious={canGoPrev ? onPrevious : undefined}
-          >
+          <Paper className={showingResults ? styles.resultCard : ''} dragX={swipe.dragX}>
             <QuizPaperBody
               target={letter}
               personId={answers[letter.id]}
@@ -770,11 +730,7 @@ export function QuizPage() {
           swipe={swipe}
           dragOver={Boolean(drag?.over)}
           slotRef={slotRef}
-          canGoNext={quiz.canGoNext}
-          canGoPrev={quiz.canGoPrev}
           bodyOf={bodyOf}
-          onNext={() => quiz.go(1)}
-          onPrevious={() => quiz.go(-1)}
           onTurnFinish={quiz.finishTurn}
           onPull={quiz.pull}
         />
