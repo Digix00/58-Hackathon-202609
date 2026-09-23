@@ -31,7 +31,7 @@ Issue #29「データベース設計」の設計書。
 
 ### 2.2 非同期処理はジョブ単位で管理する
 
-翻訳、ひらがな変換、クラスタリング、モデレーションを一つの状態値だけで管理すると、処理が並列に走ったときに状態を正しく表現できない。そのため、concerns.processing_status は API 向けの概要値とし、実際の処理状況は concern_processing_jobs で管理する。
+翻訳、ひらがな変換、クラスタリングを一つの状態値だけで管理すると、処理が並列に走ったときに状態を正しく表現できない。そのため、concerns.processing_status は API 向けの概要値とし、実際の処理状況は concern_processing_jobs で管理する。
 
 原文は先に保存し、各処理が失敗しても原文の投稿は閲覧可能にする。
 
@@ -267,10 +267,10 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
-| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に長さ・禁止語・個人情報を検査 |
+| concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, created_at, updated_at, published_at, deleted_at | 悩み本体。region_code は任意の都道府県コード。投稿は保存直後から published とし、visibility_status は published, hidden, deleted |
+| concern_clusters | id, label, summary, status, model_version, created_at, updated_at | AI が作った分類。画面表示前に形式と長さを検証 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
-| concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
+| concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
 | concern_views | concern_id, user_id, first_viewed_at, last_viewed_at, view_count | 既読判定と推薦用の集約行。concern_id と user_id の組を主キー |
 | learning_events | id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at | view, reaction, quiz_answer などの学習イベントを保存 |
@@ -283,7 +283,7 @@ concerns の processing_status は次の概要値とする。
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗。ただし原文は利用可能
 
-モデレーションの判定不能は、processing の失敗とは別に visibility_status を pending のまま保持する。これにより、AI 処理の失敗で原文を失わず、不適切な投稿だけは公開保留にできる。
+投稿内容の自動判定や人手確認は行わない。新規投稿の visibility_status は保存直後から published とし、マイグレーションでは既存の pending 行も published に変換する。翻訳やクラスタリングが失敗しても公開状態は変えず、原文を利用可能にする。
 
 ### 4.3 クイズ
 
@@ -360,7 +360,7 @@ API の camelCase と D1/SQLite の snake_case は次のように対応する。
 ### CHECK 制約
 
 - concern_reactions.reaction_type: empathy
-- concerns.visibility_status: pending, published, hidden, deleted
+- concerns.visibility_status: published, hidden, deleted
 - concern_processing_jobs.status: pending, running, succeeded, failed
 - concern_representations.locale: ja-Hira, en
 - quizzes.status: draft, published, closed, hidden
@@ -421,7 +421,7 @@ LIMIT ?
 
 1. LINE ログイン済み Cookie セッションを検証し、サーバー側で users.id を解決する。
 2. 本文・属性をサーバー側で検証する。
-3. concerns を保存する。
+3. concerns を visibility_status=published で保存する。
 4. concern_processing_jobs に必要なジョブを登録する。
 5. API は AI 処理を待たずに投稿 ID と保存状態を返す。
 6. 原文は visibility_status に応じて表示し、翻訳・クラスタリングは完了後に追加表示する。

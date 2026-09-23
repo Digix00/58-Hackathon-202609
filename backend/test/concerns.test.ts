@@ -176,6 +176,21 @@ async function seedConcern(input: {
 }
 
 describe("POST /api/v1/concerns", () => {
+  it("rejects the removed pending visibility status in D1", async () => {
+    const concernId = await seedConcern({
+      body: "公開状態の制約を確認する投稿です",
+      createdAt: "2026-09-23T00:00:00.000Z",
+    });
+
+    await expect(
+      env.DB.prepare(
+        "UPDATE concerns SET visibility_status = 'pending' WHERE id = ?",
+      )
+        .bind(concernId)
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("rejects requests without a session", async () => {
     const app = anonymousTestApp();
 
