@@ -1,0 +1,36 @@
+.page {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  width: 100%;
+  max-width: 640px;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.heading {
+  position: relative;
+  padding: 0 0 24px;
+}
+
+.heading::after {
+  position: absolute;
+  inset: auto 0 0;
+  border-top: 2.5px solid #a9a093;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.7;
+  pointer-events: none;
+  content: '';
+}
+
+.heading h1 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: calc(22px * var(--font-scale));
+  font-weight: 600;
+  transform: rotate(-0.25deg);
+}

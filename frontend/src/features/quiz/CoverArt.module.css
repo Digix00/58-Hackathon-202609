@@ -1,0 +1,136 @@
+/*
+ * クイズの表紙の絵の置きかた。
+ *
+ * フィードの表紙と同じく、絵は題字と一言を囲むように、紙の上（空）と
+ * 下（机の上）に分けて置く。文字の後ろへ回すと、絵が透けた紙に書いた字になって
+ * 読みにくい。どれも装飾なので指も読み上げも通さない。
+ */
+.plane,
+.desk {
+  position: absolute;
+  pointer-events: none;
+}
+
+/*
+ * クレヨンの目。ふち・付箋と同じ砂目を絵にもかける。
+ * 目の大きさは紙のふち（160px）より細かくする。紙飛行機の折り線のような
+ * 短く細い線は、粗い目にかけると線が点線に割れて、かすれではなく欠けに見える。
+ */
+.plane,
+.envelope {
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 110px 110px;
+  mask-size: 110px 110px;
+  overflow: visible;
+}
+
+/* 紙飛行機は右上。題字より先に目に入らないよう、紙の角に寄せる。 */
+.plane {
+  top: 1.1em;
+  right: 0.9em;
+  width: clamp(7em, 21vw, 9em);
+  height: auto;
+  transform: rotate(-4deg);
+}
+
+/* 通り道。飛んできた跡なので、線は切って引く。 */
+.trail {
+  fill: none;
+  stroke: #a9c0d2;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1 7;
+}
+
+.planeFill {
+  fill: #f4ecdd;
+  opacity: 0.95;
+}
+
+.planeLine {
+  fill: none;
+  stroke: #b3a184;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 机の上。紙の下辺を机に見立てて、封筒をそこに並べる。
+ * 左はとじリングの領分なので、本文と同じとじ代の内側から並べはじめる。
+ */
+.desk {
+  right: var(--cover-gutter);
+  bottom: 0;
+  left: calc(var(--cover-gutter) + var(--cover-binding));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/*
+ * 置かれた高さは並びの高さから引く。1通ずつ違う置き方にして、列に見せない。
+ * 封筒は横に長いので、背丈は花壇のチューリップより低く取る。
+ * 高くすると3通が机の幅に収まらず、紙の外へはみ出す。
+ */
+.envelope {
+  width: auto;
+  height: calc(var(--desk-height) * var(--grown, 1));
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: bottom center;
+}
+
+.paperFill {
+  fill: #f7e9cd;
+  opacity: 0.94;
+}
+
+.paperLine {
+  fill: none;
+  stroke: #c19f63;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sealFill {
+  fill: #eda5b0;
+  opacity: 0.92;
+}
+
+.sealLine {
+  fill: none;
+  stroke: #cd7686;
+  /* 封の蝋は小さく縮めて描くので、線の太さもそのぶん厚く取る。 */
+  stroke-width: 4.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 背の低い端末では、絵より題字と操作を先に収める。 */
+@media (max-height: 700px) {
+  .plane {
+    top: 0.6em;
+    width: clamp(5em, 15vw, 6.2em);
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .plane,
+  .envelope {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .plane g,
+  .envelope g {
+    filter: none;
+  }
+
+  .trail {
+    stroke: var(--color-outline);
+  }
+}

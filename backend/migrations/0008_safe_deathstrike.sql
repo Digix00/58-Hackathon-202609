@@ -31,6 +31,7 @@ CREATE TABLE `quiz_options` (
 	PRIMARY KEY(`quiz_id`, `concern_id`),
 	FOREIGN KEY (`quiz_id`) REFERENCES `quizzes`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`concern_id`) REFERENCES `concerns`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`quiz_id`,`concern_id`) REFERENCES `quiz_participants`(`quiz_id`,`concern_id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "quiz_options_display_order_check" CHECK("quiz_options"."display_order" between 1 and 3)
 );
 --> statement-breakpoint

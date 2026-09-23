@@ -1,0 +1,867 @@
+.page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /*
+   * 行の間は空けず、上下の間合いは舞台の余白（.stage の padding-block）に持たせる。
+   * 結果ではしおり置き場の行が空になるので、行の間で空けると、
+   * 誰もいない行のぶんの隙間だけが紙の上に残ってしまう。
+   */
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+/*
+ * 一通の手紙だけを置く舞台。
+ * 横のスワイプだけを受け取り、縦スクロールは端末にまかせる。
+ */
+.stage {
+  /*
+   * 行は中身の有無に関わらず固定する。しおり置き場は回答中にしか出ないので、
+   * 暗黙の割り当てにまかせると、結果では舞台と操作が1行ずつ繰り上がり、
+   * 送りボタンが余った高さいっぱいまで伸びてしまう。
+   */
+  grid-row: 2;
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  /* 紙束の上下の間合い。しおり置き場とも送りボタンとも、ここで距離を取る。 */
+  padding-block: clamp(1.2em, 3.4vh, 1.9em);
+  touch-action: pan-y;
+}
+
+/*
+ * 紙束。残りが何通あるかは、数字ではなく下に控えた紙のふちで伝える。
+ */
+.stack {
+  /*
+   * 紙の余白ととじ代。紙の中に挟んだ付箋も、閉じた表紙の上に出る付箋も、
+   * 同じ持ち場・同じ高さに置きたいので、寸法は紙束に一度だけ持たせる。
+   */
+  --card-gutter: clamp(1.2em, 5vw, 1.6em);
+  --card-binding: 15px;
+  --card-pad-top: clamp(1.4em, 5vw, 1.8em);
+  --card-pad-bottom: clamp(1.2em, 4vw, 1.5em);
+  /* 付箋が紙へ差し込まれて隠れる深さ。残りは紙の上端から外へ出る。 */
+  --tab-inset: 1em;
+
+  position: relative;
+  display: grid;
+  min-width: 0;
+  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
+  /*
+   * 表紙が開いたときの押し上げ。--lift は useStackLift が一度だけ入れる。
+   * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
+   */
+  transform: translateY(var(--lift, 0px)) scale(1);
+  transform-origin: center;
+  transition: transform var(--lift-duration, 560ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 表紙を開く前は、本全体を少し小さく見せる。表紙だけを縮めないので二重に見えない。 */
+.stackCover {
+  transform: translateY(var(--lift, 0px)) scale(0.88);
+}
+
+.stackCover.stackOpening {
+  transform: translateY(var(--lift, 0px)) scale(1);
+}
+
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  content: '';
+}
+
+/* 遠い方の紙。先に描かれるので束の一番下になる。 */
+.sheetFar {
+  background: #fdf5e4;
+  box-shadow: 6px 7px 0 var(--color-paper-shadow);
+  transform: rotate(2.4deg) translate(8px, 10px);
+}
+
+.sheetNear {
+  background: #fffaef;
+  transform: rotate(1.3deg) translate(4px, 5px);
+}
+
+.enter {
+  /* 紙束の上に重ねる。下に控えた紙より手前で読ませる。 */
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  /* 上部のしおり、本文、結果表示を収める。 */
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(0.65em, 1.8vh, 1em);
+  /* どの手紙でも紙の大きさは変えない。縦に余白を取り、めくる手応えを保つ。 */
+  height: clamp(22em, 56vh, 32em);
+  /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
+  padding: var(--card-pad-top) var(--card-gutter) var(--card-pad-bottom)
+    calc(var(--card-gutter) + var(--card-binding));
+  /* 紙束では最背面の .sheetFar だけに影を置く。 */
+  box-shadow: none;
+}
+
+/*
+ * 表紙。手紙の紙と同じ大きさ・同じとじ代にする。
+ * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
+ */
+.cover {
+  /*
+   * 机の高さ。CoverArt がこの値から封筒の大きさを引く。
+   * 空（紙飛行機）は紙の余白に収まるが、封筒は下辺に並ぶので、
+   * そのぶん下の余白を足して題字と一言を上へ寄せる。詰めると封筒に文字が乗る。
+   */
+  --desk-height: clamp(2.5em, 7vh, 3.2em);
+  /* 絵のぶん、題字と一言も机から少し離して上へ置く。 */
+  --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
+  /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
+  --cover-gutter: var(--card-gutter);
+  --cover-binding: var(--card-binding);
+
+  /*
+   * 題字と一言は、二つで一つの塊として紙の中央へ置く。
+   * 行を伸ばして下端に寄せると、机の封筒を低くしたぶんだけ文字も下がり、
+   * 紙の上半分がまるごと空いてしまう。
+   */
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-items: center;
+  gap: 0.9em;
+  padding-bottom: calc(var(--card-pad-bottom) + var(--desk-height) + var(--cover-content-lift));
+  text-align: center;
+}
+
+/*
+ * 題字。ほかの画面の見出し（Screen.module.css の .heading h1）と同じ手で書く。
+ * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ */
+.coverTitle {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: calc(27px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: rotate(-1.4deg);
+}
+
+.coverLead {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(16px * var(--font-scale));
+  line-height: 1.9;
+}
+
+/*
+ * 表紙は束の一番上。下に控えた手紙より手前へ置く。
+ * フィードの表紙と同じく、閉じているあいだは束の中央へ小さく置き、
+ * 開くときに束いっぱいの大きさへ広がる。
+ */
+.coverLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+}
+
+/* 表紙が小さいあいだ、下に控えた1通目が端から見えないようにする。 */
+.coverUnderlay {
+  visibility: hidden;
+}
+
+/*
+ * 結果の紙。しおり・本文・判定のメモの三段になるぶん、行送りを広く取り直す。
+ * 詰めると、採点表のように見えてしまう。
+ */
+.resultCard {
+  gap: clamp(0.9em, 2.6vh, 1.4em);
+}
+
+/*
+ * 本文を載せる面。
+ * フィードの声と同じく、ノートへクレヨンで引いたような薄い罫線を下に敷く。
+ * 線は文字とは別の層に置き、揺らぎが本文の輪郭を汚さないようにする。
+ */
+.letterSheet {
+  position: relative;
+  align-self: center;
+  isolation: isolate;
+  font-size: calc(18px * var(--font-scale));
+  --letter-line-height: 1.95em;
+  --letter-rule-color: rgba(138, 132, 122, 0.18);
+}
+
+.letterSheet::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--letter-line-height) - 1.5px),
+    var(--letter-rule-color) calc(var(--letter-line-height) - 1.5px),
+    var(--letter-rule-color) var(--letter-line-height)
+  );
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+/* 繰り返しの端にかかって消えないよう、最後の行の罫線を別に描く。 */
+.letterSheet::after {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.5px;
+  background: var(--letter-rule-color);
+  filter: url(#crayon-edge);
+  pointer-events: none;
+  content: '';
+}
+
+/* この画面の主役。ほかのどの文字よりも大きく、行間を広く取る。 */
+.letter {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  /* 紙に収まらない手紙はここで切る。紙の大きさを変えないため。 */
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  font-size: inherit;
+  line-height: var(--letter-line-height);
+  letter-spacing: 0.02em;
+}
+
+/* 結果では判定のメモが下に入る。本文を1行分ゆずり、余白を守る。 */
+.resultCard .letter {
+  -webkit-line-clamp: 5;
+}
+
+/*
+ * 付箋の持ち場。
+ *
+ * 紙の幅を通の数で割り、手紙ごとに違う持ち場へ置く。どの紙でも同じ位置に挟むと、
+ * 閉じたノートでは3枚が1枚に重なり、どれがどの手紙の付箋か分からない。
+ * 何通目かがそのまま横の位置になるので、閉じたあとの並びが目次になる。
+ */
+.tabRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count, 1), minmax(0, 1fr));
+  justify-items: center;
+  width: 100%;
+}
+
+.tabRow > * {
+  grid-column: var(--tab-slot, 1);
+  min-width: 0;
+}
+
+/* 狭い画面では持ち場のぶんだけ細くする。隣とぶつかると、どの紙の付箋か読めない。 */
+.tabRow .tag {
+  width: min(100%, 100px);
+}
+
+/*
+ * 差し込んで隠れる下端には、字を置かない。
+ * 付箋の中の条件は、紙の外に出ている側だけで読めるようにする。
+ */
+.tabRow .tagLabel {
+  padding-bottom: 1.6em;
+}
+
+/*
+ * 付箋の段の置き方。紙に挟んだ1枚（.paperTab）も、閉じた本から出ている3枚
+ * （.tabs）も、この同じ式で置く。基準は紙の上端で、--tab-inset のぶんだけが
+ * 紙に差し込まれて隠れ、残りは上へ出る。紙を閉じても付箋は動かない。
+ *
+ * 幅は left と right から決める。.tabRow の width: 100% を残すと、紙の余白の
+ * ぶんだけ段が広がり、持ち場が右へずれていく（3枚目は紙からはみ出す）。
+ */
+.paperTab,
+.tabs {
+  position: absolute;
+  right: var(--card-gutter);
+  bottom: 100%;
+  left: calc(var(--card-gutter) + var(--card-binding));
+  width: auto;
+  margin-bottom: calc(-1 * var(--tab-inset));
+}
+
+/* 紙に挟んだ1枚。紙の本文より手前に置く。 */
+.paperTab {
+  z-index: 2;
+}
+
+/*
+ * 挟み終えた付箋の段。いま開いている紙より下にある付箋が、ここに並ぶ。
+ *
+ * 紙より奥（.enter の z-index: 1 より下）に置くので、差し込んだ下端は紙や表紙に
+ * 隠れ、残りだけが上端から出る。紙をめくっても、本を閉じても付箋は動かない。
+ */
+.tabs {
+  z-index: 0;
+}
+
+/* 押せる付箋。つまんで運ぶしおりとは違い、ここは押して開くだけ。 */
+.tab {
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.tab:hover,
+.tab:focus-visible {
+  transform: translateY(-5px) rotate(-1.5deg);
+}
+
+/* 付箋に添える問いかけ。付箋は紙の外に出るので、この行が紙の先頭になる。 */
+.ask {
+  color: var(--color-muted);
+  font-size: calc(14px * var(--font-scale));
+  text-align: center;
+}
+
+/*
+ * しおりと、その切り欠き。
+ * どちらも同じ型紙（TAG_PATH）で描き、片方がもう片方に収まることを形で示す。
+ */
+.tag {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  min-height: 76px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+
+/* 付箋の中に条件を収め、回答なしの項目を含まない短い表示を読みやすくする。 */
+.choice {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(100%, 180px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tagShadow {
+  fill: #b0a894;
+  filter: url(#crayon-edge);
+}
+
+.tagFace {
+  fill: var(--piece, #f3e8b7);
+  stroke: var(--color-outline);
+  stroke-width: 2.5;
+  filter: url(#crayon-edge);
+}
+
+/* 空の切り欠き。紙に開いた口なので、面は塗らず線だけで示す。 */
+.tagHollow {
+  fill: #7e75b510;
+  stroke: var(--color-field-outline);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+
+.tagLabel {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  /* 上辺の切り欠きに文字が掛からないよう逃がす。 */
+  max-width: 100%;
+  padding: 1em 0.45em 0.2em;
+  color: var(--color-purple-ink);
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+/* いま開いている口。ここへ置くのだと分かるよう、ゆっくり息をする。 */
+.slot .tagHollow {
+  stroke: var(--color-purple);
+  stroke-width: 2.5;
+  fill: #7e75b518;
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+.slot .tagLabel {
+  color: var(--color-purple-ink);
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* しおりが口の上に来ているあいだ。 */
+.over .tagHollow {
+  stroke: var(--color-purple-dark);
+  stroke-width: 3;
+  fill: #7e75b52e;
+  animation: none;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* つまめるしおり。 */
+.piece {
+  cursor: grab;
+  /* 縦スクロールに取られず、そのまま運べるようにする。 */
+  touch-action: none;
+  transition: transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.piece:hover,
+.piece:focus-visible {
+  transform: translateY(-5px) rotate(-1.5deg);
+}
+
+.piece:active {
+  cursor: grabbing;
+}
+
+/* 運ばれている間、手元のしおりは影だけを残す。 */
+.held {
+  opacity: 0.26;
+}
+
+/* 指についてくる1枚。 */
+.ghost {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transform: rotate(-3deg);
+}
+
+/* 紙に差し込まれたしおり。押すと手元へ戻る。 */
+.fitted {
+  animation: drop 340ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes drop {
+  0% {
+    opacity: 0.6;
+    transform: translateY(-14px) scale(1.12) rotate(-4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * 判定のメモ。
+ *
+ * 手紙の紙へじかに書くと、書いた人の言葉と、あとから付けた判定が地続きになる。
+ * 読み終えてから貼った小さな紙片として、テープで留めて置く。
+ * 正誤で紙の色は変えない。色で「よい・わるい」を作らず、言葉とまるで伝える。
+ */
+.verdict {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.55em;
+  /* 左右は詰める。解説の一文が1行に収まるかどうかは、ここの幅で決まる。 */
+  padding: 0.95em 0.8em 1em;
+  border-radius: 13px 10px 14px 11px / 11px 14px 10px 13px;
+  background: var(--color-paper-strip);
+  box-shadow: 2px 3px 0 #ded0ad;
+  text-align: center;
+  transform: rotate(-0.9deg);
+}
+
+/* ふちはクレヨン。紙・しおり・付箋と同じ引き方にそろえる。 */
+.verdict::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+/* 留めたテープ。あとから貼った紙であることは、ふちではなくここで伝える。 */
+.verdict::after {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 56px;
+  height: 15px;
+  background: #b9ded2cc;
+  clip-path: polygon(0 7%, 100% 0, 97% 94%, 4% 100%);
+  transform: translateX(-50%) rotate(-3.5deg);
+  pointer-events: none;
+  content: '';
+}
+
+/* この紙でいちばん先に目へ入る一言。短いので手書きの字で置く。 */
+.judge {
+  position: relative;
+  padding: 0.22em 0.95em 0.3em;
+  color: var(--color-purple-ink);
+  font-size: calc(18px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+/*
+ * 合っていたときだけ引くまる。文字の幅に合わせて横へ伸びるので、
+ * 線の太さだけは伸縮させない（path の vectorEffect）。
+ */
+.ring {
+  position: absolute;
+  /* 字の外を回す。文字に線が掛かると、囲んだのではなく消したように見える。 */
+  inset: -0.34em -0.3em -0.26em;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  fill: none;
+  stroke: #cf6d54;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  /* 大きな手描きの線として揺らし、紙の粒子でところどころをかすれさせる。 */
+  filter: url(#crayon-edge-art);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+}
+
+.note {
+  color: var(--color-muted);
+  font-size: calc(14px * var(--font-scale));
+  line-height: 1.75;
+  /* 行の長さを揃える。最後の1文字だけが次の行へ落ちると、メモが破れて見える。 */
+  text-wrap: balance;
+}
+
+/*
+ * 手元のしおり置き場。
+ * 使ったぶんだけ減っていくので、残りは中央へ寄せて「あと何枚か」を形で見せる。
+ * 空になっても棚の高さは保つ。ここが畳まると紙束が跳ね上がり、
+ * いま差したばかりの手紙から目が外れる。
+ */
+.tray {
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5em;
+  width: 100%;
+  min-height: 5.6em;
+  padding-bottom: 0.7em;
+  border-bottom: 2.5px dashed #ddd2b8;
+}
+
+/*
+ * しおりを使いきったあとの置き場。高さは残したまま、棚のふちだけを消す。
+ * このとき「これで出す」が出るぶん紙束が上がり、本から出た付箋が棚のふちと
+ * 同じ高さに来る。線を引いたままだと、付箋を横切って見える。
+ */
+.trayEmpty {
+  border-bottom-color: transparent;
+}
+
+.tray .tag {
+  width: 100px;
+}
+
+.tray .choice {
+  flex: 0 1 106px;
+}
+
+.actions {
+  grid-row: 3;
+  display: grid;
+  justify-items: center;
+  gap: 0.9em;
+  width: 100%;
+}
+
+.nextButton {
+  gap: 0.8em;
+  width: min(100%, 20em);
+  min-height: 56px;
+  font-size: calc(17px * var(--font-scale));
+}
+
+/* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
+.nextButton span {
+  font-size: calc(18px * var(--font-scale));
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
+/*
+ * 読み終わりの一言。
+ * 数だけを大きく並べると点数表になるので、言葉の中へ数を沈めて紙片に載せる。
+ */
+.score {
+  position: relative;
+  max-width: 20em;
+  padding: 0.7em 1.2em 0.75em;
+  border-radius: 14px 11px 15px 12px / 12px 15px 11px 14px;
+  color: var(--color-purple-ink);
+  background: var(--color-paper-strip);
+  box-shadow: 2px 3px 0 var(--color-paper-shadow);
+  font-weight: 700;
+  line-height: 1.75;
+  text-align: center;
+  transform: rotate(-0.8deg);
+}
+
+.score::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+/* 手書きにするのは数だけ。読み終えた手応えをここへ集める。 */
+.score strong {
+  padding-inline: 0.1em;
+  font-size: calc(22px * var(--font-scale));
+  font-family: var(--font-hand);
+  /* 行そのものは太らせない。数だけが紙から少し浮き上がって見えればよい。 */
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 背の低い端末では、1画面に収まることを本文の大きさより優先する。 */
+@media (max-height: 700px) {
+  .stack {
+    --card-pad-top: 1.1em;
+    --card-pad-bottom: 1.1em;
+    --tab-inset: 0.9em;
+  }
+
+  .card {
+    gap: 0.6em;
+    height: clamp(20em, 54vh, 24em);
+    min-height: 0;
+  }
+
+  /* 紙が低くなるぶん机も低くし、下の余白は机のぶんだけ取り直す。 */
+  .cover {
+    --desk-height: clamp(2.1em, 5.5vh, 2.6em);
+    --cover-content-lift: 0.35em;
+    --cover-binding: 10px;
+  }
+
+  /*
+   * 結果の紙は、しおり・本文・判定のメモの三段になる。
+   * 背の低い端末で回答中と同じ高さのままだと、三段が紙に入りきらず、
+   * 本文がメモへ乗り上げてテープが最終行に掛かる。その一段ぶん紙を高くする。
+   */
+  .resultCard {
+    gap: 0.9em;
+    height: clamp(21em, 58vh, 26em);
+  }
+
+  .letterSheet {
+    font-size: calc(17px * var(--font-scale));
+    --letter-line-height: 1.75em;
+  }
+
+  .letter {
+    -webkit-line-clamp: 4;
+  }
+
+  .resultCard .letter {
+    -webkit-line-clamp: 3;
+  }
+
+  .verdict {
+    gap: 0.4em;
+    padding: 0.8em 1em 0.85em;
+  }
+
+  .judge {
+    font-size: calc(17px * var(--font-scale));
+  }
+
+  .score {
+    padding: 0.55em 1em 0.6em;
+    line-height: 1.65;
+  }
+
+  .score strong {
+    font-size: calc(21px * var(--font-scale));
+  }
+
+  .tag {
+    min-height: 66px;
+  }
+}
+
+@media (max-width: 359px) {
+  .tagLabel {
+    padding-top: 0.9em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、かすれを外して紙としおりのふちを確実に示す。 */
+  .sheet::before,
+  .verdict::before,
+  .score::before,
+  .ring {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .letterSheet {
+    --letter-rule-color: rgba(93, 88, 80, 0.45);
+  }
+
+  .letterSheet::before,
+  .letterSheet::after {
+    opacity: 0.8;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .tagFace,
+  .tagShadow {
+    filter: none;
+  }
+
+  .tagHollow {
+    stroke: var(--color-outline);
+    stroke-width: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitted,
+  .nextButton span {
+    animation: none;
+  }
+
+  .tab {
+    transition: none;
+  }
+
+  .slot .tagHollow {
+    animation: none;
+  }
+
+  .card,
+  .piece,
+  .cover,
+  .stack {
+    transition: none;
+  }
+}

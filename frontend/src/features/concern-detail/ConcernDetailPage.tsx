@@ -45,7 +45,6 @@ export function ConcernDetailPage() {
             ref={articleRef}
             className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}
           >
-            <span className={screen.bookmark}>{concern.theme}</span>
             <p className={screen.meta}>
               {[concern.ageGroup, concern.region, concern.createdLabel].filter(Boolean).join(' · ')}
             </p>

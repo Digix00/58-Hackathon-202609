@@ -8,7 +8,7 @@
 
 .label {
   display: block;
-  font-size: 0.85em;
+  font-size: calc(14px * var(--font-scale));
 }
 
 .numberInput {
@@ -108,10 +108,43 @@
   border-radius: 12px 10px 0 0;
 }
 
+.select[data-placement='up'][open] .selectTrigger {
+  border-radius: 0 0 12px 10px;
+}
+
 .chevron {
+  position: relative;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 12px;
   color: var(--color-focus);
-  font-size: 1.2em;
-  line-height: 1;
+}
+
+/* 文字グリフではなく、中央で交わる2本の線として描く。 */
+.chevron::before,
+.chevron::after {
+  position: absolute;
+  top: 3px;
+  width: 9px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: currentColor;
+  filter: url(#crayon-edge-fine);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  content: '';
+}
+
+.chevron::before {
+  left: 0;
+  transform: rotate(30deg);
+  transform-origin: right center;
+}
+
+.chevron::after {
+  right: 0;
+  transform: rotate(-30deg);
+  transform-origin: left center;
 }
 
 .menu {
@@ -120,11 +153,20 @@
   top: calc(100% - 2px);
   right: 0;
   left: 0;
-  height: 220px;
+  display: flex;
+  flex-direction: column;
+  /* 選択肢が少ないときは短く、多いときだけ中を送る。 */
+  max-height: 220px;
   padding: 6px;
   border-radius: 0 0 12px 10px;
   background: var(--color-surface);
   overflow: visible;
+}
+
+.select[data-placement='up'] .menu {
+  top: auto;
+  bottom: calc(100% - 2px);
+  border-radius: 12px 10px 0 0;
 }
 
 .menu::before {
@@ -141,13 +183,18 @@
   content: '';
 }
 
+.select[data-placement='up'] .menu::before {
+  border-top: 2.5px solid var(--color-field-outline);
+  border-bottom: 0;
+}
+
 .options {
   position: relative;
   z-index: 1;
   display: grid;
   align-content: start;
   gap: 4px;
-  height: 100%;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -169,4 +216,13 @@
 .menu button.selected {
   color: var(--color-paper);
   background: var(--color-purple);
+}
+
+@media (prefers-contrast: more) {
+  .chevron::before,
+  .chevron::after {
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }

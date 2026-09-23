@@ -2,10 +2,13 @@ import { createApp } from "../app/create-app";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
+import { ConcernProcessingUseCase } from "../application/usecase/concern-processing.usecase";
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
+import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
+import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
   D1SessionRepository,
   D1UserRepository,
@@ -16,6 +19,8 @@ import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-v
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
+import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
+import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
@@ -45,7 +50,22 @@ export function createApplication(bindings: Bindings) {
   const healthHandler = new HealthHandler(checkHealth);
 
   const concernRepository = new D1ConcernRepository(bindings.DB);
-  const concernUseCase = new ConcernUseCase(concernRepository);
+  const concernProcessingUseCase = new ConcernProcessingUseCase(
+    new WorkersAiTextTranslator(bindings.AI),
+    new WorkersAiTextEmbeddingGenerator(bindings.AI),
+  );
+  const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
+    concernProcessingUseCase,
+  );
+  const concernProcessingQueue = bindings.CONCERN_PROCESSING_QUEUE
+    ? new CloudflareConcernProcessingQueue(bindings.CONCERN_PROCESSING_QUEUE)
+    : undefined;
+  const concernUseCase = new ConcernUseCase(
+    concernRepository,
+    undefined,
+    undefined,
+    concernProcessingQueue,
+  );
   const concernHandler = new ConcernHandler(concernUseCase);
   const concernReactionRepository = new D1ConcernReactionRepository(
     bindings.DB,
@@ -66,16 +86,19 @@ export function createApplication(bindings: Bindings) {
   const quizUseCase = new QuizUseCase(quizRepository);
   const quizHandler = new QuizHandler(quizUseCase);
 
-  return createApp({
-    authHandler,
-    authUseCase,
-    concernHandler,
-    concernReactionHandler,
-    concernViewHandler,
-    healthHandler,
-    quizHandler,
-    userHandler,
-  });
+  return {
+    app: createApp({
+      authHandler,
+      authUseCase,
+      concernHandler,
+      concernReactionHandler,
+      concernViewHandler,
+      healthHandler,
+      quizHandler,
+      userHandler,
+    }),
+    queue: concernProcessingConsumer.handle,
+  };
 }
 
 function parseSessionTtl(value: string | undefined): number | undefined {

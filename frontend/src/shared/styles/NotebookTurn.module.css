@@ -1,0 +1,211 @@
+/*
+ * リングノートの1枚を、金具を軸にめくる。
+ *
+ * 紙は綴じられているので、束から離れて飛んでいかない。動かすのは角度だけで、
+ * 位置はずらさない。回転軸 --turn-axis はリングの中心（紙の左端より外）にあり、
+ * とじ穴はそこから RING_RADIUS_X だけ右にある。だから軸のまわりに回すだけで、
+ * 穴はリングの上をなぞって反対側へ渡る。
+ *
+ * 奥行きは束（.stack）側の perspective が作る。ここで perspective() を変形に
+ * 混ぜると、消失点が回転軸の上に乗り、めくりではなく飛んでいく動きになる。
+ */
+.turning {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnOut 640ms both;
+}
+
+/* 表紙から本文へ入るときは、ノートを開く合図として少し大きく動かす。 */
+.coverTurning {
+  animation-name: coverTurnOut;
+  animation-duration: 1040ms;
+}
+
+/*
+ * 紙は180度で伏せきる。めくった紙が左ページに重なる、という紙の挙動どおり。
+ *
+ * 目に見えるのは 0〜90度だけ。90度で見た目の幅がゼロになり、そこから先は
+ * 束の左に残る十数pxと2枚目の裏へ入るので、ほとんど映らない。
+ * だから時間の配分も 0〜90度へ寄せ、伏せきるまではひと息に落とす。
+ */
+@keyframes turnOut {
+  0% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg));
+    animation-timing-function: cubic-bezier(0.42, 0, 0.72, 0.62);
+  }
+  32% {
+    /* リングの太さを越えるぶん、紙がいちど持ち上がる。 */
+    transform: translateZ(18px) rotateY(-46deg);
+    animation-timing-function: linear;
+  }
+  64% {
+    /*
+     * 真横。紙の見た目の幅がここでゼロになる。
+     * 上下の入れ替えはこの一瞬でしか行えない。幅を持ったまま入れ替えると、
+     * 紙が2枚目の裏へ飛んだように見える。
+     */
+    z-index: 3;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: cubic-bezier(0.33, 0.06, 0.4, 1);
+  }
+  64.01% {
+    z-index: 0;
+  }
+  100% {
+    /* 2枚目の裏へ入りながら、左へ伏せきる。 */
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg);
+  }
+}
+
+@keyframes coverTurnOut {
+  0% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg)) scale(1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.66, 0.34);
+  }
+  24% {
+    /* 表紙をいったん持ち上げ、本文の存在を予告する。 */
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.24, 0.08, 0.48, 1);
+  }
+  56% {
+    /* 真横へ入る前に、通常のページめくりより大きく手前へ出す。 */
+    z-index: 3;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: cubic-bezier(0.3, 0.04, 0.38, 1);
+  }
+  56.01% {
+    z-index: 0;
+  }
+  100% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
+  }
+}
+
+/*
+ * 戻り。伏せてあった紙を拾い上げ、いま読んでいる紙の上へ降ろす。
+ * turnOut をそのまま逆に辿る。目に見えるのは -90 度から先なので、
+ * 時間の配分もそちらへ寄せる。
+ */
+.turningBack {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnIn 640ms both;
+}
+
+/* 閉じるとき。開く動き（coverTurnOut）をそのまま逆に辿る。 */
+.coverTurningBack {
+  animation-name: coverTurnIn;
+  animation-duration: 900ms;
+}
+
+@keyframes coverTurnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
+    animation-timing-function: cubic-bezier(0.62, 0, 0.7, 0.96);
+  }
+  44% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: linear;
+  }
+  44.01% {
+    z-index: 3;
+  }
+  76% {
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.34, 0.1, 0.36, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes turnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.67, 0.94);
+  }
+  36% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: linear;
+  }
+  36.01% {
+    z-index: 3;
+  }
+  68% {
+    transform: translateZ(18px) rotateY(-46deg);
+    animation-timing-function: cubic-bezier(0.28, 0.4, 0.35, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg);
+  }
+}
+
+/*
+ * めくり終えた紙を、めくりの最終フレームと同じ姿勢で左側に残す。
+ * 固定した紙をあとから別の角度へ置くと、アニメーション終了時に
+ * リング左側の紙がずれて見えるため、金具の軸と奥行きを共有する。
+ */
+.turned {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  transform: translateZ(4px) rotateY(-180deg);
+  pointer-events: none;
+}
+
+/* 紙を指で引いているあいだも、確定しためくりと同じ回転軸を使う。 */
+.page {
+  transform-origin: var(--turn-axis) center;
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 指に追従している間は、指を離したあとの戻りを遅らせない。 */
+.pageDragging {
+  transition: none;
+}
+
+.face,
+.back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.back {
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  /*
+   * 裏は一色で塗りつぶす。表よりひと段濃くして、めくった面だと分かるようにする。
+   * グラデーションにすると、リングの左に覗く小口だけ色が変わって紙に見えない。
+   */
+  background: var(--turn-back-color, #e3d8c0);
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    transition: none;
+  }
+}

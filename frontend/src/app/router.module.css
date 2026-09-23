@@ -6,7 +6,7 @@
   margin: 0 auto;
   place-items: center;
   align-content: center;
-  background: var(--color-paper);
+  background-color: var(--color-paper);
 }
 
 .placeholderPage {
@@ -27,15 +27,23 @@
 .eyebrow {
   margin: 0;
   color: var(--color-purple-ink);
-  font-size: 0.82em;
+  font-size: calc(13px * var(--font-scale));
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 .guideCard h1 {
   margin: 0;
-  font-size: 1.35em;
-  line-height: 1.5;
+  padding-block: 0.08em 0.16em;
+  font-size: calc(22px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1.58;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.18em;
+  transform: rotate(-0.55deg);
 }
 
 .guideCard p {
@@ -48,7 +56,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   background: #f5f0e6;
-  font-size: 0.9em;
+  font-size: calc(14px * var(--font-scale));
 }
 
 @media (max-width: 359px) {

@@ -2,6 +2,8 @@ import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { PostPage } from '../features/post/PostPage'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
+import { ComingSoonLabel } from '../shared/components/ComingSoonLabel'
+import { SettingsRoute } from './SettingsRoute'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
 
 // TODO: 閲覧・クイズ・履歴の API が揃ったら、開発用モックルートを実データの画面に置き換える。
@@ -24,7 +26,7 @@ function demoPage(Page: ComponentType | null) {
   if (!Page) {
     return (
       <ErrorState
-        title="この画面は準備中です"
+        title={<ComingSoonLabel ariaLabel="この画面は準備中です" />}
         description="データの接続が完了していません。しばらくお待ちください。"
       />
     )
@@ -60,6 +62,7 @@ export const router = createBrowserRouter([
         path: 'history',
         element: <ProtectedRoute>{demoPage(DevHistoryPage)}</ProtectedRoute>,
       },
+      { path: 'settings', element: <SettingsRoute /> },
       { path: '*', Component: NotFoundPage },
     ],
   },
