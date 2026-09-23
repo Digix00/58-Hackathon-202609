@@ -24,7 +24,6 @@ import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import { answerDemoQuiz, demoQuiz, useDemoState } from '../demo/demoStore'
 import styles from './QuizPage.module.css'
 
-type Person = (typeof demoQuiz.people)[number]
 type Letter = (typeof demoQuiz.letters)[number]
 type Answers = Record<string, string>
 
@@ -105,8 +104,31 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
   }
 }
 
+/**
+ * 合っていた手紙にだけ引く、まる。
+ * 記号の ○ を置くと、この画面の中でここだけ定規で引いた線に見えるので、
+ * フィードのハートと同じように、左右を揃えない一筆で描く。
+ * 横幅は判定の文字に合わせて伸びるため、線の太さだけは伸縮させない。
+ */
+function CorrectRing() {
+  return (
+    <svg
+      className={styles.ring}
+      viewBox="0 0 200 64"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M128 5.5C78 1.5 16 9 8 28c-6 16 36 30.5 92 31 58 .5 96-13 93-30C190 13 142 4.5 92 6c-16 .5-32 2.5-44 5.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
 /** しおりの面。切り欠きと同じ型紙で描き、落ち影を別の紙片として下に敷く。 */
-function TagFace({ person }: { person: Person }) {
+function TagFace() {
   return (
     <>
       <svg
@@ -118,8 +140,8 @@ function TagFace({ person }: { person: Person }) {
         <path className={styles.tagShadow} d={TAG_PATH} transform="translate(2.5 3)" />
         <path className={styles.tagFace} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
       </svg>
-      <span className={styles.tagLabel}>
-        <strong>{person.attributes}</strong>
+      <span className={styles.tagLabel} aria-hidden="true">
+        条件
       </span>
     </>
   )
@@ -137,16 +159,19 @@ function Paper({
   children,
   dragX = 0,
   onNext,
+  className = '',
 }: {
   children: ReactNode
   dragX?: number
   onNext?: () => void
+  /** 紙の中身に合わせた行送り。結果の紙だけ、判定のメモのぶん余白を取り直す。 */
+  className?: string
 }) {
   return (
     <article
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
-        dragX !== 0 ? turnStyles.pageDragging : ''
-      }`}
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${className} ${
+        turnStyles.page
+      } ${dragX !== 0 ? turnStyles.pageDragging : ''}`}
       style={{
         transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
       }}
@@ -195,15 +220,30 @@ function QuizPaperBody({
     return (
       <>
         <div className={styles.fit}>
-          {/* 結果でも、書いた人のしおりは手紙の上端に貼ったまま見せる。 */}
-          <span className={styles.tag} style={tagStyle(writer.id)}>
-            <TagFace person={writer} />
+          {/* 結果でも、書き手の条件を手紙の上端に残す。 */}
+          <span className={styles.choice}>
+            <span className={styles.tag} style={tagStyle(writer.id)}>
+              <TagFace />
+            </span>
+            <span className={styles.attributes}>{writer.attributes}</span>
           </span>
+          {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
+          <p className={styles.ask}>この声の条件</p>
         </div>
-        <p className={styles.letter}>{body}</p>
+        <div className={styles.letterSheet}>
+          <p className={styles.letter}>{body}</p>
+        </div>
         <div className={styles.verdict} role="status">
           <p className={styles.judge}>
-            {correct ? '合っていました' : `ちがいました。書いた条件は${writer.attributes}`}
+            {correct ? <CorrectRing /> : null}
+            {correct ? '合っていました' : 'ちがいました'}
+            {/*
+              書いた条件はすぐ上のしおりに出ているので、目では読み返せる。
+              読み上げでは紙の上端まで戻れないので、ここで言葉にして添える。
+            */}
+            {correct ? null : (
+              <span className={styles.srOnly}>。書いた条件は{writer.attributes}</span>
+            )}
           </p>
           <p className={styles.note}>{target.explanation}</p>
         </div>
@@ -217,12 +257,14 @@ function QuizPaperBody({
         {fitted ? (
           <button
             type="button"
-            className={`${styles.tag} ${styles.fitted}`}
-            style={tagStyle(fitted.id)}
+            className={`${styles.choice} ${styles.fitted}`}
             onClick={() => interactive && onPull(target.id)}
             aria-label={`条件は${fitted.attributes}。この声から外す`}
           >
-            <TagFace person={fitted} />
+            <span className={styles.tag} style={tagStyle(fitted.id)}>
+              <TagFace />
+            </span>
+            <span className={styles.attributes}>{fitted.attributes}</span>
           </button>
         ) : (
           <span
@@ -241,9 +283,11 @@ function QuizPaperBody({
             <span className={styles.tagLabel}>ここへ</span>
           </span>
         )}
-        <p className={styles.ask}>この声は、だれから？</p>
+        <p className={styles.ask}>この声は、どの条件？</p>
       </div>
-      <p className={styles.letter}>{body}</p>
+      <div className={styles.letterSheet}>
+        <p className={styles.letter}>{body}</p>
+      </div>
     </>
   )
 }
@@ -279,7 +323,11 @@ function QuizActions({
         ) : (
           <>
             {score !== undefined ? (
-              <p className={styles.score}>3つのうち{score}つ、言葉から見つけられました。</p>
+              <p className={styles.score}>
+                3つのうち<strong>{score}</strong>つ、
+                <br />
+                言葉から見つけられました。
+              </p>
             ) : null}
             <Link className={actionStyles.primary} to="/history">
               履歴を見る
@@ -398,7 +446,8 @@ export function QuizPage() {
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>, personId: string) {
     if (event.button !== 0) return
-    const rect = event.currentTarget.getBoundingClientRect()
+    const tag = event.currentTarget.querySelector<HTMLElement>(`.${styles.tag}`)
+    const rect = tag?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
     const offsetX = event.clientX - rect.left
     const offsetY = event.clientY - rect.top
     const from = { x: event.clientX, y: event.clientY }
@@ -452,10 +501,9 @@ export function QuizPage() {
               <button
                 key={person.id}
                 type="button"
-                className={`${styles.tag} ${styles.piece} ${
+                className={`${styles.choice} ${styles.piece} ${
                   drag?.personId === person.id ? styles.held : ''
                 }`}
-                style={tagStyle(person.id)}
                 onPointerDown={(event) => startDrag(event, person.id)}
                 // キーボードから押されたときだけ、ここで差し込む。
                 // 指やマウスは pointerup で扱い、二重に置かないようにする。
@@ -464,7 +512,10 @@ export function QuizPage() {
                 }}
                 aria-label={`条件は${person.attributes}。この声のしおりにする`}
               >
-                <TagFace person={person} />
+                <span className={styles.tag} style={tagStyle(person.id)}>
+                  <TagFace />
+                </span>
+                <span className={styles.attributes}>{person.attributes}</span>
               </button>
             ))}
           </div>
@@ -478,7 +529,7 @@ export function QuizPage() {
           onTouchCancel={swipe.handleTouchCancel}
         >
           <h1 id="quiz-title" className={styles.srOnly}>
-            きょうの3つの手紙。書いた人のしおりを結ぶ
+            きょうの3つの手紙。条件のしおりを結ぶ
           </h1>
           <div className={styles.stack} style={notebookBindingStyle}>
             <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
@@ -496,7 +547,7 @@ export function QuizPage() {
                   setTurning(null)
                 }}
               >
-                <Paper>
+                <Paper className={showingResults ? styles.resultCard : ''}>
                   <QuizPaperBody
                     target={turning.letter}
                     personId={turning.personId}
@@ -511,7 +562,11 @@ export function QuizPage() {
               </NotebookTurn>
             ) : null}
             <div key={`${letter.id}-${state.index}`} className={styles.enter}>
-              <Paper dragX={swipe.dragX} onNext={canGoNext ? () => go(1) : undefined}>
+              <Paper
+                className={showingResults ? styles.resultCard : ''}
+                dragX={swipe.dragX}
+                onNext={canGoNext ? () => go(1) : undefined}
+              >
                 <QuizPaperBody
                   target={letter}
                   personId={answers[letter.id]}
@@ -551,7 +606,7 @@ export function QuizPage() {
               } as CSSProperties
             }
           >
-            <TagFace person={dragged} />
+            <TagFace />
           </span>
         ) : null}
 
