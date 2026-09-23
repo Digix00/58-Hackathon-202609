@@ -58,29 +58,6 @@ describe("WorkersAiTextTranslator", () => {
     });
   });
 
-  it("translates hiragana text to English with the same model", async () => {
-    const run = vi.fn<Run>().mockResolvedValue({ response: "I am tired" });
-    const translator = new WorkersAiTextTranslator(createAiBinding(run));
-
-    await expect(
-      translator.translateHiraganaToEnglish("つかれています"),
-    ).resolves.toBe("I am tired");
-    expect(run).toHaveBeenCalledWith("@cf/meta/llama-3.1-8b-instruct-fp8", {
-      messages: [
-        {
-          role: "system",
-          content: "Return only the requested result. Do not explain.",
-        },
-        {
-          role: "user",
-          content: "Translate hiragana Japanese to English.\nつかれています",
-        },
-      ],
-      max_tokens: 1024,
-      temperature: 0,
-    });
-  });
-
   it("rejects empty text and invalid model responses", async () => {
     const run = vi.fn<Run>().mockResolvedValue({ unexpected: true });
     const translator = new WorkersAiTextTranslator(createAiBinding(run));

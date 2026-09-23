@@ -13,9 +13,9 @@ export class InvalidWorkersAiTextResponseError extends Error {
 }
 
 /**
- * Adapts one multilingual instruction model to all text representations
- * required by the app. Keeping the model and prompt handling here lets the
- * Application layer call the three operations without provider details.
+ * Adapts one multilingual instruction model to the two PoC text
+ * representations. Keeping the model and prompt handling here lets the
+ * Application layer call the operations without provider details.
  */
 export class WorkersAiTextTranslator implements TextTranslator {
   constructor(private readonly ai: WorkersAiBinding) {}
@@ -25,9 +25,6 @@ export class WorkersAiTextTranslator implements TextTranslator {
 
   readonly convertToHiragana = (text: string): Promise<string> =>
     this.runInstruction(text, "Convert Japanese to hiragana.");
-
-  readonly translateHiraganaToEnglish = (text: string): Promise<string> =>
-    this.runInstruction(text, "Translate hiragana Japanese to English.");
 
   private async runInstruction(
     text: string,
