@@ -629,12 +629,14 @@ export function FeedPage() {
           dispatch({ type: 'coverTurned', turning: null })
           return
         }
-        // 指がもう紙を起こしはじめているなら、その続きとしてそのままめくる。
-        // 待たせると、せっかく起こした角度が寝てしまう。
+        // 表紙を閉じた状態からのスワイプも、まず紙束を大きく見せる。
+        // 入口ごとに開始条件を分けると、feed だけ拡大途中でめくれ始めるため、
+        // 表紙の角度は最初のめくりでは使わず、同じ待機経路にそろえる。
         if (startAngle !== 0) {
-          if (coverLifting) return
-          if (!coverLifting) rememberStackPosition()
-          dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle } })
+          if (!coverLifting) {
+            rememberStackPosition()
+            dispatch({ type: 'coverLifting' })
+          }
           return
         }
         // ボタンから開くときは、まず紙束を押し上げる。めくるのはそのあと。
