@@ -17,12 +17,11 @@ describe("WorkersAiSpeechRecognizer", () => {
     const run = vi.fn<Run>().mockResolvedValue({ text: "今日は疲れました" });
     const recognizer = new WorkersAiSpeechRecognizer(createAiBinding(run));
 
-    await expect(
-      recognizer.transcribe(audio, { language: "ja" }),
-    ).resolves.toBe("今日は疲れました");
+    await expect(recognizer.transcribe(audio)).resolves.toBe(
+      "今日は疲れました",
+    );
     expect(run).toHaveBeenCalledWith("@cf/openai/whisper", {
       audio: [1, 2, 3],
-      language: "ja",
     });
   });
 
