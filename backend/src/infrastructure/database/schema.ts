@@ -33,7 +33,6 @@ export const users = sqliteTable(
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
   }),
 );
-
 export const sessions = sqliteTable(
   "sessions",
   {
@@ -143,6 +142,30 @@ export const concernViews = sqliteTable(
       table.userId,
       table.lastViewedAt,
     ),
+  }),
+);
+
+export const concernReactions = sqliteTable(
+  "concern_reactions",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    reactionType: text("reaction_type").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({
+      columns: [table.concernId, table.userId, table.reactionType],
+    }),
+    reactionTypeCheck: check(
+      "concern_reactions_type_check",
+      sql.raw("reaction_type in ('empathy')"),
+    ),
+    userIndex: index("reactions_user_idx").on(table.userId, table.createdAt),
   }),
 );
 
