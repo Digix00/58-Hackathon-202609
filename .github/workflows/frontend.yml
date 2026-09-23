@@ -17,7 +17,7 @@ on:
       - ".github/workflows/frontend.yml"
 
 jobs:
-  lint:
+  frontend-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,7 +33,7 @@ jobs:
       - run: pnpm --filter frontend format:check
       - run: pnpm --filter frontend lint
 
-  build:
+  frontend-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
