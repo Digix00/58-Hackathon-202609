@@ -21,7 +21,7 @@ describe("WorkersAiSpeechRecognizer", () => {
       recognizer.transcribe(audio, { language: "ja" }),
     ).resolves.toBe("今日は疲れました");
     expect(run).toHaveBeenCalledWith("@cf/openai/whisper", {
-      audio,
+      audio: [1, 2, 3],
       language: "ja",
     });
   });
