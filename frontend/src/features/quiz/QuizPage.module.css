@@ -41,6 +41,22 @@
   min-width: 0;
   /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
   margin-inline-end: 8px;
+  /*
+   * 表紙が開いたときの押し上げ。--lift は useStackLift が一度だけ入れる。
+   * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
+   */
+  transform: translateY(var(--lift, 0px)) scale(1);
+  transform-origin: center;
+  transition: transform var(--lift-duration, 560ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 表紙を開く前は、本全体を少し小さく見せる。表紙だけを縮めないので二重に見えない。 */
+.stackCover {
+  transform: translateY(var(--lift, 0px)) scale(0.88);
+}
+
+.stackCover.stackOpening {
+  transform: translateY(var(--lift, 0px)) scale(1);
 }
 
 /*
@@ -100,6 +116,81 @@
     calc(clamp(1.2em, 5vw, 1.6em) + 15px);
   /* 紙束では最背面の .sheetFar だけに影を置く。 */
   box-shadow: none;
+}
+
+/*
+ * 表紙。手紙の紙と同じ大きさ・同じとじ代にする。
+ * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
+ */
+.cover {
+  /*
+   * 机の高さ。CoverArt がこの値から封筒の大きさを引く。
+   * 空（紙飛行機）は紙の余白に収まるが、封筒は下辺に並ぶので、
+   * そのぶん下の余白を足して題字と一言を上へ寄せる。詰めると封筒に文字が乗る。
+   */
+  --desk-height: clamp(2.5em, 7vh, 3.2em);
+  /* 絵のぶん、題字と一言も机から少し離して上へ置く。 */
+  --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
+  /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
+  --cover-gutter: clamp(1.2em, 5vw, 1.6em);
+  --cover-binding: 15px;
+
+  /*
+   * 題字と一言は、二つで一つの塊として紙の中央へ置く。
+   * 行を伸ばして下端に寄せると、机の封筒を低くしたぶんだけ文字も下がり、
+   * 紙の上半分がまるごと空いてしまう。
+   */
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-items: center;
+  gap: 0.9em;
+  padding-bottom: calc(clamp(1.2em, 4vw, 1.5em) + var(--desk-height) + var(--cover-content-lift));
+  text-align: center;
+}
+
+/*
+ * 題字。ほかの画面の見出し（Screen.module.css の .heading h1）と同じ手で書く。
+ * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ */
+.coverTitle {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: 1.7em;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: rotate(-1.4deg);
+}
+
+.coverLead {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 1em;
+  line-height: 1.9;
+}
+
+/*
+ * 表紙は束の一番上。下に控えた手紙より手前へ置く。
+ * フィードの表紙と同じく、閉じているあいだは束の中央へ小さく置き、
+ * 開くときに束いっぱいの大きさへ広がる。
+ */
+.coverLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+}
+
+/* 表紙が小さいあいだ、下に控えた1通目が端から見えないようにする。 */
+.coverUnderlay {
+  visibility: hidden;
 }
 
 /*
@@ -572,6 +663,15 @@
     padding-block: 1.1em;
   }
 
+  /* 紙が低くなるぶん机も低くし、下の余白は机のぶんだけ取り直す。 */
+  .cover {
+    --desk-height: clamp(2.1em, 5.5vh, 2.6em);
+    --cover-content-lift: 0.35em;
+    --cover-binding: 10px;
+
+    padding-bottom: calc(1.1em + var(--desk-height) + var(--cover-content-lift));
+  }
+
   /*
    * 結果の紙は、しおり・本文・判定のメモの三段になる。
    * 背の低い端末で回答中と同じ高さのままだと、三段が紙に入りきらず、
@@ -679,7 +779,9 @@
   }
 
   .card,
-  .piece {
+  .piece,
+  .cover,
+  .stack {
     transition: none;
   }
 }

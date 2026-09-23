@@ -19,6 +19,12 @@
   animation: turnOut 640ms both;
 }
 
+/* 表紙から本文へ入るときは、ノートを開く合図として少し大きく動かす。 */
+.coverTurning {
+  animation-name: coverTurnOut;
+  animation-duration: 1040ms;
+}
+
 /*
  * 紙は180度で伏せきる。めくった紙が左ページに重なる、という紙の挙動どおり。
  *
@@ -54,6 +60,32 @@
     /* 2枚目の裏へ入りながら、左へ伏せきる。 */
     z-index: 0;
     transform: translateZ(4px) rotateY(-180deg);
+  }
+}
+
+@keyframes coverTurnOut {
+  0% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg)) scale(1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.66, 0.34);
+  }
+  24% {
+    /* 表紙をいったん持ち上げ、本文の存在を予告する。 */
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.24, 0.08, 0.48, 1);
+  }
+  56% {
+    /* 真横へ入る前に、通常のページめくりより大きく手前へ出す。 */
+    z-index: 3;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: cubic-bezier(0.3, 0.04, 0.38, 1);
+  }
+  56.01% {
+    z-index: 0;
+  }
+  100% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
   }
 }
 

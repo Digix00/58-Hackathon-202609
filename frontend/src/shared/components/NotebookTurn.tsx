@@ -6,6 +6,7 @@ import { NotebookBinding } from './NotebookBinding'
 type NotebookTurnProps = {
   children: ReactNode
   backColor: string
+  variant?: 'page' | 'cover'
   startAngle?: number
   /**
    * 1 なら、いま読んでいる紙を左へ伏せる。
@@ -19,13 +20,16 @@ type NotebookTurnProps = {
 export function NotebookTurn({
   children,
   backColor,
+  variant = 'page',
   startAngle = 0,
   direction = 1,
   onFinish,
 }: NotebookTurnProps) {
   return (
     <div
-      className={direction === 1 ? styles.turning : styles.turningBack}
+      className={`${direction === 1 ? styles.turning : styles.turningBack} ${
+        variant === 'cover' && direction === 1 ? styles.coverTurning : ''
+      }`}
       style={
         {
           '--turn-start': `${startAngle}deg`,

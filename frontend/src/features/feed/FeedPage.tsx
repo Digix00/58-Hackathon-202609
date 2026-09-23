@@ -1,9 +1,6 @@
 import {
   useCallback,
-  useEffectEvent,
-  useLayoutEffect,
   useReducer,
-  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
@@ -25,6 +22,7 @@ import {
   prefersReducedMotion,
   useNotebookSwipe,
 } from '../../shared/hooks/useNotebookSwipe'
+import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -97,7 +95,7 @@ function settledIndex(state: FeedReaderState) {
 function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
   switch (action.type) {
     case 'coverLifting':
-      // まだ表紙のまま。ふもとに送りボタンの居場所だけが生まれ、紙束が上がる。
+      // まだ表紙のまま。ふもとの表紙操作が消える準備をして、紙束を上げる。
       return { ...state, coverLifting: true }
     case 'coverTurned':
       // 表紙はここで開く。去っていく表紙だけがめくられて残る。
@@ -340,6 +338,7 @@ type FeedStackProps = {
   position: number
   turning: TurningPage | null
   coverOpened: boolean
+  coverOpening: boolean
   dragX: number
   isLiff: boolean
   articleRef: RefCallback<HTMLElement>
@@ -356,6 +355,7 @@ function FeedStack({
   position,
   turning,
   coverOpened,
+  coverOpening,
   dragX,
   isLiff,
   articleRef,
@@ -365,7 +365,10 @@ function FeedStack({
   onTurningFinished,
 }: FeedStackProps) {
   return (
-    <div ref={stackRef} className={styles.stack} style={notebookBindingStyle}>
+    <div
+      className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
+    >
+      <div ref={stackRef} className={styles.stack} style={notebookBindingStyle}>
       <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
       <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
       {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
@@ -385,6 +388,7 @@ function FeedStack({
       {turning ? (
         <NotebookTurn
           key={turningKey(turning)}
+          variant={turning.kind === 'cover' ? 'cover' : 'page'}
           startAngle={turning.startAngle}
           direction={turning.kind === 'concern' ? turning.direction : 1}
           backColor={
@@ -418,7 +422,7 @@ function FeedStack({
         </div>
       ) : (
         <>
-          <div className={styles.enter} aria-hidden="true">
+          <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
             <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
           </div>
           <div className={styles.coverLayer}>
@@ -426,8 +430,9 @@ function FeedStack({
           </div>
         </>
       )}
-      {/* 手前側の線は金具として動かさない。 */}
-      <NotebookBinding part="front" />
+        {/* 手前側の線は金具として動かさない。 */}
+        <NotebookBinding part="front" />
+      </div>
     </div>
   )
 }
@@ -528,9 +533,6 @@ function FeedActions({
         <summary>
           <span>{activeFilter ? 'えらんだ条件' : '性別・地域でえらぶ'}</span>
           {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
-          <span className={styles.caret} aria-hidden="true">
-            ▾
-          </span>
         </summary>
         <div className={styles.filterFields} aria-label="読む声の条件">
           <SelectField
@@ -551,72 +553,6 @@ function FeedActions({
       </details>
     </div>
   )
-}
-
-/**
- * 表紙を開くときに紙束が移動する時間。
- * 表紙を開く操作が消えたあと、紙束を新しい中央位置へ滑らかに移す。
- */
-const LIFT_MS = 420
-
-/**
- * 表紙を開くと、ふもとの表紙ボタンが消え、紙束が使える高さが増える。
- *
- * 高さそのものを時間をかけて伸ばすと、毎フレーム版面を組み直すことになり、
- * クレヨンのふちを持つ紙が描き直されて動きがかすれる。
- * そこで組み直しは一度で終わらせ、紙束だけを元いた高さから transform で戻す。
- * 動かすのは合成だけなので、どの端末でも滑らかに上がる。
- *
- * 上がりきったら onLifted で知らせる。押し上げとめくりを重ねず、
- * 紙束が落ち着いてから表紙をめくるため。
- */
-function useStackLift(open: boolean, onLifted: () => void) {
-  const stackRef = useRef<HTMLDivElement | null>(null)
-  const liftFrom = useRef<number | null>(null)
-  const lifted = useEffectEvent(onLifted)
-
-  /** 動かす直前の高さを控える。組み直しのあと、ここへ一度戻してから動かす。 */
-  const rememberStackPosition = useCallback(() => {
-    liftFrom.current = prefersReducedMotion()
-      ? null
-      : (stackRef.current?.getBoundingClientRect().top ?? null)
-  }, [])
-
-  // open が変わった回だけ動かす。控えた高さがなければ、何もせず見送る。
-  useLayoutEffect(() => {
-    const node = stackRef.current
-    const from = liftFrom.current
-    liftFrom.current = null
-    if (!node || from === null) return
-
-    const delta = from - node.getBoundingClientRect().top
-    // 紙束が動かない画面の高さでは、戻す先も今の場所。待たせる理由もない。
-    if (Math.abs(delta) < 1) {
-      lifted()
-      return
-    }
-
-    const onEnd = (event: TransitionEvent) => {
-      // 紙の上で起きた別のうつろいは数えない。
-      if (event.target !== node || event.propertyName !== 'transform') return
-      node.removeEventListener('transitionend', onEnd)
-      node.style.willChange = ''
-      node.style.removeProperty('--lift')
-      node.style.removeProperty('--lift-duration')
-      lifted()
-    }
-
-    node.style.willChange = 'transform'
-    node.style.setProperty('--lift', `${delta}px`)
-    // ここで一度位置を確定させないと、元の高さを飛ばして新しい高さへ跳ぶ。
-    void node.offsetHeight
-    node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
-    node.style.setProperty('--lift', '0px')
-    node.addEventListener('transitionend', onEnd)
-    return () => node.removeEventListener('transitionend', onEnd)
-  }, [open])
-
-  return { stackRef, rememberStackPosition }
 }
 
 export function FeedPage() {
@@ -665,7 +601,11 @@ export function FeedPage() {
 
   const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
     // 紙束が上がりきった。ここでようやく表紙に手をかける。
-    if (coverLifting) dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
+    if (!coverLifting) return
+    // 拡大の最終フレームを1度描画してから、表紙のめくりを始める。
+    window.setTimeout(() => {
+      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
+    }, 120)
   })
 
   const goNext = useCallback(
@@ -742,6 +682,7 @@ export function FeedPage() {
           position={position}
           turning={turning}
           coverOpened={coverOpened}
+          coverOpening={coverOpening}
           dragX={swipe.dragX}
           isLiff={isLiff}
           articleRef={articleRef}

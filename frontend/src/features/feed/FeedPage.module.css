@@ -24,6 +24,18 @@
  * 紙束。「次がある」ことを、件数や矢印の文字ではなく、
  * 下に控えた紙のふちで伝える。
  */
+.stackMotion {
+  width: 100%;
+  min-width: 0;
+  transform: scale(0.88);
+  transform-origin: center;
+  transition: transform 560ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.stackMotion.stackOpening {
+  transform: scale(1);
+}
+
 .stack {
   position: relative;
   display: grid;
@@ -35,7 +47,7 @@
    * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
    */
   transform: translateY(var(--lift, 0px));
-  transition: transform var(--lift-duration, 0s) cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform var(--lift-duration, 560ms) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /*
@@ -160,6 +172,11 @@
   position: absolute;
   z-index: 2;
   inset: 0;
+}
+
+/* 表紙が小さいあいだ、下に控えた最初の悩みが端から見えないようにする。 */
+.coverUnderlay {
+  visibility: hidden;
 }
 
 /*
@@ -350,7 +367,7 @@
 
 /*
  * 寄りそうボタン。文字だけのリンクだと押せることが伝わらず、
- * 濃い色の塊にすると「つぎの声へ」と主役を奪い合う。
+ * 濃い色の塊にすると本文と主役を奪い合う。
  * 紙に貼った小さなスタンプ台として、紙の世界のまま押せる形にする。
  */
 .reaction {
@@ -525,7 +542,7 @@
   padding: 0 1.1em;
   border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
   color: var(--color-purple-ink);
-  background: #fffdf5;
+  background: #fff8e8;
   box-shadow: 1.5px 2.5px 0 #c3b89f;
   font-size: 1em;
   transition:
@@ -610,15 +627,6 @@
   font-weight: 700;
 }
 
-.caret {
-  font-size: 0.9em;
-  transition: transform 160ms ease;
-}
-
-.filters[open] .caret {
-  transform: rotate(180deg);
-}
-
 .filterFields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -668,6 +676,10 @@
     --cover-binding: 10px;
 
     padding-bottom: calc(1.15em + var(--garden-height) + var(--cover-content-lift));
+  }
+
+  .cover {
+    transition-duration: 360ms;
   }
 
   .storyLink p {
@@ -748,6 +760,10 @@
     transition: none;
   }
 
+  .cover {
+    transition: none;
+  }
+
   .coverButton span {
     animation: none;
   }
@@ -756,11 +772,8 @@
     transition: none;
   }
 
+  .stackMotion,
   .stack {
-    transition: none;
-  }
-
-  .caret {
     transition: none;
   }
 }
