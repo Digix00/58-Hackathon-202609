@@ -19,11 +19,18 @@ src/
 │   │   ├── auth.repository.ts
 │   │   └── health.repository.ts
 │   ├── port/                    # 外部サービスのPort
-│   │   └── line-token-verifier.ts
+│   │   ├── line-token-verifier.ts
+│   │   ├── speech-recognizer.ts
+│   │   ├── text-embedding-generator.ts
+│   │   └── text-translator.ts
 │   └── usecase/                 # Application UseCase
 │       ├── auth.usecase.ts
 │       └── check-health.usecase.ts
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
+│   ├── ai/
+│   │   ├── workers-ai-speech.recognizer.ts
+│   │   ├── workers-ai-text-embedding.generator.ts
+│   │   └── workers-ai-text.translator.ts
 │   ├── database/
 │   │   ├── d1-auth.repository.ts
 │   │   ├── d1-health.repository.ts
@@ -43,6 +50,18 @@ Repository → UseCase → Handler → Appの順でDIするため、リクエス
 Application層にEntity、Repository/外部サービスのPort、UseCaseを置き、Infrastructure層にPortの実装、
 Presentation層にHandlerを置く。機能名はファイル名に含め、依存は`container.ts`で組み立てる。
 `createApp`へ注入可能な形を保つことで、テストではD1を使わずFakeを渡せる。
+
+## Workers AI
+
+`wrangler.jsonc` の `ai.binding` でWorkers AIを `AI` としてWorkerへ接続する（[binding設定](https://developers.cloudflare.com/workers-ai/configuration/bindings/)）。Application層からはPortだけを呼び出し、Infrastructure層のAdapterが `AI.run(model, input)` を実行する。
+
+- `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、原文（日本語）→英語、原文（日本語）→ひらがなを処理する
+- `WorkersAiTextEmbeddingGenerator`: 日本語Embeddingモデル [PLaMo-Embedding-1B](https://developers.cloudflare.com/workers-ai/models/plamo-embedding-1b/) で入力順を保ったベクトルを生成する
+- `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
+
+各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
+
+このPRでは既存の投稿作成や非同期処理のロジックは変更しない。`wrangler dev` から実際に推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する。
 
 ## セットアップ
 
@@ -133,3 +152,5 @@ pnpm format         # biome check --write . (フォーマットのみ。lintはo
 pnpm format:check   # biome check .
 pnpm build          # tsc --noEmit
 ```
+
+Vitest は `wrangler.test.jsonc` を使い、ローカル D1 をエミュレートする。Workers AI binding はテスト設定に含めず、AI Adapter のテストでは Fake を注入してCloudflareへの推論リクエストを発生させない。
