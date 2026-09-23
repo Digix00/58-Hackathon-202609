@@ -44,23 +44,24 @@ const RING_CENTER = HOLE_X - RING_RADIUS_X
 const RING_REAR_PATH = `M ${RING_LEFT} 6 C ${RING_LEFT + 0.5} 2.7 ${RING_CENTER - 7} 1.3 ${RING_CENTER} 1.5 C ${RING_CENTER + 8} 1.4 ${HOLE_X - 0.7} 3.2 ${HOLE_X} 6`
 const RING_FRONT_PATH = `M ${HOLE_X} 6 C ${HOLE_X - 0.4} 9.2 ${RING_CENTER + 7.5} 10.7 ${RING_CENTER} 10.5 C ${RING_CENTER - 8} 10.7 ${RING_LEFT + 0.5} 8.9 ${RING_LEFT} 6`
 /** 穴の中心はリングに合わせ、ふちだけをわずかに不揃いにする。 */
-const HOLE_PATH = 'M -5.2 -0.8 C -5.5 -3.5 -3.5 -5.4 -0.8 -5.5 C 2.2 -5.7 5 -3.8 5.4 -1 C 5.8 1.8 3.8 5.2 0.9 5.4 C -2.1 5.7 -5 3.7 -5.2 0.8 Z'
+const HOLE_PATH =
+  'M -5.2 -0.8 C -5.5 -3.5 -3.5 -5.4 -0.8 -5.5 C 2.2 -5.7 5 -3.8 5.4 -1 C 5.8 1.8 3.8 5.2 0.9 5.4 C -2.1 5.7 -5 3.7 -5.2 0.8 Z'
 
 function BindingMarks({
   kind,
   back = false,
-  reveal = false,
+  between = false,
 }: {
   kind: 'rearRing' | 'frontRing' | 'holes'
   back?: boolean
-  reveal?: boolean
+  between?: boolean
 }) {
   return (
     <span
       className={`${styles.binding} ${
         kind === 'rearRing'
-          ? reveal
-            ? styles.ringReveal
+          ? between
+            ? styles.ringsBetween
             : styles.ringsRear
           : kind === 'frontRing'
             ? styles.ringsFront
@@ -350,10 +351,14 @@ export function FeedPage() {
             >
               <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
               <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-              {/* 上側の線は紙の奥に置き、めくれている間だけ旧い紙と次の紙の間にも出す。 */}
+              {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
               <BindingMarks kind="rearRing" />
               {turning ? (
-                <BindingMarks key={`${turning.concern.id}-${turning.page}`} kind="rearRing" reveal />
+                <BindingMarks
+                  key={`${turning.concern.id}-${turning.page}`}
+                  kind="rearRing"
+                  between
+                />
               ) : null}
               {turning ? (
                 <div

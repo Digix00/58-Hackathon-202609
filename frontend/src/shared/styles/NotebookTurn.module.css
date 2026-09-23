@@ -1,0 +1,86 @@
+/* 紙をリング側から外し、色のついた裏面を見せて一回転させる。 */
+.turning {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  transform-origin: var(--turn-axis) center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  animation: turnOut 800ms both;
+}
+
+@keyframes turnOut {
+  0% {
+    transform: perspective(1400px) translate3d(0, 0, 0) rotateY(var(--turn-start, 0deg));
+    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  }
+  28% {
+    transform: perspective(1400px) translate3d(8%, 0, 18px) rotateY(-105deg);
+    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  }
+  52% {
+    transform: perspective(1400px) translate3d(55%, 0, 22px) rotateY(-190deg);
+    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  }
+  78% {
+    transform: perspective(1400px) translate3d(-40%, 0, 8px) rotateY(-290deg);
+    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  }
+  100% {
+    transform: perspective(1400px) translate3d(-115%, 0, 0) rotateY(-360deg);
+  }
+}
+
+.face,
+.back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.face::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 36%, #2f281a00 76%);
+  pointer-events: none;
+  animation: turnShade 800ms both;
+  content: '';
+}
+
+@keyframes turnShade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  36% {
+    opacity: 0.32;
+  }
+}
+
+.back {
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  background: linear-gradient(265deg, var(--turn-back-color, #e8ddc9), #fbf3e2 72%);
+  transform: rotateY(180deg);
+}
+
+.fromLeft {
+  transform-origin: var(--turn-axis) center;
+  animation: turnBack 440ms cubic-bezier(0.24, 0.72, 0.32, 1) both;
+}
+
+@keyframes turnBack {
+  from {
+    transform: perspective(1400px) translateZ(13px) rotateY(-88deg);
+  }
+  to {
+    transform: perspective(1400px) translateZ(0) rotateY(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fromLeft {
+    animation: none;
+  }
+}

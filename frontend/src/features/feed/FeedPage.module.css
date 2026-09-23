@@ -86,23 +86,9 @@
   z-index: 4;
 }
 
-/* 古い紙が浮いた間だけ、奥の線が2枚の紙の間から見える。 */
-.ringReveal {
+/* 古い紙の下に置き、回転によって覆いが外れた部分だけ見せる。 */
+.ringsBetween {
   z-index: 2;
-  animation: revealRing 540ms linear both;
-}
-
-@keyframes revealRing {
-  0% {
-    opacity: 0;
-  }
-  22%,
-  78% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 
 /* 裏面は鏡像。SVGの穴の座標も左右を反転させる。 */
@@ -621,11 +607,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ringReveal {
-    animation: none;
-    opacity: 0;
-  }
-
   .corner::before {
     transition: none;
   }

@@ -1,0 +1,73 @@
+.binding {
+  position: absolute;
+  z-index: 1;
+  top: var(--binding-inset, 5%);
+  bottom: var(--binding-inset, 5%);
+  left: var(--binding-offset);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: var(--binding-width);
+  pointer-events: none;
+}
+
+.rear {
+  z-index: 0;
+}
+
+/* 次の紙の上、めくっている紙の下。穴と紙の外だけを描く。 */
+.between,
+.front {
+  z-index: 2;
+}
+
+.back {
+  right: var(--binding-offset);
+  left: auto;
+}
+
+.mark {
+  display: block;
+  flex: none;
+  width: 100%;
+  height: 12px;
+}
+
+.ring {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#crayon-edge);
+}
+
+.rearLine {
+  stroke: #a59b8c;
+  stroke-width: 2.3px;
+}
+
+.frontLine {
+  stroke: #81786d;
+  stroke-width: 2.7px;
+}
+
+.holeFill {
+  fill: #eadfc6;
+}
+
+.holeEdge {
+  fill: none;
+  stroke: #cbbfa5;
+  stroke-width: 1.35px;
+  filter: url(#crayon-edge-fine);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 40px 40px;
+  mask-size: 40px 40px;
+}
+
+@media (prefers-contrast: more) {
+  .ring {
+    stroke: var(--color-outline);
+    filter: none;
+  }
+}

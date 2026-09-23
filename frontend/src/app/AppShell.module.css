@@ -17,19 +17,17 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  /*
-   * ヘッダーを持たないので、上端は端末の安全領域から測る。
-   * 下端は、中央の「投稿」が紙面へせり上がるぶんを空けておく。
-   */
-  padding: calc(26px + env(safe-area-inset-top)) 18px 44px;
+  /* ヘッダーを持たないので、上端は端末の安全領域から測る。 */
+  padding: calc(26px + env(safe-area-inset-top)) 18px 24px;
 }
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   padding: 14px 12px calc(12px + env(safe-area-inset-bottom));
+  border-top: 2px solid var(--color-outline);
   background: var(--color-paper-strip);
 }
 
@@ -59,36 +57,9 @@
   text-underline-offset: 5px;
 }
 
-/*
- * 「投稿」は画面の主操作なので、紙をまるく切り抜いたボタンとして扱い、
- * ナビの上辺から少しせり上げる。丸は定規の正円にせず、わずかに崩す。
- * 紙片のちぎり跡より前に出す必要があるため、重なりを明示する。
- */
 .postLink {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  width: 4.2em;
-  height: 4.2em;
-  /*
-   * ちぎり跡は帯の上辺より18px外へ出ているので、そこを越えるぶんだけ持ち上げる。
-   * align-items: center のままだと、負の余白で縮んだぶんを中央揃えが取り返してしまい、
-   * 紙のふちを破って出てこない。この一つだけ行の頭へ揃えて、持ち上げ量を確定させる。
-   */
-  align-self: start;
-  margin-top: -2.9em;
-  gap: 1px;
-  place-items: center;
-  align-content: center;
-  border-radius: 49% 51% 48% 52%;
-  color: var(--color-paper);
-  background: var(--color-purple-strong);
-  box-shadow: 2px 3px 0 var(--color-purple-dark);
-  font-size: 0.94em;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  transform: rotate(0.7deg);
+  color: #413a70;
+  background: #eee9f5;
 }
 
 /*
@@ -113,18 +84,6 @@
 .navIcon .trace {
   stroke-width: 1.05;
   opacity: 0.42;
-}
-
-/* 丸の中は幅が限られるので、絵はラベルを押し出さない大きさに留める。 */
-.postIcon {
-  width: 1.3em;
-  height: 1.3em;
-}
-
-.postLink.active {
-  color: var(--color-paper);
-  text-decoration: underline wavy var(--color-paper) 1.5px;
-  text-underline-offset: 5px;
 }
 
 @media (max-width: 359px) {
