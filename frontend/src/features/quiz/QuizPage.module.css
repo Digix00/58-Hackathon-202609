@@ -488,6 +488,12 @@
   stroke: #cf6d54;
   stroke-width: 2.1;
   stroke-linecap: round;
+  /* 大きな手描きの線として揺らし、紙の粒子でところどころをかすれさせる。 */
+  filter: url(#crayon-edge-art);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
   pointer-events: none;
 }
 
