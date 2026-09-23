@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: clamp(1.15em, 3.5vh, 1.8em);
   width: 100%;
   min-width: 0;
@@ -254,6 +254,10 @@
   margin-top: -1.65em;
 }
 
+.fit > .tag {
+  top: -1.25em;
+}
+
 .ask {
   color: var(--color-muted);
   font-size: 0.85em;
@@ -307,8 +311,8 @@
   display: grid;
   justify-items: center;
   gap: 0.1em;
-  /* 下辺の切り欠きに文字が掛からないよう逃がす。 */
-  padding: 0.2em 0.5em 1.1em;
+  /* 上辺の切り欠きに文字が掛からないよう逃がす。 */
+  padding: 1.1em 0.5em 0.2em;
   color: var(--color-purple-ink);
   line-height: 1.35;
   text-align: center;
@@ -488,8 +492,8 @@
   justify-content: center;
   gap: 0.5em;
   width: 100%;
-  padding-top: 0.9em;
-  border-top: 2.5px dashed #ddd2b8;
+  padding-bottom: 0.7em;
+  border-bottom: 2.5px dashed #ddd2b8;
 }
 
 .tray .tag {
@@ -584,7 +588,7 @@
 
 @media (max-width: 359px) {
   .tagLabel {
-    padding-bottom: 0.9em;
+    padding-top: 0.9em;
   }
 
   .tagLabel span {

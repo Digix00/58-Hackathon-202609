@@ -46,7 +46,7 @@ const PIECE_COLORS: Record<string, string> = {
   c: '#e3dafa',
 }
 /** しおりと切り欠きの型紙。同じ形を使うことで、片方が片方に収まると分かる。 */
-const TAG_PATH = 'M3 3 H97 V75 L50 63 L3 75 Z'
+const TAG_PATH = 'M3 3 L50 15 L97 3 V75 H3 Z'
 /** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
 const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
 /** 切り欠きの外でも、これだけ近ければ差し込んだことにする。 */
@@ -399,6 +399,29 @@ export function QuizPage() {
       emptyDescription="新しいクイズが届くまでお待ちください。"
     >
       <div className={styles.page}>
+        {!showingResults && !complete ? (
+          <div className={styles.tray} role="group" aria-label="手元のしおり">
+            {remaining.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                className={`${styles.tag} ${styles.piece} ${
+                  drag?.personId === person.id ? styles.held : ''
+                }`}
+                style={tagStyle(person.id)}
+                onPointerDown={(event) => startDrag(event, person.id)}
+                // キーボードから押されたときだけ、ここで差し込む。
+                // 指やマウスは pointerup で扱い、二重に置かないようにする。
+                onClick={(event) => {
+                  if (event.detail === 0) fit(person.id)
+                }}
+                aria-label={`${person.label}・${person.attributes}。この声のしおりにする`}
+              >
+                <TagFace person={person} />
+              </button>
+            ))}
+          </div>
+        ) : null}
         <section
           className={styles.stage}
           aria-labelledby="quiz-title"
@@ -477,29 +500,7 @@ export function QuizPage() {
             >
               {state.step === 'submitting' ? '出しています…' : 'これで出す'}
             </button>
-          ) : (
-            <div className={styles.tray}>
-              {remaining.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  className={`${styles.tag} ${styles.piece} ${
-                    drag?.personId === person.id ? styles.held : ''
-                  }`}
-                  style={tagStyle(person.id)}
-                  onPointerDown={(event) => startDrag(event, person.id)}
-                  // キーボードから押されたときだけ、ここで差し込む。
-                  // 指やマウスは pointerup で扱い、二重に置かないようにする。
-                  onClick={(event) => {
-                    if (event.detail === 0) fit(person.id)
-                  }}
-                  aria-label={`${person.label}・${person.attributes}。この声のしおりにする`}
-                >
-                  <TagFace person={person} />
-                </button>
-              ))}
-            </div>
-          )}
+          ) : null}
         </div>
 
         {drag && dragged ? (
