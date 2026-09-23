@@ -19,6 +19,12 @@
   animation: turnOut 640ms both;
 }
 
+/* 表紙から本文へ入るときは、ノートを開く合図として少し大きく動かす。 */
+.coverTurning {
+  animation-name: coverTurnOut;
+  animation-duration: 1040ms;
+}
+
 /*
  * 紙は180度で伏せきる。めくった紙が左ページに重なる、という紙の挙動どおり。
  *
@@ -57,6 +63,32 @@
   }
 }
 
+@keyframes coverTurnOut {
+  0% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg)) scale(1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.66, 0.34);
+  }
+  24% {
+    /* 表紙をいったん持ち上げ、本文の存在を予告する。 */
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.24, 0.08, 0.48, 1);
+  }
+  56% {
+    /* 真横へ入る前に、通常のページめくりより大きく手前へ出す。 */
+    z-index: 3;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: cubic-bezier(0.3, 0.04, 0.38, 1);
+  }
+  56.01% {
+    z-index: 0;
+  }
+  100% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
+  }
+}
+
 /*
  * 戻り。伏せてあった紙を拾い上げ、いま読んでいる紙の上へ降ろす。
  * turnOut をそのまま逆に辿る。目に見えるのは -90 度から先なので、
@@ -70,6 +102,37 @@
   transform-style: preserve-3d;
   pointer-events: none;
   animation: turnIn 640ms both;
+}
+
+/* 閉じるとき。開く動き（coverTurnOut）をそのまま逆に辿る。 */
+.coverTurningBack {
+  animation-name: coverTurnIn;
+  animation-duration: 900ms;
+}
+
+@keyframes coverTurnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
+    animation-timing-function: cubic-bezier(0.62, 0, 0.7, 0.96);
+  }
+  44% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: linear;
+  }
+  44.01% {
+    z-index: 3;
+  }
+  76% {
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.34, 0.1, 0.36, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg) scale(1);
+  }
 }
 
 @keyframes turnIn {
@@ -98,11 +161,9 @@
 }
 
 /*
- * めくり終えて、リングの左に伏せたままの紙。
- *
- * めくりの最終フレームとまったく同じ姿勢で置く。こうしておくと、
- * めくっていた紙を外した瞬間に同じ絵がそのまま残り、伏せた紙が消えない。
- * 姿勢を変えると、外した瞬間に画面端の紙がずれて見える。
+ * めくり終えた紙を、めくりの最終フレームと同じ姿勢で左側に残す。
+ * 固定した紙をあとから別の角度へ置くと、アニメーション終了時に
+ * リング左側の紙がずれて見えるため、金具の軸と奥行きを共有する。
  */
 .turned {
   position: absolute;
@@ -112,6 +173,17 @@
   transform-style: preserve-3d;
   transform: translateZ(4px) rotateY(-180deg);
   pointer-events: none;
+}
+
+/* 紙を指で引いているあいだも、確定しためくりと同じ回転軸を使う。 */
+.page {
+  transform-origin: var(--turn-axis) center;
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* 指に追従している間は、指を離したあとの戻りを遅らせない。 */
+.pageDragging {
+  transition: none;
 }
 
 .face,
@@ -130,4 +202,10 @@
    */
   background: var(--turn-back-color, #e3d8c0);
   transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    transition: none;
+  }
 }

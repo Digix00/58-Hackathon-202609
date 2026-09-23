@@ -30,7 +30,7 @@
 .heading h1 {
   margin: 0;
   color: var(--color-ink);
-  font-size: 1.35em;
+  font-size: calc(22px * var(--font-scale));
   font-weight: 600;
   transform: rotate(-0.25deg);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import { registerConcernReaction } from './reactionApi'
 
@@ -18,16 +18,34 @@ export interface UseConcernReactionResult {
   react: () => Promise<void>
 }
 
-interface StoredReactionState extends UseConcernReactionInput {
+interface ReactionState {
+  inputKey: string
+  concernId: string
   status: ConcernReactionStatus
   reactionCount: number
   reacted: boolean
   error: string | null
 }
 
-function initialState(input: UseConcernReactionInput): StoredReactionState {
+type ReactionAction =
+  | { type: 'reset'; input: UseConcernReactionInput }
+  | { type: 'submitStarted'; inputKey: string }
+  | {
+      type: 'submitSucceeded'
+      inputKey: string
+      reactionCount: number
+      reacted: boolean
+    }
+  | { type: 'submitFailed'; inputKey: string; error: string }
+
+function reactionInputKey(input: UseConcernReactionInput): string {
+  return JSON.stringify([input.concernId, input.initialReactionCount, input.initialReacted])
+}
+
+function initialState(input: UseConcernReactionInput): ReactionState {
   return {
-    ...input,
+    inputKey: reactionInputKey(input),
+    concernId: input.concernId,
     status: 'idle',
     reactionCount: input.initialReactionCount,
     reacted: input.initialReacted,
@@ -35,21 +53,55 @@ function initialState(input: UseConcernReactionInput): StoredReactionState {
   }
 }
 
-/** リアクション送信の二重実行防止と結果状態を提供する。 */
+function reactionReducer(state: ReactionState, action: ReactionAction): ReactionState {
+  switch (action.type) {
+    case 'reset':
+      return initialState(action.input)
+    case 'submitStarted':
+      if (state.inputKey !== action.inputKey) return state
+      return { ...state, status: 'submitting', error: null }
+    case 'submitSucceeded':
+      if (state.inputKey !== action.inputKey) return state
+      return {
+        ...state,
+        status: 'succeeded',
+        reactionCount: action.reactionCount,
+        reacted: action.reacted,
+        error: null,
+      }
+    case 'submitFailed':
+      if (state.inputKey !== action.inputKey) return state
+      return { ...state, status: 'failed', error: action.error }
+  }
+}
+
+/**
+ * Intent: 1件の投稿へのリアクション送信と結果状態を局所化する。
+ * Boundary: 投稿IDと初期値を受け取り、表示用状態と react 操作だけを公開する。
+ * State modeling: 送信状態・集計値・送信済み状態・エラーを reducer で同時に更新し、入力変更後の古いレスポンスも入力キーで無視する。
+ * Update surface: react。
+ * Hidden complexity: 同一投稿への二重送信を防ぎ、投稿が切り替わったときに前の投稿の状態を持ち越さない。
+ * Composition: フィードや投稿詳細の表示コンポーネントから利用する。
+ * Test notes: 初期値、送信中、成功、失敗、二重送信、投稿切り替え後の古いレスポンスを確認する。
+ */
 export function useConcernReaction({
   concernId,
   initialReactionCount,
   initialReacted,
 }: UseConcernReactionInput): UseConcernReactionResult {
   const input = { concernId, initialReactionCount, initialReacted }
-  const [storedState, setStoredState] = useState(() => initialState(input))
+  const inputKey = reactionInputKey(input)
+  const [state, dispatch] = useReducer(reactionReducer, input, initialState)
   const inFlightConcernIds = useRef(new Set<string>())
 
-  const hasMatchingInput =
-    storedState.concernId === concernId &&
-    storedState.initialReactionCount === initialReactionCount &&
-    storedState.initialReacted === initialReacted
-  const currentState = hasMatchingInput ? storedState : initialState(input)
+  useEffect(() => {
+    dispatch({
+      type: 'reset',
+      input: { concernId, initialReactionCount, initialReacted },
+    })
+  }, [concernId, initialReactionCount, initialReacted])
+
+  const currentState = state.inputKey === inputKey ? state : initialState(input)
 
   const react = useCallback(async (): Promise<void> => {
     if (currentState.reacted || inFlightConcernIds.current.has(concernId)) {
@@ -57,30 +109,29 @@ export function useConcernReaction({
     }
 
     inFlightConcernIds.current.add(concernId)
-    setStoredState({ ...currentState, status: 'submitting', error: null })
+    dispatch({ type: 'submitStarted', inputKey })
 
     try {
       const result = await registerConcernReaction(concernId)
       if (result.ok) {
-        setStoredState({
-          ...currentState,
-          status: 'succeeded',
+        dispatch({
+          type: 'submitSucceeded',
+          inputKey,
           reactionCount: result.reaction.reactionCount,
           reacted: result.reaction.reacted,
-          error: null,
         })
         return
       }
 
-      setStoredState({
-        ...currentState,
-        status: 'failed',
+      dispatch({
+        type: 'submitFailed',
+        inputKey,
         error: result.message,
       })
     } finally {
       inFlightConcernIds.current.delete(concernId)
     }
-  }, [concernId, currentState])
+  }, [concernId, currentState.reacted, inputKey])
 
   return {
     status: currentState.status,

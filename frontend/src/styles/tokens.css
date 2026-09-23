@@ -1,4 +1,6 @@
 :root {
+  /* 端末や viewport ではなく、アプリの表示設定だけで文字サイズを決める。 */
+  --font-scale: 1;
   --font-sans: 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif;
   --font-hand:
     'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', 'Hiragino Sans', system-ui, sans-serif;

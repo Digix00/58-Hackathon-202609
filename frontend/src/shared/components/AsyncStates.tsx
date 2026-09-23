@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
 import crayonStyles from '../styles/Crayon.module.css'
 import styles from './AsyncStates.module.css'
 
-type ErrorStateProps = { title?: string; description: string; onRetry?: () => void }
+type ErrorStateProps = { title?: ReactNode; description: string; onRetry?: () => void }
 
 export function LoadingState({ label = '読み込んでいます…' }: { label?: string }) {
   return (

@@ -24,18 +24,24 @@
  * 紙束。「次がある」ことを、件数や矢印の文字ではなく、
  * 下に控えた紙のふちで伝える。
  */
+.stackMotion {
+  width: 100%;
+  min-width: 0;
+  transform: translateY(var(--lift, 0px)) scale(var(--stack-scale, 0.84));
+  transform-origin: center;
+  transition: transform var(--lift-duration, 760ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.stackMotion.stackOpening {
+  --stack-scale: 1;
+}
+
 .stack {
   position: relative;
   display: grid;
   min-width: 0;
   /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
   margin-inline-end: 8px;
-  /*
-   * 表紙が開いたときの押し上げ。--lift は FeedPage が一度だけ入れる。
-   * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
-   */
-  transform: translateY(var(--lift, 0px));
-  transition: transform var(--lift-duration, 0s) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /*
@@ -90,13 +96,11 @@
   background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
-  height: clamp(21em, 50vh, 29em);
+  height: clamp(24em, 62vh, 36em);
   /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
   padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
     calc(clamp(1.55em, 7vw, 2em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
-  transform-origin: var(--turn-axis) center;
-  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /*
@@ -109,7 +113,9 @@
    * 空（太陽と雲）は紙の余白に収まるが、花壇は下辺に並ぶので、
    * そのぶん下の余白を足して題字と操作を上へ寄せる。詰めると花に文字が乗る。
    */
-  --garden-height: clamp(3em, 9vh, 4.2em);
+  --garden-height: clamp(5em, 14vh, 6.8em);
+  /* 絵を大きくしたぶん、題字と一言も花壇から少し離して上へ置く。 */
+  --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
   /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
   --cover-gutter: clamp(1.55em, 7vw, 2em);
   --cover-binding: 15px;
@@ -118,7 +124,9 @@
   align-content: center;
   justify-items: center;
   gap: 0.9em;
-  padding-bottom: calc(clamp(1.55em, 5.5vw, 2em) + var(--garden-height));
+  padding-bottom: calc(
+    clamp(1.55em, 5.5vw, 2em) + var(--garden-height) + var(--cover-content-lift)
+  );
   text-align: center;
 }
 
@@ -128,10 +136,12 @@
  * 表紙の題字なので、大きさと字間だけを見出しより広く取る。
  */
 .coverTitle {
+  position: relative;
+  z-index: 1;
   align-self: end;
   margin: 0;
   color: var(--color-purple-ink);
-  font-size: 1.7em;
+  font-size: calc(27px * var(--font-scale));
   font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -143,9 +153,11 @@
 }
 
 .coverLead {
+  position: relative;
+  z-index: 1;
   margin: 0;
   color: var(--color-muted);
-  font-size: 1em;
+  font-size: calc(16px * var(--font-scale));
   line-height: 1.9;
 }
 
@@ -156,9 +168,9 @@
   inset: 0;
 }
 
-/* 指に追従している間は、戻りのトランジションを効かせない。 */
-.dragging {
-  transition: none;
+/* 表紙が小さいあいだ、下に控えた最初の悩みが端から見えないようにする。 */
+.coverUnderlay {
+  visibility: hidden;
 }
 
 /*
@@ -193,13 +205,13 @@
 /* 付箋は貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */
 .tabAge {
   background: var(--tag-age, #f5cdc4);
-  font-size: 0.7em;
+  font-size: calc(12px * var(--font-scale));
   transform: rotate(-2.4deg);
 }
 
 .tabRegion {
   background: var(--tag-region, #e9e0bd);
-  font-size: 0.7em;
+  font-size: calc(12px * var(--font-scale));
   transform: rotate(1.2deg);
 }
 
@@ -227,7 +239,7 @@
   isolation: isolate;
   color: inherit;
   text-decoration: none;
-  font-size: clamp(1.22em, 5.2vw, 1.45em);
+  font-size: calc(20px * var(--font-scale));
   --story-line-height: 1.9em;
   --story-rule-color: rgba(138, 132, 122, 0.18);
 }
@@ -288,14 +300,6 @@
   letter-spacing: 0.02em;
 }
 
-.cardFoot {
-  display: flex;
-  align-items: center;
-  /* 紙の下はこの一つだけになったので、真ん中に置いて押す先をはっきりさせる。 */
-  justify-content: center;
-  padding-top: 0.8em;
-}
-
 /*
  * めくれた角。次があることを示す絵であり、そのまま次の声へ進むボタンでもある。
  * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
@@ -349,7 +353,7 @@
 
 /*
  * 寄りそうボタン。文字だけのリンクだと押せることが伝わらず、
- * 濃い色の塊にすると「つぎの声へ」と主役を奪い合う。
+ * 濃い色の塊にすると本文と主役を奪い合う。
  * 紙に貼った小さなスタンプ台として、紙の世界のまま押せる形にする。
  */
 .reaction {
@@ -365,7 +369,7 @@
   background: #fffdf5;
   box-shadow: 1.5px 2.5px 0 #c3b89f;
   font: inherit;
-  font-size: 0.86em;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 700;
   cursor: pointer;
   transition:
@@ -503,7 +507,7 @@
 .actions {
   display: grid;
   justify-items: center;
-  gap: 0.7em;
+  gap: 0.55em;
   width: 100%;
 }
 
@@ -515,56 +519,55 @@
   padding-inline: 8px;
 }
 
-/*
- * 送りボタンの居場所。
- *
- * 表紙のあいだは高さを持たず、めくった瞬間に一度だけ開く。
- * 高さを時間をかけて伸ばすと版面を毎フレーム組み直すことになるので、
- * 目に見える動きは紙束側（.stack の --lift）に持たせている。
- */
-.nextSlot {
-  display: grid;
-  grid-template-rows: 0fr;
-  justify-items: center;
-  width: 100%;
-}
-
-.nextSlotOpen {
-  grid-template-rows: 1fr;
-}
-
-/* 開くまでボタンをはみ出させない受け皿。行が畳めるよう最小高も外す。 */
-.nextSlotInner {
-  display: grid;
-  justify-items: center;
-  min-height: 0;
-  width: 100%;
-  /* ふちの線・影・矢印の動きが刈り取られないぶんだけ内側に余白を取る。 */
-  padding: 2px 8px 5px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(6px);
-  /* 紙束が上がりきるころ（FeedPage.tsx の LIFT_MS）に、下から顔を出す。 */
-  transition:
-    opacity 240ms ease 240ms,
-    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1) 240ms;
-}
-
-.nextSlotOpen .nextSlotInner {
-  opacity: 1;
-  transform: none;
-}
-
-.nextButton {
+.coverButton {
+  position: relative;
   gap: 0.8em;
-  width: min(100%, 20em);
-  min-height: 58px;
-  font-size: 1.1em;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 0 1.1em;
+  border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
+  color: var(--color-purple-ink);
+  background: #fff8e8;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
+  font-size: calc(16px * var(--font-scale));
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
+}
+
+/* 「そっと寄りそう」と同じ、紙に貼った小さなスタンプ台として馴染ませる。 */
+.coverButton::after {
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+}
+
+.coverButton:not(:disabled):hover {
+  transform: translateY(-1px) rotate(-0.4deg);
+  box-shadow: 2px 3.5px 0 #c3b89f;
+}
+
+.coverButton:not(:disabled):active {
+  transform: translate(1px, 2px);
+  box-shadow: 0 0 0 #c3b89f;
+}
+
+.coverButton:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 4px;
 }
 
 /* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
-.nextButton span {
-  font-size: 1.15em;
+.coverButton span {
+  font-size: calc(18px * var(--font-scale));
   animation: nudge 2.6s ease-in-out infinite;
 }
 
@@ -595,7 +598,7 @@
   gap: 0.25em 0.6em;
   min-height: 44px;
   padding: 0.45em 0;
-  font-size: 0.88em;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 700;
   list-style: none;
   cursor: pointer;
@@ -610,21 +613,12 @@
   font-weight: 700;
 }
 
-.caret {
-  font-size: 0.9em;
-  transition: transform 160ms ease;
-}
-
-.filters[open] .caret {
-  transform: rotate(180deg);
-}
-
 .filterFields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7em;
   padding: 0.5em 0 0.3em;
-  font-size: 0.9em;
+  font-size: calc(14px * var(--font-scale));
 }
 
 .empty {
@@ -656,17 +650,22 @@
 @media (max-height: 700px) {
   .card {
     gap: 0.7em;
-    height: clamp(15.5em, 44vh, 21em);
+    height: clamp(20em, 56vh, 27em);
     padding-block: 1.15em;
     padding-inline-start: calc(clamp(1.55em, 7vw, 2em) + 10px);
   }
 
   /* 紙が低くなるぶん花壇も低くし、下の余白は花壇のぶんだけ取り直す。 */
   .cover {
-    --garden-height: clamp(2.2em, 6.5vh, 3em);
+    --garden-height: clamp(3.3em, 8.5vh, 4.2em);
+    --cover-content-lift: 0.35em;
     --cover-binding: 10px;
 
-    padding-bottom: calc(1.15em + var(--garden-height));
+    padding-bottom: calc(1.15em + var(--garden-height) + var(--cover-content-lift));
+  }
+
+  .cover {
+    transition-duration: 360ms;
   }
 
   .storyLink p {
@@ -675,7 +674,7 @@
   }
 
   .storyLink {
-    font-size: clamp(1.05em, 4.6vw, 1.28em);
+    font-size: calc(18px * var(--font-scale));
     --story-line-height: 1.7em;
   }
 
@@ -694,10 +693,6 @@
 
   .corner::after {
     width: 66px;
-  }
-
-  .cardFoot {
-    padding-right: 1.2em;
   }
 }
 
@@ -747,20 +742,20 @@
     transition: none;
   }
 
-  .nextButton span {
-    animation: none;
-  }
-
-  .stack,
-  .nextSlotInner {
+  .cover {
     transition: none;
   }
 
-  .nextSlotInner {
-    transform: none;
+  .coverButton span {
+    animation: none;
   }
 
-  .caret {
+  .coverButton {
+    transition: none;
+  }
+
+  .stackMotion,
+  .stack {
     transition: none;
   }
 }

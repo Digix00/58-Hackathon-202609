@@ -1,5 +1,6 @@
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import { ProfileSettings } from '../profile/ProfileSettings'
+import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import sharedStyles from '../../shared/styles/Settings.module.css'
 import styles from './SettingsPage.module.css'
 
@@ -43,8 +44,10 @@ export function SettingsPage() {
 
       {/* TODO: 表示言語の変換を実装し、選択した言語を投稿本文へ反映できるようにする。 */}
       <fieldset className={sharedStyles.group} disabled>
-        <legend>表示することば（準備中）</legend>
-        <p>ひらがな・英語表示は現在準備中です。原文でお読みください。</p>
+        <legend>
+          表示することば <ComingSoonLabel ariaLabel="表示することばは準備中です" />
+        </legend>
+        <p>現在は原文でお読みください。</p>
         <div className={sharedStyles.choiceRow}>
           {languageOptions.map((option) => (
             <label key={option.value} className={sharedStyles.choice}>
@@ -64,8 +67,10 @@ export function SettingsPage() {
 
       {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
       <fieldset className={sharedStyles.group} disabled>
-        <legend>読み上げ（準備中）</legend>
-        <p>読み上げ機能は現在準備中です。</p>
+        <legend>
+          読み上げ <ComingSoonLabel ariaLabel="読み上げは準備中です" />
+        </legend>
+        <p>読み上げは、まだお使いいただけません。</p>
         <label className={sharedStyles.toggle}>
           <input
             type="checkbox"
