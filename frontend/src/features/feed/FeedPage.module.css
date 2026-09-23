@@ -300,14 +300,6 @@
   letter-spacing: 0.02em;
 }
 
-.cardFoot {
-  display: flex;
-  align-items: center;
-  /* 紙の下はこの一つだけになったので、真ん中に置いて押す先をはっきりさせる。 */
-  justify-content: center;
-  padding-top: 0.8em;
-}
-
 /*
  * めくれた角。次があることを示す絵であり、そのまま次の声へ進むボタンでもある。
  * 裏面（::before）と折り線（::after）に分ける。折り線だけにクレヨンのかすれを効かせる。
@@ -515,7 +507,7 @@
 .actions {
   display: grid;
   justify-items: center;
-  gap: 0.7em;
+  gap: 0.55em;
   width: 100%;
 }
 
@@ -701,10 +693,6 @@
 
   .corner::after {
     width: 66px;
-  }
-
-  .cardFoot {
-    padding-right: 1.2em;
   }
 }
 

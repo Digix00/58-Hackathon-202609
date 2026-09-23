@@ -251,9 +251,7 @@ function FeedNextCorner({ onNext }: { onNext?: () => void }) {
 function FeedCard({
   concern,
   page,
-  onReact,
   onNext,
-  canReact = false,
   articleRef,
   dragX = 0,
   onLinkClick,
@@ -261,11 +259,8 @@ function FeedCard({
 }: {
   concern: DemoConcern
   page: number
-  /** 実際に寄りそえたときだけ true を返す。未ログインなら false。 */
-  onReact?: () => boolean
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
-  canReact?: boolean
   articleRef?: RefCallback<HTMLElement>
   dragX?: number
   onLinkClick?: (event: MouseEvent) => void
@@ -302,9 +297,6 @@ function FeedCard({
       >
         <p className={screen.body}>{concern.body}</p>
       </Link>
-      <div className={styles.cardFoot}>
-        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
-      </div>
       {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
       <FeedNextCorner onNext={onNext} />
     </article>
@@ -345,10 +337,8 @@ type FeedStackProps = {
   coverOpened: boolean
   coverOpening: boolean
   dragX: number
-  isLiff: boolean
   articleRef: RefCallback<HTMLElement>
   onNext: () => void
-  onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
 }
@@ -362,10 +352,8 @@ function FeedStack({
   coverOpened,
   coverOpening,
   dragX,
-  isLiff,
   articleRef,
   onNext,
-  onReact,
   onLinkClick,
   onTurningFinished,
 }: FeedStackProps) {
@@ -403,7 +391,7 @@ function FeedStack({
             onFinish={onTurningFinished}
           >
             {turning.kind === 'concern' ? (
-              <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
+              <FeedCard concern={turning.concern} page={turning.page} />
             ) : (
               <FeedCover />
             )}
@@ -420,16 +408,14 @@ function FeedStack({
               page={position + 1}
               onNext={onNext}
               articleRef={articleRef}
-              canReact={isLiff}
               dragX={dragX}
               onLinkClick={onLinkClick}
-              onReact={onReact}
             />
           </div>
         ) : (
           <>
             <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
-              <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
+              <FeedCard concern={concern} page={position + 1} showTabs={false} />
             </div>
             <div className={styles.coverLayer}>
               <FeedCover />
@@ -494,6 +480,7 @@ type FilterOption = { value: string; label: string }
 function FeedActions({
   showLogin,
   concern,
+  canReact,
   coverOpening,
   filtersOpen,
   activeFilter,
@@ -501,11 +488,13 @@ function FeedActions({
   genderOptions,
   regionOptions,
   onNext,
+  onReact,
   onFiltersToggle,
   onFilterChange,
 }: {
   showLogin: boolean
   concern: DemoConcern | undefined
+  canReact: boolean
   /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
   coverOpening: boolean
   filtersOpen: boolean
@@ -514,12 +503,16 @@ function FeedActions({
   genderOptions: FilterOption[]
   regionOptions: FilterOption[]
   onNext: () => void
+  onReact: () => boolean
   onFiltersToggle: (open: boolean) => void
   onFilterChange: (field: keyof Filter, value: string) => void
 }) {
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
+      {concern && coverOpening ? (
+        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
+      ) : null}
       {concern && !coverOpening ? (
         <div className={styles.coverOpenSlot}>
           <button
@@ -700,18 +693,8 @@ export function FeedPage() {
           coverOpened={coverOpened}
           coverOpening={coverOpening}
           dragX={swipe.dragX}
-          isLiff={isLiff}
           articleRef={articleRef}
           onNext={goNext}
-          onReact={() => {
-            if (authStatus !== 'authenticated') {
-              dispatch({ type: 'loginVisibilityChanged', visible: true })
-              return false
-            }
-            if (!concern) return false
-            reactToDemoConcern(concern.id)
-            return true
-          }}
           onLinkClick={swipe.handleLinkClick}
           onTurningFinished={() => dispatch({ type: 'turningFinished' })}
           onReset={() => dispatch({ type: 'filtersReset' })}
@@ -723,6 +706,7 @@ export function FeedPage() {
         <FeedActions
           showLogin={showLogin}
           concern={concern}
+          canReact={isLiff}
           coverOpening={coverOpening}
           filtersOpen={filtersOpen}
           activeFilter={activeFilter}
@@ -730,6 +714,15 @@ export function FeedPage() {
           genderOptions={genderOptions}
           regionOptions={regionOptions}
           onNext={goNext}
+          onReact={() => {
+            if (authStatus !== 'authenticated') {
+              dispatch({ type: 'loginVisibilityChanged', visible: true })
+              return false
+            }
+            if (!concern) return false
+            reactToDemoConcern(concern.id)
+            return true
+          }}
           onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
           onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
         />

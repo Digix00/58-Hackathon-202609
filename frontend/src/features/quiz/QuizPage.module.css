@@ -171,7 +171,7 @@
   z-index: 1;
   margin: 0;
   color: var(--color-purple-ink);
-  font-size: 1.7em;
+  font-size: calc(27px * var(--font-scale));
   font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -187,7 +187,7 @@
   z-index: 1;
   margin: 0;
   color: var(--color-muted);
-  font-size: 1em;
+  font-size: calc(16px * var(--font-scale));
   line-height: 1.9;
 }
 
@@ -224,7 +224,7 @@
   position: relative;
   align-self: center;
   isolation: isolate;
-  font-size: clamp(1.08em, 4.5vw, 1.28em);
+  font-size: calc(18px * var(--font-scale));
   --letter-line-height: 1.95em;
   --letter-rule-color: rgba(138, 132, 122, 0.18);
 }
@@ -365,7 +365,7 @@
 
 .ask {
   color: var(--color-muted);
-  font-size: 0.85em;
+  font-size: calc(14px * var(--font-scale));
 }
 
 /*
@@ -433,7 +433,7 @@
   max-width: 100%;
   padding: 1em 0.45em 0.2em;
   color: var(--color-purple-ink);
-  font-size: 0.78em;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -450,7 +450,7 @@
 
 .slot .tagLabel {
   color: var(--color-purple-ink);
-  font-size: 0.86em;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 700;
   white-space: nowrap;
 }
@@ -577,7 +577,7 @@
   position: relative;
   padding: 0.22em 0.95em 0.3em;
   color: var(--color-purple-ink);
-  font-size: 1.14em;
+  font-size: calc(18px * var(--font-scale));
   font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -610,7 +610,7 @@
 
 .note {
   color: var(--color-muted);
-  font-size: 0.86em;
+  font-size: calc(14px * var(--font-scale));
   line-height: 1.75;
   /* 行の長さを揃える。最後の1文字だけが次の行へ落ちると、メモが破れて見える。 */
   text-wrap: balance;
@@ -664,12 +664,12 @@
   gap: 0.8em;
   width: min(100%, 20em);
   min-height: 56px;
-  font-size: 1.06em;
+  font-size: calc(17px * var(--font-scale));
 }
 
 /* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
 .nextButton span {
-  font-size: 1.15em;
+  font-size: calc(18px * var(--font-scale));
   animation: nudge 2.6s ease-in-out infinite;
 }
 
@@ -723,7 +723,7 @@
 /* 手書きにするのは数だけ。読み終えた手応えをここへ集める。 */
 .score strong {
   padding-inline: 0.1em;
-  font-size: 1.4em;
+  font-size: calc(22px * var(--font-scale));
   font-family: var(--font-hand);
   /* 行そのものは太らせない。数だけが紙から少し浮き上がって見えればよい。 */
   line-height: 1.2;
@@ -775,7 +775,7 @@
   }
 
   .letterSheet {
-    font-size: clamp(1em, 4.2vw, 1.15em);
+    font-size: calc(17px * var(--font-scale));
     --letter-line-height: 1.75em;
   }
 
@@ -793,7 +793,7 @@
   }
 
   .judge {
-    font-size: 1.06em;
+    font-size: calc(17px * var(--font-scale));
   }
 
   .score {
@@ -802,7 +802,7 @@
   }
 
   .score strong {
-    font-size: 1.3em;
+    font-size: calc(21px * var(--font-scale));
   }
 
   .tag {
