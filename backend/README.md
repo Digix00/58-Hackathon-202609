@@ -71,7 +71,7 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
 
-現段階のUseCaseは原文から英語・ひらがなへの変換とEmbeddingを実行する。生成結果の保存先テーブルはまだ追加せず、QueueとUseCaseの接続確認に限定している。Queueの失敗はメッセージ単位で再試行し、最大再試行回数はWrangler設定に従う。
+UseCaseは原文から英語・ひらがなへの変換とEmbeddingを実行し、英語・ひらがな表現を `concern_representations` へ保存する。処理状態は `concerns.processing_status` で管理し、既に両方の表現が保存済みならQueueの再配信時にAI処理を重複実行しない。Queueの失敗はメッセージ単位で再試行し、最大再試行回数はWrangler設定に従う。
 
 初回だけQueueを作成する。
 
