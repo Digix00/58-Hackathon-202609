@@ -333,18 +333,16 @@ function QuizPaperBody({
     const correct = personId === target.correctPerson
     return (
       <>
-        <div className={styles.fit}>
-          {/* 結果でも、書き手の条件を、この手紙の持ち場に残す。 */}
-          <div className={styles.tabRow} style={tabSlotStyle(slot)}>
-            <span className={styles.choice}>
-              <span className={styles.tag} style={tagStyle(writer.id)}>
-                <TagFace label={writer.attributes} />
-              </span>
+        {/* 結果でも、書き手の条件を、この手紙の持ち場に残す。 */}
+        <div className={`${styles.tabRow} ${styles.paperTab}`} style={tabSlotStyle(slot)}>
+          <span className={styles.choice}>
+            <span className={styles.tag} style={tagStyle(writer.id)}>
+              <TagFace label={writer.attributes} />
             </span>
-          </div>
-          {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
-          <p className={styles.ask}>この声の条件</p>
+          </span>
         </div>
+        {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
+        <p className={styles.ask}>この声の条件</p>
         <div className={styles.letterSheet}>
           <p className={styles.letter}>{body}</p>
         </div>
@@ -368,40 +366,38 @@ function QuizPaperBody({
 
   return (
     <>
-      <div className={styles.fit}>
-        <div className={styles.tabRow} style={tabSlotStyle(slot)}>
-          {fitted ? (
-            <button
-              type="button"
-              className={`${styles.choice} ${styles.fitted}`}
-              onClick={() => interactive && onPull(target.id)}
-              aria-label={`条件は${fitted.attributes}。この声から外す`}
-            >
-              <span className={styles.tag} style={tagStyle(fitted.id)}>
-                <TagFace label={fitted.attributes} />
-              </span>
-            </button>
-          ) : (
-            <span
-              ref={interactive ? slotRef : undefined}
-              className={`${styles.tag} ${styles.slot} ${dragOver ? styles.over : ''}`}
-              aria-hidden="true"
-            >
-              <svg
-                className={styles.shape}
-                viewBox="0 0 100 78"
-                preserveAspectRatio="none"
-                focusable="false"
-              >
-                <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
-              </svg>
-              <span className={styles.tagLabel}>ここへ</span>
+      <div className={`${styles.tabRow} ${styles.paperTab}`} style={tabSlotStyle(slot)}>
+        {fitted ? (
+          <button
+            type="button"
+            className={`${styles.choice} ${styles.fitted}`}
+            onClick={() => interactive && onPull(target.id)}
+            aria-label={`条件は${fitted.attributes}。この声から外す`}
+          >
+            <span className={styles.tag} style={tagStyle(fitted.id)}>
+              <TagFace label={fitted.attributes} />
             </span>
-          )}
-        </div>
-        {/* 問いかけの場所は動かさない。挟んだあとは、やり直し方をここで伝える。 */}
-        <p className={styles.ask}>{fitted ? 'ちがったら、しおりを押す' : 'この声は、どの条件？'}</p>
+          </button>
+        ) : (
+          <span
+            ref={interactive ? slotRef : undefined}
+            className={`${styles.tag} ${styles.slot} ${dragOver ? styles.over : ''}`}
+            aria-hidden="true"
+          >
+            <svg
+              className={styles.shape}
+              viewBox="0 0 100 78"
+              preserveAspectRatio="none"
+              focusable="false"
+            >
+              <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
+            </svg>
+            <span className={styles.tagLabel}>ここへ</span>
+          </span>
+        )}
       </div>
+      {/* 問いかけの場所は動かさない。挟んだあとは、やり直し方をここで伝える。 */}
+      <p className={styles.ask}>{fitted ? 'ちがったら、しおりを押す' : 'この声は、どの条件？'}</p>
       <div className={styles.letterSheet}>
         <p className={styles.letter}>{body}</p>
       </div>
