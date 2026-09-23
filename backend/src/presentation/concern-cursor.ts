@@ -1,4 +1,5 @@
 import type { ConcernSort } from "../application/entity/feed";
+import { RECOMMENDATION_ALGORITHM_VERSION } from "../application/recommendation/recommendation.policy";
 import type {
   ConcernFeedCursor,
   ConcernListCursor,
@@ -7,7 +8,7 @@ import type {
 
 const LEGACY_CURSOR_VERSION = 1;
 const CURSOR_VERSION = 2;
-const RECOMMENDED_CURSOR_VERSION = 3;
+const RECOMMENDED_CURSOR_VERSION = 4;
 const MAX_PENDING_CONCERN_IDS = 250;
 const MAX_CURSOR_ID_LENGTH = 200;
 
@@ -30,6 +31,7 @@ interface EncodedConcernCursor extends ConcernListCursor {
 
 interface EncodedRecommendedConcernCursor extends RecommendedConcernCursor {
   version: typeof RECOMMENDED_CURSOR_VERSION;
+  algorithmVersion: typeof RECOMMENDATION_ALGORITHM_VERSION;
   sort: "recommended";
   regionCode: string | null;
   clusterId: string | null;
@@ -55,23 +57,36 @@ export function encodeConcernCursor(
     | EncodedLegacyConcernCursor = isRecommendedConcernCursor(cursor)
     ? {
         version: RECOMMENDED_CURSOR_VERSION,
+        algorithmVersion: RECOMMENDATION_ALGORITHM_VERSION,
         ...cursor,
         sort: "recommended",
         regionCode: context?.regionCode ?? null,
         clusterId: context?.clusterId ?? null,
       }
-    : context
+    : context?.sort === "recommended"
       ? {
-          version: CURSOR_VERSION,
-          ...cursor,
-          sort: context.sort,
+          version: RECOMMENDED_CURSOR_VERSION,
+          algorithmVersion: RECOMMENDATION_ALGORITHM_VERSION,
+          type: "recommended" as const,
+          sourceCursor: cursor,
+          pendingConcernIds: [],
+          lastClusterId: null,
+          sort: "recommended" as const,
           regionCode: context.regionCode ?? null,
           clusterId: context.clusterId ?? null,
         }
-      : {
-          version: LEGACY_CURSOR_VERSION,
-          ...cursor,
-        };
+      : context
+        ? {
+            version: CURSOR_VERSION,
+            ...cursor,
+            sort: context.sort,
+            regionCode: context.regionCode ?? null,
+            clusterId: context.clusterId ?? null,
+          }
+        : {
+            version: LEGACY_CURSOR_VERSION,
+            ...cursor,
+          };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let binary = "";
   for (const byte of bytes) {
@@ -114,20 +129,28 @@ export function decodeConcernCursor(
           type: "recommended",
           sourceCursor: parsed.sourceCursor,
           pendingConcernIds: parsed.pendingConcernIds,
+          lastClusterId: parsed.lastClusterId,
         },
       };
     }
 
     if (isEncodedConcernCursor(parsed)) {
+      if (parsed.sort === "recommended") {
+        return null;
+      }
       if (!matchesContext(parsed, expectedContext)) {
         return null;
       }
       return { cursor: { createdAt: parsed.createdAt, id: parsed.id } };
     }
 
-    return isEncodedLegacyConcernCursor(parsed)
-      ? { cursor: { createdAt: parsed.createdAt, id: parsed.id } }
-      : null;
+    if (isEncodedLegacyConcernCursor(parsed)) {
+      if (expectedContext?.sort === "recommended") {
+        return null;
+      }
+      return { cursor: { createdAt: parsed.createdAt, id: parsed.id } };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -160,10 +183,15 @@ function isEncodedRecommendedConcernCursor(
   const pendingConcernIds = cursor.pendingConcernIds;
   return (
     cursor.version === RECOMMENDED_CURSOR_VERSION &&
+    cursor.algorithmVersion === RECOMMENDATION_ALGORITHM_VERSION &&
     cursor.type === "recommended" &&
     cursor.sort === "recommended" &&
     (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
     (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
+    (cursor.lastClusterId === null ||
+      (typeof cursor.lastClusterId === "string" &&
+        cursor.lastClusterId.length > 0 &&
+        cursor.lastClusterId.length <= MAX_CURSOR_ID_LENGTH)) &&
     (sourceCursor === null || isConcernListCursor(sourceCursor)) &&
     Array.isArray(pendingConcernIds) &&
     pendingConcernIds.length <= MAX_PENDING_CONCERN_IDS &&

@@ -14,6 +14,7 @@ export interface RecommendedConcernCursor {
   type: "recommended";
   sourceCursor: ConcernListCursor | null;
   pendingConcernIds: string[];
+  lastClusterId: string | null;
 }
 
 export type ConcernFeedCursor = ConcernListCursor | RecommendedConcernCursor;

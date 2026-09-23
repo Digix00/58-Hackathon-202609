@@ -50,4 +50,72 @@ describe("ConcernUseCase recommendation feed", () => {
       ],
     });
   });
+
+  it("carries the last cluster into the next recommendation page", async () => {
+    const firstCandidate = {
+      concern: new Concern({
+        id: "concern-first",
+        userId: "author-1",
+        body: "1ページ目の推薦対象",
+        clusterId: "cluster-first",
+        createdAt: "2026-09-22T00:00:00.000Z",
+      }),
+      cluster: new ConcernCluster({
+        id: "cluster-first",
+        label: "1ページ目のテーマ",
+        summary: "1ページ目のテーマの要約",
+      }),
+      viewed: false,
+    };
+    const secondCandidate = {
+      concern: new Concern({
+        id: "concern-second",
+        userId: "author-2",
+        body: "2ページ目の推薦対象",
+        clusterId: "cluster-second",
+        createdAt: "2026-09-21T00:00:00.000Z",
+      }),
+      cluster: new ConcernCluster({
+        id: "cluster-second",
+        label: "2ページ目のテーマ",
+        summary: "2ページ目のテーマの要約",
+      }),
+      viewed: false,
+    };
+    const repository: ConcernRepository = {
+      insert: async (value) => value,
+      listPublished: async () => ({ items: [], hasMore: false }),
+      findPublishedById: async () => null,
+      listFeed: async (input) =>
+        input.cursor
+          ? { items: [secondCandidate], hasMore: false }
+          : { items: [firstCandidate], hasMore: true },
+    };
+    const useCase = new ConcernUseCase(repository);
+
+    const firstPage = await useCase.listFeed({
+      limit: 1,
+      sort: "recommended",
+      userId: "user-1",
+    });
+    const firstCursor = firstPage.nextCursor;
+
+    expect(firstCursor).toMatchObject({
+      type: "recommended",
+      lastClusterId: "cluster-first",
+    });
+    if (!firstCursor || !("type" in firstCursor)) {
+      throw new Error("expected a recommendation cursor");
+    }
+
+    const secondPage = await useCase.listFeed({
+      limit: 1,
+      sort: "recommended",
+      userId: "user-1",
+      cursor: firstCursor.sourceCursor ?? undefined,
+      recommendationCursor: firstCursor,
+    });
+
+    expect(secondPage.items[0]?.concern.id).toBe("concern-second");
+  });
 });

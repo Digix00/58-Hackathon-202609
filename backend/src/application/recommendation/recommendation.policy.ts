@@ -5,7 +5,7 @@ import type {
 } from "../entity/feed";
 
 /** 推薦アルゴリズムのバージョン。表示履歴を後から評価できるように保存する。 */
-export const RECOMMENDATION_ALGORITHM_VERSION = "v1";
+export const RECOMMENDATION_ALGORITHM_VERSION = "v2";
 
 /**
  * 新着順で取得した候補を、既読状況・クラスタ・都道府県の分散で並べ替える。
@@ -14,6 +14,7 @@ export const RECOMMENDATION_ALGORITHM_VERSION = "v1";
 export function rankConcernFeedCandidates(
   candidates: ConcernFeedCandidate[],
   history: RecommendationHistory[],
+  previousClusterId?: string | null,
 ): RankedConcernFeedItem[] {
   const viewedClusterIds = new Set(
     history.flatMap((entry) => (entry.clusterId ? [entry.clusterId] : [])),
@@ -28,9 +29,17 @@ export function rankConcernFeedCandidates(
   const selectedClusterIds = new Set<string>();
   const selectedRegionCodes = new Set<string>();
   const ranked: RankedConcernFeedItem[] = [];
+  let lastSelectedClusterId = previousClusterId ?? null;
 
   while (remaining.length > 0) {
-    remaining.sort((left, right) => {
+    const selectable = lastSelectedClusterId
+      ? remaining.filter(
+          ({ candidate }) => candidate.cluster?.id !== lastSelectedClusterId,
+        )
+      : remaining;
+    const rankingPool = selectable.length > 0 ? selectable : remaining;
+
+    rankingPool.sort((left, right) => {
       const scoreDifference =
         scoreCandidate(
           right.candidate,
@@ -66,10 +75,12 @@ export function rankConcernFeedCandidates(
         : left.originalIndex - right.originalIndex;
     });
 
-    const next = remaining.shift();
+    const next = rankingPool[0];
     if (!next) {
       break;
     }
+    const nextIndex = remaining.indexOf(next);
+    remaining.splice(nextIndex, 1);
 
     const { candidate } = next;
     const clusterId = candidate.cluster?.id;
@@ -97,6 +108,7 @@ export function rankConcernFeedCandidates(
     if (regionCode) {
       selectedRegionCodes.add(regionCode);
     }
+    lastSelectedClusterId = clusterId ?? null;
   }
 
   return ranked;

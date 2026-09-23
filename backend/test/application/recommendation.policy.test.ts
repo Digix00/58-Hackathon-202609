@@ -71,4 +71,66 @@ describe("rankConcernFeedCandidates", () => {
       reasonCode: "unread_cluster",
     });
   });
+
+  it("does not select the same cluster consecutively when another cluster is available", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        ...["x-1", "x-2"].map((id, index) => ({
+          concern: concern({
+            id,
+            clusterId: "cluster-x",
+            createdAt: `2026-09-0${index + 1}T00:00:00.000Z`,
+          }),
+          cluster: cluster("cluster-x"),
+          viewed: false,
+        })),
+        ...["y-1", "y-2"].map((id, index) => ({
+          concern: concern({
+            id,
+            clusterId: "cluster-y",
+            createdAt: `2026-08-0${index + 1}T00:00:00.000Z`,
+          }),
+          cluster: cluster("cluster-y"),
+          viewed: true,
+        })),
+      ],
+      [],
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "x-2",
+      "y-2",
+      "x-1",
+      "y-1",
+    ]);
+  });
+
+  it("allows the same cluster when no other cluster remains", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        {
+          concern: concern({
+            id: "x-1",
+            clusterId: "cluster-x",
+            createdAt: "2026-09-02T00:00:00.000Z",
+          }),
+          cluster: cluster("cluster-x"),
+          viewed: false,
+        },
+        {
+          concern: concern({
+            id: "x-2",
+            clusterId: "cluster-x",
+            createdAt: "2026-09-01T00:00:00.000Z",
+          }),
+          cluster: cluster("cluster-x"),
+          viewed: false,
+        },
+      ],
+      [],
+      "cluster-x",
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual(["x-1", "x-2"]);
+  });
 });

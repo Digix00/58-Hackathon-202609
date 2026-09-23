@@ -194,7 +194,11 @@ export class ConcernUseCase implements IConcernUseCase {
         this.repository.listRecommendationHistory && input.userId
           ? await this.repository.listRecommendationHistory(input.userId, 50)
           : [];
-      const ranked = rankConcernFeedCandidates(candidateWindow, history);
+      const ranked = rankConcernFeedCandidates(
+        candidateWindow,
+        history,
+        recommendationCursor?.lastClusterId,
+      );
       const items = ranked.slice(0, input.limit);
       const result = {
         items,
@@ -359,13 +363,15 @@ function toRecommendedCursor(
   sourceCursor: ConcernListCursor | null,
 ): ConcernFeedCursor | null {
   const pendingConcernIds = ranked.slice(limit).map((item) => item.concern.id);
-  if (pendingConcernIds.length === 0) {
-    return sourceCursor;
+  if (!sourceCursor && pendingConcernIds.length === 0) {
+    return null;
   }
+  const lastItem = ranked[Math.min(limit, ranked.length) - 1];
 
   return {
     type: "recommended",
     sourceCursor,
     pendingConcernIds,
+    lastClusterId: lastItem?.cluster?.id ?? null,
   };
 }
