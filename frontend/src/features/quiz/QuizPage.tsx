@@ -21,11 +21,26 @@ import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
-import { answerDemoQuiz, demoQuiz, useDemoState } from '../demo/demoStore'
+import { answerDemoQuiz, demoQuiz, useDemoState, type DemoQuizResult } from '../demo/demoStore'
 import styles from './QuizPage.module.css'
 
 type Letter = (typeof demoQuiz.letters)[number]
+type Person = (typeof demoQuiz.people)[number]
 type Answers = Record<string, string>
+type DragState = {
+  personId: string
+  x: number
+  y: number
+  over: boolean
+  width: number
+  height: number
+}
+type TurningState = {
+  letter: Letter
+  personId?: string
+  startAngle: number
+  direction: 1 | -1
+}
 
 type QuizStep = 'letters' | 'submitting' | 'results'
 type QuizState = {
@@ -354,32 +369,15 @@ function QuizActions({
   )
 }
 
-export function QuizPage() {
-  const { concerns, quizResult } = useDemoState()
+function useQuizNavigation(quizResult: DemoQuizResult | null) {
   const [state, dispatch] = useReducer(quizReducer, initialState)
-  /** 指についてくるしおり。運んでいる間だけ描く。 */
-  const [drag, setDrag] = useState<{
-    personId: string
-    x: number
-    y: number
-    over: boolean
-    width: number
-    height: number
-  } | null>(null)
   /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
-  const [turning, setTurning] = useState<{
-    letter: Letter
-    personId?: string
-    startAngle: number
-    direction: 1 | -1
-  } | null>(null)
-  const slotRef = useRef<HTMLSpanElement | null>(null)
+  const [turning, setTurning] = useState<TurningState | null>(null)
 
   const letters = demoQuiz.letters
   const showingResults = Boolean(quizResult) || state.step === 'results'
   const letter = letters[state.index]
   const answers = quizResult ? quizResult.answers : state.answers
-  const bodyOf = (target: Letter) => concerns.find((concern) => concern.id === target.id)?.body
   const answeredPersonIds = new Set(Object.values(answers))
   const remaining = demoQuiz.people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = remaining.length === 0
@@ -415,13 +413,6 @@ export function QuizPage() {
     [answers, letter, letters, state.index, turning],
   )
 
-  const swipe = useNotebookSwipe({
-    canGoNext,
-    canGoPrevious: canGoPrev,
-    onNext: (startAngle) => go(1, startAngle),
-    onPrevious: () => go(-1),
-  })
-
   function fit(personId: string) {
     if (showingResults || state.step === 'submitting' || turning || answers[letter.id]) return
     const next = placeAnswer(state.answers, letter.id, personId)
@@ -432,6 +423,44 @@ export function QuizPage() {
     }
     dispatch({ type: 'fit', letterId: letter.id, personId })
   }
+
+  const submit = async () => {
+    dispatch({ type: 'submitStarted' })
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    answerDemoQuiz(state.answers)
+    dispatch({ type: 'showResults' })
+  }
+
+  const finishTurn = useCallback(() => {
+    if (turning?.direction === -1) dispatch({ type: 'go', direction: -1 })
+    setTurning(null)
+  }, [turning])
+
+  const pull = useCallback((letterId: string) => {
+    dispatch({ type: 'pull', letterId })
+  }, [])
+
+  return {
+    state,
+    letter,
+    answers,
+    remaining,
+    complete,
+    showingResults,
+    canGoNext,
+    canGoPrev,
+    turning,
+    go,
+    fit,
+    submit,
+    finishTurn,
+    pull,
+  }
+}
+
+function useQuizDrag(fit: (personId: string) => void) {
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const slotRef = useRef<HTMLSpanElement | null>(null)
 
   function isOverSlot(x: number, y: number) {
     const rect = slotRef.current?.getBoundingClientRect()
@@ -480,14 +509,174 @@ export function QuizPage() {
     window.addEventListener('pointercancel', end)
   }
 
-  const submit = async () => {
-    dispatch({ type: 'submitStarted' })
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    answerDemoQuiz(state.answers)
-    dispatch({ type: 'showResults' })
-  }
+  return { drag, slotRef, startDrag }
+}
 
+function QuizTray({
+  remaining,
+  drag,
+  onStartDrag,
+  onFit,
+}: {
+  remaining: Person[]
+  drag: DragState | null
+  onStartDrag: (event: ReactPointerEvent<HTMLButtonElement>, personId: string) => void
+  onFit: (personId: string) => void
+}) {
+  return (
+    <div className={styles.tray} role="group" aria-label="手元のしおり">
+      {remaining.map((person) => (
+        <button
+          key={person.id}
+          type="button"
+          className={`${styles.choice} ${styles.piece} ${
+            drag?.personId === person.id ? styles.held : ''
+          }`}
+          onPointerDown={(event) => onStartDrag(event, person.id)}
+          // キーボードから押されたときだけ、ここで差し込む。
+          // 指やマウスは pointerup で扱い、二重に置かないようにする。
+          onClick={(event) => {
+            if (event.detail === 0) onFit(person.id)
+          }}
+          aria-label={`条件は${person.attributes}。この声のしおりにする`}
+        >
+          <span className={styles.tag} style={tagStyle(person.id)}>
+            <TagFace />
+          </span>
+          <span className={styles.attributes}>{person.attributes}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+type QuizSwipe = ReturnType<typeof useNotebookSwipe>
+
+function QuizStage({
+  stateIndex,
+  letter,
+  answers,
+  turning,
+  showingResults,
+  swipe,
+  dragOver,
+  slotRef,
+  canGoNext,
+  bodyOf,
+  onNext,
+  onTurnFinish,
+  onPull,
+}: {
+  stateIndex: number
+  letter: Letter
+  answers: Answers
+  turning: TurningState | null
+  showingResults: boolean
+  swipe: QuizSwipe
+  dragOver: boolean
+  slotRef: React.RefObject<HTMLSpanElement | null>
+  canGoNext: boolean
+  bodyOf: (target: Letter) => string | undefined
+  onNext: () => void
+  onTurnFinish: () => void
+  onPull: (letterId: string) => void
+}) {
+  return (
+    <section
+      className={styles.stage}
+      aria-labelledby="quiz-title"
+      onTouchStart={swipe.handleTouchStart}
+      onTouchMove={swipe.handleTouchMove}
+      onTouchEnd={swipe.handleTouchEnd}
+      onTouchCancel={swipe.handleTouchCancel}
+    >
+      <h1 id="quiz-title" className={styles.srOnly}>
+        きょうの3つの手紙。条件のしおりを結ぶ
+      </h1>
+      <div className={styles.stack} style={notebookBindingStyle}>
+        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
+        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
+        <NotebookBinding part="rear" />
+        {turning ? <NotebookBinding part="rear" between /> : null}
+        {turning ? (
+          <NotebookTurn
+            key={`${turning.letter.id}-${turning.personId ?? ''}-${stateIndex}`}
+            startAngle={turning.startAngle}
+            backColor="#e4d9c2"
+            direction={turning.direction}
+            onFinish={onTurnFinish}
+          >
+            <Paper className={showingResults ? styles.resultCard : ''}>
+              <QuizPaperBody
+                target={turning.letter}
+                personId={turning.personId}
+                interactive={false}
+                showingResults={showingResults}
+                body={bodyOf(turning.letter)}
+                slotRef={slotRef}
+                dragOver={dragOver}
+                onPull={onPull}
+              />
+            </Paper>
+          </NotebookTurn>
+        ) : null}
+        <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
+          <Paper
+            className={showingResults ? styles.resultCard : ''}
+            dragX={swipe.dragX}
+            onNext={canGoNext ? onNext : undefined}
+          >
+            <QuizPaperBody
+              target={letter}
+              personId={answers[letter.id]}
+              interactive
+              showingResults={showingResults}
+              body={bodyOf(letter)}
+              slotRef={slotRef}
+              dragOver={dragOver}
+              onPull={onPull}
+            />
+          </Paper>
+        </div>
+        <NotebookBinding part="front" />
+      </div>
+    </section>
+  )
+}
+
+function QuizDragGhost({ drag, dragged }: { drag: DragState | null; dragged: Person | undefined }) {
+  if (!drag || !dragged) return null
+
+  return (
+    <span
+      className={`${styles.tag} ${styles.ghost}`}
+      aria-hidden="true"
+      style={
+        {
+          ...tagStyle(dragged.id),
+          width: `${drag.width}px`,
+          height: `${drag.height}px`,
+          transform: `translate(${drag.x}px, ${drag.y}px) rotate(-3deg)`,
+        } as CSSProperties
+      }
+    >
+      <TagFace />
+    </span>
+  )
+}
+
+export function QuizPage() {
+  const { concerns, quizResult } = useDemoState()
+  const quiz = useQuizNavigation(quizResult)
+  const { drag, slotRef, startDrag } = useQuizDrag(quiz.fit)
+  const swipe = useNotebookSwipe({
+    canGoNext: quiz.canGoNext,
+    canGoPrevious: quiz.canGoPrev,
+    onNext: (startAngle) => quiz.go(1, startAngle),
+    onPrevious: () => quiz.go(-1),
+  })
   const dragged = personById(drag?.personId)
+  const bodyOf = (target: Letter) => concerns.find((concern) => concern.id === target.id)?.body
 
   return (
     <DemoBoundary
@@ -495,123 +684,44 @@ export function QuizPage() {
       emptyDescription="新しいクイズが届くまでお待ちください。"
     >
       <div className={styles.page}>
-        {!showingResults && !complete ? (
-          <div className={styles.tray} role="group" aria-label="手元のしおり">
-            {remaining.map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                className={`${styles.choice} ${styles.piece} ${
-                  drag?.personId === person.id ? styles.held : ''
-                }`}
-                onPointerDown={(event) => startDrag(event, person.id)}
-                // キーボードから押されたときだけ、ここで差し込む。
-                // 指やマウスは pointerup で扱い、二重に置かないようにする。
-                onClick={(event) => {
-                  if (event.detail === 0) fit(person.id)
-                }}
-                aria-label={`条件は${person.attributes}。この声のしおりにする`}
-              >
-                <span className={styles.tag} style={tagStyle(person.id)}>
-                  <TagFace />
-                </span>
-                <span className={styles.attributes}>{person.attributes}</span>
-              </button>
-            ))}
-          </div>
+        {!quiz.showingResults && !quiz.complete ? (
+          <QuizTray
+            remaining={quiz.remaining}
+            drag={drag}
+            onStartDrag={startDrag}
+            onFit={quiz.fit}
+          />
         ) : null}
-        <section
-          className={styles.stage}
-          aria-labelledby="quiz-title"
-          onTouchStart={swipe.handleTouchStart}
-          onTouchMove={swipe.handleTouchMove}
-          onTouchEnd={swipe.handleTouchEnd}
-          onTouchCancel={swipe.handleTouchCancel}
-        >
-          <h1 id="quiz-title" className={styles.srOnly}>
-            きょうの3つの手紙。条件のしおりを結ぶ
-          </h1>
-          <div className={styles.stack} style={notebookBindingStyle}>
-            <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-            <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-            <NotebookBinding part="rear" />
-            {turning ? <NotebookBinding part="rear" between /> : null}
-            {turning ? (
-              <NotebookTurn
-                key={`${turning.letter.id}-${turning.personId ?? ''}-${state.index}`}
-                startAngle={turning.startAngle}
-                backColor="#e4d9c2"
-                direction={turning.direction}
-                onFinish={() => {
-                  if (turning.direction === -1) dispatch({ type: 'go', direction: -1 })
-                  setTurning(null)
-                }}
-              >
-                <Paper className={showingResults ? styles.resultCard : ''}>
-                  <QuizPaperBody
-                    target={turning.letter}
-                    personId={turning.personId}
-                    interactive={false}
-                    showingResults={showingResults}
-                    body={bodyOf(turning.letter)}
-                    slotRef={slotRef}
-                    dragOver={Boolean(drag?.over)}
-                    onPull={(letterId) => dispatch({ type: 'pull', letterId })}
-                  />
-                </Paper>
-              </NotebookTurn>
-            ) : null}
-            <div key={`${letter.id}-${state.index}`} className={styles.enter}>
-              <Paper
-                className={showingResults ? styles.resultCard : ''}
-                dragX={swipe.dragX}
-                onNext={canGoNext ? () => go(1) : undefined}
-              >
-                <QuizPaperBody
-                  target={letter}
-                  personId={answers[letter.id]}
-                  interactive
-                  showingResults={showingResults}
-                  body={bodyOf(letter)}
-                  slotRef={slotRef}
-                  dragOver={Boolean(drag?.over)}
-                  onPull={(letterId) => dispatch({ type: 'pull', letterId })}
-                />
-              </Paper>
-            </div>
-            <NotebookBinding part="front" />
-          </div>
-        </section>
-
-        <QuizActions
-          showingResults={showingResults}
-          canGoNext={canGoNext}
-          complete={complete}
-          submitting={state.step === 'submitting'}
-          score={quizResult?.score}
-          onNext={() => go(1)}
-          onSubmit={() => void submit()}
+        <QuizStage
+          stateIndex={quiz.state.index}
+          letter={quiz.letter}
+          answers={quiz.answers}
+          turning={quiz.turning}
+          showingResults={quiz.showingResults}
+          swipe={swipe}
+          dragOver={Boolean(drag?.over)}
+          slotRef={slotRef}
+          canGoNext={quiz.canGoNext}
+          bodyOf={bodyOf}
+          onNext={() => quiz.go(1)}
+          onTurnFinish={quiz.finishTurn}
+          onPull={quiz.pull}
         />
 
-        {drag && dragged ? (
-          <span
-            className={`${styles.tag} ${styles.ghost}`}
-            aria-hidden="true"
-            style={
-              {
-                ...tagStyle(dragged.id),
-                width: `${drag.width}px`,
-                height: `${drag.height}px`,
-                transform: `translate(${drag.x}px, ${drag.y}px) rotate(-3deg)`,
-              } as CSSProperties
-            }
-          >
-            <TagFace />
-          </span>
-        ) : null}
+        <QuizActions
+          showingResults={quiz.showingResults}
+          canGoNext={quiz.canGoNext}
+          complete={quiz.complete}
+          submitting={quiz.state.step === 'submitting'}
+          score={quizResult?.score}
+          onNext={() => quiz.go(1)}
+          onSubmit={() => void quiz.submit()}
+        />
+
+        <QuizDragGhost drag={drag} dragged={dragged} />
 
         <p className={styles.srOnly} aria-live="polite">
-          {canGoPrev || canGoNext ? `${state.index + 1}通目の手紙` : ''}
+          {quiz.canGoPrev || quiz.canGoNext ? `${quiz.state.index + 1}通目の手紙` : ''}
         </p>
       </div>
     </DemoBoundary>
