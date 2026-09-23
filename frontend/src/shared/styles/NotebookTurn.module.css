@@ -1,4 +1,14 @@
-/* 紙をリング側から外し、色のついた裏面を見せて一回転させる。 */
+/*
+ * リングノートの1枚を、金具を軸にひと回りさせる。
+ *
+ * 紙は綴じられているので、束から離れて飛んでいかない。動かすのは角度だけで、
+ * 位置はずらさない。回転軸 --turn-axis はリングの中心（紙の左端より外）にあり、
+ * とじ穴はそこから RING_RADIUS_X だけ右にある。だから軸のまわりに回すだけで、
+ * 穴はリングの上をなぞって反対側へ渡る。
+ *
+ * 奥行きは束（.stack）側の perspective が作る。ここで perspective() を変形に
+ * 混ぜると、消失点が回転軸の上に乗り、めくりではなく飛んでいく動きになる。
+ */
 .turning {
   position: absolute;
   inset: 0;
@@ -6,28 +16,46 @@
   transform-origin: var(--turn-axis) center;
   transform-style: preserve-3d;
   pointer-events: none;
-  animation: turnOut 800ms both;
+  animation: turnOut 780ms both;
 }
 
+/*
+ * 手前を向いているあいだ（0〜90度）が目に見えるめくり。ここで2枚目が開く。
+ * 真横を越えた紙はリングを回り込んで束の裏へ入るので、そこから先は
+ * 2枚目より下へ回し、隠れたまま残りを回りきって一回転を終える。
+ */
 @keyframes turnOut {
   0% {
-    transform: perspective(1400px) translate3d(0, 0, 0) rotateY(var(--turn-start, 0deg));
-    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+    z-index: 3;
+    transform: translateZ(0) rotateY(var(--turn-start, 0deg));
+    animation-timing-function: cubic-bezier(0.42, 0, 0.72, 0.62);
   }
-  28% {
-    transform: perspective(1400px) translate3d(8%, 0, 18px) rotateY(-105deg);
-    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  26% {
+    /* リングの太さを越えるぶん、紙がいちど持ち上がる。 */
+    transform: translateZ(18px) rotateY(-52deg);
+    animation-timing-function: linear;
   }
-  52% {
-    transform: perspective(1400px) translate3d(55%, 0, 22px) rotateY(-190deg);
-    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  50% {
+    /*
+     * 真横。紙の見た目の幅がここでゼロになる。
+     * 上下の入れ替えはこの一瞬でしか行えない。幅を持ったまま入れ替えると、
+     * 紙が2枚目の裏へ飛んだように見える。
+     */
+    z-index: 3;
+    transform: translateZ(22px) rotateY(-90deg);
+    animation-timing-function: cubic-bezier(0.32, 0.1, 0.52, 1);
   }
-  78% {
-    transform: perspective(1400px) translate3d(-40%, 0, 8px) rotateY(-290deg);
-    animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1);
+  50.01% {
+    z-index: 0;
+  }
+  74% {
+    transform: translateZ(8px) rotateY(-212deg);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
   100% {
-    transform: perspective(1400px) translate3d(-115%, 0, 0) rotateY(-360deg);
+    /* リングを回り込み、2枚目の裏へ抜けて一回転。 */
+    z-index: 0;
+    transform: translateZ(-26px) rotateY(-360deg);
   }
 }
 
@@ -39,32 +67,17 @@
   backface-visibility: hidden;
 }
 
-.face::after {
-  position: absolute;
-  inset: 0;
-  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  background: linear-gradient(95deg, #2f281a 0%, #2f281a66 36%, #2f281a00 76%);
-  pointer-events: none;
-  animation: turnShade 800ms both;
-  content: '';
-}
-
-@keyframes turnShade {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  36% {
-    opacity: 0.32;
-  }
-}
-
 .back {
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  background: linear-gradient(265deg, var(--turn-back-color, #e8ddc9), #fbf3e2 72%);
+  /* 裏は同じ紙。ページの色はとじ際にわずかに残すだけにする。 */
+  background: linear-gradient(265deg, #fdf7ea 0%, #f6eddc 58%, var(--turn-back-color, #e8ddc9) 100%);
   transform: rotateY(180deg);
 }
 
+/*
+ * 前の声へ戻るとき。こちらの紙には裏面を用意していないので、
+ * 裏が見えない角度（真横のすこし先）から起こす。
+ */
 .fromLeft {
   transform-origin: var(--turn-axis) center;
   animation: turnBack 440ms cubic-bezier(0.24, 0.72, 0.32, 1) both;
@@ -72,10 +85,10 @@
 
 @keyframes turnBack {
   from {
-    transform: perspective(1400px) translateZ(13px) rotateY(-88deg);
+    transform: translateZ(13px) rotateY(-88deg);
   }
   to {
-    transform: perspective(1400px) translateZ(0) rotateY(0deg);
+    transform: translateZ(0) rotateY(0deg);
   }
 }
 

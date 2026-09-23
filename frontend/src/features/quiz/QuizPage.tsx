@@ -161,7 +161,7 @@ function Paper({
         dragX !== 0 ? styles.dragging : ''
       }`}
       style={{
-        transform: dragX < 0 ? `perspective(1400px) rotateY(${angleForDrag(dragX)}deg)` : undefined,
+        transform: dragX < 0 ? `rotateY(${angleForDrag(dragX)}deg)` : undefined,
       }}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}

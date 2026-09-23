@@ -4,6 +4,7 @@ import {
   useEffectEvent,
   useReducer,
   useRef,
+  useState,
   type CSSProperties,
   type MouseEvent,
   type RefCallback,
@@ -174,6 +175,34 @@ function useFeedSwipe({
   return { handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, handleLinkClick }
 }
 
+/**
+ * 手で描いたハート。左右をわざと揃えないのは、
+ * 記号の ♡ を置くと、この画面の中でここだけ定規で引いた線に見えるため。
+ */
+function CrayonHeart() {
+  return (
+    <svg className={styles.heart} viewBox="0 0 24 22" aria-hidden="true" focusable="false">
+      <path d="M12 20.3C11.3 19.8 3.4 14.5 2.5 8.6 2 5.1 4.2 2.3 7.2 2.1c2.2-.2 4 1.1 4.9 3.1.8-2.1 2.6-3.5 4.8-3.3 3 .2 5.3 3 4.7 6.5-.9 5.8-8.9 11.3-9.6 11.9Z" />
+    </svg>
+  )
+}
+
+/** 押した瞬間に、ハートのまわりへ短い線が散る。スタンプを押した跡。 */
+function ReactionSpark() {
+  return (
+    <svg className={styles.spark} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+      <g>
+        <path d="M20 7V2" />
+        <path d="M29 10.5 32.6 7" />
+        <path d="M33 20h5" />
+        <path d="M11 10.5 7.4 7" />
+        <path d="M7 20H2" />
+        <path d="M28.6 29.6 32 33" />
+      </g>
+    </svg>
+  )
+}
+
 function FeedCard({
   concern,
   page,
@@ -186,7 +215,8 @@ function FeedCard({
 }: {
   concern: DemoConcern
   page: number
-  onReact?: () => void
+  /** 実際に寄りそえたときだけ true を返す。未ログインなら false。 */
+  onReact?: () => boolean
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
   canReact?: boolean
@@ -195,6 +225,8 @@ function FeedCard({
   onLinkClick?: (event: MouseEvent) => void
 }) {
   const palette = paletteForPage(page)
+  // この紙を見ている間に押されたかどうか。once だけ線を散らすために持つ。
+  const [sparked, setSparked] = useState(false)
 
   return (
     <article
@@ -204,8 +236,7 @@ function FeedCard({
       }`}
       style={
         {
-          transform:
-            dragX < 0 ? `perspective(1350px) rotateY(${angleForDrag(dragX)}deg)` : undefined,
+          transform: dragX < 0 ? `rotateY(${angleForDrag(dragX)}deg)` : undefined,
           '--bookmark': palette.bookmark,
           '--tag-age': palette.tagAge,
           '--tag-region': palette.tagRegion,
@@ -237,15 +268,22 @@ function FeedCard({
         {canReact ? (
           <button
             type="button"
-            className={styles.reaction}
-            onClick={onReact}
+            className={`${styles.reaction} ${concern.reacted ? styles.reacted : ''} ${
+              sparked ? styles.sparked : ''
+            }`}
+            onClick={() => {
+              if (onReact?.()) setSparked(true)
+            }}
             disabled={concern.reacted}
             aria-pressed={concern.reacted}
           >
-            <span className={styles.heart} aria-hidden="true">
-              {concern.reacted ? '♥' : '♡'}
+            <span className={styles.stamp}>
+              <CrayonHeart />
+              {sparked ? <ReactionSpark /> : null}
             </span>
-            {concern.reacted ? '寄りそいました' : 'そっと寄りそう'}
+            <span className={styles.label}>
+              {concern.reacted ? '寄りそいました' : 'そっと寄りそう'}
+            </span>
             <span className={styles.count} aria-label={`${concern.reactionCount}件の反応`}>
               {concern.reactionCount}
             </span>
@@ -276,7 +314,7 @@ type FeedStackProps = {
   isLiff: boolean
   articleRef: RefCallback<HTMLElement>
   onNext: () => void
-  onReact: () => void
+  onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
 }
@@ -541,9 +579,13 @@ export function FeedPage() {
           articleRef={articleRef}
           onNext={goNext}
           onReact={() => {
-            if (authStatus !== 'authenticated')
+            if (authStatus !== 'authenticated') {
               dispatch({ type: 'loginVisibilityChanged', visible: true })
-            else if (concern) reactToDemoConcern(concern.id)
+              return false
+            }
+            if (!concern) return false
+            reactToDemoConcern(concern.id)
+            return true
           }}
           onLinkClick={swipe.handleLinkClick}
           onTurningFinished={() => dispatch({ type: 'turningFinished' })}
