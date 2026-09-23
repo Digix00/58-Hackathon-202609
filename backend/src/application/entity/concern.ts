@@ -19,7 +19,6 @@ export const AGE_GROUPS = [
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
 export const CONCERN_VISIBILITY_STATUSES = [
-  "pending",
   "published",
   "hidden",
   "deleted",
