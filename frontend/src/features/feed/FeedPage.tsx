@@ -299,7 +299,7 @@ function FeedCard({
  * 絵を置くのは表紙だけ。表紙は「何の本か」を絵で伝える面だが、
  * 声の紙は本文が主役なので、同じ絵を持ち込むと読む前に絵を見てしまう。
  */
-function FeedCover({ onOpen }: { onOpen?: () => void }) {
+function FeedCover() {
   return (
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
@@ -310,18 +310,6 @@ function FeedCover({ onOpen }: { onOpen?: () => void }) {
         <br />
         どんな声に会えるかな。
       </p>
-      {onOpen ? (
-        <button
-          type="button"
-          className={`${styles.reaction} ${styles.coverReaction}`}
-          onClick={onOpen}
-        >
-          <span className={styles.stamp}>
-            <CrayonHeart />
-          </span>
-          <span className={styles.label}>そっと寄りそう</span>
-        </button>
-      ) : null}
     </article>
   )
 }
@@ -337,7 +325,6 @@ type FeedStackProps = {
   isLiff: boolean
   articleRef: RefCallback<HTMLElement>
   onNext: () => void
-  onCoverOpen: () => void
   onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
@@ -354,7 +341,6 @@ function FeedStack({
   isLiff,
   articleRef,
   onNext,
-  onCoverOpen,
   onReact,
   onLinkClick,
   onTurningFinished,
@@ -420,7 +406,7 @@ function FeedStack({
             <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
           </div>
           <div className={styles.coverLayer}>
-            <FeedCover onOpen={onCoverOpen} />
+            <FeedCover />
           </div>
         </>
       )}
@@ -507,25 +493,30 @@ function FeedActions({
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {/*
-       * 送りボタンは表紙を開きはじめたときに居場所を得る。
-       * 押し上げられた紙束の下から、遅れて顔を出す。
-       */}
       {concern ? (
-        <div
-          className={`${styles.nextSlot} ${coverOpening ? styles.nextSlotOpen : ''}`}
-          inert={!coverOpening}
-        >
-          <div className={styles.nextSlotInner}>
+        coverOpening ? (
+          <div className={`${styles.nextSlot} ${styles.nextSlotOpen}`}>
+            <div className={styles.nextSlotInner}>
+              <button
+                type="button"
+                className={`${actionStyles.primary} ${styles.nextButton}`}
+                onClick={onNext}
+              >
+                つぎの声へ <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.coverOpenSlot}>
             <button
               type="button"
               className={`${actionStyles.primary} ${styles.nextButton}`}
               onClick={onNext}
             >
-              つぎの声へ <span aria-hidden="true">→</span>
+              めくってみる <span aria-hidden="true">→</span>
             </button>
           </div>
-        </div>
+        )
       ) : null}
       <details
         className={styles.filters}
@@ -753,7 +744,6 @@ export function FeedPage() {
           isLiff={isLiff}
           articleRef={articleRef}
           onNext={goNext}
-          onCoverOpen={() => goNext()}
           onReact={() => {
             if (authStatus !== 'authenticated') {
               dispatch({ type: 'loginVisibilityChanged', visible: true })

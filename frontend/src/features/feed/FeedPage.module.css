@@ -149,16 +149,6 @@
   line-height: 1.9;
 }
 
-/* 表紙の入口も、声の紙と同じ「そっと寄りそう」スタンプとして見せる。 */
-.coverReaction {
-  gap: 0.55em;
-  min-height: 54px;
-  margin-top: 0.6em;
-  padding-inline: 1.2em;
-  font-size: 0.96em;
-  transform: rotate(0.6deg);
-}
-
 /* 表紙は束の一番上。下に控えた声の紙より手前へ置く。 */
 .coverLayer {
   position: absolute;
@@ -515,6 +505,14 @@
   justify-items: center;
   gap: 0.7em;
   width: 100%;
+}
+
+/* 表紙の中身を静かに保ち、読みはじめる操作だけを紙の外に置く。 */
+.coverOpenSlot {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  padding-inline: 8px;
 }
 
 /*
