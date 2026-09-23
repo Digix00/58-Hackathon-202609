@@ -84,7 +84,7 @@
   background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
-  height: clamp(19em, 46vh, 27em);
+  height: clamp(21em, 50vh, 29em);
   /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
   padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em) clamp(1.55em, 5.5vw, 2em)
     calc(clamp(1.35em, 6vw, 1.8em) + 15px);
@@ -509,7 +509,7 @@
 @media (max-height: 700px) {
   .card {
     gap: 0.7em;
-    height: clamp(14em, 41vh, 20em);
+    height: clamp(15.5em, 44vh, 21em);
     padding-block: 1.15em;
     padding-inline-start: calc(clamp(1.35em, 6vw, 1.8em) + 10px);
   }

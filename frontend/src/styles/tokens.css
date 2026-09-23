@@ -1,5 +1,7 @@
 :root {
   --font-sans: 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif;
+  --font-hand: 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', 'Hiragino Sans', system-ui,
+    sans-serif;
   --color-ink: #292722;
   --color-paper: #fffdf7;
   --color-surface: #fffefb;

@@ -1,5 +1,5 @@
 /*
- * リングノートの1枚を、金具を軸にひと回りさせる。
+ * リングノートの1枚を、金具を軸にめくる。
  *
  * 紙は綴じられているので、束から離れて飛んでいかない。動かすのは角度だけで、
  * 位置はずらさない。回転軸 --turn-axis はリングの中心（紙の左端より外）にあり、
@@ -16,13 +16,15 @@
   transform-origin: var(--turn-axis) center;
   transform-style: preserve-3d;
   pointer-events: none;
-  animation: turnOut 780ms both;
+  animation: turnOut 640ms both;
 }
 
 /*
- * 手前を向いているあいだ（0〜90度）が目に見えるめくり。ここで2枚目が開く。
- * 真横を越えた紙はリングを回り込んで束の裏へ入るので、そこから先は
- * 2枚目より下へ回し、隠れたまま残りを回りきって一回転を終える。
+ * 紙は180度で伏せきる。めくった紙が左ページに重なる、という紙の挙動どおり。
+ *
+ * 目に見えるのは 0〜90度だけ。90度で見た目の幅がゼロになり、そこから先は
+ * 束の左に残る十数pxと2枚目の裏へ入るので、ほとんど映らない。
+ * だから時間の配分も 0〜90度へ寄せ、伏せきるまではひと息に落とす。
  */
 @keyframes turnOut {
   0% {
@@ -30,12 +32,12 @@
     transform: translateZ(0) rotateY(var(--turn-start, 0deg));
     animation-timing-function: cubic-bezier(0.42, 0, 0.72, 0.62);
   }
-  26% {
+  32% {
     /* リングの太さを越えるぶん、紙がいちど持ち上がる。 */
-    transform: translateZ(18px) rotateY(-52deg);
+    transform: translateZ(18px) rotateY(-46deg);
     animation-timing-function: linear;
   }
-  50% {
+  64% {
     /*
      * 真横。紙の見た目の幅がここでゼロになる。
      * 上下の入れ替えはこの一瞬でしか行えない。幅を持ったまま入れ替えると、
@@ -43,19 +45,15 @@
      */
     z-index: 3;
     transform: translateZ(22px) rotateY(-90deg);
-    animation-timing-function: cubic-bezier(0.32, 0.1, 0.52, 1);
+    animation-timing-function: cubic-bezier(0.33, 0.06, 0.4, 1);
   }
-  50.01% {
+  64.01% {
     z-index: 0;
-  }
-  74% {
-    transform: translateZ(8px) rotateY(-212deg);
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
   }
   100% {
-    /* リングを回り込み、2枚目の裏へ抜けて一回転。 */
+    /* 2枚目の裏へ入りながら、左へ伏せきる。 */
     z-index: 0;
-    transform: translateZ(-26px) rotateY(-360deg);
+    transform: translateZ(4px) rotateY(-180deg);
   }
 }
 
