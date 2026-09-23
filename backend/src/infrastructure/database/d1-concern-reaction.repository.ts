@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { ConcernReaction } from "../../application/entity/concern-reaction";
 import type {
   ConcernReactionRepository,
-  RegisterConcernReactionResult,
+  InsertConcernReactionResult,
 } from "../../application/repository/concern-reaction.repository";
 import { concernReactions, concerns } from "./schema";
 
@@ -16,9 +16,9 @@ export class D1ConcernReactionRepository implements ConcernReactionRepository {
     this.db = drizzle(d1);
   }
 
-  async register(
+  async insert(
     reaction: ConcernReaction,
-  ): Promise<RegisterConcernReactionResult | null> {
+  ): Promise<InsertConcernReactionResult | null> {
     const publishedConcern = await this.db
       .select({ id: concerns.id })
       .from(concerns)

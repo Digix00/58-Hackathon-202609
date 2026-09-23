@@ -1,6 +1,6 @@
 import type { ConcernReaction } from "../entity/concern-reaction";
 
-export interface RegisterConcernReactionResult {
+export interface InsertConcernReactionResult {
   created: boolean;
   reactionCount: number;
 }
@@ -10,7 +10,7 @@ export interface RegisterConcernReactionResult {
  * 対象投稿が公開中でなければ null を返す。
  */
 export interface ConcernReactionRepository {
-  register(
+  insert(
     reaction: ConcernReaction,
-  ): Promise<RegisterConcernReactionResult | null>;
+  ): Promise<InsertConcernReactionResult | null>;
 }

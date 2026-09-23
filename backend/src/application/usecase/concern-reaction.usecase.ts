@@ -41,7 +41,7 @@ export class ConcernReactionUseCase implements IConcernReactionUseCase {
       reactionType: input.reactionType,
       createdAt: this.now().toISOString(),
     });
-    const result = await this.repository.register(reaction);
+    const result = await this.repository.insert(reaction);
 
     if (!result) {
       return null;

@@ -8,7 +8,7 @@ describe("ConcernReactionUseCase", () => {
   it("creates a reaction using the authenticated user and current time", async () => {
     let saved: ConcernReaction | undefined;
     const repository: ConcernReactionRepository = {
-      register: async (reaction) => {
+      insert: async (reaction) => {
         saved = reaction;
         return { created: true, reactionCount: 4 };
       },
@@ -39,7 +39,7 @@ describe("ConcernReactionUseCase", () => {
 
   it("returns null when the repository does not find a published concern", async () => {
     const repository: ConcernReactionRepository = {
-      register: async () => null,
+      insert: async () => null,
     };
     const useCase = new ConcernReactionUseCase(repository);
 
