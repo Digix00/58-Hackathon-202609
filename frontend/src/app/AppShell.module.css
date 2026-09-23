@@ -8,7 +8,7 @@
 }
 
 .large {
-  font-size: 1.25rem;
+  --font-scale: 1.25;
 }
 
 .content {
@@ -80,7 +80,7 @@
   color: #6f695f;
   background: transparent;
   font-family: inherit;
-  font-size: 0.94em;
+  font-size: calc(15px * var(--font-scale));
   font-weight: 700;
   line-height: 1.15;
   overflow-wrap: anywhere;
@@ -233,6 +233,6 @@
   }
 
   .navLink {
-    font-size: 0.75rem;
+    font-size: calc(12px * var(--font-scale));
   }
 }

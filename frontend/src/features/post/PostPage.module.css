@@ -148,7 +148,7 @@
   /* 貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */
   background: #f0e7d0;
   box-shadow: 1.5px 2px 0 #b0a894;
-  font-size: 0.7em;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 700;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -167,7 +167,7 @@
   padding-bottom: 0.52em;
   background: #ded5f0;
   box-shadow: 1.5px 2.5px 0 #9d94b8;
-  font-size: 0.78em;
+  font-size: calc(12px * var(--font-scale));
   transform: rotate(-1.2deg) translateY(-0.18em);
 }
 
@@ -206,7 +206,7 @@
   width: fit-content;
   max-width: 100%;
   color: var(--color-purple-ink);
-  font-size: 1.24em;
+  font-size: calc(20px * var(--font-scale));
   font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.035em;
@@ -220,7 +220,7 @@
 
 .promptLead {
   color: var(--color-muted);
-  font-size: 0.9em;
+  font-size: calc(14px * var(--font-scale));
   line-height: 1.7;
 }
 
@@ -234,7 +234,7 @@
   grid-template-columns: minmax(0, 1fr);
   isolation: isolate;
   min-width: 0;
-  font-size: clamp(1.08em, 4.4vw, 1.25em);
+  font-size: calc(18px * var(--font-scale));
   --line: 1.95em;
   --rule-color: rgba(138, 132, 122, 0.22);
 }
@@ -302,7 +302,7 @@
 
 .error {
   color: #9b333a;
-  font-size: 0.92em;
+  font-size: calc(15px * var(--font-scale));
   font-weight: 700;
   line-height: 1.6;
 }
@@ -337,7 +337,7 @@
   background: #fffdf5;
   box-shadow: 1.5px 2.5px 0 #c3b89f;
   font: inherit;
-  font-size: 0.86em;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 700;
   cursor: pointer;
 }
@@ -368,7 +368,7 @@
   z-index: 1;
   top: -0.8em;
   right: -0.7em;
-  font-size: 0.68em;
+  font-size: calc(11px * var(--font-scale));
   transform: rotate(3deg);
 }
 
@@ -398,7 +398,7 @@
 .count {
   margin-inline-start: auto;
   color: var(--color-muted);
-  font-size: 0.82em;
+  font-size: calc(13px * var(--font-scale));
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
   white-space: nowrap;
@@ -438,7 +438,7 @@
 
 .doneTitle {
   color: var(--color-purple-ink);
-  font-size: 1.32em;
+  font-size: calc(21px * var(--font-scale));
   font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -475,12 +475,12 @@
   width: min(100%, 20em);
   min-height: 56px;
   background: #efeaf6;
-  font-size: 1.06em;
+  font-size: calc(17px * var(--font-scale));
 }
 
 /* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
 .nextButton span {
-  font-size: 1.15em;
+  font-size: calc(18px * var(--font-scale));
   animation: nudge 2.6s ease-in-out infinite;
 }
 
@@ -509,7 +509,7 @@
   border-radius: 14px 11px 15px 12px;
   color: var(--color-muted);
   background: #f7f1e4;
-  font-size: 0.92em;
+  font-size: calc(15px * var(--font-scale));
   line-height: 1.8;
 }
 
@@ -558,12 +558,12 @@
   }
 
   .write {
-    font-size: clamp(1em, 4.2vw, 1.15em);
+    font-size: calc(17px * var(--font-scale));
     --line: 1.75em;
   }
 
   .promptTitle {
-    font-size: 1.12em;
+    font-size: calc(18px * var(--font-scale));
   }
 
   .stack {
@@ -573,7 +573,7 @@
   /* 注意は省略せず、字だけを一段落として投稿操作を画面内へ引き上げる。 */
   .caution {
     padding: 0.7em 0.9em 0.75em;
-    font-size: 0.88em;
+    font-size: calc(14px * var(--font-scale));
     line-height: 1.7;
   }
 }

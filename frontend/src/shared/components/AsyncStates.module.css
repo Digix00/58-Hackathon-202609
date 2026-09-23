@@ -7,7 +7,7 @@
 
 .card h1 {
   margin: 0 0 11px;
-  font-size: 1.35em;
+  font-size: calc(22px * var(--font-scale));
   line-height: 1.5;
 }
 
@@ -25,7 +25,7 @@
 }
 
 .line {
-  height: 1.05rem;
+  height: 17px;
   margin-bottom: 14px;
 }
 

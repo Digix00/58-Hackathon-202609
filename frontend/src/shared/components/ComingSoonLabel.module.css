@@ -8,7 +8,7 @@
   color: #614b36;
   background: #f6dfb4;
   box-shadow: 2px 2px 0 #d0b887;
-  font-size: 0.76em;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1.3;
