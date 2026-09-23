@@ -1,22 +1,24 @@
 import {
   useCallback,
-  useEffect,
   useReducer,
   useRef,
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type TouchEvent,
 } from 'react'
 import { Link } from 'react-router'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import {
+  notebookAngleForDrag,
+  prefersReducedMotion,
+  useNotebookSwipe,
+} from '../../shared/hooks/useNotebookSwipe'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
-import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { answerDemoQuiz, demoQuiz, useDemoState } from '../demo/demoStore'
 import styles from './QuizPage.module.css'
@@ -29,8 +31,6 @@ type QuizStep = 'letters' | 'submitting' | 'results'
 type QuizState = {
   step: QuizStep
   index: number
-  /** 直前の移動の向き。戻ったときだけ、紙が綴じ側から降りてくる。 */
-  direction: 1 | -1
   answers: Answers
 }
 type QuizAction =
@@ -55,20 +55,7 @@ const TAG_PATH = 'M3 3 L50 15 L97 3 V75 H3 Z'
 const DROP_PAD = 22
 /** つまんで運んだとみなす距離。これ未満なら、押しただけとして扱う。 */
 const TAP_SLOP = 8
-/** 指を離したときに次の手紙へ送る距離。これ未満なら手元へ戻す。 */
-const SWIPE_THRESHOLD = 56
-/** 縦スクロールか横めくりかを決めるまでの遊び。 */
-const SWIPE_SLOP = 8
-
-const initialState: QuizState = { step: 'letters', index: 0, direction: 1, answers: {} }
-
-function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-function angleForDrag(dx: number) {
-  return Math.max(-72, Math.min(0, dx * 0.42))
-}
+const initialState: QuizState = { step: 'letters', index: 0, answers: {} }
 
 function personById(id: string | undefined) {
   return demoQuiz.people.find((person) => person.id === id)
@@ -98,7 +85,7 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
       const answers = placeAnswer(state.answers, action.letterId, action.personId)
       const open = firstOpenIndex(answers)
       // 挟んだ紙はめくれ、まだ空いている手紙が現れる。
-      return { ...state, answers, direction: 1, index: open === -1 ? state.index : open }
+      return { ...state, answers, index: open === -1 ? state.index : open }
     }
     case 'pull': {
       const answers = { ...state.answers }
@@ -108,12 +95,12 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
     case 'go': {
       const index = state.index + action.direction
       if (index < 0 || index >= demoQuiz.letters.length) return state
-      return { ...state, index, direction: action.direction }
+      return { ...state, index }
     }
     case 'submitStarted':
       return { ...state, step: 'submitting' }
     case 'showResults':
-      return { ...state, step: 'results', index: 0, direction: 1 }
+      return { ...state, step: 'results', index: 0 }
   }
 }
 
@@ -161,7 +148,8 @@ function Paper({
         dragX !== 0 ? styles.dragging : ''
       }`}
       style={{
-        transform: dragX < 0 ? `rotateY(${angleForDrag(dragX)}deg)` : undefined,
+        transform:
+          dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
       }}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
@@ -322,7 +310,6 @@ function QuizActions({
 export function QuizPage() {
   const { concerns, quizResult } = useDemoState()
   const [state, dispatch] = useReducer(quizReducer, initialState)
-  const [dragX, setDragX] = useState(0)
   /** 指についてくるしおり。運んでいる間だけ描く。 */
   const [drag, setDrag] = useState<{
     personId: string
@@ -337,9 +324,9 @@ export function QuizPage() {
     letter: Letter
     personId?: string
     startAngle: number
+    direction: 1 | -1
   } | null>(null)
   const slotRef = useRef<HTMLSpanElement | null>(null)
-  const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
 
   const letters = demoQuiz.letters
   const showingResults = Boolean(quizResult) || state.step === 'results'
@@ -349,43 +336,52 @@ export function QuizPage() {
   const answeredPersonIds = new Set(Object.values(answers))
   const remaining = demoQuiz.people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = remaining.length === 0
-  const canGoNext = state.index < letters.length - 1
-  const canGoPrev = state.index > 0
+  const canGoNext = state.index < letters.length - 1 && !turning
+  const canGoPrev = state.index > 0 && !turning
 
   const go = useCallback(
     (direction: 1 | -1, startAngle = 0) => {
+      if (turning) return
       const index = state.index + direction
       if (index < 0 || index >= letters.length) return
-      // 進むときは、いま見ている紙がめくれて去る。戻るときに去る紙はない。
-      setTurning(
-        direction === 1 && !prefersReducedMotion()
-          ? { letter, personId: answers[letter.id], startAngle }
-          : null,
-      )
-      dispatch({ type: 'go', direction })
+      if (prefersReducedMotion()) {
+        setTurning(null)
+        dispatch({ type: 'go', direction })
+        return
+      }
+
+      if (direction === 1) {
+        // 進むときは、いま見ている紙をめくって下の紙を出す。
+        setTurning({ letter, personId: answers[letter.id], startAngle, direction: 1 })
+        dispatch({ type: 'go', direction })
+      } else {
+        // 戻るときは、伏せていた前の紙を同じ共有アニメーションで拾い上げる。
+        const previous = letters[index]
+        setTurning({
+          letter: previous,
+          personId: answers[previous.id],
+          startAngle: 0,
+          direction: -1,
+        })
+      }
     },
-    [answers, letter, letters.length, state.index],
+    [answers, letter, letters, state.index, turning],
   )
 
-  // 指と同じ感覚で、キーボードからも前後へ送れるようにする。
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null
-      if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return
-      if (event.key === 'ArrowRight') go(1)
-      else if (event.key === 'ArrowLeft') go(-1)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [go])
+  const swipe = useNotebookSwipe({
+    canGoNext,
+    canGoPrevious: canGoPrev,
+    onNext: (startAngle) => go(1, startAngle),
+    onPrevious: () => go(-1),
+  })
 
   function fit(personId: string) {
-    if (showingResults || state.step === 'submitting' || answers[letter.id]) return
+    if (showingResults || state.step === 'submitting' || turning || answers[letter.id]) return
     const next = placeAnswer(state.answers, letter.id, personId)
     const open = firstOpenIndex(next)
     // 空いている手紙が別にあるときだけ、この紙はめくれて去る。
     if (open !== -1 && open !== state.index && !prefersReducedMotion()) {
-      setTurning({ letter, personId, startAngle: 0 })
+      setTurning({ letter, personId, startAngle: 0, direction: 1 })
     }
     dispatch({ type: 'fit', letterId: letter.id, personId })
   }
@@ -436,44 +432,6 @@ export function QuizPage() {
     window.addEventListener('pointercancel', end)
   }
 
-  function handleTouchStart(event: TouchEvent) {
-    const touch = event.touches[0]
-    swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
-  }
-
-  function handleTouchMove(event: TouchEvent) {
-    const start = swipe.current
-    if (!start) return
-    const touch = event.touches[0]
-    const dx = touch.clientX - start.x
-    const dy = touch.clientY - start.y
-    if (!start.active) {
-      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return
-      // 縦に動かし始めたなら、それはスクロール。横めくりには使わない。
-      if (Math.abs(dy) >= Math.abs(dx)) {
-        swipe.current = null
-        return
-      }
-      start.active = true
-    }
-    setDragX(dx)
-  }
-
-  function handleTouchEnd(event: TouchEvent) {
-    const start = swipe.current
-    const dx = start ? event.changedTouches[0].clientX - start.x : 0
-    swipe.current = null
-    setDragX(0)
-    if (!start?.active) return
-    if (dx <= -SWIPE_THRESHOLD) go(1, angleForDrag(dx))
-    else if (dx >= SWIPE_THRESHOLD) go(-1)
-  }
-
-  function handleTouchCancel() {
-    swipe.current = null
-    setDragX(0)
-  }
-
   const submit = async () => {
     dispatch({ type: 'submitStarted' })
     await new Promise((resolve) => setTimeout(resolve, 400))
@@ -515,10 +473,10 @@ export function QuizPage() {
         <section
           className={styles.stage}
           aria-labelledby="quiz-title"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchCancel}
+          onTouchStart={swipe.handleTouchStart}
+          onTouchMove={swipe.handleTouchMove}
+          onTouchEnd={swipe.handleTouchEnd}
+          onTouchCancel={swipe.handleTouchCancel}
         >
           <h1 id="quiz-title" className={styles.srOnly}>
             きょうの3つの手紙。書いた人のしおりを結ぶ
@@ -533,7 +491,11 @@ export function QuizPage() {
                 key={`${turning.letter.id}-${turning.personId ?? ''}-${state.index}`}
                 startAngle={turning.startAngle}
                 backColor="#e4d9c2"
-                onFinish={() => setTurning(null)}
+                direction={turning.direction}
+                onFinish={() => {
+                  if (turning.direction === -1) dispatch({ type: 'go', direction: -1 })
+                  setTurning(null)
+                }}
               >
                 <Paper>
                   <QuizPaperBody
@@ -551,9 +513,9 @@ export function QuizPage() {
             ) : null}
             <div
               key={`${letter.id}-${state.index}`}
-              className={`${styles.enter} ${state.direction < 0 ? turnStyles.fromLeft : ''}`}
+              className={styles.enter}
             >
-              <Paper dragX={dragX} onNext={canGoNext ? () => go(1) : undefined}>
+              <Paper dragX={swipe.dragX} onNext={canGoNext ? () => go(1) : undefined}>
                 <QuizPaperBody
                   target={letter}
                   personId={answers[letter.id]}

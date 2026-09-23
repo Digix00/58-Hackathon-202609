@@ -30,6 +30,12 @@
   min-width: 0;
   /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
   margin-inline-end: 8px;
+  /*
+   * 表紙が開いたときの押し上げ。--lift は FeedPage が一度だけ入れる。
+   * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
+   */
+  transform: translateY(var(--lift, 0px));
+  transition: transform var(--lift-duration, 0s) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /*
@@ -86,8 +92,8 @@
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
   height: clamp(21em, 50vh, 29em);
   /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
-  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.35em, 6vw, 1.8em) clamp(1.55em, 5.5vw, 2em)
-    calc(clamp(1.35em, 6vw, 1.8em) + 15px);
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
+    calc(clamp(1.55em, 7vw, 2em) + 15px);
   box-shadow: 4px 5px 0 var(--color-paper-shadow);
   transform-origin: var(--turn-axis) center;
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -98,20 +104,41 @@
  * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
  */
 .cover {
+  /*
+   * 花壇の高さ。CoverArt がこの値からチューリップの背丈を引く。
+   * 空（太陽と雲）は紙の余白に収まるが、花壇は下辺に並ぶので、
+   * そのぶん下の余白を足して題字と操作を上へ寄せる。詰めると花に文字が乗る。
+   */
+  --garden-height: clamp(3em, 9vh, 4.2em);
+  /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
+  --cover-gutter: clamp(1.55em, 7vw, 2em);
+  --cover-binding: 15px;
+
   grid-template-rows: 1fr auto;
   align-content: center;
   justify-items: center;
   gap: 0.9em;
+  padding-bottom: calc(clamp(1.55em, 5.5vw, 2em) + var(--garden-height));
   text-align: center;
 }
 
+/*
+ * 題字。ほかの画面の見出し（Screen.module.css の .heading h1）と同じ手で書く。
+ * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ * 表紙の題字なので、大きさと字間だけを見出しより広く取る。
+ */
 .coverTitle {
   align-self: end;
   margin: 0;
   color: var(--color-purple-ink);
   font-size: 1.7em;
+  font-family: var(--font-hand);
   font-weight: 700;
   letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
   transform: rotate(-1.4deg);
 }
 
@@ -122,19 +149,14 @@
   line-height: 1.9;
 }
 
-.coverOpen {
-  min-height: 48px;
-  margin-top: 0.4em;
-  padding: 0 1.1em;
-  border: 0;
-  border-radius: 18px 15px 17px 14px;
-  color: var(--color-paper);
-  background: var(--color-purple-strong);
-  box-shadow: 2px 3px 0 var(--color-purple-dark);
-  font: inherit;
-  font-weight: 700;
+/* 表紙の入口も、声の紙と同じ「そっと寄りそう」スタンプとして見せる。 */
+.coverReaction {
+  gap: 0.55em;
+  min-height: 54px;
+  margin-top: 0.6em;
+  padding-inline: 1.2em;
+  font-size: 0.96em;
   transform: rotate(0.6deg);
-  cursor: pointer;
 }
 
 /* 表紙は束の一番上。下に控えた声の紙より手前へ置く。 */
@@ -209,10 +231,53 @@
 
 .storyLink {
   /* 絵本の1ページのように、本文の塊を紙の中央に置く。 */
+  position: relative;
   align-self: center;
   display: block;
+  isolation: isolate;
   color: inherit;
   text-decoration: none;
+  font-size: clamp(1.22em, 5.2vw, 1.45em);
+  --story-line-height: 1.9em;
+  --story-rule-color: rgba(138, 132, 122, 0.18);
+}
+
+/*
+ * 本文の下に、ノートへクレヨンで引いたような薄い罫線を置く。
+ * 文字とは別レイヤーにして、線の揺らぎが本文の輪郭を汚さないようにする。
+ */
+.storyLink::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--story-line-height) - 1.5px),
+    var(--story-rule-color) calc(var(--story-line-height) - 1.5px),
+    var(--story-rule-color) var(--story-line-height)
+  );
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+/* 繰り返しの端にかかって消えないよう、最後の行の罫線を別に描く。 */
+.storyLink::after {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.5px;
+  background: var(--story-rule-color);
+  filter: url(#crayon-edge);
+  pointer-events: none;
+  content: '';
 }
 
 .storyLink:focus-visible {
@@ -228,8 +293,8 @@
   /* 紙に収まらない声はここで切り、続きは詳細で全文を読む。 */
   -webkit-line-clamp: 7;
   overflow: hidden;
-  font-size: clamp(1.22em, 5.2vw, 1.45em);
-  line-height: 1.9;
+  font-size: inherit;
+  line-height: var(--story-line-height);
   letter-spacing: 0.02em;
 }
 
@@ -452,6 +517,46 @@
   width: 100%;
 }
 
+/*
+ * 送りボタンの居場所。
+ *
+ * 表紙のあいだは高さを持たず、めくった瞬間に一度だけ開く。
+ * 高さを時間をかけて伸ばすと版面を毎フレーム組み直すことになるので、
+ * 目に見える動きは紙束側（.stack の --lift）に持たせている。
+ */
+.nextSlot {
+  display: grid;
+  grid-template-rows: 0fr;
+  justify-items: center;
+  width: 100%;
+}
+
+.nextSlotOpen {
+  grid-template-rows: 1fr;
+}
+
+/* 開くまでボタンをはみ出させない受け皿。行が畳めるよう最小高も外す。 */
+.nextSlotInner {
+  display: grid;
+  justify-items: center;
+  min-height: 0;
+  width: 100%;
+  /* ふちの線・影・矢印の動きが刈り取られないぶんだけ内側に余白を取る。 */
+  padding: 2px 8px 5px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  /* 紙束が上がりきるころ（FeedPage.tsx の LIFT_MS）に、下から顔を出す。 */
+  transition:
+    opacity 240ms ease 240ms,
+    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1) 240ms;
+}
+
+.nextSlotOpen .nextSlotInner {
+  opacity: 1;
+  transform: none;
+}
+
 .nextButton {
   gap: 0.8em;
   width: min(100%, 20em);
@@ -555,12 +660,25 @@
     gap: 0.7em;
     height: clamp(15.5em, 44vh, 21em);
     padding-block: 1.15em;
-    padding-inline-start: calc(clamp(1.35em, 6vw, 1.8em) + 10px);
+    padding-inline-start: calc(clamp(1.55em, 7vw, 2em) + 10px);
+  }
+
+  /* 紙が低くなるぶん花壇も低くし、下の余白は花壇のぶんだけ取り直す。 */
+  .cover {
+    --garden-height: clamp(2.2em, 6.5vh, 3em);
+    --cover-binding: 10px;
+
+    padding-bottom: calc(1.15em + var(--garden-height));
   }
 
   .storyLink p {
-    font-size: clamp(1.05em, 4.6vw, 1.28em);
+    font-size: inherit;
     line-height: 1.7;
+  }
+
+  .storyLink {
+    font-size: clamp(1.05em, 4.6vw, 1.28em);
+    --story-line-height: 1.7em;
   }
 
   .stack {
@@ -586,6 +704,18 @@
 }
 
 @media (prefers-contrast: more) {
+  .storyLink {
+    --story-rule-color: rgba(93, 88, 80, 0.45);
+  }
+
+  .storyLink::before,
+  .storyLink::after {
+    opacity: 0.8;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
   /* 高コントラスト時は、かすれを外して紙のふちを確実に示す。 */
   .tab::before,
   .sheet::before {
@@ -621,6 +751,15 @@
 
   .nextButton span {
     animation: none;
+  }
+
+  .stack,
+  .nextSlotInner {
+    transition: none;
+  }
+
+  .nextSlotInner {
+    transform: none;
   }
 
   .caret {
