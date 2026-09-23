@@ -1,7 +1,7 @@
 import type { TextTranslator } from "../../application/port/text-translator";
 
-const TRANSLATION_MODEL = "@cf/meta/m2m100-1.2b";
-const HIRAGANA_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
+const TEXT_TRANSLATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
+const MAX_TRANSLATION_TOKENS = 1024;
 
 type WorkersAiBinding = Pick<Ai, "run">;
 
@@ -13,33 +13,36 @@ export class InvalidWorkersAiTextResponseError extends Error {
 }
 
 /**
- * Adapts Workers AI to the two text representations required by the app.
- * English uses the dedicated M2M100 translation model. Hiragana conversion
- * uses an instruction model so the provider-specific prompt stays here.
+ * Adapts one multilingual instruction model to all text representations
+ * required by the app. Keeping the model and prompt handling here lets the
+ * Application layer call the three operations without provider details.
  */
 export class WorkersAiTextTranslator implements TextTranslator {
   constructor(private readonly ai: WorkersAiBinding) {}
 
-  async translateToEnglish(text: string): Promise<string> {
-    const response: unknown = await this.ai.run(TRANSLATION_MODEL, {
-      text: requireText(text),
-      source_lang: "ja",
-      target_lang: "en",
-    });
+  readonly translateToEnglish = (text: string): Promise<string> =>
+    this.runInstruction(text, "Translate Japanese to English.");
 
-    return extractText(response);
-  }
+  readonly convertToHiragana = (text: string): Promise<string> =>
+    this.runInstruction(text, "Convert Japanese to hiragana.");
 
-  async convertToHiragana(text: string): Promise<string> {
-    const response: unknown = await this.ai.run(HIRAGANA_MODEL, {
+  readonly translateHiraganaToEnglish = (text: string): Promise<string> =>
+    this.runInstruction(text, "Translate hiragana Japanese to English.");
+
+  private async runInstruction(
+    text: string,
+    instruction: string,
+  ): Promise<string> {
+    const response: unknown = await this.ai.run(TEXT_TRANSLATION_MODEL, {
       messages: [
         {
           role: "system",
-          content:
-            "Convert the user's Japanese text to hiragana. Return only the converted text, with no explanation.",
+          content: "Return only the requested result. Do not explain.",
         },
-        { role: "user", content: requireText(text) },
+        { role: "user", content: `${instruction}\n${requireText(text)}` },
       ],
+      max_tokens: MAX_TRANSLATION_TOKENS,
+      temperature: 0,
     });
 
     return extractText(response);

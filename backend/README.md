@@ -55,7 +55,7 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 `wrangler.jsonc` の `ai.binding` でWorkers AIを `AI` としてWorkerへ接続する（[binding設定](https://developers.cloudflare.com/workers-ai/configuration/bindings/)）。Application層からはPortだけを呼び出し、Infrastructure層のAdapterが `AI.run(model, input)` を実行する。
 
-- `WorkersAiTextTranslator`: M2M100で日本語を英語へ翻訳し、Instruction modelで日本語をひらがなへ変換する
+- `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、日本語→英語、日本語→ひらがな、ひらがな→英語を処理する
 - `WorkersAiTextEmbeddingGenerator`: 日本語Embeddingモデル [PLaMo-Embedding-1B](https://developers.cloudflare.com/workers-ai/models/plamo-embedding-1b/) で入力順を保ったベクトルを生成する
 - `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
 
