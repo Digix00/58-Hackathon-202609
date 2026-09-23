@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listConcerns } from './feedApi'
-import type { FeedItem, FeedQuery, FeedStatus } from './feedTypes'
-
-export type UseFeedOptions = Omit<FeedQuery, 'cursor'>
+import type { FeedItem, FeedStatus } from './feedTypes'
 
 export interface UseFeedResult {
   status: FeedStatus
@@ -15,11 +13,7 @@ export interface UseFeedResult {
   retry: () => Promise<void>
 }
 
-export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
-  const limit = typeof options === 'number' ? options : (options.limit ?? 20)
-  const sort = typeof options === 'number' ? 'newest' : (options.sort ?? 'newest')
-  const regionCode = typeof options === 'number' ? undefined : options.regionCode
-  const clusterId = typeof options === 'number' ? undefined : options.clusterId
+export function useFeed(limit = 20): UseFeedResult {
   const [status, setStatus] = useState<FeedStatus>('idle')
   const [items, setItems] = useState<FeedItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -32,12 +26,10 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     const version = ++requestVersion.current
     isLoading.current = true
     cursorRef.current = null
-    setItems([])
-    setNextCursor(null)
     setStatus('loading')
     setError(null)
 
-    const result = await listConcerns({ limit, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -53,7 +45,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     setItems(result.data.items)
     setNextCursor(result.data.nextCursor)
     setStatus('success')
-  }, [clusterId, limit, regionCode, sort])
+  }, [limit])
 
   const loadMore = useCallback(async (): Promise<void> => {
     const cursor = cursorRef.current
@@ -64,7 +56,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     setStatus('loadingMore')
     setError(null)
 
-    const result = await listConcerns({ limit, cursor, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit, cursor })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -78,7 +70,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     setItems((current) => [...current, ...result.data.items])
     setNextCursor(result.data.nextCursor)
     setStatus('success')
-  }, [clusterId, limit, regionCode, sort])
+  }, [limit])
 
   const retry = useCallback(() => refresh(), [refresh])
 

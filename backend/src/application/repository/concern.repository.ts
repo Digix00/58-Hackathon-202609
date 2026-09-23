@@ -1,10 +1,4 @@
 import type { Concern } from "../entity/concern";
-import type { ConcernView } from "../entity/concern-view";
-import type {
-  ConcernFeedCandidate,
-  FeedImpression,
-  RecommendationHistory,
-} from "../entity/feed";
 
 export interface ConcernListCursor {
   createdAt: string;
@@ -21,17 +15,6 @@ export interface ListPublishedConcernsResult {
   hasMore: boolean;
 }
 
-export interface ListConcernFeedInput extends ListPublishedConcernsInput {
-  regionCode?: string;
-  clusterId?: string;
-  userId?: string;
-}
-
-export interface ListConcernFeedResult {
-  items: ConcernFeedCandidate[];
-  hasMore: boolean;
-}
-
 /**
  * Application層が必要とする永続化処理のPort。
  * 実装の詳細（D1やDrizzle）をApplication層へ持ち込まない。
@@ -42,17 +25,4 @@ export interface ConcernRepository {
     input: ListPublishedConcernsInput,
   ): Promise<ListPublishedConcernsResult>;
   findPublishedById(id: string): Promise<Concern | null>;
-
-  /** #74で利用する拡張Port。旧来の投稿取得Portとの互換性のため任意実装とする。 */
-  listFeed?(input: ListConcernFeedInput): Promise<ListConcernFeedResult>;
-  findPublishedFeedCandidate?(
-    id: string,
-    userId?: string,
-  ): Promise<ConcernFeedCandidate | null>;
-  listRecommendationHistory?(
-    userId: string,
-    limit: number,
-  ): Promise<RecommendationHistory[]>;
-  recordView?(view: ConcernView): Promise<ConcernView>;
-  recordFeedImpressions?(impressions: FeedImpression[]): Promise<void>;
 }

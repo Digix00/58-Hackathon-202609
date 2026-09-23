@@ -33,6 +33,7 @@ export const users = sqliteTable(
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
   }),
 );
+
 export const sessions = sqliteTable(
   "sessions",
   {
@@ -49,22 +50,6 @@ export const sessions = sqliteTable(
   }),
 );
 
-export const concernClusters = sqliteTable(
-  "concern_clusters",
-  {
-    id: text("id").primaryKey(),
-    label: text("label").notNull(),
-    summary: text("summary").notNull(),
-    status: text("status").notNull().default("ready"),
-    modelVersion: text("model_version"),
-    createdAt: text("created_at").notNull(),
-    updatedAt: text("updated_at").notNull(),
-  },
-  (table) => ({
-    statusIndex: index("concern_clusters_status_idx").on(table.status),
-  }),
-);
-
 export const concerns = sqliteTable(
   "concerns",
   {
@@ -76,7 +61,6 @@ export const concerns = sqliteTable(
     ageGroup: text("age_group"),
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
-    clusterId: text("cluster_id").references(() => concernClusters.id),
     visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
@@ -90,12 +74,6 @@ export const concerns = sqliteTable(
     ),
     regionFeedIndex: index("concerns_region_feed_idx").on(
       table.regionCode,
-      table.visibilityStatus,
-      table.createdAt,
-      table.id,
-    ),
-    clusterFeedIndex: index("concerns_cluster_feed_idx").on(
-      table.clusterId,
       table.visibilityStatus,
       table.createdAt,
       table.id,
@@ -116,31 +94,6 @@ export const concerns = sqliteTable(
     processingStatusCheck: check(
       "concerns_processing_status_check",
       sql`${table.processingStatus} in ('pending', 'processing', 'ready', 'failed')`,
-    ),
-  }),
-);
-
-export const concernViews = sqliteTable(
-  "concern_views",
-  {
-    concernId: text("concern_id")
-      .notNull()
-      .references(() => concerns.id),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id),
-    firstViewedAt: text("first_viewed_at").notNull(),
-    lastViewedAt: text("last_viewed_at").notNull(),
-    viewCount: integer("view_count").notNull().default(1),
-  },
-  (table) => ({
-    primaryKey: primaryKey({
-      columns: [table.concernId, table.userId],
-      name: "concern_views_pk",
-    }),
-    userIndex: index("concern_views_user_idx").on(
-      table.userId,
-      table.lastViewedAt,
     ),
   }),
 );
@@ -169,27 +122,25 @@ export const concernReactions = sqliteTable(
   }),
 );
 
-export const feedImpressions = sqliteTable(
-  "feed_impressions",
+export const concernViews = sqliteTable(
+  "concern_views",
   {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id),
     concernId: text("concern_id")
       .notNull()
       .references(() => concerns.id),
-    strategy: text("strategy").notNull(),
-    reasonCode: text("reason_code").notNull(),
-    algorithmVersion: text("algorithm_version").notNull(),
-    position: integer("position").notNull(),
-    exposedAt: text("exposed_at").notNull(),
-    openedAt: text("opened_at"),
+    actorKey: text("actor_key")
+      .notNull()
+      .references(() => users.id),
+    viewedAt: text("viewed_at").notNull(),
   },
   (table) => ({
-    userIndex: index("feed_impressions_user_idx").on(
-      table.userId,
-      table.exposedAt,
+    concernActorUniqueIndex: uniqueIndex("concern_views_concern_actor_idx").on(
+      table.concernId,
+      table.actorKey,
+    ),
+    actorViewedAtIndex: index("concern_views_actor_viewed_at_idx").on(
+      table.actorKey,
+      table.viewedAt,
     ),
   }),
 );

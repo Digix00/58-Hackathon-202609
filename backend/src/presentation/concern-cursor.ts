@@ -1,47 +1,21 @@
-import type { ConcernSort } from "../application/entity/feed";
 import type { ConcernListCursor } from "../application/repository/concern.repository";
 
-const LEGACY_CURSOR_VERSION = 1;
-const CURSOR_VERSION = 2;
-
-export interface ConcernCursorContext {
-  sort: ConcernSort;
-  regionCode?: string;
-  clusterId?: string;
-}
-
-interface EncodedLegacyConcernCursor extends ConcernListCursor {
-  version: typeof LEGACY_CURSOR_VERSION;
-}
+const CURSOR_VERSION = 1;
 
 interface EncodedConcernCursor extends ConcernListCursor {
   version: typeof CURSOR_VERSION;
-  sort: ConcernSort;
-  regionCode: string | null;
-  clusterId: string | null;
 }
 
 /**
  * GET /api/v1/concerns のレスポンスに含める nextCursor を生成する。
- * 次ページの開始位置と取得条件をJSON化し、クライアントが内容を解釈せず
- * そのまま送信できるBase64URL形式のopaque stringへ変換する。
+ * 次ページの開始位置である createdAt と id をJSON化し、クライアントが
+ * 内容を解釈せずそのまま送信できるBase64URL形式のopaque stringへ変換する。
  */
-export function encodeConcernCursor(
-  cursor: ConcernListCursor,
-  context?: ConcernCursorContext,
-): string {
-  const payload: EncodedConcernCursor | EncodedLegacyConcernCursor = context
-    ? {
-        version: CURSOR_VERSION,
-        ...cursor,
-        sort: context.sort,
-        regionCode: context.regionCode ?? null,
-        clusterId: context.clusterId ?? null,
-      }
-    : {
-        version: LEGACY_CURSOR_VERSION,
-        ...cursor,
-      };
+export function encodeConcernCursor(cursor: ConcernListCursor): string {
+  const payload: EncodedConcernCursor = {
+    version: CURSOR_VERSION,
+    ...cursor,
+  };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let binary = "";
   for (const byte of bytes) {
@@ -56,13 +30,10 @@ export function encodeConcernCursor(
 
 /**
  * GET /api/v1/concerns の query parameter で受け取った cursor を復元する。
- * Base64URL、JSON、バージョン、取得条件、createdAt、idのいずれかが不正な場合は
- * nullを返し、HandlerがINVALID_CURSORとして400レスポンスへ変換する。
+ * Base64URL、JSON、バージョン、createdAt、id のいずれかが不正な場合は
+ * null を返し、Handlerが INVALID_CURSOR として400レスポンスへ変換する。
  */
-export function decodeConcernCursor(
-  value: string,
-  expectedContext?: ConcernCursorContext,
-): ConcernListCursor | null {
+export function decodeConcernCursor(value: string): ConcernListCursor | null {
   try {
     const base64 = value
       .replaceAll("-", "+")
@@ -74,21 +45,14 @@ export function decodeConcernCursor(
     );
     const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
 
-    if (isEncodedConcernCursor(parsed)) {
-      if (
-        expectedContext &&
-        (parsed.sort !== expectedContext.sort ||
-          parsed.regionCode !== (expectedContext.regionCode ?? null) ||
-          parsed.clusterId !== (expectedContext.clusterId ?? null))
-      ) {
-        return null;
-      }
-      return { createdAt: parsed.createdAt, id: parsed.id };
+    if (!isEncodedConcernCursor(parsed)) {
+      return null;
     }
 
-    return isEncodedLegacyConcernCursor(parsed)
-      ? { createdAt: parsed.createdAt, id: parsed.id }
-      : null;
+    return {
+      createdAt: parsed.createdAt,
+      id: parsed.id,
+    };
   } catch {
     return null;
   }
@@ -102,26 +66,6 @@ function isEncodedConcernCursor(value: unknown): value is EncodedConcernCursor {
   const cursor = value as Record<string, unknown>;
   return (
     cursor.version === CURSOR_VERSION &&
-    (cursor.sort === "newest" || cursor.sort === "recommended") &&
-    (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
-    (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
-    typeof cursor.createdAt === "string" &&
-    cursor.createdAt.length > 0 &&
-    typeof cursor.id === "string" &&
-    cursor.id.length > 0
-  );
-}
-
-function isEncodedLegacyConcernCursor(
-  value: unknown,
-): value is EncodedLegacyConcernCursor {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const cursor = value as Record<string, unknown>;
-  return (
-    cursor.version === LEGACY_CURSOR_VERSION &&
     typeof cursor.createdAt === "string" &&
     cursor.createdAt.length > 0 &&
     typeof cursor.id === "string" &&

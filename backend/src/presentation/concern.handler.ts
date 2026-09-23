@@ -9,8 +9,6 @@ import {
   ConcernValidationError,
   type Gender,
 } from "../application/entity/concern";
-import type { RankedConcernFeedItem } from "../application/entity/feed";
-import { REGION_CODES } from "../application/entity/region-code";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -24,17 +22,13 @@ const createConcernRequest = z.object({
   regionCode: z.string().optional(),
 });
 
-const CONCERN_SORT_OPTIONS = ["newest", "recommended"] as const;
-const CONCERN_LANGUAGE_OPTIONS = ["original", "jaHira", "en"] as const;
+const CONCERN_SORT_OPTIONS = ["newest"] as const;
 
 const listConcernQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(50).default(20),
     cursor: z.string().min(1).optional(),
     sort: z.enum(CONCERN_SORT_OPTIONS).default("newest"),
-    clusterId: z.string().min(1).optional(),
-    regionCode: z.enum(REGION_CODES).optional(),
-    language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
   })
   .strict();
 
@@ -132,27 +126,8 @@ export class ConcernHandler {
       );
     }
 
-    const auth = c.var.auth;
-    if (parsed.data.sort === "recommended" && !auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "おすすめフィードにはLINEログインが必要です",
-            requestId,
-          },
-        },
-        400,
-      );
-    }
-
-    const cursorContext = {
-      sort: parsed.data.sort,
-      regionCode: parsed.data.regionCode,
-      clusterId: parsed.data.clusterId,
-    } as const;
     const cursor = parsed.data.cursor
-      ? (decodeConcernCursor(parsed.data.cursor, cursorContext) ?? undefined)
+      ? (decodeConcernCursor(parsed.data.cursor) ?? undefined)
       : undefined;
     if (parsed.data.cursor && !cursor) {
       return c.json(
@@ -167,31 +142,12 @@ export class ConcernHandler {
       );
     }
 
-    if (this.concernUsecase.listFeed) {
-      const result = await this.concernUsecase.listFeed({
-        limit: parsed.data.limit,
-        cursor,
-        sort: parsed.data.sort,
-        regionCode: parsed.data.regionCode,
-        clusterId: parsed.data.clusterId,
-        userId: auth?.user?.id,
-      });
-      const nextCursor = result.nextCursor
-        ? encodeConcernCursor(result.nextCursor, cursorContext)
-        : null;
-
-      return c.json({
-        items: result.items.map((item) => toFeedResponse(item, true)),
-        nextCursor,
-      });
-    }
-
     const result = await this.concernUsecase.listPublished({
       limit: parsed.data.limit,
       cursor,
     });
     const nextCursor = result.nextCursor
-      ? encodeConcernCursor(result.nextCursor, cursorContext)
+      ? encodeConcernCursor(result.nextCursor)
       : null;
 
     return c.json({
@@ -202,16 +158,10 @@ export class ConcernHandler {
 
   readonly detail = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
-    const userId = c.var.auth?.user?.id;
-    const item = this.concernUsecase.findPublishedFeedItem
-      ? await this.concernUsecase.findPublishedFeedItem(
-          c.req.param("concernId") ?? "",
-          userId,
-        )
-      : await this.concernUsecase.findPublishedById(
-          c.req.param("concernId") ?? "",
-        );
-    if (!item) {
+    const concern = await this.concernUsecase.findPublishedById(
+      c.req.param("concernId") ?? "",
+    );
+    if (!concern) {
       return c.json(
         {
           error: {
@@ -224,50 +174,7 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(item, false));
-  });
-
-  readonly view = factory.createHandlers(async (c) => {
-    const requestId = setRequestId(c);
-    const auth = c.var.auth;
-    if (!auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "既読登録にはLINEログインが必要です",
-            requestId,
-          },
-        },
-        401,
-      );
-    }
-    if (!this.concernUsecase.markViewed) {
-      throw new Error("view use case is not configured");
-    }
-
-    const view = await this.concernUsecase.markViewed({
-      userId: auth.user.id,
-      concernId: c.req.param("concernId") ?? "",
-    });
-    if (!view) {
-      return c.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "投稿が見つかりません",
-            requestId,
-          },
-        },
-        404,
-      );
-    }
-
-    return c.json({
-      concernId: view.concernId,
-      viewed: true,
-      viewedAt: view.lastViewedAt,
-    });
+    return c.json(toFeedResponse(concern, false));
   });
 }
 
@@ -289,15 +196,7 @@ function toResponse(concern: Concern) {
   };
 }
 
-function toFeedResponse(
-  source: Concern | RankedConcernFeedItem,
-  includeRecommendation: boolean,
-) {
-  const candidate = isFeedItem(source)
-    ? source
-    : { concern: source, cluster: null, viewed: false };
-  const concern = candidate.concern;
-
+function toFeedResponse(concern: Concern, includeRecommendation: boolean) {
   return {
     id: concern.id,
     body: concern.body,
@@ -311,34 +210,20 @@ function toFeedResponse(
       jaHira: toRepresentationStatus(concern),
       en: toRepresentationStatus(concern),
     },
-    cluster: candidate.cluster
-      ? {
-          id: candidate.cluster.id,
-          label: candidate.cluster.label,
-          summary: candidate.cluster.summary,
-        }
-      : null,
+    cluster: null,
     reactionCount: 0,
-    viewed: candidate.viewed,
+    viewed: false,
     reacted: false,
     ...(includeRecommendation
       ? {
-          recommendation: isFeedItem(source)
-            ? source.recommendation
-            : {
-                strategy: "newest" as const,
-                reasonCode: "newest" as const,
-              },
+          recommendation: {
+            strategy: "newest" as const,
+            reasonCode: "newest" as const,
+          },
         }
       : {}),
     createdAt: concern.createdAt,
   };
-}
-
-function isFeedItem(
-  source: Concern | RankedConcernFeedItem,
-): source is RankedConcernFeedItem {
-  return "concern" in source;
 }
 
 function toRepresentationStatus(concern: Concern) {
