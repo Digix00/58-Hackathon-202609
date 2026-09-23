@@ -7,13 +7,13 @@ import {
   type RankedConcernFeedItem,
 } from "../entity/feed";
 import {
-  RECOMMENDATION_ALGORITHM_VERSION,
-  rankConcernFeedCandidates,
-} from "../recommendation/recommendation.policy";
-import {
   CONCERN_PROCESSING_MESSAGE_TYPE,
   type ConcernProcessingQueue,
 } from "../port/concern-processing-queue";
+import {
+  RECOMMENDATION_ALGORITHM_VERSION,
+  rankConcernFeedCandidates,
+} from "../recommendation/recommendation.policy";
 import type {
   ConcernFeedCursor,
   ConcernListCursor,
