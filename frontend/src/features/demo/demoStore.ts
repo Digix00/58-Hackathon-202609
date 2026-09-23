@@ -71,6 +71,11 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
+/**
+ * Intent: デモ用の共有状態をReactの購読として画面へ伝播する。
+ * Boundary: concerns、閲覧済みID、クイズ結果だけを返し、ストアの更新処理を隠す。
+ * State modeling: 外部ストアのsnapshotをuseSyncExternalStoreで購読する。
+ */
 export function useDemoState() {
   return useSyncExternalStore(subscribe, () => state)
 }

@@ -12,6 +12,7 @@ import {
 import { Link } from 'react-router'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
+import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -527,39 +528,25 @@ export function QuizPage() {
             <NotebookBinding part="rear" />
             {turning ? <NotebookBinding part="rear" between /> : null}
             {turning ? (
-              <div
+              <NotebookTurn
                 key={`${turning.letter.id}-${turning.personId ?? ''}-${state.index}`}
-                className={turnStyles.turning}
-                style={
-                  {
-                    '--turn-start': `${turning.startAngle}deg`,
-                    '--turn-back-color': '#e4d9c2',
-                  } as CSSProperties
-                }
-                aria-hidden="true"
-                // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
-                onAnimationEnd={(event) => {
-                  if (event.target === event.currentTarget) setTurning(null)
-                }}
+                startAngle={turning.startAngle}
+                backColor="#e4d9c2"
+                onFinish={() => setTurning(null)}
               >
-                <div className={turnStyles.face}>
-                  <Paper>
-                    <QuizPaperBody
-                      target={turning.letter}
-                      personId={turning.personId}
-                      interactive={false}
-                      showingResults={showingResults}
-                      body={bodyOf(turning.letter)}
-                      slotRef={slotRef}
-                      dragOver={Boolean(drag?.over)}
-                      onPull={(letterId) => dispatch({ type: 'pull', letterId })}
-                    />
-                  </Paper>
-                </div>
-                <div className={`${turnStyles.back} ${crayonStyles.edge}`}>
-                  <NotebookBinding part="holes" back />
-                </div>
-              </div>
+                <Paper>
+                  <QuizPaperBody
+                    target={turning.letter}
+                    personId={turning.personId}
+                    interactive={false}
+                    showingResults={showingResults}
+                    body={bodyOf(turning.letter)}
+                    slotRef={slotRef}
+                    dragOver={Boolean(drag?.over)}
+                    onPull={(letterId) => dispatch({ type: 'pull', letterId })}
+                  />
+                </Paper>
+              </NotebookTurn>
             ) : null}
             <div
               key={`${letter.id}-${state.index}`}

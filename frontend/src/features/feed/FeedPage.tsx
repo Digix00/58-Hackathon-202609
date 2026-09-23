@@ -2,8 +2,8 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useReducer,
   useRef,
-  useState,
   type CSSProperties,
   type MouseEvent,
   type RefCallback,
@@ -16,6 +16,7 @@ import { useRuntime } from '../../app/providers/RuntimeContext'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
+import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -27,6 +28,74 @@ import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
 type Filter = { theme: string; region: string }
+
+type TurningConcern = { concern: DemoConcern; page: number; startAngle: number }
+type FeedReaderState = {
+  filter: Filter
+  index: number
+  direction: 1 | -1
+  showLogin: boolean
+  filtersOpen: boolean
+  dragX: number
+  turning: TurningConcern | null
+}
+
+type FeedReaderAction =
+  | { type: 'next'; turning: TurningConcern | null }
+  | { type: 'previous' }
+  | { type: 'filterChanged'; field: keyof Filter; value: string }
+  | { type: 'filtersReset' }
+  | { type: 'loginVisibilityChanged'; visible: boolean }
+  | { type: 'filtersVisibilityChanged'; open: boolean }
+  | { type: 'dragChanged'; x: number }
+  | { type: 'turningFinished' }
+
+const initialFeedReaderState: FeedReaderState = {
+  filter: { theme: '', region: '' },
+  index: 0,
+  direction: 1,
+  showLogin: false,
+  filtersOpen: false,
+  dragX: 0,
+  turning: null,
+}
+
+function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
+  switch (action.type) {
+    case 'next':
+      return {
+        ...state,
+        index: state.index + 1,
+        direction: 1,
+        showLogin: false,
+        turning: action.turning,
+      }
+    case 'previous':
+      return {
+        ...state,
+        index: state.index - 1,
+        direction: -1,
+        showLogin: false,
+        turning: null,
+      }
+    case 'filterChanged':
+      return {
+        ...state,
+        filter: { ...state.filter, [action.field]: action.value },
+        index: 0,
+      }
+    case 'filtersReset':
+      return { ...state, filter: { theme: '', region: '' }, index: 0 }
+    case 'loginVisibilityChanged':
+      return { ...state, showLogin: action.visible }
+    case 'filtersVisibilityChanged':
+      return { ...state, filtersOpen: action.open }
+    case 'dragChanged':
+      return { ...state, dragX: action.x }
+    case 'turningFinished':
+      return { ...state, turning: null }
+  }
+}
 
 /** しぼりこみなしを表す選択肢の値。テーマ名・地域名とは衝突しない。 */
 const ALL = '__all__'
@@ -139,18 +208,8 @@ export function FeedPage() {
   const { concerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
-  const [filter, setFilter] = useState<Filter>({ theme: '', region: '' })
-  const [index, setIndex] = useState(0)
-  const [direction, setDirection] = useState(1)
-  const [showLogin, setShowLogin] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [dragX, setDragX] = useState(0)
-  /** いまめくられている最中の1枚。裏返り終わるまで、新しい紙の上に重ねて描く。 */
-  const [turning, setTurning] = useState<{
-    concern: DemoConcern
-    page: number
-    startAngle: number
-  } | null>(null)
+  const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
+  const { filter, index, direction, showLogin, filtersOpen, dragX, turning } = reader
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
   const swiped = useRef(false)
 
@@ -186,22 +245,18 @@ export function FeedPage() {
   const goNext = useCallback(
     (startAngle = 0) => {
       // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
-      setTurning(
-        concern && !prefersReducedMotion() ? { concern, page: position + 1, startAngle } : null,
-      )
-      setDirection(1)
-      setIndex((current) => current + 1)
-      setShowLogin(false)
+      dispatch({
+        type: 'next',
+        turning:
+          concern && !prefersReducedMotion() ? { concern, page: position + 1, startAngle } : null,
+      })
     },
     [concern, position],
   )
 
   const goPrev = useCallback(() => {
     // 戻るときは、めくった紙が left 側から降りてくる。去る紙はない。
-    setTurning(null)
-    setDirection(-1)
-    setIndex((current) => current - 1)
-    setShowLogin(false)
+    dispatch({ type: 'previous' })
   }, [])
 
   const goNextFromKeyboard = useEffectEvent(() => goNext())
@@ -239,14 +294,14 @@ export function FeedPage() {
       }
       start.active = true
     }
-    setDragX(dx)
+    dispatch({ type: 'dragChanged', x: dx })
   }
 
   function handleTouchEnd(event: TouchEvent) {
     const start = swipe.current
     const dx = start ? event.changedTouches[0].clientX - start.x : 0
     swipe.current = null
-    setDragX(0)
+    dispatch({ type: 'dragChanged', x: 0 })
     if (!start?.active) return
     swiped.current = true
     if (dx <= -SWIPE_THRESHOLD) goNext(angleForDrag(dx))
@@ -255,7 +310,7 @@ export function FeedPage() {
 
   function handleTouchCancel() {
     swipe.current = null
-    setDragX(0)
+    dispatch({ type: 'dragChanged', x: 0 })
   }
 
   // めくった指が、そのまま本文リンクを開いてしまわないようにする。
@@ -296,28 +351,14 @@ export function FeedPage() {
                 />
               ) : null}
               {turning ? (
-                <div
+                <NotebookTurn
                   key={`${turning.concern.id}-${turning.page}`}
-                  className={turnStyles.turning}
-                  style={
-                    {
-                      '--turn-start': `${turning.startAngle}deg`,
-                      '--turn-back-color': paletteForPage(turning.page).bookmark,
-                    } as CSSProperties
-                  }
-                  aria-hidden="true"
-                  // 影の animationend も上がってくるので、紙そのものの終わりだけを見る。
-                  onAnimationEnd={(event) => {
-                    if (event.target === event.currentTarget) setTurning(null)
-                  }}
+                  startAngle={turning.startAngle}
+                  backColor={paletteForPage(turning.page).bookmark}
+                  onFinish={() => dispatch({ type: 'turningFinished' })}
                 >
-                  <div className={turnStyles.face}>
-                    <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
-                  </div>
-                  <div className={`${turnStyles.back} ${crayonStyles.edge}`}>
-                    <NotebookBinding part="holes" back />
-                  </div>
-                </div>
+                  <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
+                </NotebookTurn>
               ) : null}
               <div
                 key={`${concern.id}-${index}`}
@@ -332,7 +373,8 @@ export function FeedPage() {
                   dragX={dragX}
                   onLinkClick={handleLinkClick}
                   onReact={() => {
-                    if (authStatus !== 'authenticated') setShowLogin(true)
+                    if (authStatus !== 'authenticated')
+                      dispatch({ type: 'loginVisibilityChanged', visible: true })
                     else reactToDemoConcern(concern.id)
                   }}
                 />
@@ -347,8 +389,7 @@ export function FeedPage() {
                 type="button"
                 className={actionStyles.secondary}
                 onClick={() => {
-                  setFilter({ theme: '', region: '' })
-                  setIndex(0)
+                  dispatch({ type: 'filtersReset' })
                 }}
               >
                 すべての声を読む
@@ -371,7 +412,12 @@ export function FeedPage() {
           <details
             className={styles.filters}
             open={filtersOpen}
-            onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+            onToggle={(event) =>
+              dispatch({
+                type: 'filtersVisibilityChanged',
+                open: event.currentTarget.open,
+              })
+            }
           >
             <summary>
               <span>{activeFilter ? 'えらんだ条件' : 'テーマ・地域でえらぶ'}</span>
@@ -387,8 +433,11 @@ export function FeedPage() {
                 value={filter.theme || ALL}
                 options={themeOptions}
                 onChange={(value) => {
-                  setFilter((current) => ({ ...current, theme: value === ALL ? '' : value }))
-                  setIndex(0)
+                  dispatch({
+                    type: 'filterChanged',
+                    field: 'theme',
+                    value: value === ALL ? '' : value,
+                  })
                 }}
               />
               <SelectField
@@ -397,8 +446,11 @@ export function FeedPage() {
                 value={filter.region || ALL}
                 options={regionOptions}
                 onChange={(value) => {
-                  setFilter((current) => ({ ...current, region: value === ALL ? '' : value }))
-                  setIndex(0)
+                  dispatch({
+                    type: 'filterChanged',
+                    field: 'region',
+                    value: value === ALL ? '' : value,
+                  })
                 }}
               />
             </div>
