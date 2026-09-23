@@ -55,7 +55,9 @@ export function useConcernDetail(id: string | undefined): UseConcernDetailResult
   const requestVersion = useRef(0)
 
   useConcernViewOnDisplay(
-    status === 'success' && concern && concern.id === id ? concern.id : undefined,
+    state.status === 'success' && state.concern && state.concern.id === id
+      ? state.concern.id
+      : undefined,
   )
 
   const load = useCallback(async (): Promise<void> => {
