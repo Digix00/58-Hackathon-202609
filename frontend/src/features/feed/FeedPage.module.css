@@ -25,9 +25,6 @@
  * 下に控えた紙のふちで伝える。
  */
 .stack {
-  --hole-axis: 11.5px;
-  --turn-axis: 2.5px;
-
   position: relative;
   display: grid;
   min-width: 0;
@@ -66,63 +63,82 @@
   transform: rotate(2.4deg) translate(8px, 10px);
 }
 
-/*
- * とじリング。紙の左辺をまたいで、上から重ねる。
- * 紙ではなくバインダーに付いているものなので .stack 側に置き、
- * ページがめくられても動かない。
- */
-.rings {
-  position: absolute;
-  z-index: 3;
-  top: 5%;
-  bottom: 5%;
-  /* 右端が穴の右端に掛かる位置。リング全体を穴の上に重ねない。 */
-  left: calc(var(--turn-axis) - 15px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 30px;
-  pointer-events: none;
-}
-
-/* とじ穴。リングと同じ間隔で、紙の左のとじ代に開ける。 */
-.holes {
+/* 紙と金具で同じ座標枠を使い、縦方向の8か所も同じ位置に置く。 */
+.binding {
   position: absolute;
   z-index: 1;
   top: 5%;
   bottom: 5%;
-  left: calc(var(--hole-axis) - 6px);
+  left: var(--binding-offset);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  align-items: center;
-  width: 12px;
+  width: var(--binding-width);
   pointer-events: none;
 }
 
-/* 裏面は鏡像になるので、穴も反対側へ置く。 */
-.holesBack {
-  right: calc(var(--hole-axis) - 6px);
+/* 奥の線は紙に隠れ、手前の線だけがとじ穴を通って見える。 */
+.ringsRear {
+  z-index: 0;
+}
+
+.ringsFront {
+  z-index: 4;
+}
+
+/* 古い紙が浮いた間だけ、奥の線が2枚の紙の間から見える。 */
+.ringReveal {
+  z-index: 2;
+  animation: revealRing 540ms linear both;
+}
+
+@keyframes revealRing {
+  0% {
+    opacity: 0;
+  }
+  22%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 裏面は鏡像。SVGの穴の座標も左右を反転させる。 */
+.bindingBack {
+  right: var(--binding-offset);
   left: auto;
 }
 
-.hole {
-  width: 12px;
+.bindingMark {
+  display: block;
+  flex: none;
+  width: 100%;
   height: 12px;
-  border-radius: 50%;
-  background: #eadfc6;
-  box-shadow: inset 1.5px 1.5px 0 #cbbfa5;
 }
 
-.ring {
-  width: 30px;
-  height: 12px;
-  border: 2.5px solid #9c958a;
-  border-radius: 50%;
-  /* 線だけを揺らす。かすれのマスクは掛けない。細すぎて針金に見えなくなるため。 */
+.ringLine {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   filter: url(#crayon-edge);
-  transform: rotate(-7deg);
+}
+
+.ringRearLine {
+  stroke: #a59b8c;
+  stroke-width: 2.3px;
+}
+
+.ringFrontLine {
+  stroke: #81786d;
+  stroke-width: 2.7px;
+}
+
+.holeFill {
+  fill: #eadfc6;
+  stroke: #cbbfa5;
+  stroke-width: 1px;
 }
 
 .sheetNear {
@@ -164,7 +180,7 @@
 .turning {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   /* 穴より左のリング側を軸にして、紙が金具から離れながらめくれる。 */
   transform-origin: var(--turn-axis) center;
   transform-style: preserve-3d;
@@ -205,7 +221,7 @@
   inset: 0;
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
   background: linear-gradient(95deg, #2f281a 0%, #2f281a66 36%, #2f281a00 76%);
-  animation: turnShade 580ms linear both;
+  animation: turnShade 540ms linear both;
   pointer-events: none;
   content: '';
 }
@@ -554,8 +570,7 @@
     line-height: 1.7;
   }
 
-  .rings,
-  .holes {
+  .binding {
     top: 4%;
     bottom: 4%;
   }
@@ -579,8 +594,8 @@
 }
 
 @media (prefers-contrast: more) {
-  .ring {
-    border-color: var(--color-outline);
+  .ringLine {
+    stroke: var(--color-outline);
     filter: none;
   }
 
@@ -596,6 +611,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ringReveal {
+    animation: none;
+    opacity: 0;
+  }
+
   .corner::before {
     transition: none;
   }

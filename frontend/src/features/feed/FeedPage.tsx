@@ -32,6 +32,61 @@ const SWIPE_THRESHOLD = 56
 const SWIPE_SLOP = 8
 /** とじリングの本数。紙の高さに合わせて等間隔に置く。 */
 const RING_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7]
+/** 紙の左端を x=19 とした、金具と穴に共通の描画座標。 */
+const BINDING_WIDTH = 38
+const HOLE_X = 30.5
+const RING_RADIUS_X = 14.5
+const TURN_AXIS = HOLE_X - RING_RADIUS_X - BINDING_WIDTH / 2
+const RING_LEFT = HOLE_X - RING_RADIUS_X * 2
+const RING_CENTER = HOLE_X - RING_RADIUS_X
+
+const RING_REAR_PATH = `M ${RING_LEFT} 6 C ${RING_LEFT + 0.5} 2.7 ${RING_CENTER - 7} 1.3 ${RING_CENTER} 1.5 C ${RING_CENTER + 8} 1.4 ${HOLE_X - 0.7} 3.2 ${HOLE_X} 6`
+const RING_FRONT_PATH = `M ${HOLE_X} 6 C ${HOLE_X - 0.4} 9.2 ${RING_CENTER + 7.5} 10.7 ${RING_CENTER} 10.5 C ${RING_CENTER - 8} 10.7 ${RING_LEFT + 0.5} 8.9 ${RING_LEFT} 6`
+
+function BindingMarks({
+  kind,
+  back = false,
+  reveal = false,
+}: {
+  kind: 'rearRing' | 'frontRing' | 'holes'
+  back?: boolean
+  reveal?: boolean
+}) {
+  return (
+    <span
+      className={`${styles.binding} ${
+        kind === 'rearRing'
+          ? reveal
+            ? styles.ringReveal
+            : styles.ringsRear
+          : kind === 'frontRing'
+            ? styles.ringsFront
+            : ''
+      } ${back ? styles.bindingBack : ''}`}
+      aria-hidden="true"
+    >
+      {RING_SLOTS.map((slot) => (
+        <svg key={slot} className={styles.bindingMark} viewBox={`0 0 ${BINDING_WIDTH} 12`}>
+          {kind === 'holes' ? (
+            <circle
+              className={styles.holeFill}
+              cx={back ? BINDING_WIDTH - HOLE_X : HOLE_X}
+              cy="6"
+              r="5.5"
+            />
+          ) : (
+            <path
+              className={`${styles.ringLine} ${
+                kind === 'rearRing' ? styles.ringRearLine : styles.ringFrontLine
+              }`}
+              d={kind === 'rearRing' ? RING_REAR_PATH : RING_FRONT_PATH}
+            />
+          )}
+        </svg>
+      ))}
+    </span>
+  )
+}
 
 /** 指で引いた紙をリング側で回す。裏返る手前で止める。 */
 function angleForDrag(dx: number) {
@@ -82,11 +137,7 @@ function FeedCard({
       }
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
-      <span className={styles.holes} aria-hidden="true">
-        {RING_SLOTS.map((slot) => (
-          <span key={slot} className={styles.hole} />
-        ))}
-      </span>
+      <BindingMarks kind="holes" />
       {/* 上辺のインデックス。テーマのしおりと、公開されている属性の付箋。 */}
       <span className={styles.tabs}>
         {concern.ageGroup ? (
@@ -284,15 +335,23 @@ export function FeedPage() {
             届いた声を読む
           </h1>
           {concern ? (
-            <div className={styles.stack}>
+            <div
+              className={styles.stack}
+              style={
+                {
+                  '--binding-width': `${BINDING_WIDTH}px`,
+                  '--binding-offset': `${-BINDING_WIDTH / 2}px`,
+                  '--turn-axis': `${TURN_AXIS}px`,
+                } as CSSProperties
+              }
+            >
               <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
               <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-              {/* とじリング。紙ではなくバインダー側にあるので、めくっても動かない。 */}
-              <span className={styles.rings} aria-hidden="true">
-                {RING_SLOTS.map((slot) => (
-                  <span key={slot} className={styles.ring} />
-                ))}
-              </span>
+              {/* 上側の線は紙の奥に置き、めくれている間だけ旧い紙と次の紙の間にも出す。 */}
+              <BindingMarks kind="rearRing" />
+              {turning ? (
+                <BindingMarks key={`${turning.concern.id}-${turning.page}`} kind="rearRing" reveal />
+              ) : null}
               {turning ? (
                 <div
                   key={`${turning.concern.id}-${turning.page}`}
@@ -308,11 +367,7 @@ export function FeedPage() {
                     <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
                   </div>
                   <div className={`${styles.back} ${crayonStyles.edge}`}>
-                    <span className={`${styles.holes} ${styles.holesBack}`} aria-hidden="true">
-                      {RING_SLOTS.map((slot) => (
-                        <span key={slot} className={styles.hole} />
-                      ))}
-                    </span>
+                    <BindingMarks kind="holes" back />
                   </div>
                 </div>
               ) : null}
@@ -334,6 +389,8 @@ export function FeedPage() {
                   }}
                 />
               </div>
+              {/* 手前側の線は金具として動かさない。 */}
+              <BindingMarks kind="frontRing" />
             </div>
           ) : (
             <div className={styles.empty}>
