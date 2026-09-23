@@ -186,14 +186,16 @@ function WriteSheet({
         >
           <CrayonMic />
           話して書く
+          <ComingSoonLabel
+            id="post-voice-note"
+            className={styles.voiceLabel}
+            ariaLabel="音声入力は準備中です"
+          />
         </button>
         <p id="post-body-count" className={`${styles.count} ${tooLong ? styles.countOver : ''}`}>
           <span className={styles.srOnly}>書いた文字数は</span>
           {body.length} / {POST_BODY_MAX_LENGTH}文字
           {tooLong ? <span className={styles.srOnly}>。上限を越えています</span> : null}
-        </p>
-        <p id="post-voice-note" className={styles.voiceNote}>
-          <ComingSoonLabel ariaLabel="音声入力は準備中です" />
         </p>
       </div>
     </article>

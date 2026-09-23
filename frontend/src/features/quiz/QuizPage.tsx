@@ -42,9 +42,10 @@ type DragState = {
 /**
  * めくっている最中の1枚。
  * 最初の1枚は手紙ではなく表紙なので、めくる相手にも表紙が入る。
+ * 表紙は開くとき（1）だけでなく、読み終えて閉じるとき（-1）にも動く。
  */
 type TurningState =
-  | { kind: 'cover'; startAngle: number }
+  | { kind: 'cover'; startAngle: number; direction: 1 | -1 }
   | { kind: 'letter'; letter: Letter; personId?: string; startAngle: number; direction: 1 | -1 }
 
 type QuizStep = 'letters' | 'submitting' | 'results'
@@ -56,10 +57,17 @@ type QuizState = {
   coverLifting: boolean
   /** 表紙をめくり終えたか。最初の1枚は手紙ではなく表紙。 */
   coverOpened: boolean
+  /**
+   * 3通ぜんぶに挟み終えて、ノートを閉じたか。
+   * 閉じたあとは、表紙の上に出た付箋だけが手がかりになる。
+   */
+  closed: boolean
 }
 type QuizAction =
   | { type: 'coverLifting' }
   | { type: 'coverTurned' }
+  | { type: 'close' }
+  | { type: 'reopen'; index: number }
   | { type: 'fit'; letterId: string; personId: string }
   | { type: 'openLetter'; index: number }
   | { type: 'pull'; letterId: string }
@@ -100,6 +108,7 @@ function createInitialState(answered: boolean): QuizState {
     answers: {},
     coverLifting: false,
     coverOpened: answered,
+    closed: false,
   }
 }
 
@@ -133,6 +142,15 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
     case 'coverTurned':
       // 表紙はここで開く。去っていく表紙だけがめくられて残る。
       return { ...state, coverLifting: false, coverOpened: true }
+    case 'close':
+      /*
+       * 3通ぜんぶに挟み終えた。読み終えたノートとして閉じる。
+       * 閉じても回答はそのままなので、表紙の上に出た付箋が控えの役をする。
+       */
+      return { ...state, coverOpened: false, closed: true }
+    case 'reopen':
+      // 付箋から開き直す。押された付箋の手紙をそのまま開く。
+      return { ...state, coverOpened: true, closed: false, index: action.index }
     case 'fit':
       /*
        * 挟むだけ。紙はその場に残す。
@@ -155,7 +173,8 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
     case 'submitStarted':
       return { ...state, step: 'submitting' }
     case 'showResults':
-      return { ...state, step: 'results', index: 0 }
+      // 結果は1通目から読む。閉じていたなら、ここで開いたままにする。
+      return { ...state, step: 'results', index: 0, coverOpened: true, closed: false }
   }
 }
 
@@ -207,6 +226,20 @@ function tagStyle(personId: string) {
 }
 
 /**
+ * 付箋の持ち場。紙の幅を通の数で割り、手紙ごとに違う場所へ置く。
+ *
+ * どの紙でも同じ位置に挟むと、閉じたノートでは3枚が1枚に重なり、
+ * どれがどの手紙の付箋なのかが分からなくなる。挟む場所そのものを
+ * 「何通目か」にしておけば、閉じたあとも並びがそのまま目次になる。
+ */
+function tabSlotStyle(slot: number) {
+  return {
+    '--tab-count': demoQuiz.letters.length,
+    '--tab-slot': slot + 1,
+  } as CSSProperties
+}
+
+/**
  * 紙の一枚。本文と、その下に置くもの（切り欠き、または結果）を受け取る。
  * 前後の手紙へは左右のスワイプと矢印キーで移動する。
  */
@@ -244,17 +277,30 @@ function Paper({
  * 題字と短い一言、そしてクレヨンの絵だけにする。誰が書いたのか、どんな条件が
  * 出てくるのかを、めくる前に予告するものは置かない。
  */
-function QuizCover() {
+function QuizCover({ answered = false }: { answered?: boolean }) {
   return (
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
-      <CoverArt />
+      {/*
+        読み終えて閉じたノートからは、飛んできた紙飛行機を降ろす。
+        届いたことを告げる絵なので、読み終えたあとも飛んでいると、
+        まだ次が届くという誤った合図になる。上辺も付箋に明け渡す。
+      */}
+      <CoverArt arrived={!answered} />
       <p className={styles.coverTitle}>きょうの手紙</p>
-      <p className={styles.coverLead}>
-        3通、届きました。
-        <br />
-        書いたのは、どんな人だろう。
-      </p>
+      {answered ? (
+        <p className={styles.coverLead}>
+          3通ぜんぶに、しおりを挟みました。
+          <br />
+          付箋を押すと、その手紙へ戻れます。
+        </p>
+      ) : (
+        <p className={styles.coverLead}>
+          3通、届きました。
+          <br />
+          書いたのは、どんな人だろう。
+        </p>
+      )}
     </article>
   )
 }
@@ -280,18 +326,22 @@ function QuizPaperBody({
 }) {
   const writer = personById(target.correctPerson)
   const fitted = personById(personId)
+  /** この手紙の付箋の持ち場。結果でも同じ場所に残す。 */
+  const slot = demoQuiz.letters.findIndex((letter) => letter.id === target.id)
 
   if (showingResults && writer) {
     const correct = personId === target.correctPerson
     return (
       <>
         <div className={styles.fit}>
-          {/* 結果でも、書き手の条件を手紙の上端に残す。 */}
-          <span className={styles.choice}>
-            <span className={styles.tag} style={tagStyle(writer.id)}>
-              <TagFace label={writer.attributes} />
+          {/* 結果でも、書き手の条件を、この手紙の持ち場に残す。 */}
+          <div className={styles.tabRow} style={tabSlotStyle(slot)}>
+            <span className={styles.choice}>
+              <span className={styles.tag} style={tagStyle(writer.id)}>
+                <TagFace label={writer.attributes} />
+              </span>
             </span>
-          </span>
+          </div>
           {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
           <p className={styles.ask}>この声の条件</p>
         </div>
@@ -319,34 +369,36 @@ function QuizPaperBody({
   return (
     <>
       <div className={styles.fit}>
-        {fitted ? (
-          <button
-            type="button"
-            className={`${styles.choice} ${styles.fitted}`}
-            onClick={() => interactive && onPull(target.id)}
-            aria-label={`条件は${fitted.attributes}。この声から外す`}
-          >
-            <span className={styles.tag} style={tagStyle(fitted.id)}>
-              <TagFace label={fitted.attributes} />
-            </span>
-          </button>
-        ) : (
-          <span
-            ref={interactive ? slotRef : undefined}
-            className={`${styles.tag} ${styles.slot} ${dragOver ? styles.over : ''}`}
-            aria-hidden="true"
-          >
-            <svg
-              className={styles.shape}
-              viewBox="0 0 100 78"
-              preserveAspectRatio="none"
-              focusable="false"
+        <div className={styles.tabRow} style={tabSlotStyle(slot)}>
+          {fitted ? (
+            <button
+              type="button"
+              className={`${styles.choice} ${styles.fitted}`}
+              onClick={() => interactive && onPull(target.id)}
+              aria-label={`条件は${fitted.attributes}。この声から外す`}
             >
-              <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
-            </svg>
-            <span className={styles.tagLabel}>ここへ</span>
-          </span>
-        )}
+              <span className={styles.tag} style={tagStyle(fitted.id)}>
+                <TagFace label={fitted.attributes} />
+              </span>
+            </button>
+          ) : (
+            <span
+              ref={interactive ? slotRef : undefined}
+              className={`${styles.tag} ${styles.slot} ${dragOver ? styles.over : ''}`}
+              aria-hidden="true"
+            >
+              <svg
+                className={styles.shape}
+                viewBox="0 0 100 78"
+                preserveAspectRatio="none"
+                focusable="false"
+              >
+                <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
+              </svg>
+              <span className={styles.tagLabel}>ここへ</span>
+            </span>
+          )}
+        </div>
         {/* 問いかけの場所は動かさない。挟んだあとは、やり直し方をここで伝える。 */}
         <p className={styles.ask}>{fitted ? 'ちがったら、しおりを押す' : 'この声は、どの条件？'}</p>
       </div>
@@ -359,6 +411,7 @@ function QuizPaperBody({
 
 function QuizActions({
   coverOpened,
+  closed,
   coverLifting,
   showingResults,
   canGoNext,
@@ -370,6 +423,8 @@ function QuizActions({
   onSubmit,
 }: {
   coverOpened: boolean
+  /** 読み終えて閉じたか。閉じたノートには、もう一度開く操作を置かない。 */
+  closed: boolean
   /** 表紙を押し上げている最中か。押し上げが始まった時点で、この操作は消える。 */
   coverLifting: boolean
   showingResults: boolean
@@ -381,7 +436,7 @@ function QuizActions({
   onOpenCover: () => void
   onSubmit: () => void
 }) {
-  if (!coverOpened) {
+  if (!coverOpened && !closed) {
     // 表紙の中身は静かに保ち、読みはじめる操作だけを紙の外に置く。
     return (
       <div className={styles.actions}>
@@ -476,7 +531,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
   const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
     // 紙束が上がりきった。ここでようやく表紙に手をかける。
     if (!state.coverLifting) return
-    setTurning({ kind: 'cover', startAngle: 0 })
+    setTurning({ kind: 'cover', startAngle: 0, direction: 1 })
     dispatch({ type: 'coverTurned' })
   })
 
@@ -497,7 +552,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       }
       if (startAngle !== 0) {
         if (!state.coverLifting) rememberStackPosition()
-        setTurning({ kind: 'cover', startAngle })
+        setTurning({ kind: 'cover', startAngle, direction: 1 })
         dispatch({ type: 'coverTurned' })
         return
       }
@@ -508,13 +563,35 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     [rememberStackPosition, state.coverLifting, state.coverOpened],
   )
 
+  /**
+   * 閉じたノートを、その付箋の手紙で開き直す。
+   *
+   * 出す前ならいつでも挟み替えられるので、確かめるのも選び直すのも、
+   * 付箋を押すというひとつの操作から始める。
+   */
+  const reopen = useCallback(
+    (index: number, startAngle = 0) => {
+      if (!state.closed || turning) return
+      if (prefersReducedMotion()) {
+        dispatch({ type: 'reopen', index })
+        return
+      }
+      setTurning({ kind: 'cover', startAngle, direction: 1 })
+      dispatch({ type: 'reopen', index })
+    },
+    [state.closed, turning],
+  )
+
   const go = useCallback(
     (direction: 1 | -1, startAngle = 0) => {
       cancelSettle()
       if (turning) return
       // 表紙が残っているうちは、めくる相手は手紙ではなく表紙。
       if (!state.coverOpened) {
-        if (direction === 1) openCover(startAngle)
+        if (direction !== 1) return
+        // 閉じたノートは、最後に見ていた手紙から開く。
+        if (state.closed) reopen(state.index, startAngle)
+        else openCover(startAngle)
         return
       }
       const index = state.index + direction
@@ -547,7 +624,18 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
         })
       }
     },
-    [answers, cancelSettle, letter, letters, openCover, state.coverOpened, state.index, turning],
+    [
+      answers,
+      cancelSettle,
+      letter,
+      letters,
+      openCover,
+      reopen,
+      state.closed,
+      state.coverOpened,
+      state.index,
+      turning,
+    ],
   )
 
   function fit(personId: string) {
@@ -557,8 +645,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     const open = firstOpenIndex(next)
     const placed = letter
     dispatch({ type: 'fit', letterId: letter.id, personId })
-    // 空いている手紙が別にあるときだけ、この紙はめくれて去る。
-    if (open === -1 || open === state.index) return
+    if (open === state.index) return
 
     cancelSettle()
     /*
@@ -568,6 +655,15 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
      */
     settle.current = window.setTimeout(() => {
       settle.current = null
+      if (open === -1) {
+        /*
+         * 空いている手紙はもうない。読み終えたノートとして閉じる。
+         * 閉じた表紙には挟んだ付箋だけが出るので、見直す先はそこから選ぶ。
+         */
+        if (prefersReducedMotion()) dispatch({ type: 'close' })
+        else setTurning({ kind: 'cover', startAngle: 0, direction: -1 })
+        return
+      }
       if (!prefersReducedMotion()) {
         setTurning({ kind: 'letter', letter: placed, personId, startAngle: 0, direction: 1 })
       }
@@ -579,12 +675,19 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     dispatch({ type: 'submitStarted' })
     await new Promise((resolve) => setTimeout(resolve, 400))
     answerDemoQuiz(state.answers)
+    if (state.closed && !prefersReducedMotion()) {
+      setTurning({ kind: 'cover', startAngle: 0, direction: 1 })
+    }
     dispatch({ type: 'showResults' })
   }
 
   const finishTurn = useCallback(() => {
     if (turning?.kind === 'letter' && turning.direction === -1) {
       dispatch({ type: 'go', direction: -1 })
+    }
+    // 表紙が戻りきってから閉じる。先に閉じると、めくる表紙が二重に見える。
+    if (turning?.kind === 'cover' && turning.direction === -1) {
+      dispatch({ type: 'close' })
     }
     setTurning(null)
   }, [turning])
@@ -612,6 +715,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     turning,
     go,
     openCover,
+    reopen,
     fit,
     submit,
     finishTurn,
@@ -722,8 +826,40 @@ const TURNED_BACK_COLOR = 'var(--color-surface)'
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningState, index: number) {
   return turning.kind === 'cover'
-    ? 'cover'
+    ? `cover-${turning.direction}-${index}`
     : `${turning.letter.id}-${turning.personId ?? ''}-${index}`
+}
+
+/**
+ * 閉じたノートの上に出ている付箋。
+ *
+ * 挟んだときと同じ持ち場に、同じ高さで並ぶ。場所が変わらないので、
+ * 表紙の上の1枚が、さっき自分がその手紙に挟んだ1枚だと分かる。
+ * 押せばその手紙が開き、確かめるのも挟み替えるのも、そこから続けられる。
+ */
+function QuizTabs({ answers, onReopen }: { answers: Answers; onReopen: (index: number) => void }) {
+  return (
+    <div className={`${styles.tabRow} ${styles.tabs}`} style={tabSlotStyle(0)}>
+      {demoQuiz.letters.map((target, index) => {
+        const fitted = personById(answers[target.id])
+        if (!fitted) return null
+        return (
+          <button
+            key={target.id}
+            type="button"
+            className={`${styles.choice} ${styles.tab}`}
+            style={{ '--tab-slot': index + 1 } as CSSProperties}
+            onClick={() => onReopen(index)}
+            aria-label={`${index + 1}通目の手紙。条件は${fitted.attributes}。開いて見直す`}
+          >
+            <span className={styles.tag} style={tagStyle(fitted.id)}>
+              <TagFace label={fitted.attributes} />
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 type QuizSwipe = ReturnType<typeof useNotebookSwipe>
@@ -747,6 +883,7 @@ function QuizTurnLayer({
   turning,
   stateIndex,
   showingResults,
+  answeredCover,
   slotRef,
   dragOver,
   bodyOf,
@@ -756,6 +893,8 @@ function QuizTurnLayer({
   turning: TurningState | null
   stateIndex: number
   showingResults: boolean
+  /** 表紙に描くのが、読み終えたあとの一枚か。 */
+  answeredCover: boolean
   slotRef: React.RefObject<HTMLSpanElement | null>
   dragOver: boolean
   bodyOf: (target: Letter) => string | undefined
@@ -775,11 +914,11 @@ function QuizTurnLayer({
         variant={isCover ? 'cover' : 'page'}
         startAngle={turning.startAngle}
         backColor={isCover ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
-        direction={isCover ? 1 : turning.direction}
+        direction={turning.direction}
         onFinish={onTurnFinish}
       >
         {isCover ? (
-          <QuizCover />
+          <QuizCover answered={answeredCover} />
         ) : (
           <Paper className={showingResults ? styles.resultCard : ''}>
             <QuizPaperBody
@@ -801,6 +940,7 @@ function QuizTurnLayer({
 
 function QuizFrontPage({
   coverOpened,
+  closed,
   letter,
   answers,
   stateIndex,
@@ -810,8 +950,11 @@ function QuizFrontPage({
   dragOver,
   bodyOf,
   onPull,
+  onReopen,
 }: {
   coverOpened: boolean
+  /** 読み終えて閉じたか。表紙の上には、挟んだ付箋だけが出る。 */
+  closed: boolean
   letter: Letter
   answers: Answers
   stateIndex: number
@@ -821,6 +964,7 @@ function QuizFrontPage({
   dragOver: boolean
   bodyOf: (target: Letter) => string | undefined
   onPull: (letterId: string) => void
+  onReopen: (index: number) => void
 }) {
   if (coverOpened) {
     return (
@@ -858,8 +1002,9 @@ function QuizFrontPage({
         </Paper>
       </div>
       <div className={styles.coverLayer}>
-        <QuizCover />
+        <QuizCover answered={closed} />
       </div>
+      {closed ? <QuizTabs answers={answers} onReopen={onReopen} /> : null}
     </>
   )
 }
@@ -872,6 +1017,8 @@ function QuizStage({
   showingResults,
   coverOpened,
   coverOpening,
+  closed,
+  complete,
   stackRef,
   swipe,
   dragOver,
@@ -879,6 +1026,7 @@ function QuizStage({
   bodyOf,
   onTurnFinish,
   onPull,
+  onReopen,
 }: {
   stateIndex: number
   letter: Letter
@@ -887,6 +1035,10 @@ function QuizStage({
   showingResults: boolean
   coverOpened: boolean
   coverOpening: boolean
+  /** 読み終えて閉じたか。表紙の上には、挟んだ付箋だけが出る。 */
+  closed: boolean
+  /** 3通ぜんぶに挟み終えたか。表紙の絵と一言は、ここで読み終えたものに変わる。 */
+  complete: boolean
   stackRef: RefObject<HTMLDivElement | null>
   swipe: QuizSwipe
   dragOver: boolean
@@ -894,6 +1046,7 @@ function QuizStage({
   bodyOf: (target: Letter) => string | undefined
   onTurnFinish: () => void
   onPull: (letterId: string) => void
+  onReopen: (index: number) => void
 }) {
   return (
     <section
@@ -907,9 +1060,13 @@ function QuizStage({
       <h1 id="quiz-title" className={styles.srOnly}>
         きょうの3つの手紙。条件のしおりを結ぶ
       </h1>
+      {/*
+        小さく置くのは、まだ読みはじめていない表紙だけにする。
+        読み終えて閉じたノートには付箋が並ぶので、そこで縮めると条件の字が読めない。
+      */}
       <div
         ref={stackRef}
-        className={`${styles.stack} ${!coverOpened ? styles.stackCover : ''} ${
+        className={`${styles.stack} ${!coverOpened && !closed ? styles.stackCover : ''} ${
           coverOpening ? styles.stackOpening : ''
         }`}
         style={notebookBindingStyle}
@@ -918,86 +1075,36 @@ function QuizStage({
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
         <NotebookBinding part="rear" />
         {/* めくり終えた表紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-        {coverOpened ? (
-          <div className={turnStyles.turned} aria-hidden="true">
-            <div
-              className={`${turnStyles.back} ${crayonStyles.edge}`}
-              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
-            >
-              <NotebookBinding part="holes" back />
-            </div>
-          </div>
-        ) : null}
-        {turning ? (
-          <NotebookBinding key={turningKey(turning, stateIndex)} part="rear" between />
-        ) : null}
-        {turning ? (
-          <NotebookTurn
-            key={turningKey(turning, stateIndex)}
-            variant={turning.kind === 'cover' ? 'cover' : 'page'}
-            startAngle={turning.startAngle}
-            backColor={turning.kind === 'cover' ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
-            direction={turning.kind === 'cover' ? 1 : turning.direction}
-            onFinish={onTurnFinish}
-          >
-            {turning.kind === 'cover' ? (
-              <QuizCover />
-            ) : (
-              <Paper className={showingResults ? styles.resultCard : ''}>
-                <QuizPaperBody
-                  target={turning.letter}
-                  personId={turning.personId}
-                  interactive={false}
-                  showingResults={showingResults}
-                  body={bodyOf(turning.letter)}
-                  slotRef={slotRef}
-                  dragOver={dragOver}
-                  onPull={onPull}
-                />
-              </Paper>
-            )}
-          </NotebookTurn>
-        ) : null}
+        <QuizTurnedCover coverOpened={coverOpened} />
+        <QuizTurnLayer
+          turning={turning}
+          stateIndex={stateIndex}
+          showingResults={showingResults}
+          answeredCover={complete}
+          slotRef={slotRef}
+          dragOver={dragOver}
+          bodyOf={bodyOf}
+          onTurnFinish={onTurnFinish}
+          onPull={onPull}
+        />
         {/*
          * 表紙が開くまでは、表紙が一番上の紙。1通目の手紙はその下に控えている。
          * 控えている紙は、表紙が開くまで読ませない。切り欠きも息をさせない。
          */}
-        {coverOpened ? (
-          <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
-            <Paper className={showingResults ? styles.resultCard : ''} dragX={swipe.dragX}>
-              <QuizPaperBody
-                target={letter}
-                personId={answers[letter.id]}
-                interactive
-                showingResults={showingResults}
-                body={bodyOf(letter)}
-                slotRef={slotRef}
-                dragOver={dragOver}
-                onPull={onPull}
-              />
-            </Paper>
-          </div>
-        ) : (
-          <>
-            <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
-              <Paper>
-                <QuizPaperBody
-                  target={letter}
-                  personId={undefined}
-                  interactive={false}
-                  showingResults={false}
-                  body={bodyOf(letter)}
-                  slotRef={slotRef}
-                  dragOver={false}
-                  onPull={onPull}
-                />
-              </Paper>
-            </div>
-            <div className={styles.coverLayer}>
-              <QuizCover />
-            </div>
-          </>
-        )}
+        <QuizFrontPage
+          coverOpened={coverOpened}
+          closed={closed}
+          letter={letter}
+          answers={answers}
+          stateIndex={stateIndex}
+          showingResults={showingResults}
+          swipe={swipe}
+          slotRef={slotRef}
+          dragOver={dragOver}
+          bodyOf={bodyOf}
+          onPull={onPull}
+          onReopen={onReopen}
+        />
         <NotebookBinding part="front" />
       </div>
     </section>
@@ -1050,7 +1157,7 @@ export function QuizPage() {
           いま差したばかりの紙から目が外れてしまう。空いた棚は「もう手元にない」
           ことをそのまま表す。
         */}
-        {!quiz.showingResults && quiz.state.coverOpened ? (
+        {!quiz.showingResults && (quiz.state.coverOpened || quiz.state.closed) ? (
           <QuizTray
             remaining={quiz.remaining}
             drag={drag}
@@ -1066,6 +1173,8 @@ export function QuizPage() {
           showingResults={quiz.showingResults}
           coverOpened={quiz.state.coverOpened}
           coverOpening={quiz.coverOpening}
+          closed={quiz.state.closed}
+          complete={quiz.complete}
           stackRef={quiz.stackRef}
           swipe={swipe}
           dragOver={Boolean(drag?.over)}
@@ -1073,10 +1182,12 @@ export function QuizPage() {
           bodyOf={bodyOf}
           onTurnFinish={quiz.finishTurn}
           onPull={quiz.pull}
+          onReopen={(index) => quiz.reopen(index)}
         />
 
         <QuizActions
           coverOpened={quiz.state.coverOpened}
+          closed={quiz.state.closed}
           coverLifting={quiz.state.coverLifting}
           showingResults={quiz.showingResults}
           canGoNext={quiz.canGoNext}
@@ -1091,9 +1202,11 @@ export function QuizPage() {
         <QuizDragGhost drag={drag} dragged={dragged} />
 
         <p className={styles.srOnly} aria-live="polite">
-          {quiz.state.coverOpened && (quiz.canGoPrev || quiz.canGoNext)
-            ? `${quiz.state.index + 1}通目の手紙`
-            : ''}
+          {quiz.state.closed
+            ? '3通ぜんぶに、しおりを挟みました。ノートを閉じました。付箋を押すと、その手紙へ戻れます'
+            : quiz.state.coverOpened && (quiz.canGoPrev || quiz.canGoNext)
+              ? `${quiz.state.index + 1}通目の手紙`
+              : ''}
         </p>
       </div>
     </DemoBoundary>

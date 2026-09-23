@@ -38,24 +38,36 @@ export function useStackLift(open: boolean, onLifted: () => void) {
     if (!node || from === null) return
 
     const delta = from - node.getBoundingClientRect().top
-    // 紙束の位置が変わらなくても、縮めていた本を広げる時間は確保する。
-    if (Math.abs(delta) < 1) {
-      node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
-      const timer = window.setTimeout(() => {
-        node.style.removeProperty('--lift-duration')
-        lifted()
-      }, LIFT_MS)
-      return () => window.clearTimeout(timer)
-    }
+    let finished = false
+    let finishTimer: number | null = null
 
-    const onEnd = (event: TransitionEvent) => {
-      // 紙の上で起きた別のうつろいは数えない。
-      if (event.target !== node || event.propertyName !== 'transform') return
+    const finish = () => {
+      if (finished) return
+      finished = true
+      if (finishTimer !== null) window.clearTimeout(finishTimer)
       node.removeEventListener('transitionend', onEnd)
       node.style.willChange = ''
       node.style.removeProperty('--lift')
       node.style.removeProperty('--lift-duration')
       lifted()
+    }
+
+    const onEnd = (event: TransitionEvent) => {
+      // 紙の上で起きた別のうつろいは数えない。
+      if (event.target !== node || event.propertyName !== 'transform') return
+      // scale と lift を同じ transform で動かすため、ブラウザが早く通知しても
+      // 表紙のめくりを始める規定時間までは完了扱いにしない。
+      if (event.elapsedTime * 1000 < LIFT_MS - 16) return
+      finish()
+    }
+
+    // 紙束の位置が変わらなくても、縮めていた本を広げる時間は確保する。
+    if (Math.abs(delta) < 1) {
+      node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
+      finishTimer = window.setTimeout(finish, LIFT_MS + 32)
+      return () => {
+        if (finishTimer !== null) window.clearTimeout(finishTimer)
+      }
     }
 
     node.style.willChange = 'transform'
@@ -65,7 +77,11 @@ export function useStackLift(open: boolean, onLifted: () => void) {
     node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
     node.style.setProperty('--lift', '0px')
     node.addEventListener('transitionend', onEnd)
-    return () => node.removeEventListener('transitionend', onEnd)
+    finishTimer = window.setTimeout(finish, LIFT_MS + 32)
+    return () => {
+      if (finishTimer !== null) window.clearTimeout(finishTimer)
+      node.removeEventListener('transitionend', onEnd)
+    }
   }, [open])
 
   return { stackRef, rememberStackPosition }

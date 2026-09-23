@@ -309,7 +309,7 @@
 
 /*
  * 紙のふもと。
- * 話して書く操作と書いた量を同じ行に並べ、準備中ラベルは必ず下の行へ回す。
+ * 話して書く操作と書いた量を同じ行に並べ、準備中ラベルはボタンに貼って見せる。
  * 文字を大きくすると1行に収まらなくなるので、文字数は途中で折らず行ごと送る。
  */
 .cardFoot {
@@ -360,6 +360,16 @@
 .voiceButton:disabled {
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+/* ボタンに貼った小さな付箋。ボタンの役割を邪魔せず、準備中だけを添える。 */
+.voiceLabel {
+  position: absolute;
+  z-index: 1;
+  top: -0.8em;
+  right: -0.7em;
+  font-size: 0.68em;
+  transform: rotate(3deg);
 }
 
 .mic {

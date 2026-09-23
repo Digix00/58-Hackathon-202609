@@ -16,6 +16,11 @@ type NotebookTurnProps = {
   onFinish: () => void
 }
 
+/** 表紙は本文の紙より大きく動かす。開くときも、閉じるときも同じ手つきにする。 */
+function coverStyle(direction: 1 | -1) {
+  return direction === 1 ? styles.coverTurning : styles.coverTurningBack
+}
+
 /** 紙そのものを金具の軸で回す。リングは静止した NotebookBinding が描く。 */
 export function NotebookTurn({
   children,
@@ -28,7 +33,7 @@ export function NotebookTurn({
   return (
     <div
       className={`${direction === 1 ? styles.turning : styles.turningBack} ${
-        variant === 'cover' && direction === 1 ? styles.coverTurning : ''
+        variant === 'cover' ? coverStyle(direction) : ''
       }`}
       style={
         {

@@ -36,6 +36,18 @@
  * 紙束。残りが何通あるかは、数字ではなく下に控えた紙のふちで伝える。
  */
 .stack {
+  /*
+   * 紙の余白ととじ代。紙の中に挟んだ付箋も、閉じた表紙の上に出る付箋も、
+   * 同じ持ち場・同じ高さに置きたいので、寸法は紙束に一度だけ持たせる。
+   */
+  --card-gutter: clamp(1.2em, 5vw, 1.6em);
+  --card-binding: 15px;
+  --card-pad-top: clamp(1.4em, 5vw, 1.8em);
+  --card-pad-bottom: clamp(1.2em, 4vw, 1.5em);
+  /* 付箋の段を紙の上端へ引き上げる量と、そこからさらに外へ出す高さ。 */
+  --fit-pull: 1.65em;
+  --fit-rise: 1.25em;
+
   position: relative;
   display: grid;
   min-width: 0;
@@ -112,8 +124,8 @@
   /* どの手紙でも紙の大きさは変えない。縦に余白を取り、めくる手応えを保つ。 */
   height: clamp(22em, 56vh, 32em);
   /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
-  padding: clamp(1.4em, 5vw, 1.8em) clamp(1.2em, 5vw, 1.6em) clamp(1.2em, 4vw, 1.5em)
-    calc(clamp(1.2em, 5vw, 1.6em) + 15px);
+  padding: var(--card-pad-top) var(--card-gutter) var(--card-pad-bottom)
+    calc(var(--card-gutter) + var(--card-binding));
   /* 紙束では最背面の .sheetFar だけに影を置く。 */
   box-shadow: none;
 }
@@ -132,8 +144,8 @@
   /* 絵のぶん、題字と一言も机から少し離して上へ置く。 */
   --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
   /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
-  --cover-gutter: clamp(1.2em, 5vw, 1.6em);
-  --cover-binding: 15px;
+  --cover-gutter: var(--card-gutter);
+  --cover-binding: var(--card-binding);
 
   /*
    * 題字と一言は、二つで一つの塊として紙の中央へ置く。
@@ -144,7 +156,7 @@
   align-content: center;
   justify-items: center;
   gap: 0.9em;
-  padding-bottom: calc(clamp(1.2em, 4vw, 1.5em) + var(--desk-height) + var(--cover-content-lift));
+  padding-bottom: calc(var(--card-pad-bottom) + var(--desk-height) + var(--cover-content-lift));
   text-align: center;
 }
 
@@ -273,15 +285,74 @@
   display: grid;
   justify-items: center;
   gap: 0.1em;
-  margin-top: -1.65em;
+  margin-top: calc(-1 * var(--fit-pull));
 }
 
-.fit > .tag {
-  top: -1.25em;
+.fit > .tabRow {
+  top: calc(-1 * var(--fit-rise));
 }
 
-.fit > .choice {
-  top: -1.25em;
+/*
+ * 付箋の持ち場。
+ *
+ * 紙の幅を通の数で割り、手紙ごとに違う持ち場へ置く。どの紙でも同じ位置に挟むと、
+ * 閉じたノートでは3枚が1枚に重なり、どれがどの手紙の付箋か分からない。
+ * 何通目かがそのまま横の位置になるので、閉じたあとの並びが目次になる。
+ */
+.tabRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count, 1), minmax(0, 1fr));
+  justify-items: center;
+  width: 100%;
+}
+
+.tabRow > * {
+  grid-column: var(--tab-slot, 1);
+  min-width: 0;
+}
+
+/* 狭い画面では持ち場のぶんだけ細くする。隣とぶつかると、どの紙の付箋か読めない。 */
+.tabRow .tag {
+  width: min(100%, 100px);
+}
+
+/*
+ * 閉じたノートの上に出ている付箋。
+ * 紙の中に挟んだときとまったく同じ持ち場・同じ高さに置く。場所が動くと、
+ * 自分が挟んだ1枚ではなく、あとから付けられた見出しに見える。
+ */
+.tabs {
+  position: absolute;
+  /* 表紙（.coverLayer）より手前、手前側のリングより奥。 */
+  z-index: 4;
+  top: calc(var(--card-pad-top) - var(--fit-pull) - var(--fit-rise));
+  right: var(--card-gutter);
+  left: calc(var(--card-gutter) + var(--card-binding));
+  animation: tabsIn 360ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 表紙が閉じきってから現れる。紙の下から出てきたように、少し下から上げる。 */
+@keyframes tabsIn {
+  0% {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 押せる付箋。つまんで運ぶしおりとは違い、ここは押して開くだけ。 */
+.tab {
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.tab:hover,
+.tab:focus-visible {
+  transform: translateY(-5px) rotate(-1.5deg);
 }
 
 .ask {
@@ -656,11 +727,17 @@
 
 /* 背の低い端末では、1画面に収まることを本文の大きさより優先する。 */
 @media (max-height: 700px) {
+  .stack {
+    --card-pad-top: 1.1em;
+    --card-pad-bottom: 1.1em;
+    --fit-pull: 1.1em;
+    --fit-rise: 1.1em;
+  }
+
   .card {
     gap: 0.6em;
     height: clamp(20em, 54vh, 24em);
     min-height: 0;
-    padding-block: 1.1em;
   }
 
   /* 紙が低くなるぶん机も低くし、下の余白は机のぶんだけ取り直す。 */
@@ -668,8 +745,6 @@
     --desk-height: clamp(2.1em, 5.5vh, 2.6em);
     --cover-content-lift: 0.35em;
     --cover-binding: 10px;
-
-    padding-bottom: calc(1.1em + var(--desk-height) + var(--cover-content-lift));
   }
 
   /*
@@ -680,14 +755,6 @@
   .resultCard {
     gap: 0.9em;
     height: clamp(21em, 58vh, 26em);
-  }
-
-  .fit {
-    margin-top: -1.1em;
-  }
-
-  .fit > .choice {
-    top: -1.1em;
   }
 
   .letterSheet {
@@ -770,8 +837,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fitted,
+  .tabs,
   .nextButton span {
     animation: none;
+  }
+
+  .tab {
+    transition: none;
   }
 
   .slot .tagHollow {

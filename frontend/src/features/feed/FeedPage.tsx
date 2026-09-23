@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useReducer,
   useState,
   type CSSProperties,
@@ -34,6 +35,9 @@ import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
 type Filter = { gender: string; region: string }
+
+/** 表紙を大きく見せる時間。拡大が見えきってから、次の状態へ進める。 */
+const COVER_LIFT_SETTLE_MS = 760
 
 /**
  * めくっている最中の1枚。
@@ -370,67 +374,67 @@ function FeedStack({
       className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
     >
       <div className={styles.stack} style={notebookBindingStyle}>
-      <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-      <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-      {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-      <NotebookBinding part="rear" />
-      {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-      {coverOpened ? (
-        <div className={turnStyles.turned} aria-hidden="true">
-          <div
-            className={`${turnStyles.back} ${crayonStyles.edge}`}
-            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
+        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
+        {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
+        <NotebookBinding part="rear" />
+        {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
+        {coverOpened ? (
+          <div className={turnStyles.turned} aria-hidden="true">
+            <div
+              className={`${turnStyles.back} ${crayonStyles.edge}`}
+              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+            >
+              <NotebookBinding part="holes" back />
+            </div>
+          </div>
+        ) : null}
+        {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
+        {turning ? (
+          <NotebookTurn
+            key={turningKey(turning)}
+            variant={turning.kind === 'cover' ? 'cover' : 'page'}
+            startAngle={turning.startAngle}
+            direction={turning.kind === 'concern' ? turning.direction : 1}
+            backColor={
+              turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
+            }
+            onFinish={onTurningFinished}
           >
-            <NotebookBinding part="holes" back />
+            {turning.kind === 'concern' ? (
+              <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
+            ) : (
+              <FeedCover />
+            )}
+          </NotebookTurn>
+        ) : null}
+        {/*
+         * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
+         * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
+         */}
+        {coverOpened ? (
+          <div key={`${concern.id}-${index}`} className={styles.enter}>
+            <FeedCard
+              concern={concern}
+              page={position + 1}
+              onNext={onNext}
+              articleRef={articleRef}
+              canReact={isLiff}
+              dragX={dragX}
+              onLinkClick={onLinkClick}
+              onReact={onReact}
+            />
           </div>
-        </div>
-      ) : null}
-      {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
-      {turning ? (
-        <NotebookTurn
-          key={turningKey(turning)}
-          variant={turning.kind === 'cover' ? 'cover' : 'page'}
-          startAngle={turning.startAngle}
-          direction={turning.kind === 'concern' ? turning.direction : 1}
-          backColor={
-            turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
-          }
-          onFinish={onTurningFinished}
-        >
-          {turning.kind === 'concern' ? (
-            <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
-          ) : (
-            <FeedCover />
-          )}
-        </NotebookTurn>
-      ) : null}
-      {/*
-       * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
-       * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
-       */}
-      {coverOpened ? (
-        <div key={`${concern.id}-${index}`} className={styles.enter}>
-          <FeedCard
-            concern={concern}
-            page={position + 1}
-            onNext={onNext}
-            articleRef={articleRef}
-            canReact={isLiff}
-            dragX={dragX}
-            onLinkClick={onLinkClick}
-            onReact={onReact}
-          />
-        </div>
-      ) : (
-        <>
-          <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
-            <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
-          </div>
-          <div className={styles.coverLayer}>
-            <FeedCover />
-          </div>
-        </>
-      )}
+        ) : (
+          <>
+            <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
+              <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
+            </div>
+            <div className={styles.coverLayer}>
+              <FeedCover />
+            </div>
+          </>
+        )}
         {/* 手前側の線は金具として動かさない。 */}
         <NotebookBinding part="front" />
       </div>
@@ -600,12 +604,17 @@ export function FeedPage() {
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
   const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
 
-  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
-    // 紙束が上がりきった。ここでようやく表紙に手をかける。
-    if (!coverLifting) return
-    // 拡大と押し上げを担当する同じ要素の transitionend 後に、表紙をめくり始める。
-    dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
-  })
+  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => undefined)
+
+  useEffect(() => {
+    if (!coverLifting || prefersReducedMotion()) return
+
+    // feed は表紙の拡大を見せることを優先し、transitionend の早い通知には依存しない。
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
+    }, COVER_LIFT_SETTLE_MS)
+    return () => window.clearTimeout(timer)
+  }, [coverLifting])
 
   const goNext = useCallback(
     (startAngle = 0) => {
@@ -618,6 +627,7 @@ export function FeedPage() {
         // 指がもう紙を起こしはじめているなら、その続きとしてそのままめくる。
         // 待たせると、せっかく起こした角度が寝てしまう。
         if (startAngle !== 0) {
+          if (coverLifting) return
           if (!coverLifting) rememberStackPosition()
           dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle } })
           return

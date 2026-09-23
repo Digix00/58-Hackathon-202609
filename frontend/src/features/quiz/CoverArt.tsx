@@ -68,17 +68,24 @@ function Envelope({ grown, tilt }: EnvelopeStack) {
   )
 }
 
-export function CoverArt() {
+export function CoverArt({ arrived = true }: { arrived?: boolean }) {
   return (
     <>
-      <svg className={styles.plane} viewBox="0 0 64 34" aria-hidden="true" focusable="false">
-        <g filter="url(#crayon-edge-art)">
-          <path className={styles.trail} d={TRAIL} />
-          <path className={styles.planeFill} d={PLANE.body} transform="translate(1.2 -1.2)" />
-          <path className={styles.planeLine} d={PLANE.body} />
-          <path className={styles.planeLine} d={PLANE.fold} />
-        </g>
-      </svg>
+      {/*
+        飛んできた紙飛行機は、手紙が届くところの絵。読み終えて閉じたノートからは
+        降ろす。読み終えたあとも飛んでいると、まだ次が届くという合図になるうえ、
+        紙の上辺は、そのとき挟んだ付箋の並ぶ場所になる。
+      */}
+      {arrived ? (
+        <svg className={styles.plane} viewBox="0 0 64 34" aria-hidden="true" focusable="false">
+          <g filter="url(#crayon-edge-art)">
+            <path className={styles.trail} d={TRAIL} />
+            <path className={styles.planeFill} d={PLANE.body} transform="translate(1.2 -1.2)" />
+            <path className={styles.planeLine} d={PLANE.body} />
+            <path className={styles.planeLine} d={PLANE.fold} />
+          </g>
+        </svg>
+      ) : null}
       {/* 机の上。紙の下辺を机に見立て、届いた封筒をそこに並べる。 */}
       <span className={styles.desk} aria-hidden="true">
         {ENVELOPES.map((envelope) => (

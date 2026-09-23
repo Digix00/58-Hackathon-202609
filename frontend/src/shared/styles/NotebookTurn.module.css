@@ -104,6 +104,37 @@
   animation: turnIn 640ms both;
 }
 
+/* 閉じるとき。開く動き（coverTurnOut）をそのまま逆に辿る。 */
+.coverTurningBack {
+  animation-name: coverTurnIn;
+  animation-duration: 900ms;
+}
+
+@keyframes coverTurnIn {
+  0% {
+    z-index: 0;
+    transform: translateZ(4px) rotateY(-180deg) scale(1);
+    animation-timing-function: cubic-bezier(0.62, 0, 0.7, 0.96);
+  }
+  44% {
+    /* 真横。ここでしか上下を入れ替えられないのは turnOut と同じ。 */
+    z-index: 0;
+    transform: translateZ(46px) translateY(-8px) rotateY(-92deg) scale(1.055);
+    animation-timing-function: linear;
+  }
+  44.01% {
+    z-index: 3;
+  }
+  76% {
+    transform: translateZ(32px) translateY(-14px) rotateY(-42deg) scale(1.025);
+    animation-timing-function: cubic-bezier(0.34, 0.1, 0.36, 1);
+  }
+  100% {
+    z-index: 3;
+    transform: translateZ(0) rotateY(0deg) scale(1);
+  }
+}
+
 @keyframes turnIn {
   0% {
     z-index: 0;
