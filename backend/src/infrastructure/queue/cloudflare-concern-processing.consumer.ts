@@ -3,7 +3,11 @@ import type { IConcernProcessingUseCase } from "../../application/usecase/concer
 
 /** Connects the Workers Queue consumer event to the application use case. */
 export class CloudflareConcernProcessingConsumer {
-  constructor(private readonly useCase: IConcernProcessingUseCase) {}
+  private readonly useCase: IConcernProcessingUseCase;
+
+  constructor(useCase: IConcernProcessingUseCase) {
+    this.useCase = useCase;
+  }
 
   readonly handle = async (
     batch: MessageBatch<ConcernProcessingMessage>,
