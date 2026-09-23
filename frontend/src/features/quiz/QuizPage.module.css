@@ -47,6 +47,8 @@
   /* 付箋の段を紙の上端へ引き上げる量と、そこからさらに外へ出す高さ。 */
   --fit-pull: 1.65em;
   --fit-rise: 1.25em;
+  /* 閉じた本の付箋が、表紙の内側へ差し込まれて隠れる深さ。 */
+  --tab-inset: 1.2em;
 
   position: relative;
   display: grid;
@@ -318,25 +320,31 @@
 }
 
 /*
- * 閉じたノートの上に出ている付箋。
- * 紙の中に挟んだときとまったく同じ持ち場・同じ高さに置く。場所が動くと、
- * 自分が挟んだ1枚ではなく、あとから付けられた見出しに見える。
+ * 閉じたノートから出ている付箋。
+ *
+ * 横の持ち場は紙に挟んだときと同じだが、高さは変える。閉じた本の付箋は、
+ * 紙のあいだから上へ飛び出して見えるもので、表紙の面に貼った紙片ではない。
+ * そこで、下端だけを表紙の内へ差し込み、条件の字は本の外へ出す。
+ * 差し込む深さで位置を決めるので、条件が長く折り返して付箋が伸びても、
+ * 本の上端に揃ったまま外側へ伸びる。
  */
 .tabs {
   position: absolute;
   /* 表紙（.coverLayer）より手前、手前側のリングより奥。 */
   z-index: 4;
-  top: calc(var(--card-pad-top) - var(--fit-pull) - var(--fit-rise));
   right: var(--card-gutter);
+  /* 本の上端を基準にする。--tab-inset のぶんだけ表紙に差し込む。 */
+  bottom: 100%;
   left: calc(var(--card-gutter) + var(--card-binding));
+  margin-bottom: calc(-1 * var(--tab-inset));
   animation: tabsIn 360ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
-/* 表紙が閉じきってから現れる。紙の下から出てきたように、少し下から上げる。 */
+/* 閉じきってから現れる。紙のあいだから押し出されたように、下から上げる。 */
 @keyframes tabsIn {
   0% {
     opacity: 0;
-    transform: translateY(7px);
+    transform: translateY(10px);
   }
   100% {
     opacity: 1;
@@ -625,6 +633,15 @@
   min-height: 5.6em;
   padding-bottom: 0.7em;
   border-bottom: 2.5px dashed #ddd2b8;
+}
+
+/*
+ * ノートを閉じたあとの置き場。高さは残したまま、棚のふちだけを消す。
+ * 閉じた本から出た付箋はこの高さまで上がってくるので、線を引いたままだと、
+ * 付箋の上に棚のふちが重なって見える。
+ */
+.trayClosed {
+  border-bottom-color: transparent;
 }
 
 .tray .tag {

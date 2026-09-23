@@ -836,18 +836,25 @@ function useQuizDrag(fit: (personId: string) => void) {
 }
 
 function QuizTray({
+  closed,
   remaining,
   drag,
   onStartDrag,
   onFit,
 }: {
+  /** ノートを閉じたあとか。棚のふちだけを消し、高さは残す。 */
+  closed: boolean
   remaining: Person[]
   drag: DragState | null
   onStartDrag: (event: ReactPointerEvent<HTMLButtonElement>, personId: string) => void
   onFit: (personId: string) => void
 }) {
   return (
-    <div className={styles.tray} role="group" aria-label="手元のしおり">
+    <div
+      className={`${styles.tray} ${closed ? styles.trayClosed : ''}`}
+      role="group"
+      aria-label="手元のしおり"
+    >
       {remaining.map((person) => (
         <button
           key={person.id}
@@ -1217,6 +1224,7 @@ export function QuizPage() {
         */}
         {!quiz.showingResults && (quiz.state.coverOpened || quiz.state.closed) ? (
           <QuizTray
+            closed={quiz.state.closed}
             remaining={quiz.remaining}
             drag={drag}
             onStartDrag={startDrag}
