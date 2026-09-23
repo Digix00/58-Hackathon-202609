@@ -6,6 +6,8 @@ export function createConcernDependencies() {
       create: async () => {
         throw new Error("concern fixture is not used by this test");
       },
+      listPublished: async () => ({ items: [], nextCursor: null }),
+      findPublishedById: async () => null,
     }),
   };
 }
