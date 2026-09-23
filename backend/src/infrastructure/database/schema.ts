@@ -53,8 +53,8 @@ export const concernClusters = sqliteTable(
   "concern_clusters",
   {
     id: text("id").primaryKey(),
-    label: text("label").notNull(),
-    summary: text("summary").notNull(),
+    label: text("label"),
+    summary: text("summary"),
     status: text("status").notNull().default("ready"),
     modelVersion: text("model_version"),
     createdAt: text("created_at").notNull(),
@@ -116,6 +116,31 @@ export const concerns = sqliteTable(
     processingStatusCheck: check(
       "concerns_processing_status_check",
       sql`${table.processingStatus} in ('pending', 'processing', 'ready', 'failed')`,
+    ),
+  }),
+);
+
+export const concernRepresentations = sqliteTable(
+  "concern_representations",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    locale: text("locale").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("ready"),
+    errorCode: text("error_code"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({ columns: [table.concernId, table.locale] }),
+    localeCheck: check(
+      "concern_representations_locale_check",
+      sql`${table.locale} in ('ja-Hira', 'en')`,
+    ),
+    statusCheck: check(
+      "concern_representations_status_check",
+      sql`${table.status} in ('ready', 'failed')`,
     ),
   }),
 );

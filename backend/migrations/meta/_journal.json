@@ -57,6 +57,13 @@
       "when": 1790149795524,
       "tag": "0007_brainy_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790172369423,
+      "tag": "0008_flawless_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

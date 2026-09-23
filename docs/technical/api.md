@@ -325,7 +325,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 3. concerns を visibilityStatus=published で保存する
 4. ja_hira、en_translation、clustering の非同期ジョブを登録する
 5. 投稿 ID と保存時点の状態を返す
-6. 各非同期処理の完了後に processingStatus と派生データを更新する
+6. Queue consumerが表現とEmbeddingを生成し、Vectorizeで近傍照合する。D1へ表現とcluster IDを保存し、VectorizeへEmbeddingをupsertした後に processingStatus を更新する
 
 #### Response: 201 Created
 
@@ -352,6 +352,11 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - PoCで受け付けた新規投稿は visibilityStatus=published、processingStatus=pending で返す
 - 投稿本文の翻訳・ひらがな化・クラスタリングが未完了でも、published の原文投稿は一般フィードへ返す
+- Vectorizeは投稿処理内のクラスタリングに限って使い、利用者が任意の文章を送る検索APIは提供しない
+- 近傍上位5件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
+- Vectorizeへのupsertは検索可能になるまで遅延することがあり、短時間に連続した投稿を最初の処理で同じclusterへ割り当てられない場合がある
+- 近傍検索の設定はEmbedding modelとVectorize indexの組に固定する
+- クラスタの表示ラベルと要約を生成する処理は後続のため、生成前はcluster.label、cluster.summaryがnullの場合がある
 - hidden または deleted の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
@@ -391,8 +396,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       },
       "cluster": {
         "id": "cluster_01J...",
-        "label": "昼休み・食堂",
-        "summary": "昼休み中の食事や休憩に関する悩み"
+        "label": null,
+        "summary": null
       },
       "reactionCount": 12,
       "viewed": false,
@@ -964,7 +969,7 @@ API が返す concerns.processingStatus は処理全体の概要値とする。�
 | --- | --- |
 | pending | ジョブ登録済みで未開始 |
 | processing | いずれかのジョブを実行中 |
-| ready | 画面表示に必要な派生データが生成済み |
+| ready | 表現の保存とEmbeddingの近傍照合・クラスタ割当が完了。クラスタの表示ラベル・要約は後続処理のためnullの場合がある |
 | failed | 一部失敗。ただし原文は利用可能 |
 
 失敗時の共通ルール:

@@ -5,7 +5,7 @@
   "type": "module",
   "types": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --config wrangler.dev.jsonc",
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy --minify",
     "lint": "oxlint",
