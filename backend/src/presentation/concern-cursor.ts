@@ -8,8 +8,9 @@ import type {
 
 const LEGACY_CURSOR_VERSION = 1;
 const CURSOR_VERSION = 2;
-const RECOMMENDED_CURSOR_VERSION = 4;
-const MAX_PENDING_CONCERN_IDS = 250;
+const RECOMMENDED_CURSOR_VERSION = 5;
+const MAX_PENDING_CONCERN_IDS = 300;
+const MAX_RETURNED_CONCERN_IDS = 300;
 const MAX_CURSOR_ID_LENGTH = 200;
 
 export interface ConcernCursorContext {
@@ -71,6 +72,8 @@ export function encodeConcernCursor(
           sourceCursor: cursor,
           pendingConcernIds: [],
           lastClusterId: null,
+          candidateWindowCursor: cursor,
+          returnedConcernIds: [],
           sort: "recommended" as const,
           regionCode: context.regionCode ?? null,
           clusterId: context.clusterId ?? null,
@@ -130,6 +133,8 @@ export function decodeConcernCursor(
           sourceCursor: parsed.sourceCursor,
           pendingConcernIds: parsed.pendingConcernIds,
           lastClusterId: parsed.lastClusterId,
+          candidateWindowCursor: parsed.candidateWindowCursor,
+          returnedConcernIds: parsed.returnedConcernIds,
         },
       };
     }
@@ -192,11 +197,23 @@ function isEncodedRecommendedConcernCursor(
       (typeof cursor.lastClusterId === "string" &&
         cursor.lastClusterId.length > 0 &&
         cursor.lastClusterId.length <= MAX_CURSOR_ID_LENGTH)) &&
+    (cursor.candidateWindowCursor === null ||
+      isConcernListCursor(cursor.candidateWindowCursor)) &&
     (sourceCursor === null || isConcernListCursor(sourceCursor)) &&
     Array.isArray(pendingConcernIds) &&
     pendingConcernIds.length <= MAX_PENDING_CONCERN_IDS &&
     new Set(pendingConcernIds).size === pendingConcernIds.length &&
     pendingConcernIds.every(
+      (id) =>
+        typeof id === "string" &&
+        id.length > 0 &&
+        id.length <= MAX_CURSOR_ID_LENGTH,
+    ) &&
+    Array.isArray(cursor.returnedConcernIds) &&
+    cursor.returnedConcernIds.length <= MAX_RETURNED_CONCERN_IDS &&
+    new Set(cursor.returnedConcernIds).size ===
+      cursor.returnedConcernIds.length &&
+    cursor.returnedConcernIds.every(
       (id) =>
         typeof id === "string" &&
         id.length > 0 &&

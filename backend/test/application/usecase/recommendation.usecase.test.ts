@@ -118,4 +118,60 @@ describe("ConcernUseCase recommendation feed", () => {
 
     expect(secondPage.items[0]?.concern.id).toBe("concern-second");
   });
+
+  it("preserves pending IDs and retries the same candidate window when restoration fails", async () => {
+    const fallbackCandidate = {
+      concern: new Concern({
+        id: "fallback-candidate",
+        userId: "author-fallback",
+        body: "フォールバック対象の投稿",
+        createdAt: "2026-09-20T00:00:00.000Z",
+      }),
+      cluster: null,
+      viewed: false,
+    };
+    let requestedCursor: { createdAt: string; id: string } | undefined;
+    const repository: ConcernRepository = {
+      insert: async (value) => value,
+      listPublished: async () => ({ items: [], hasMore: false }),
+      findPublishedById: async () => null,
+      listFeed: async (input) => {
+        requestedCursor = input.cursor;
+        return { items: [fallbackCandidate], hasMore: false };
+      },
+      listFeedByIds: async () => {
+        throw new Error("candidate restoration unavailable");
+      },
+    };
+    const useCase = new ConcernUseCase(repository);
+    const recommendationCursor = {
+      type: "recommended" as const,
+      sourceCursor: {
+        createdAt: "2026-09-19T00:00:00.000Z",
+        id: "source-end",
+      },
+      pendingConcernIds: ["pending-candidate"],
+      lastClusterId: "cluster-old",
+      candidateWindowCursor: null,
+      returnedConcernIds: ["returned-candidate"],
+    };
+
+    const result = await useCase.listFeed({
+      limit: 1,
+      sort: "recommended",
+      userId: "user-1",
+      cursor: recommendationCursor.sourceCursor,
+      recommendationCursor,
+    });
+
+    expect(requestedCursor).toBeUndefined();
+    expect(result.items[0]?.concern.id).toBe("fallback-candidate");
+    expect(result.nextCursor).toMatchObject({
+      type: "recommended",
+      sourceCursor: null,
+      candidateWindowCursor: null,
+      pendingConcernIds: ["pending-candidate"],
+      returnedConcernIds: ["returned-candidate", "fallback-candidate"],
+    });
+  });
 });

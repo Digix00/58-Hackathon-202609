@@ -163,13 +163,19 @@ export class ConcernUseCase implements IConcernUseCase {
       ? recommendationCursor.sourceCursor
       : (input.cursor ?? null);
     let nextSourceCursor = sourceCursor;
+    let candidateWindowCursor = recommendationCursor
+      ? recommendationCursor.candidateWindowCursor
+      : sourceCursor;
+    let returnedConcernIds = recommendationCursor?.returnedConcernIds ?? [];
     let candidateWindow: ConcernFeedCandidate[] = [];
+    let pendingCandidatesRestored = false;
 
     try {
       const pendingCandidates = await this.listPendingFeedCandidates(
         recommendationCursor?.pendingConcernIds ?? [],
         input,
       );
+      pendingCandidatesRestored = true;
       candidateWindow = pendingCandidates;
 
       const shouldFetchCandidates =
@@ -182,12 +188,15 @@ export class ConcernUseCase implements IConcernUseCase {
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
+          excludeUserId: input.userId,
         });
         candidateWindow = mergeFeedCandidates(
           pendingCandidates,
           candidates.items,
         );
         nextSourceCursor = toNextCursor(candidates.items, candidates.hasMore);
+        candidateWindowCursor = sourceCursor;
+        returnedConcernIds = [];
       }
 
       const history =
@@ -202,23 +211,41 @@ export class ConcernUseCase implements IConcernUseCase {
       const items = ranked.slice(0, input.limit);
       const result = {
         items,
-        nextCursor: toRecommendedCursor(ranked, input.limit, nextSourceCursor),
+        nextCursor: toRecommendedCursor(
+          ranked,
+          input.limit,
+          nextSourceCursor,
+          candidateWindowCursor,
+          returnedConcernIds,
+        ),
       };
       await this.recordImpressions(input.userId ?? "", items);
       return result;
     } catch {
+      const pendingConcernIds = recommendationCursor?.pendingConcernIds ?? [];
+      const restorationFailed =
+        pendingConcernIds.length > 0 && !pendingCandidatesRestored;
       let fallbackCandidates = candidateWindow;
       let fallbackSourceCursor = nextSourceCursor;
+      let fallbackReturnedConcernIds = returnedConcernIds;
       if (fallbackCandidates.length === 0) {
         const fallback = await this.listFeedCandidates({
-          limit: input.limit,
-          cursor: nextSourceCursor ?? undefined,
+          limit: recommendationCursor ? candidateLimit : input.limit,
+          cursor: candidateWindowCursor ?? undefined,
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
+          excludeUserId: input.userId,
         });
-        fallbackCandidates = fallback.items;
+        const returnedIds = new Set(returnedConcernIds);
+        fallbackCandidates = fallback.items.filter(
+          (candidate) => !returnedIds.has(candidate.concern.id),
+        );
         fallbackSourceCursor = toNextCursor(fallback.items, fallback.hasMore);
+        fallbackReturnedConcernIds = returnedConcernIds;
+      }
+      if (restorationFailed && fallbackCandidates.length === 0) {
+        throw new Error("pending recommendation candidates are unavailable");
       }
       const items = fallbackCandidates
         .slice(0, input.limit)
@@ -242,6 +269,9 @@ export class ConcernUseCase implements IConcernUseCase {
           })),
           input.limit,
           fallbackSourceCursor,
+          candidateWindowCursor,
+          fallbackReturnedConcernIds,
+          restorationFailed ? pendingConcernIds : [],
         ),
       };
     }
@@ -263,6 +293,7 @@ export class ConcernUseCase implements IConcernUseCase {
       regionCode: input.regionCode,
       clusterId: input.clusterId,
       userId: input.userId,
+      excludeUserId: input.userId,
     });
     const candidatesById = new Map(
       candidates.map((candidate) => [candidate.concern.id, candidate]),
@@ -361,8 +392,22 @@ function toRecommendedCursor(
   ranked: RankedConcernFeedItem[],
   limit: number,
   sourceCursor: ConcernListCursor | null,
+  candidateWindowCursor: ConcernListCursor | null,
+  returnedConcernIds: string[],
+  preservedPendingConcernIds: string[] = [],
 ): ConcernFeedCursor | null {
-  const pendingConcernIds = ranked.slice(limit).map((item) => item.concern.id);
+  const currentPageConcernIds = ranked
+    .slice(0, limit)
+    .map((item) => item.concern.id);
+  const allReturnedConcernIds = uniqueConcernIds([
+    ...returnedConcernIds,
+    ...currentPageConcernIds,
+  ]);
+  const returnedConcernIdSet = new Set(allReturnedConcernIds);
+  const pendingConcernIds = uniqueConcernIds([
+    ...preservedPendingConcernIds,
+    ...ranked.slice(limit).map((item) => item.concern.id),
+  ]).filter((id) => !returnedConcernIdSet.has(id));
   if (!sourceCursor && pendingConcernIds.length === 0) {
     return null;
   }
@@ -373,5 +418,11 @@ function toRecommendedCursor(
     sourceCursor,
     pendingConcernIds,
     lastClusterId: lastItem?.cluster?.id ?? null,
+    candidateWindowCursor,
+    returnedConcernIds: allReturnedConcernIds,
   };
+}
+
+function uniqueConcernIds(ids: string[]): string[] {
+  return [...new Set(ids)];
 }

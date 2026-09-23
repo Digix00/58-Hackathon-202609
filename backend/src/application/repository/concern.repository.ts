@@ -15,6 +15,8 @@ export interface RecommendedConcernCursor {
   sourceCursor: ConcernListCursor | null;
   pendingConcernIds: string[];
   lastClusterId: string | null;
+  candidateWindowCursor: ConcernListCursor | null;
+  returnedConcernIds: string[];
 }
 
 export type ConcernFeedCursor = ConcernListCursor | RecommendedConcernCursor;
@@ -22,6 +24,7 @@ export type ConcernFeedCursor = ConcernListCursor | RecommendedConcernCursor;
 export interface ListPublishedConcernsInput {
   limit: number;
   cursor?: ConcernListCursor;
+  excludeUserId?: string;
 }
 
 export interface ListPublishedConcernsResult {
@@ -45,6 +48,7 @@ export interface ListConcernFeedByIdsInput {
   regionCode?: string;
   clusterId?: string;
   userId?: string;
+  excludeUserId?: string;
 }
 
 /**

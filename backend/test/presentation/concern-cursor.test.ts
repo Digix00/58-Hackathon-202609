@@ -21,6 +21,11 @@ const recommendationCursor: RecommendedConcernCursor = {
   },
   pendingConcernIds: ["pending-1", "pending-2"],
   lastClusterId: "cluster-last",
+  candidateWindowCursor: {
+    createdAt: "2026-09-20T00:00:00.000Z",
+    id: "window-start",
+  },
+  returnedConcernIds: ["returned-1"],
 };
 
 describe("concern cursor", () => {

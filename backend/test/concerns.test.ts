@@ -529,6 +529,28 @@ describe("GET /api/v1/concerns", () => {
     });
   });
 
+  it("excludes the logged-in user's own post from the recommended feed", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const ownConcernId = await createConcern(app, cookie);
+    const otherConcernId = await seedConcern({
+      body: "他のユーザーのおすすめ投稿",
+      createdAt: "9999-01-13T00:00:00.000Z",
+    });
+
+    const response = await app.request(
+      "/api/v1/concerns?sort=recommended&limit=50",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const body = await response.json<{ items: Array<{ id: string }> }>();
+    const ids = body.items.map((item) => item.id);
+
+    expect(response.status).toBe(200);
+    expect(ids).not.toContain(ownConcernId);
+    expect(ids).toContain(otherConcernId);
+  });
+
   it("does not skip candidates across recommended pages", async () => {
     const suffix = crypto.randomUUID();
     const clusterId = await seedCluster({

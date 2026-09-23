@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -56,6 +56,10 @@ export class D1ConcernRepository implements ConcernRepository {
   async listPublished(
     input: ListPublishedConcernsInput,
   ): Promise<ListPublishedConcernsResult> {
+    const conditions = [eq(concerns.visibilityStatus, "published")];
+    if (input.excludeUserId) {
+      conditions.push(ne(concerns.userId, input.excludeUserId));
+    }
     const cursorCondition = input.cursor
       ? or(
           lt(concerns.createdAt, input.cursor.createdAt),
@@ -65,13 +69,13 @@ export class D1ConcernRepository implements ConcernRepository {
           ),
         )
       : undefined;
-    const where = cursorCondition
-      ? and(eq(concerns.visibilityStatus, "published"), cursorCondition)
-      : eq(concerns.visibilityStatus, "published");
+    if (cursorCondition) {
+      conditions.push(cursorCondition);
+    }
     const rows = await this.db
       .select()
       .from(concerns)
-      .where(where)
+      .where(and(...conditions))
       .orderBy(desc(concerns.createdAt), desc(concerns.id))
       .limit(input.limit + 1)
       .all();
@@ -102,6 +106,9 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+    }
+    if (input.excludeUserId) {
+      conditions.push(ne(concerns.userId, input.excludeUserId));
     }
     if (input.cursor) {
       const cursorCondition = or(
@@ -159,6 +166,9 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+    }
+    if (input.excludeUserId) {
+      conditions.push(ne(concerns.userId, input.excludeUserId));
     }
 
     const viewJoin = input.userId
