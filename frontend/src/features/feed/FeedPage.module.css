@@ -90,7 +90,7 @@
   background: var(--paper-tint, var(--color-surface));
   gap: clamp(1.1em, 2.4vh, 1.5em);
   /* どの声でも紙の大きさは変えない。めくる手応えを一定に保つため。 */
-  height: clamp(21em, 50vh, 29em);
+  height: clamp(23em, 58vh, 33em);
   /* 左はとじ代。リングの上に本文が乗らないよう、ふちより奥から書き始める。 */
   padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
     calc(clamp(1.55em, 7vw, 2em) + 15px);
@@ -516,55 +516,54 @@
   padding-inline: 8px;
 }
 
-/*
- * 送りボタンの居場所。
- *
- * 表紙のあいだは高さを持たず、めくった瞬間に一度だけ開く。
- * 高さを時間をかけて伸ばすと版面を毎フレーム組み直すことになるので、
- * 目に見える動きは紙束側（.stack の --lift）に持たせている。
- */
-.nextSlot {
-  display: grid;
-  grid-template-rows: 0fr;
-  justify-items: center;
-  width: 100%;
-}
-
-.nextSlotOpen {
-  grid-template-rows: 1fr;
-}
-
-/* 開くまでボタンをはみ出させない受け皿。行が畳めるよう最小高も外す。 */
-.nextSlotInner {
-  display: grid;
-  justify-items: center;
-  min-height: 0;
-  width: 100%;
-  /* ふちの線・影・矢印の動きが刈り取られないぶんだけ内側に余白を取る。 */
-  padding: 2px 8px 5px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(6px);
-  /* 紙束が上がりきるころ（FeedPage.tsx の LIFT_MS）に、下から顔を出す。 */
-  transition:
-    opacity 240ms ease 240ms,
-    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1) 240ms;
-}
-
-.nextSlotOpen .nextSlotInner {
-  opacity: 1;
-  transform: none;
-}
-
-.nextButton {
+.coverButton {
+  position: relative;
   gap: 0.8em;
-  width: min(100%, 20em);
-  min-height: 58px;
-  font-size: 1.1em;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 0 1.1em;
+  border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
+  color: var(--color-purple-ink);
+  background: #fffdf5;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
+  font-size: 1em;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
+}
+
+/* 「そっと寄りそう」と同じ、紙に貼った小さなスタンプ台として馴染ませる。 */
+.coverButton::after {
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+}
+
+.coverButton:not(:disabled):hover {
+  transform: translateY(-1px) rotate(-0.4deg);
+  box-shadow: 2px 3.5px 0 #c3b89f;
+}
+
+.coverButton:not(:disabled):active {
+  transform: translate(1px, 2px);
+  box-shadow: 0 0 0 #c3b89f;
+}
+
+.coverButton:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 4px;
 }
 
 /* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
-.nextButton span {
+.coverButton span {
   font-size: 1.15em;
   animation: nudge 2.6s ease-in-out infinite;
 }
@@ -657,7 +656,7 @@
 @media (max-height: 700px) {
   .card {
     gap: 0.7em;
-    height: clamp(15.5em, 44vh, 21em);
+    height: clamp(18em, 52vh, 25em);
     padding-block: 1.15em;
     padding-inline-start: calc(clamp(1.55em, 7vw, 2em) + 10px);
   }
@@ -749,17 +748,16 @@
     transition: none;
   }
 
-  .nextButton span {
+  .coverButton span {
     animation: none;
   }
 
-  .stack,
-  .nextSlotInner {
+  .coverButton {
     transition: none;
   }
 
-  .nextSlotInner {
-    transform: none;
+  .stack {
+    transition: none;
   }
 
   .caret {

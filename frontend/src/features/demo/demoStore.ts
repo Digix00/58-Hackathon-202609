@@ -113,7 +113,7 @@ export const demoQuiz = {
   people: [
     { id: 'a', attributes: '20代・女性・大阪府' },
     { id: 'b', attributes: '40代・男性・兵庫県' },
-    { id: 'c', attributes: '年代・性別は回答なし・東京都' },
+    { id: 'c', attributes: '東京都' },
   ],
   letters: [
     {

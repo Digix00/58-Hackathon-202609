@@ -153,8 +153,8 @@ function CorrectRing() {
   )
 }
 
-/** しおりの面。切り欠きと同じ型紙で描き、落ち影を別の紙片として下に敷く。 */
-function TagFace() {
+/** しおりの面。切り欠きと同じ型紙で描き、条件をしおりの中に表示する。 */
+function TagFace({ label }: { label: string }) {
   return (
     <>
       <svg
@@ -167,7 +167,7 @@ function TagFace() {
         <path className={styles.tagFace} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
       </svg>
       <span className={styles.tagLabel} aria-hidden="true">
-        条件
+        {label}
       </span>
     </>
   )
@@ -237,9 +237,8 @@ function QuizPaperBody({
           {/* 結果でも、書き手の条件を手紙の上端に残す。 */}
           <span className={styles.choice}>
             <span className={styles.tag} style={tagStyle(writer.id)}>
-              <TagFace />
+              <TagFace label={writer.attributes} />
             </span>
-            <span className={styles.attributes}>{writer.attributes}</span>
           </span>
           {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
           <p className={styles.ask}>この声の条件</p>
@@ -276,9 +275,8 @@ function QuizPaperBody({
             aria-label={`条件は${fitted.attributes}。この声から外す`}
           >
             <span className={styles.tag} style={tagStyle(fitted.id)}>
-              <TagFace />
+              <TagFace label={fitted.attributes} />
             </span>
-            <span className={styles.attributes}>{fitted.attributes}</span>
           </button>
         ) : (
           <span
@@ -573,9 +571,8 @@ function QuizTray({
           aria-label={`条件は${person.attributes}。この声のしおりにする`}
         >
           <span className={styles.tag} style={tagStyle(person.id)}>
-            <TagFace />
+            <TagFace label={person.attributes} />
           </span>
-          <span className={styles.attributes}>{person.attributes}</span>
         </button>
       ))}
     </div>
@@ -684,7 +681,7 @@ function QuizDragGhost({ drag, dragged }: { drag: DragState | null; dragged: Per
         } as CSSProperties
       }
     >
-      <TagFace />
+      <TagFace label={dragged.attributes} />
     </span>
   )
 }

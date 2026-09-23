@@ -302,7 +302,7 @@ function FeedCard({
       <div className={styles.cardFoot}>
         <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
       </div>
-      {/* めくれた角。すぐ下の「つぎの声へ」と同じ操作なので、読み上げには重ねて出さない。 */}
+      {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
       <FeedNextCorner onNext={onNext} />
     </article>
   )
@@ -495,7 +495,7 @@ function FeedActions({
 }: {
   showLogin: boolean
   concern: DemoConcern | undefined
-  /** 表紙を開きはじめたか。ボタンの居場所はこの時点で生まれる。 */
+  /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
   coverOpening: boolean
   filtersOpen: boolean
   activeFilter: string
@@ -509,30 +509,16 @@ function FeedActions({
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {concern ? (
-        coverOpening ? (
-          <div className={`${styles.nextSlot} ${styles.nextSlotOpen}`}>
-            <div className={styles.nextSlotInner}>
-              <button
-                type="button"
-                className={`${actionStyles.primary} ${styles.nextButton}`}
-                onClick={onNext}
-              >
-                つぎの声へ <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.coverOpenSlot}>
-            <button
-              type="button"
-              className={`${actionStyles.primary} ${styles.nextButton}`}
-              onClick={onNext}
-            >
-              めくってみる <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        )
+      {concern && !coverOpening ? (
+        <div className={styles.coverOpenSlot}>
+          <button
+            type="button"
+            className={`${actionStyles.primary} ${styles.coverButton}`}
+            onClick={onNext}
+          >
+            めくってみる <span aria-hidden="true">→</span>
+          </button>
+        </div>
       ) : null}
       <details
         className={styles.filters}
@@ -568,13 +554,13 @@ function FeedActions({
 }
 
 /**
- * 紙束が押し上げられる時間。
- * 送りボタンが顔を出すまでの間（FeedPage.module.css の .nextSlotInner）と揃える。
+ * 表紙を開くときに紙束が移動する時間。
+ * 表紙を開く操作が消えたあと、紙束を新しい中央位置へ滑らかに移す。
  */
 const LIFT_MS = 420
 
 /**
- * 表紙を開くと、ふもとに送りボタンが生まれ、紙束の居場所がそのぶん上がる。
+ * 表紙を開くと、ふもとの表紙ボタンが消え、紙束が使える高さが増える。
  *
  * 高さそのものを時間をかけて伸ばすと、毎フレーム版面を組み直すことになり、
  * クレヨンのふちを持つ紙が描き直されて動きがかすれる。
@@ -639,7 +625,7 @@ export function FeedPage() {
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
   const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = reader
-  /** 押し上げが始まった時点で、ふもとには送りボタンの居場所ができている。 */
+  /** 表紙を開く操作が始まった時点で、ふもとの操作スペースが消える。 */
   const coverOpening = coverLifting || coverOpened
 
   const genderOptions = [
