@@ -10,6 +10,25 @@
   "secrets": {
     "required": ["LINE_CHANNEL_ID"]
   },
+  "ai": {
+    "binding": "AI"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "CONCERN_PROCESSING_QUEUE",
+        "queue": "58-hackathon-concern-processing"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "58-hackathon-concern-processing",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3
+      }
+    ]
+  },
   "d1_databases": [
     {
       "binding": "DB",

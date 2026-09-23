@@ -1,9 +1,7 @@
 import {
   useCallback,
-  useEffectEvent,
-  useLayoutEffect,
+  useEffect,
   useReducer,
-  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
@@ -25,6 +23,7 @@ import {
   prefersReducedMotion,
   useNotebookSwipe,
 } from '../../shared/hooks/useNotebookSwipe'
+import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -36,6 +35,10 @@ import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
 type Filter = { gender: string; region: string }
+
+/** 表紙を大きく見せる時間。拡大が見えきってから、次の状態へ進める。 */
+const COVER_LIFT_DURATION_MS = 760
+const COVER_LIFT_SETTLE_MS = COVER_LIFT_DURATION_MS + 120
 
 /**
  * めくっている最中の1枚。
@@ -97,7 +100,7 @@ function settledIndex(state: FeedReaderState) {
 function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
   switch (action.type) {
     case 'coverLifting':
-      // まだ表紙のまま。ふもとに送りボタンの居場所だけが生まれ、紙束が上がる。
+      // まだ表紙のまま。ふもとの表紙操作が消える準備をして、紙束を上げる。
       return { ...state, coverLifting: true }
     case 'coverTurned':
       // 表紙はここで開く。去っていく表紙だけがめくられて残る。
@@ -141,12 +144,7 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
 
-/**
- * めくり終えて左に伏せたままの紙。
- *
- * 色は当てない。彩度はめくっている最中の演出であって、
- * 伏せたあとも残すと、読み終えた紙束がずっと視界の端で主張してしまう。
- */
+/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
 const TURNED_BACK_COLOR = 'var(--color-surface)'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
@@ -253,9 +251,7 @@ function FeedNextCorner({ onNext }: { onNext?: () => void }) {
 function FeedCard({
   concern,
   page,
-  onReact,
   onNext,
-  canReact = false,
   articleRef,
   dragX = 0,
   onLinkClick,
@@ -263,11 +259,8 @@ function FeedCard({
 }: {
   concern: DemoConcern
   page: number
-  /** 実際に寄りそえたときだけ true を返す。未ログインなら false。 */
-  onReact?: () => boolean
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
-  canReact?: boolean
   articleRef?: RefCallback<HTMLElement>
   dragX?: number
   onLinkClick?: (event: MouseEvent) => void
@@ -279,8 +272,8 @@ function FeedCard({
   return (
     <article
       ref={articleRef}
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
-        dragX !== 0 ? styles.dragging : ''
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
+        dragX !== 0 ? turnStyles.pageDragging : ''
       }`}
       style={
         {
@@ -304,10 +297,7 @@ function FeedCard({
       >
         <p className={screen.body}>{concern.body}</p>
       </Link>
-      <div className={styles.cardFoot}>
-        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
-      </div>
-      {/* めくれた角。すぐ下の「つぎの声へ」と同じ操作なので、読み上げには重ねて出さない。 */}
+      {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
       <FeedNextCorner onNext={onNext} />
     </article>
   )
@@ -345,11 +335,10 @@ type FeedStackProps = {
   position: number
   turning: TurningPage | null
   coverOpened: boolean
+  coverOpening: boolean
   dragX: number
-  isLiff: boolean
   articleRef: RefCallback<HTMLElement>
   onNext: () => void
-  onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
 }
@@ -361,81 +350,81 @@ function FeedStack({
   position,
   turning,
   coverOpened,
+  coverOpening,
   dragX,
-  isLiff,
   articleRef,
   onNext,
-  onReact,
   onLinkClick,
   onTurningFinished,
 }: FeedStackProps) {
   return (
-    <div ref={stackRef} className={styles.stack} style={notebookBindingStyle}>
-      <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-      <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-      {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-      <NotebookBinding part="rear" />
-      {/*
-       * めくり終えた紙は捨てず、リングの左に伏せたまま残す。
-       * めくりの最終フレームと同じ姿勢なので、めくっていた紙を外しても絵が変わらない。
-       */}
-      {coverOpened ? (
-        <div className={turnStyles.turned} aria-hidden="true">
-          <div
-            className={`${turnStyles.back} ${crayonStyles.edge}`}
-            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <div
+      ref={stackRef}
+      className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
+    >
+      <div className={styles.stack} style={notebookBindingStyle}>
+        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
+        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
+        {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
+        <NotebookBinding part="rear" />
+        {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
+        {coverOpened ? (
+          <div className={turnStyles.turned} aria-hidden="true">
+            <div
+              className={`${turnStyles.back} ${crayonStyles.edge}`}
+              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+            >
+              <NotebookBinding part="holes" back />
+            </div>
+          </div>
+        ) : null}
+        {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
+        {turning ? (
+          <NotebookTurn
+            key={turningKey(turning)}
+            variant={turning.kind === 'cover' ? 'cover' : 'page'}
+            startAngle={turning.startAngle}
+            direction={turning.kind === 'concern' ? turning.direction : 1}
+            backColor={
+              turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
+            }
+            onFinish={onTurningFinished}
           >
-            <NotebookBinding part="holes" back />
+            {turning.kind === 'concern' ? (
+              <FeedCard concern={turning.concern} page={turning.page} />
+            ) : (
+              <FeedCover />
+            )}
+          </NotebookTurn>
+        ) : null}
+        {/*
+         * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
+         * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
+         */}
+        {coverOpened ? (
+          <div key={`${concern.id}-${index}`} className={styles.enter}>
+            <FeedCard
+              concern={concern}
+              page={position + 1}
+              onNext={onNext}
+              articleRef={articleRef}
+              dragX={dragX}
+              onLinkClick={onLinkClick}
+            />
           </div>
-        </div>
-      ) : null}
-      {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
-      {turning ? (
-        <NotebookTurn
-          key={turningKey(turning)}
-          startAngle={turning.startAngle}
-          direction={turning.kind === 'concern' ? turning.direction : 1}
-          backColor={
-            turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
-          }
-          onFinish={onTurningFinished}
-        >
-          {turning.kind === 'concern' ? (
-            <FeedCard concern={turning.concern} page={turning.page} canReact={isLiff} />
-          ) : (
-            <FeedCover />
-          )}
-        </NotebookTurn>
-      ) : null}
-      {/*
-       * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
-       * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
-       */}
-      {coverOpened ? (
-        <div key={`${concern.id}-${index}`} className={styles.enter}>
-          <FeedCard
-            concern={concern}
-            page={position + 1}
-            onNext={onNext}
-            articleRef={articleRef}
-            canReact={isLiff}
-            dragX={dragX}
-            onLinkClick={onLinkClick}
-            onReact={onReact}
-          />
-        </div>
-      ) : (
-        <>
-          <div className={styles.enter} aria-hidden="true">
-            <FeedCard concern={concern} page={position + 1} canReact={false} showTabs={false} />
-          </div>
-          <div className={styles.coverLayer}>
-            <FeedCover />
-          </div>
-        </>
-      )}
-      {/* 手前側の線は金具として動かさない。 */}
-      <NotebookBinding part="front" />
+        ) : (
+          <>
+            <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
+              <FeedCard concern={concern} page={position + 1} showTabs={false} />
+            </div>
+            <div className={styles.coverLayer}>
+              <FeedCover />
+            </div>
+          </>
+        )}
+        {/* 手前側の線は金具として動かさない。 */}
+        <NotebookBinding part="front" />
+      </div>
     </div>
   )
 }
@@ -491,6 +480,7 @@ type FilterOption = { value: string; label: string }
 function FeedActions({
   showLogin,
   concern,
+  canReact,
   coverOpening,
   filtersOpen,
   activeFilter,
@@ -498,12 +488,14 @@ function FeedActions({
   genderOptions,
   regionOptions,
   onNext,
+  onReact,
   onFiltersToggle,
   onFilterChange,
 }: {
   showLogin: boolean
   concern: DemoConcern | undefined
-  /** 表紙を開きはじめたか。ボタンの居場所はこの時点で生まれる。 */
+  canReact: boolean
+  /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
   coverOpening: boolean
   filtersOpen: boolean
   activeFilter: string
@@ -511,36 +503,26 @@ function FeedActions({
   genderOptions: FilterOption[]
   regionOptions: FilterOption[]
   onNext: () => void
+  onReact: () => boolean
   onFiltersToggle: (open: boolean) => void
   onFilterChange: (field: keyof Filter, value: string) => void
 }) {
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {concern ? (
-        coverOpening ? (
-          <div className={`${styles.nextSlot} ${styles.nextSlotOpen}`}>
-            <div className={styles.nextSlotInner}>
-              <button
-                type="button"
-                className={`${actionStyles.primary} ${styles.nextButton}`}
-                onClick={onNext}
-              >
-                つぎの声へ <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.coverOpenSlot}>
-            <button
-              type="button"
-              className={`${actionStyles.primary} ${styles.nextButton}`}
-              onClick={onNext}
-            >
-              めくってみる <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        )
+      {concern && coverOpening ? (
+        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
+      ) : null}
+      {concern && !coverOpening ? (
+        <div className={styles.coverOpenSlot}>
+          <button
+            type="button"
+            className={`${actionStyles.primary} ${styles.coverButton}`}
+            onClick={onNext}
+          >
+            めくってみる <span aria-hidden="true">→</span>
+          </button>
+        </div>
       ) : null}
       <details
         className={styles.filters}
@@ -550,9 +532,6 @@ function FeedActions({
         <summary>
           <span>{activeFilter ? 'えらんだ条件' : '性別・地域でえらぶ'}</span>
           {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
-          <span className={styles.caret} aria-hidden="true">
-            ▾
-          </span>
         </summary>
         <div className={styles.filterFields} aria-label="読む声の条件">
           <SelectField
@@ -575,79 +554,13 @@ function FeedActions({
   )
 }
 
-/**
- * 紙束が押し上げられる時間。
- * 送りボタンが顔を出すまでの間（FeedPage.module.css の .nextSlotInner）と揃える。
- */
-const LIFT_MS = 420
-
-/**
- * 表紙を開くと、ふもとに送りボタンが生まれ、紙束の居場所がそのぶん上がる。
- *
- * 高さそのものを時間をかけて伸ばすと、毎フレーム版面を組み直すことになり、
- * クレヨンのふちを持つ紙が描き直されて動きがかすれる。
- * そこで組み直しは一度で終わらせ、紙束だけを元いた高さから transform で戻す。
- * 動かすのは合成だけなので、どの端末でも滑らかに上がる。
- *
- * 上がりきったら onLifted で知らせる。押し上げとめくりを重ねず、
- * 紙束が落ち着いてから表紙をめくるため。
- */
-function useStackLift(open: boolean, onLifted: () => void) {
-  const stackRef = useRef<HTMLDivElement | null>(null)
-  const liftFrom = useRef<number | null>(null)
-  const lifted = useEffectEvent(onLifted)
-
-  /** 動かす直前の高さを控える。組み直しのあと、ここへ一度戻してから動かす。 */
-  const rememberStackPosition = useCallback(() => {
-    liftFrom.current = prefersReducedMotion()
-      ? null
-      : (stackRef.current?.getBoundingClientRect().top ?? null)
-  }, [])
-
-  // open が変わった回だけ動かす。控えた高さがなければ、何もせず見送る。
-  useLayoutEffect(() => {
-    const node = stackRef.current
-    const from = liftFrom.current
-    liftFrom.current = null
-    if (!node || from === null) return
-
-    const delta = from - node.getBoundingClientRect().top
-    // 紙束が動かない画面の高さでは、戻す先も今の場所。待たせる理由もない。
-    if (Math.abs(delta) < 1) {
-      lifted()
-      return
-    }
-
-    const onEnd = (event: TransitionEvent) => {
-      // 紙の上で起きた別のうつろいは数えない。
-      if (event.target !== node || event.propertyName !== 'transform') return
-      node.removeEventListener('transitionend', onEnd)
-      node.style.willChange = ''
-      node.style.removeProperty('--lift')
-      node.style.removeProperty('--lift-duration')
-      lifted()
-    }
-
-    node.style.willChange = 'transform'
-    node.style.setProperty('--lift', `${delta}px`)
-    // ここで一度位置を確定させないと、元の高さを飛ばして新しい高さへ跳ぶ。
-    void node.offsetHeight
-    node.style.setProperty('--lift-duration', `${LIFT_MS}ms`)
-    node.style.setProperty('--lift', '0px')
-    node.addEventListener('transitionend', onEnd)
-    return () => node.removeEventListener('transitionend', onEnd)
-  }, [open])
-
-  return { stackRef, rememberStackPosition }
-}
-
 export function FeedPage() {
   const { concerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
   const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = reader
-  /** 押し上げが始まった時点で、ふもとには送りボタンの居場所ができている。 */
+  /** 表紙を開く操作が始まった時点で、ふもとの操作スペースが消える。 */
   const coverOpening = coverLifting || coverOpened
 
   const genderOptions = [
@@ -685,10 +598,21 @@ export function FeedPage() {
   const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
   const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
 
-  const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
-    // 紙束が上がりきった。ここでようやく表紙に手をかける。
-    if (coverLifting) dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
-  })
+  const { stackRef, rememberStackPosition } = useStackLift(
+    coverOpening,
+    () => undefined,
+    COVER_LIFT_DURATION_MS,
+  )
+
+  useEffect(() => {
+    if (!coverLifting || prefersReducedMotion()) return
+
+    // feed は表紙の拡大を見せることを優先し、transitionend の早い通知には依存しない。
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
+    }, COVER_LIFT_SETTLE_MS)
+    return () => window.clearTimeout(timer)
+  }, [coverLifting])
 
   const goNext = useCallback(
     (startAngle = 0) => {
@@ -698,11 +622,14 @@ export function FeedPage() {
           dispatch({ type: 'coverTurned', turning: null })
           return
         }
-        // 指がもう紙を起こしはじめているなら、その続きとしてそのままめくる。
-        // 待たせると、せっかく起こした角度が寝てしまう。
+        // 表紙を閉じた状態からのスワイプも、まず紙束を大きく見せる。
+        // 入口ごとに開始条件を分けると、feed だけ拡大途中でめくれ始めるため、
+        // 表紙の角度は最初のめくりでは使わず、同じ待機経路にそろえる。
         if (startAngle !== 0) {
-          if (!coverLifting) rememberStackPosition()
-          dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle } })
+          if (!coverLifting) {
+            rememberStackPosition()
+            dispatch({ type: 'coverLifting' })
+          }
           return
         }
         // ボタンから開くときは、まず紙束を押し上げる。めくるのはそのあと。
@@ -764,19 +691,10 @@ export function FeedPage() {
           position={position}
           turning={turning}
           coverOpened={coverOpened}
+          coverOpening={coverOpening}
           dragX={swipe.dragX}
-          isLiff={isLiff}
           articleRef={articleRef}
           onNext={goNext}
-          onReact={() => {
-            if (authStatus !== 'authenticated') {
-              dispatch({ type: 'loginVisibilityChanged', visible: true })
-              return false
-            }
-            if (!concern) return false
-            reactToDemoConcern(concern.id)
-            return true
-          }}
           onLinkClick={swipe.handleLinkClick}
           onTurningFinished={() => dispatch({ type: 'turningFinished' })}
           onReset={() => dispatch({ type: 'filtersReset' })}
@@ -788,6 +706,7 @@ export function FeedPage() {
         <FeedActions
           showLogin={showLogin}
           concern={concern}
+          canReact={isLiff}
           coverOpening={coverOpening}
           filtersOpen={filtersOpen}
           activeFilter={activeFilter}
@@ -795,6 +714,15 @@ export function FeedPage() {
           genderOptions={genderOptions}
           regionOptions={regionOptions}
           onNext={goNext}
+          onReact={() => {
+            if (authStatus !== 'authenticated') {
+              dispatch({ type: 'loginVisibilityChanged', visible: true })
+              return false
+            }
+            if (!concern) return false
+            reactToDemoConcern(concern.id)
+            return true
+          }}
           onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
           onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
         />

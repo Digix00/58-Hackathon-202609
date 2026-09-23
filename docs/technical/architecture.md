@@ -19,7 +19,9 @@ flowchart LR
 flowchart LR
   Sources["Web LINE 音声"] --> Worker["Hono Worker"]
   Worker --> D1["D1"]
-  Worker --> AI["AI処理"]
+  Worker --> Queue["Cloudflare Queue"]
+  Queue --> Consumer["Worker queue handler"]
+  Consumer --> AI["AI処理"]
   Worker --> Output["Web LINE"]
 ```
 
@@ -39,15 +41,26 @@ flowchart LR
 
 リクエストごとにRepositoryやUseCaseを生成せず、現在のComposition Rootの方針を踏襲する。
 
-### 非同期処理
+### Workers AI
+
+- `backend/wrangler.jsonc` の AI binding `AI` を Worker の `env.AI` として利用する。API キーは設定しない。
+- Application 層は `TextTranslator`、`TextEmbeddingGenerator`、`SpeechRecognizer` Portに依存し、Infrastructure層のWorkers AI Adapterが `env.AI.run(model, input)`を呼び出す。
+- 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は多言語の `@cf/openai/whisper`、Embeddingは `@cf/pfnet/plamo-embedding-1b` を使う。
+- 日本語の意味検索・クラスタリング向けEmbeddingモデルとして `@cf/pfnet/plamo-embedding-1b` を使う。複数テキストを一度に渡し、入力順に対応する数値ベクトルを受け取る。
+- AdapterはDIでApplication層や後続の非同期処理へ注入できる。投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。現段階では生成結果を保存するDBテーブルは追加しない。
+- `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
+- 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
+
+## 非同期処理
 
 投稿の保存は、AI処理や外部通知の成否に依存させない。少なくとも次の順序を守る。
 
 1. 入力を検証する
 2. 投稿をD1へ保存する
-3. 投稿者へ保存成功を返す
-4. 文字起こし、翻訳、クラスタリング、推薦用データ更新、LINE通知を非同期で処理する
-5. 完了または失敗した状態を保存する
+3. `concern.process` メッセージをQueueへ送信する
+4. 投稿者へ保存成功を返す
+5. Queue consumerから文字起こし、翻訳、Embedding、クラスタリング、推薦用データ更新、LINE通知を非同期で処理する
+6. 完了または失敗した状態を保存する
 
 ハッカソンでは小規模な非同期処理で実装してよいが、AIサービスの待ち時間で投稿APIがタイムアウトしないことを受け入れ条件とする。
 

@@ -100,9 +100,7 @@ export function SelectField<T extends string | number>({
           }}
         >
           <span>{selectedLabel}</span>
-          <span className={styles.chevron} aria-hidden="true">
-            ⌄
-          </span>
+          <span className={styles.chevron} aria-hidden="true" />
         </summary>
         <div className={styles.menu} role="listbox" aria-label={`${label}の選択`}>
           <div className={styles.options}>

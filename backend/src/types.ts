@@ -1,9 +1,13 @@
+import type { ConcernProcessingMessage } from "./application/port/concern-processing-queue";
+
 // Wrangler の `cloudflare:workers` が参照する Env に、wrangler.jsonc で
 // 定義したリソースを追加する。wrangler types を事前生成しなくても型検査できる。
 declare global {
   namespace Cloudflare {
     interface Env {
       DB: D1Database;
+      AI: Ai;
+      CONCERN_PROCESSING_QUEUE?: Queue<ConcernProcessingMessage>;
       LINE_CHANNEL_ID?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;
