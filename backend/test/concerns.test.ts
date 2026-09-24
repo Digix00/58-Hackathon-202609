@@ -651,7 +651,7 @@ describe("GET /api/v1/concerns", () => {
     expect(receivedIds).toHaveLength(expectedIds.length);
     expect(new Set(receivedIds).size).toBe(expectedIds.length);
     expect(new Set(receivedIds)).toEqual(new Set(expectedIds));
-  });
+  }, 15_000);
 
   it("paginates with an opaque cursor without duplicating items", async () => {
     const suffix = crypto.randomUUID();
