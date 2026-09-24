@@ -114,6 +114,18 @@ pnpm dev                # http://localhost:8787、wrangler.dev.jsonc を使用
 Cloudflareへログインしていなくても動く。翻訳・ひらがな変換・Embedding生成は
 `LocalTextTranslator`/`LocalTextEmbeddingGenerator`によるダミー結果になる（[Workers AI](#workers-ai)を参照）。
 
+### ローカル用サンプル投稿
+
+Feed・投稿詳細の動作確認に使うサンプル投稿は、ローカルD1へ次のコマンドで投入できる。
+
+```bash
+pnpm db:seed:local
+```
+
+`scripts/seed-local-posts.sql` は固定IDと `INSERT OR IGNORE` を使うため、何度実行しても同じ6件だけが登録される。
+投稿は `published`、処理状態は `pending` として登録されるため、翻訳・ひらがな化が未完了でも原文のFeed表示を確認できる。
+このSQLはローカル動作確認専用であり、`db:migrate:remote` やリモートD1への実行には使わない。
+
 ## LINE MINI App認証
 
 LINE Developers Consoleで設定したチャネルIDを、Workerの`LINE_CHANNEL_ID`へ設定する。
