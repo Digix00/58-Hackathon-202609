@@ -3,6 +3,17 @@ import type { RegionCode } from '../post/postTypes'
 
 export type FeedItem = ListConcernsResponse['items'][number]
 
+export type FeedConcern = {
+  id: string
+  body: string
+  gender?: string
+  ageGroup?: string
+  region?: string
+  createdLabel: string
+  reactionCount: number
+  reacted: boolean
+}
+
 export type FeedStatus = 'idle' | 'loading' | 'loadingMore' | 'success' | 'error'
 
 export const FEED_SORTS = ['newest', 'recommended'] as const
@@ -20,6 +31,7 @@ export interface FeedQuery {
   limit?: number
   cursor?: string
   sort?: FeedSort
+  gender?: string
   regionCode?: RegionCode
   clusterId?: string
 }

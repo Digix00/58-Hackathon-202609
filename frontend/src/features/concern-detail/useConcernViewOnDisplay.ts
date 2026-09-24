@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { recordConcernView } from './concernViewApi'
 
-export function useConcernViewOnDisplay(concernId: string | undefined): void {
+export function useConcernViewOnDisplay(concernId: string | undefined, enabled = true): void {
   const { state } = useRuntime()
   const recordedConcernIds = useRef(new Set<string>())
 
   useEffect(() => {
     if (
       !concernId ||
+      !enabled ||
       state.status !== 'ready' ||
       state.mode !== 'liff' ||
       recordedConcernIds.current.has(concernId)
@@ -18,5 +19,5 @@ export function useConcernViewOnDisplay(concernId: string | undefined): void {
 
     recordedConcernIds.current.add(concernId)
     void recordConcernView(concernId)
-  }, [concernId, state])
+  }, [concernId, enabled, state])
 }

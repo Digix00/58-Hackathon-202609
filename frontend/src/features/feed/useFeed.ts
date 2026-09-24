@@ -79,6 +79,7 @@ function feedReducer(state: FeedState, action: FeedAction): FeedState {
 export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
   const limit = typeof options === 'number' ? options : (options.limit ?? 20)
   const sort = typeof options === 'number' ? 'newest' : (options.sort ?? 'newest')
+  const gender = typeof options === 'number' ? undefined : options.gender
   const regionCode = typeof options === 'number' ? undefined : options.regionCode
   const clusterId = typeof options === 'number' ? undefined : options.clusterId
   const [state, dispatch] = useReducer(feedReducer, initialFeedState)
@@ -92,7 +93,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     cursorRef.current = null
     dispatch({ type: 'loadStarted' })
 
-    const result = await listConcerns({ limit, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -107,7 +108,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, limit, regionCode, sort])
+  }, [clusterId, gender, limit, regionCode, sort])
 
   const loadMore = useCallback(async (): Promise<void> => {
     const cursor = cursorRef.current
@@ -117,7 +118,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     isLoading.current = true
     dispatch({ type: 'loadMoreStarted' })
 
-    const result = await listConcerns({ limit, cursor, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit, cursor, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -132,7 +133,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, limit, regionCode, sort])
+  }, [clusterId, gender, limit, regionCode, sort])
 
   const retry = useCallback(() => refresh(), [refresh])
 

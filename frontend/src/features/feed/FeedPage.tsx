@@ -1,13 +1,13 @@
 import {
   useCallback,
   useEffectEvent,
+  useEffect,
   useLayoutEffect,
   useReducer,
   useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
-  type RefCallback,
   type RefObject,
   type TouchEvent,
 } from 'react'
@@ -15,7 +15,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
-import { DemoBoundary } from '../../shared/components/DemoBoundary'
+import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
@@ -29,9 +29,13 @@ import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
-import { useDemoViewed } from '../demo/useDemoViewed'
+import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
+import type { RegionCode } from '../post/postTypes'
+import { registerConcernReaction } from '../reaction/reactionApi'
 import { CoverArt } from './CoverArt'
+import { useFeed } from './useFeed'
+import { GENDER_OPTIONS, REGION_OPTIONS, toFeedConcern } from './feedViewModel'
+import type { FeedConcern } from './feedTypes'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
@@ -47,7 +51,7 @@ type Filter = { gender: string; region: string }
  */
 type TurningPage =
   | { kind: 'cover'; startAngle: number }
-  | { kind: 'concern'; concern: DemoConcern; page: number; startAngle: number; direction: 1 | -1 }
+  | { kind: 'concern'; concern: FeedConcern; page: number; startAngle: number; direction: 1 | -1 }
 
 type FeedReaderState = {
   filter: Filter
@@ -184,7 +188,7 @@ function ReactionSpark() {
   )
 }
 
-function FeedTabs({ concern, showTabs }: { concern: DemoConcern; showTabs: boolean }) {
+function FeedTabs({ concern, showTabs }: { concern: FeedConcern; showTabs: boolean }) {
   if (!showTabs) return null
 
   return (
@@ -204,7 +208,7 @@ function FeedReaction({
   canReact,
   onReact,
 }: {
-  concern: DemoConcern
+  concern: FeedConcern
   canReact: boolean
   onReact?: () => boolean
 }) {
@@ -256,19 +260,17 @@ function FeedCard({
   onReact,
   onNext,
   canReact = false,
-  articleRef,
   dragX = 0,
   onLinkClick,
   showTabs = true,
 }: {
-  concern: DemoConcern
+  concern: FeedConcern
   page: number
   /** 実際に寄りそえたときだけ true を返す。未ログインなら false。 */
   onReact?: () => boolean
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
   canReact?: boolean
-  articleRef?: RefCallback<HTMLElement>
   dragX?: number
   onLinkClick?: (event: MouseEvent) => void
   /** 表紙の下に控えているあいだは、上辺のインデックスを出さない。中身の先出しになる。 */
@@ -278,7 +280,6 @@ function FeedCard({
 
   return (
     <article
-      ref={articleRef}
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${
         dragX !== 0 ? styles.dragging : ''
       }`}
@@ -339,7 +340,7 @@ function FeedCover() {
 }
 
 type FeedStackProps = {
-  concern: DemoConcern
+  concern: FeedConcern
   stackRef: RefObject<HTMLDivElement | null>
   index: number
   position: number
@@ -347,7 +348,6 @@ type FeedStackProps = {
   coverOpened: boolean
   dragX: number
   isLiff: boolean
-  articleRef: RefCallback<HTMLElement>
   onNext: () => void
   onReact: () => boolean
   onLinkClick: (event: MouseEvent) => void
@@ -363,7 +363,6 @@ function FeedStack({
   coverOpened,
   dragX,
   isLiff,
-  articleRef,
   onNext,
   onReact,
   onLinkClick,
@@ -417,7 +416,6 @@ function FeedStack({
             concern={concern}
             page={position + 1}
             onNext={onNext}
-            articleRef={articleRef}
             canReact={isLiff}
             dragX={dragX}
             onLinkClick={onLinkClick}
@@ -452,7 +450,7 @@ function FeedEmpty({ onReset }: { onReset: () => void }) {
 }
 
 type FeedStageProps = Omit<FeedStackProps, 'concern'> & {
-  concern: DemoConcern | undefined
+  concern: FeedConcern | undefined
   onReset: () => void
   onTouchStart: (event: TouchEvent) => void
   onTouchMove: (event: TouchEvent) => void
@@ -502,7 +500,7 @@ function FeedActions({
   onFilterChange,
 }: {
   showLogin: boolean
-  concern: DemoConcern | undefined
+  concern: FeedConcern | undefined
   /** 表紙を開きはじめたか。ボタンの居場所はこの時点で生まれる。 */
   coverOpening: boolean
   filtersOpen: boolean
@@ -642,48 +640,44 @@ function useStackLift(open: boolean, onLifted: () => void) {
 }
 
 export function FeedPage() {
-  const { concerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
+  const [reactionOverrides, setReactionOverrides] = useState<
+    Record<string, { reactionCount: number; reacted: boolean }>
+  >({})
+  const [reactionError, setReactionError] = useState<string | null>(null)
+  const pendingNextAngle = useRef<number | null>(null)
   const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = reader
   /** 押し上げが始まった時点で、ふもとには送りボタンの居場所ができている。 */
   const coverOpening = coverLifting || coverOpened
 
-  const genderOptions = [
-    { value: ALL, label: 'すべて' },
-    ...[
-      ...new Set(
-        concerns
-          .map((concern) => concern.gender)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ].map((gender) => ({
-      value: gender,
-      label: gender,
-    })),
-  ]
-  const regionOptions = [
-    { value: ALL, label: 'すべて' },
-    ...[
-      ...new Set(
-        concerns
-          .map((concern) => concern.region)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ].map((region) => ({ value: region, label: region })),
-  ]
-  const filtered = concerns.filter(
-    (concern) =>
-      (!filter.gender || concern.gender === filter.gender) &&
-      (!filter.region || concern.region === filter.region),
-  )
-  const total = filtered.length
-  const position = total ? ((index % total) + total) % total : 0
-  const concern = filtered[position]
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
-  const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
-  const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
+  const feed = useFeed({
+    limit: 50,
+    sort: authStatus === 'authenticated' ? 'recommended' : 'newest',
+    gender: filter.gender || undefined,
+    regionCode: filter.region ? (filter.region as RegionCode) : undefined,
+  })
+  const { hasMore: feedHasMore, loadMore } = feed
+  const concerns = feed.items.map((item) => {
+    const concern = toFeedConcern(item)
+    return reactionOverrides[concern.id]
+      ? { ...concern, ...reactionOverrides[concern.id] }
+      : concern
+  })
+  const total = concerns.length
+  const position = total ? ((index % total) + total) % total : 0
+  const concern = concerns[position]
+  useConcernViewOnDisplay(concern?.id, isLiff && authStatus === 'authenticated')
+  const activeFilter = [
+    filter.gender ? GENDER_OPTIONS.find((option) => option.value === filter.gender)?.label : null,
+    filter.region ? REGION_OPTIONS.find((option) => option.value === filter.region)?.label : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const genderOptions = [{ value: ALL, label: 'すべて' }, ...GENDER_OPTIONS]
+  const regionOptions = [{ value: ALL, label: 'すべて' }, ...REGION_OPTIONS]
 
   const { stackRef, rememberStackPosition } = useStackLift(coverOpening, () => {
     // 紙束が上がりきった。ここでようやく表紙に手をかける。
@@ -712,6 +706,11 @@ export function FeedPage() {
         }
         return
       }
+      if (total > 0 && position === total - 1 && feedHasMore) {
+        pendingNextAngle.current = startAngle
+        void loadMore()
+        return
+      }
       // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
       dispatch({
         type: 'next',
@@ -721,14 +720,23 @@ export function FeedPage() {
             : null,
       })
     },
-    [concern, coverLifting, coverOpened, position, rememberStackPosition],
+    [
+      concern,
+      coverLifting,
+      coverOpened,
+      feedHasMore,
+      loadMore,
+      position,
+      rememberStackPosition,
+      total,
+    ],
   )
 
   const goPrev = useCallback(() => {
     // 戻るときは、伏せてあった前の紙を拾い上げ、いま読んでいる紙の上へ降ろす。
     if (!coverOpened || !total) return
     const previousPosition = (((position - 1) % total) + total) % total
-    const previous = filtered[previousPosition]
+    const previous = concerns[previousPosition]
     dispatch({
       type: 'previous',
       turning:
@@ -742,7 +750,22 @@ export function FeedPage() {
             }
           : null,
     })
-  }, [coverOpened, filtered, position, total])
+  }, [concerns, coverOpened, position, total])
+
+  useEffect(() => {
+    if (pendingNextAngle.current === null || feed.status === 'loadingMore') return
+
+    const startAngle = pendingNextAngle.current
+    pendingNextAngle.current = null
+    if (!concern) return
+
+    dispatch({
+      type: 'next',
+      turning: !prefersReducedMotion()
+        ? { kind: 'concern', concern, page: position + 1, startAngle, direction: 1 }
+        : null,
+    })
+  }, [concern, feed.items.length, feed.status, position])
 
   const swipe = useNotebookSwipe({
     canGoNext: true,
@@ -751,58 +774,94 @@ export function FeedPage() {
     onPrevious: goPrev,
   })
 
-  return (
-    <DemoBoundary
-      emptyTitle="まだ声が届いていません"
-      emptyDescription="しばらくしてから、また読みに来てください。"
-    >
-      <div className={styles.page}>
-        <FeedStage
-          concern={concern}
-          stackRef={stackRef}
-          index={index}
-          position={position}
-          turning={turning}
-          coverOpened={coverOpened}
-          dragX={swipe.dragX}
-          isLiff={isLiff}
-          articleRef={articleRef}
-          onNext={goNext}
-          onReact={() => {
-            if (authStatus !== 'authenticated') {
-              dispatch({ type: 'loginVisibilityChanged', visible: true })
-              return false
-            }
-            if (!concern) return false
-            reactToDemoConcern(concern.id)
-            return true
-          }}
-          onLinkClick={swipe.handleLinkClick}
-          onTurningFinished={() => dispatch({ type: 'turningFinished' })}
-          onReset={() => dispatch({ type: 'filtersReset' })}
-          onTouchStart={swipe.handleTouchStart}
-          onTouchMove={swipe.handleTouchMove}
-          onTouchEnd={swipe.handleTouchEnd}
-          onTouchCancel={swipe.handleTouchCancel}
-        />
-        <FeedActions
-          showLogin={showLogin}
-          concern={concern}
-          coverOpening={coverOpening}
-          filtersOpen={filtersOpen}
-          activeFilter={activeFilter}
-          filter={filter}
-          genderOptions={genderOptions}
-          regionOptions={regionOptions}
-          onNext={goNext}
-          onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
-          onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
-        />
+  if (feed.status === 'loading' && feed.items.length === 0) {
+    return <LoadingState label="声を読み込んでいます…" />
+  }
+  if (feed.status === 'error' && feed.items.length === 0) {
+    return (
+      <ErrorState
+        title="声を読み込めませんでした"
+        description={feed.error ?? '時間をおいて再試行してください。'}
+        onRetry={() => void feed.retry()}
+      />
+    )
+  }
 
-        <p className={styles.srOnly} aria-live="polite">
-          {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}
-        </p>
-      </div>
-    </DemoBoundary>
+  return (
+    <div className={styles.page}>
+      <FeedStage
+        concern={concern}
+        stackRef={stackRef}
+        index={index}
+        position={position}
+        turning={turning}
+        coverOpened={coverOpened}
+        dragX={swipe.dragX}
+        isLiff={isLiff}
+        onNext={goNext}
+        onReact={() => {
+          if (authStatus !== 'authenticated') {
+            dispatch({ type: 'loginVisibilityChanged', visible: true })
+            return false
+          }
+          if (!concern) return false
+          if (concern.reacted) return false
+
+          const previous = {
+            reactionCount: concern.reactionCount,
+            reacted: concern.reacted,
+          }
+          setReactionError(null)
+          setReactionOverrides((current) => ({
+            ...current,
+            [concern.id]: {
+              reactionCount: previous.reactionCount + 1,
+              reacted: true,
+            },
+          }))
+          void registerConcernReaction(concern.id).then((result) => {
+            if (result.ok) {
+              setReactionOverrides((current) => ({
+                ...current,
+                [concern.id]: {
+                  reactionCount: result.reaction.reactionCount,
+                  reacted: result.reaction.reacted,
+                },
+              }))
+              return
+            }
+
+            setReactionOverrides((current) => ({ ...current, [concern.id]: previous }))
+            setReactionError(result.message)
+          })
+          return true
+        }}
+        onLinkClick={swipe.handleLinkClick}
+        onTurningFinished={() => dispatch({ type: 'turningFinished' })}
+        onReset={() => dispatch({ type: 'filtersReset' })}
+        onTouchStart={swipe.handleTouchStart}
+        onTouchMove={swipe.handleTouchMove}
+        onTouchEnd={swipe.handleTouchEnd}
+        onTouchCancel={swipe.handleTouchCancel}
+      />
+      <FeedActions
+        showLogin={showLogin}
+        concern={concern}
+        coverOpening={coverOpening}
+        filtersOpen={filtersOpen}
+        activeFilter={activeFilter}
+        filter={filter}
+        genderOptions={genderOptions}
+        regionOptions={regionOptions}
+        onNext={goNext}
+        onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
+        onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
+      />
+
+      <p className={styles.srOnly} aria-live="polite">
+        {reactionError ??
+          (concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : '')}
+      </p>
+    </div>
   )
 }

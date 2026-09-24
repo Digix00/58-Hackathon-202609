@@ -53,7 +53,7 @@ function postSubmitReducer(_state: PostSubmitState, action: PostSubmitAction): P
  * Boundary: 投稿入力を受け取り、画面が必要とする状態と submit/reset 操作だけを返す。
  * State modeling: status、入力エラー、送信結果、通信エラーを reducer で同時に更新し、不整合な組み合わせを防ぐ。
  */
-export function usePostSubmit(demo = false): UsePostSubmitResult {
+export function usePostSubmit(): UsePostSubmitResult {
   const [state, dispatch] = useReducer(postSubmitReducer, initialPostSubmitState)
   const inFlight = useRef(false)
 
@@ -69,28 +69,6 @@ export function usePostSubmit(demo = false): UsePostSubmitResult {
       inFlight.current = true
       dispatch({ type: 'submitStarted' })
       try {
-        if (import.meta.env.DEV && demo) {
-          const { addDemoConcern, getDemoScenario } = await import('../demo/demoStore')
-          await new Promise((resolve) => setTimeout(resolve, 400))
-          if (getDemoScenario() === 'error')
-            throw new Error('開発用の送信エラーです。もう一度お試しください。')
-          const concern = addDemoConcern(input.body)
-          dispatch({
-            type: 'submitSucceeded',
-            result: {
-              id: concern.id,
-              body: concern.body,
-              attributes: { ageGroup: undefined, gender: undefined, regionCode: undefined },
-              visibilityStatus: 'published',
-              processingStatus: 'pending',
-              representations: { jaHira: null, en: null },
-              cluster: null,
-              reactionCount: 0,
-              createdAt: new Date().toISOString(),
-            },
-          })
-          return
-        }
         const response = await createConcern(input)
         if (response.ok) {
           dispatch({ type: 'submitSucceeded', result: response.concern })
@@ -98,19 +76,16 @@ export function usePostSubmit(demo = false): UsePostSubmitResult {
         }
 
         dispatch({ type: 'submitFailed', error: response.message })
-      } catch (cause) {
+      } catch {
         dispatch({
           type: 'submitFailed',
-          error:
-            cause instanceof Error && demo
-              ? cause.message
-              : '投稿に失敗しました。時間をおいて再度お試しください',
+          error: '投稿に失敗しました。時間をおいて再度お試しください',
         })
       } finally {
         inFlight.current = false
       }
     },
-    [demo, state.status],
+    [state.status],
   )
 
   const reset = useCallback((): void => {

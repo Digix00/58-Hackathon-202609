@@ -133,8 +133,7 @@ function PostView({
 export function PostPage() {
   const draft = usePostDraft()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const isDemoSubmit = import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === 'authenticated'
-  const submission = usePostSubmit(isDemoSubmit)
+  const submission = usePostSubmit()
 
   useEffect(() => {
     if (submission.fieldErrors.body) inputRef.current?.focus()
@@ -147,11 +146,7 @@ export function PostPage() {
           <p className={screen.eyebrow}>投稿できました</p>
           <h1>置いていってくれて、ありがとう。</h1>
         </header>
-        <p className={screen.muted}>
-          {isDemoSubmit
-            ? '開発用の画面に反映しました。再読み込みすると、この投稿は消えます。'
-            : '声を保存しました。必要な処理は後から反映されます。'}
-        </p>
+        <p className={screen.muted}>声を保存しました。必要な処理は後から反映されます。</p>
         <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">
           声を読む
         </Link>

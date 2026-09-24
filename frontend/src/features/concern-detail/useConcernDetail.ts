@@ -50,7 +50,10 @@ function concernDetailReducer(
  * Composition: 詳細画面のContainerから表示用状態として利用する。
  * Test notes: IDなし、成功、失敗、ID変更中の古いレスポンスを確認する。
  */
-export function useConcernDetail(id: string | undefined): UseConcernDetailResult {
+export function useConcernDetail(
+  id: string | undefined,
+  recordView = true,
+): UseConcernDetailResult {
   const [state, dispatch] = useReducer(concernDetailReducer, initialConcernDetailState)
   const requestVersion = useRef(0)
 
@@ -58,6 +61,7 @@ export function useConcernDetail(id: string | undefined): UseConcernDetailResult
     state.status === 'success' && state.concern && state.concern.id === id
       ? state.concern.id
       : undefined,
+    recordView,
   )
 
   const load = useCallback(async (): Promise<void> => {
