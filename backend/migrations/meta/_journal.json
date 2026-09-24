@@ -64,6 +64,20 @@
       "when": 1790176587148,
       "tag": "0008_silly_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790210070189,
+      "tag": "0009_fluffy_leopardon",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790227320202,
+      "tag": "0010_fluffy_zuras",
+      "breakpoints": true
     }
   ]
 }

@@ -48,6 +48,9 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
 | `AI` (Workers AI binding) | Workers AI 推論 | `backend/wrangler.jsonc` |
+| `CONCERN_VECTOR_INDEX` | 投稿Embeddingの近傍照合・upsert | `backend/wrangler.jsonc`（本番）/ `backend/wrangler.vectorize.dev.jsonc`（開発用Vectorize接続） |
+| `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` | 既存クラスタを採用する最小類似度 | 本番はGitHub Actions Variable（未設定時 `0.8`）、開発は`wrangler.vectorize.dev.jsonc` |
+| `CONCERN_VECTOR_INDEX_VERSION` | 投稿Embeddingの登録先index version | `wrangler.jsonc`（本番）/ `wrangler.vectorize.dev.jsonc`（開発用）。index再作成時に更新 |
 | `CONCERN_PROCESSING_QUEUE` | 投稿後のAI処理Queue producer | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINEクイズ配信 | Worker環境変数またはSecret |
@@ -73,11 +76,40 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
 
-Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。生成した英語・ひらがな表現は `concern_representations` に保存する。
+Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、Embeddingは1024次元の `@cf/qwen/qwen3-embedding-0.6b` を使う。PLaMo-Embedding-1Bは2048次元のためVectorizeの上限に収まらない。各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。処理結果の表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。Vectorizeにはローカルシミュレーターがないため開発用・本番用に別のindexを作成する。通常の `pnpm dev` はWorkers AIとVectorizeのremote bindingを使わず、Cloudflare認証なしでローカルアダプタを動かす。Vectorize連携の開発確認には `pnpm --filter backend dev:vectorize` を使い、開発用remote indexだけに接続する。
 
-`wrangler dev` からのWorkers AI推論もCloudflareアカウントへ接続し、利用量に計上される。Vitestは `wrangler.test.jsonc` を使い、実AI bindingなしのローカル環境でFakeを使う。開発時もモデル呼び出しを必要な回数に制限してWorkers AIダッシュボードで利用量を確認する。クラスタリング、翻訳、音声認識の呼び出しは投稿ごとに無制限に実行せず、クラスタ単位、バッチ単位、またはデモ用データ単位で制限する。LINE配信の宛先と回数もデモ用に制限し、課金が発生する外部サービスを採用する場合は、利用量の上限と停止方法をREADMEへ記載する。
+Cloudflareアカウントに以下のindexを事前に作成する。dimensionsはEmbedding modelの出力次元に合わせ、metricは `cosine` とする。初回のみ、開発・本番のCloudflareアカウントで個別に実行する。
+
+| 環境 | Vectorize index |
+| --- | --- |
+| 開発 | `58-hackathon-concern-vectors-dev` |
+| 本番 | `58-hackathon-concern-vectors` |
+
+```bash
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors-dev --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=1024 --metric=cosine
+```
+
+`pnpm --filter backend dev:vectorize` はremote Vectorizeへの接続にCloudflareログインを使い、Workers AI推論には接続せず1024次元の決定的なローカルEmbeddingを使う。実際のWorkers AI推論も確認する場合は `wrangler login` 後に `pnpm --filter backend exec wrangler dev`（本番用 `wrangler.jsonc`）を使う。この設定は本番indexを参照するため、通常の開発には使わない。Workers AIの利用量とVectorizeの使用量が発生する環境では、モデル呼び出しとテスト投稿を必要な回数に制限し、Cloudflareダッシュボードで使用量を確認する。Vitestは `wrangler.test.jsonc` を使い、実AIおよびVectorize bindingなしのローカル環境でFakeを使う。LINE配信の宛先と回数もデモ用に制限する。
 
 Queueは `max_batch_size=1`、`max_retries=3` で開始し、AI障害時はメッセージ単位で再試行する。初回デプロイ前に `wrangler queues create 58-hackathon-concern-processing` を実行する。
+
+### 既存投稿のVectorizeバックフィル
+
+Vectorize導入前に `ready` になった投稿は、初回デプロイ後に一度バックフィルする。バックフィルはEmbedding version未登録、または指定したmodel/index versionと異なる投稿を既存のQueueへ再投入し、通常の `ConcernProcessingUseCase` で処理する。表現済みの投稿は既存表現を再利用する。index再作成やEmbedding model変更後にも同じコマンドを実行し、新しいindexへ過去のベクトルを再登録する。
+
+Cloudflare API tokenに `D1 Read`、`D1 Write`、`Queues Read`、`Queues Write` の権限を付与し、次の環境変数を設定する。これはデプロイ済みの本番Workerに対するバックフィルCLIの設定であり、通常の開発環境の起動には不要。`CLOUDFLARE_D1_DATABASE_ID` は `wrangler.jsonc` の `database_id`、queueは `58-hackathon-concern-processing` を使う。
+
+```bash
+export CLOUDFLARE_API_TOKEN=...
+export CLOUDFLARE_ACCOUNT_ID=...
+export CLOUDFLARE_D1_DATABASE_ID=...
+export CONCERN_VECTOR_EMBEDDING_VERSION='@cf/qwen/qwen3-embedding-0.6b@production-v1'
+pnpm --filter backend vectorize:backfill
+pnpm --filter backend vectorize:backfill -- --apply
+```
+
+`CONCERN_VECTOR_EMBEDDING_VERSION` には、再処理を担当するデプロイ済みWorkerが使う `<modelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。上記は本番用Workers AIの例。バックフィルCLIはCloudflare API経由でremote D1とQueueを使うため、WranglerのローカルQueueを使う `dev:vectorize` の処理には接続できない。開発環境ではこのCLIを使った既存投稿のバックフィルは行わない。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
 
 
 ## 実装前に決める事項

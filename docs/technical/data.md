@@ -8,8 +8,8 @@
 
 | エンティティ | 主な項目 | 用途 |
 | --- | --- | --- |
-| `concerns` | id、user_id、原文、属性、公開状態、処理状態、日時 | 悩み本体 |
-| `concern_clusters` | id、表示ラベル、要約、状態、日時 | 意味の近い悩みのまとまり |
+| `concerns` | id、user_id、原文、属性、公開状態、処理状態、cluster_id、embedding_version、日時 | 悩み本体とVectorize登録version |
+| `concern_clusters` | id、表示ラベル、要約、状態、Embedding model version、日時 | 意味の近い悩みのまとまり。表示ラベルと要約は生成前にNULLを許容 |
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_processing_jobs` | id、concern_id、処理種別、状態、試行回数 | 翻訳・ひらがな化・クラスタリングなどの非同期処理 |
 | `concern_reactions` | concern_id、user_id、reaction_type、created_at | リアクションの重複防止と集計 |
@@ -24,12 +24,14 @@
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
 
+投稿EmbeddingはD1へ保存せず、Cloudflare Vectorizeのconcern indexへ保存する。VectorizeのIDはconcern ID、metadataはcluster IDのみとする。D1の `concerns.cluster_id` を正とし、投稿の処理状態がreadyになるまでフィード上のcluster割当を公開しない。`clusterId` 指定のフィード検索も `processing_status = 'ready'` の投稿だけを対象とする。`concerns.embedding_version` にはEmbeddingモデル名と環境別index versionを記録し、未登録またはversionが変わった投稿をQueue再処理時に再登録する。Vectorizeは非同期クラスタリングの内部検索専用であり、利用者向けの自由入力検索やRAGには使わない。
+
 ### 投稿の状態
 
 投稿は、公開状態と処理状態を分けて持つ。
 
 - 公開状態: `pending`、`published`、`hidden`、`deleted`
-- 処理状態: `not_started`、`transcribing`、`translating`、`clustering`、`ready`、`failed`
+- 処理状態: `pending`、`processing`、`ready`、`failed`
 
 投稿の保存が成功した後に文字起こし、翻訳、クラスタリングのいずれかが失敗しても、原文の投稿は失わず、その処理だけ未完了として閲覧できるようにする。
 
@@ -42,7 +44,7 @@
 - 都道府県コードはアプリケーションコードで定義し、`regions` のようなマスタテーブルは持たない
 - 初回ログイン直後のプロフィールは未入力を許容し、性別の `no_answer` は入力済みとして扱う
 - クイズの3ユーザーは異なる `user_id` から選び、表示時には属性だけを利用する
-- クイズでは未入力の属性を「回答しない」として扱い、個人を特定できる組み合わせを避ける
+- クイズの3件は、年代・性別・都道府県コードの各属性がすべて重複しない組み合わせにする。未入力の属性は `no_answer` として扱い、ヒントとして機能するようにする
 - IPアドレスを生データとして保存しない
 - GPSやIPから地域を推定しない
 

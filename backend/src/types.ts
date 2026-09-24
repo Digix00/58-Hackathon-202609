@@ -10,6 +10,9 @@ declare global {
       // 未定義を許容してローカル用アダプタへフォールバックできるようにする。
       AI?: Ai;
       CONCERN_PROCESSING_QUEUE?: Queue<ConcernProcessingMessage>;
+      CONCERN_VECTOR_INDEX?: Vectorize;
+      CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;
+      CONCERN_VECTOR_INDEX_VERSION?: string;
       LINE_CHANNEL_ID?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;

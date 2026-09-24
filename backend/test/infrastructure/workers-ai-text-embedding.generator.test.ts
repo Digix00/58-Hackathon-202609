@@ -12,13 +12,13 @@ function createAiBinding(run: Run): Pick<Ai, "run"> {
 }
 
 describe("WorkersAiTextEmbeddingGenerator", () => {
-  it("sends a batch to the Japanese embedding model and preserves vectors", async () => {
+  it("sends a batch to the embedding model and preserves vectors", async () => {
     const response = {
       data: [
-        [0.1, 0.2],
-        [0.3, 0.4],
+        Array.from({ length: 1024 }, () => 0.1),
+        Array.from({ length: 1024 }, () => 0.3),
       ],
-      shape: [2, 2],
+      shape: [2, 1024],
     };
     const run = vi.fn<Run>().mockResolvedValue(response);
     const generator = new WorkersAiTextEmbeddingGenerator(createAiBinding(run));
@@ -27,7 +27,7 @@ describe("WorkersAiTextEmbeddingGenerator", () => {
       generator.generateEmbeddings(["悩みA", "悩みB"]),
     ).resolves.toEqual(response.data);
     expect(run).toHaveBeenCalledOnce();
-    expect(run).toHaveBeenCalledWith("@cf/pfnet/plamo-embedding-1b", {
+    expect(run).toHaveBeenCalledWith("@cf/qwen/qwen3-embedding-0.6b", {
       text: ["悩みA", "悩みB"],
     });
   });

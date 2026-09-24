@@ -1,13 +1,14 @@
 import type { TextEmbeddingGenerator } from "../../application/port/text-embedding-generator";
 
-const LOCAL_EMBEDDING_DIMENSIONS = 64;
+const LOCAL_EMBEDDING_DIMENSIONS = 1024;
 
 /**
  * Stands in for WorkersAiTextEmbeddingGenerator when no AI binding is
  * available (local `wrangler dev`, see wrangler.dev.jsonc). Derives a
- * deterministic vector from each text's hash so the same input always
- * produces the same output, without calling Cloudflare. The dimensions and
- * values have no relation to the production PLaMo model.
+ * deterministic 1024-dimensional vector from each text's hash so the same
+ * input always produces the same output, without calling Workers AI. The
+ * values are only for exercising the development Vectorize integration and
+ * have no relation to the production model's embeddings.
  */
 export class LocalTextEmbeddingGenerator implements TextEmbeddingGenerator {
   generateEmbeddings(

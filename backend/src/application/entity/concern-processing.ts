@@ -45,6 +45,9 @@ export class ConcernRepresentation {
 export interface ConcernProcessingProps {
   concernId: string;
   status: ConcernProcessingStatus;
+  clusterId?: string | null;
+  modelVersion?: string | null;
+  embeddingVersion?: string | null;
   representations?: readonly ConcernRepresentation[];
   updatedAt: string;
 }
@@ -53,6 +56,9 @@ export interface ConcernProcessingProps {
 export class ConcernProcessing {
   readonly concernId: string;
   readonly status: ConcernProcessingStatus;
+  readonly clusterId: string | null;
+  readonly modelVersion: string | null;
+  readonly embeddingVersion: string | null;
   readonly representations: readonly ConcernRepresentation[];
   readonly updatedAt: string;
 
@@ -71,6 +77,9 @@ export class ConcernProcessing {
 
     this.concernId = concernId;
     this.status = props.status;
+    this.clusterId = props.clusterId?.trim() || null;
+    this.modelVersion = props.modelVersion ?? null;
+    this.embeddingVersion = props.embeddingVersion ?? null;
     this.representations = props.representations ?? [];
     this.updatedAt = props.updatedAt;
   }

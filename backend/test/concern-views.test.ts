@@ -27,6 +27,7 @@ import { ConcernReactionHandler } from "../src/presentation/concern-reaction.han
 import { ConcernViewHandler } from "../src/presentation/concern-view.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
+import { createConcernDependencies } from "./support/concern-fixture";
 
 function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
   const userRepository = new D1UserRepository(env.DB);
@@ -44,6 +45,7 @@ function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
   );
 
   return createApp({
+    ...createConcernDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler: new ConcernHandler(
