@@ -129,6 +129,18 @@ pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vector
 
 Vectorize indexを再作成した場合は、`CONCERN_VECTOR_INDEX_VERSION` を環境ごとに更新してください。登録済み投稿のEmbedding versionと一致しなくなるため、次にQueueで再処理された投稿は現在のindexへupsertされます。本番の類似度閾値はGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` から渡し、未設定時は `0.8` を使います。ローカル開発の閾値は `wrangler.dev.jsonc` で設定します。
 
+### ローカル用サンプル投稿
+
+Feed・投稿詳細の動作確認に使うサンプル投稿は、ローカルD1へ次のコマンドで投入できる。
+
+```bash
+pnpm db:seed:local
+```
+
+`scripts/seed-local-posts.sql` は固定IDと `INSERT OR IGNORE` を使うため、何度実行しても同じ6件だけが登録される。
+投稿は `published`、処理状態は `pending` として登録されるため、翻訳・ひらがな化が未完了でも原文のFeed表示を確認できる。
+このSQLはローカル動作確認専用であり、`db:migrate:remote` やリモートD1への実行には使わない。
+
 ## LINE MINI App認証
 
 LINE Developers Consoleで設定したチャネルIDを、Workerの`LINE_CHANNEL_ID`へ設定する。

@@ -378,8 +378,7 @@ function PostActions({
 export function PostPage() {
   const draft = usePostDraft()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const isDemoSubmit = import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === 'authenticated'
-  const submission = usePostSubmit(isDemoSubmit)
+  const submission = usePostSubmit()
   /** めくり直すたびにアニメーションを最初から流すため、鍵を増やしながら持つ。 */
   const [turning, setTurning] = useState<TurningPage | null>(null)
   const submitted = submission.status === 'succeeded'
@@ -405,11 +404,7 @@ export function PostPage() {
           view={view}
           turning={turning}
           fieldError={submission.fieldErrors.body}
-          doneNote={
-            isDemoSubmit
-              ? '開発用の画面に反映しました。再読み込みすると、この投稿は消えます。'
-              : 'あなたの紙は、このノートに挟みました。ひらがな・英語への言いかえや、テーマの整理は、あとから進みます。'
-          }
+          doneNote="あなたの紙は、このノートに挟みました。ひらがな・英語への言いかえや、テーマの整理は、あとから進みます。"
           inputRef={inputRef}
           onBodyChange={(value) => {
             draft.changeBody(value)

@@ -16,6 +16,23 @@ make dev
 
 Wrangler `4.131.1` が Node.js 22 以上を要求するため、ローカル開発・D1操作は Node.js 22 以上で実行する。
 
+Feed・投稿詳細の動作確認用データが必要な場合は、バックエンドのローカル専用seedを使う。
+
+```bash
+pnpm --filter backend db:seed:local
+```
+
+開発用ユーザー3件、当日クイズ、公開投稿3件、原文表示を確認する公開投稿6件を登録し、再実行しても重複しない。
+投稿は`visibility_status=published`で登録し、処理済み表示用の投稿は`processing_status=ready`、非同期処理の状態を再現する投稿は`processing_status=pending`とする。
+このコマンドはローカルD1専用であり、本番D1へ適用してはならない。実際のLINE認証連携を確認する場合は、開発用認証モードを外してLINEログインを使う。
+
+### ローカル統合認証
+
+LINEログインなしで認証が必要な機能を確認する場合は、フロントエンドで`VITE_DEV_AUTH_MODE=backend`を設定する。
+フロントエンドは`POST /api/v1/auth/dev`から通常のHttpOnly Cookieセッションを取得し、`VITE_DEV_USER`（`demo-a`〜`demo-c`）に対応する開発用ユーザーとしてローカルAPIへ接続する。
+`make dev`はマイグレーション後にこの認証用データとサンプルデータを投入する。
+開発用認証エンドポイントは`wrangler.dev.jsonc`と`wrangler.vectorize.dev.jsonc`でのみ有効で、本番設定では無効である。
+
 ### CI前のローカル確認
 
 Pull Requestを作成する前に、GitHub Actions相当の確認をまとめて実行できる。
@@ -34,7 +51,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するAPI URL | フロントエンドの環境設定 |
 | `VITE_LINE_LIFF_ID` | LINE MINI AppのLIFF ID | フロントエンドの環境設定 |
-| `VITE_DEV_AUTH_MODE` | `authenticated` はUIモック、`backend` はローカルD1へ接続する開発認証 | フロントエンドの環境設定（開発時のみ） |
+| `VITE_DEV_AUTH_MODE` | `backend`でローカルAPIの開発用認証を有効化 | フロントエンドの環境設定（開発時のみ） |
 | `VITE_DEV_USER` | 開発認証で使う固定ユーザーキー（`demo-a`〜`demo-c`） | フロントエンドの環境設定（開発時のみ） |
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |
 | `LINE_CHANNEL_ID` | LINE IDトークン検証に使うチャネルID | Worker環境変数 |
@@ -135,13 +152,6 @@ pnpm --filter backend vectorize:backfill -- --apply
 - LINEログイン済み利用者向けの投稿フォーム、フィード、投稿詳細を作る
 - LINEログイン済み利用者向けのリアクションと入力エラーを実装する
 - モバイル表示とキーボード操作を確認する
-
-### ローカル統合認証
-
-- `VITE_DEV_AUTH_MODE=backend` でLINEログインなしのHttpOnly Cookieセッションを取得する
-- `make dev` でローカルD1へ開発用ユーザー、サンプル投稿、当日クイズを投入する
-- `backend` モードではフィード・投稿詳細・閲覧記録・リアクション・投稿・プロフィール保存をローカルAPIへ接続する
-- 開発用認証エンドポイントは本番設定で無効化し、実LINE認証の動作確認と混同しない
 
 ### Phase 2 デモ必須機能
 

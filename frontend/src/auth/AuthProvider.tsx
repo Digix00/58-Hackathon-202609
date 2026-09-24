@@ -5,7 +5,6 @@ import { AuthContext, type AuthResponse, type AuthStatus } from './auth-context'
 
 const devAuthMode = import.meta.env.DEV ? import.meta.env.VITE_DEV_AUTH_MODE : undefined
 const useDevBackendSession = devAuthMode === 'backend'
-const useDevAuthenticatedSession = devAuthMode === 'authenticated'
 const devUserKey = import.meta.env.VITE_DEV_USER ?? 'demo-a'
 
 type AuthState = {
@@ -106,21 +105,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       try {
         if (useDevBackendSession) {
           await loginWithDevUser()
-          return
-        }
-
-        if (useDevAuthenticatedSession) {
-          applySession({
-            authenticated: true,
-            user: {
-              id: 'dev-user',
-              birthYear: null,
-              birthMonth: null,
-              gender: null,
-              regionCode: null,
-              profileCompleted: false,
-            },
-          })
           return
         }
 

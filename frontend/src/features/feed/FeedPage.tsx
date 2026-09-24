@@ -1,8 +1,4 @@
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
   useState,
   type CSSProperties,
   type MouseEvent,
@@ -15,138 +11,32 @@ import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
-import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
-import {
-  notebookAngleForDrag,
-  prefersReducedMotion,
-  useNotebookSwipe,
-} from '../../shared/hooks/useNotebookSwipe'
-import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import { isBackendDevMode } from '../../lib/devMode'
-import { genderCodeForLabel, regionCodeForLabel, toDemoConcern } from '../demo/demoAdapter'
-import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
-import { useDemoViewed } from '../demo/useDemoViewed'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
 import { CoverArt } from './CoverArt'
+import {
+  ALL,
+  activeFeedFilterLabel,
+  buildFeedFilterOptions,
+  type FeedConcern,
+  type FeedFilter,
+  type FeedFilterOption,
+  toFeedConcern,
+} from './feedViewModel'
+import { useFeedReaderNavigation, useFeedReaderState } from './useFeedReader'
+import type { TurningPage } from './useFeedReader'
+import { useFeed } from './useFeed'
+import { notebookAngleForDrag } from '../../shared/hooks/useNotebookSwipe'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
-import { useFeed } from './useFeed'
-
-type Filter = { gender: string; region: string }
-
-/** 表紙を大きく見せる時間。拡大が見えきってから、次の状態へ進める。 */
-const COVER_LIFT_DURATION_MS = 760
-const COVER_LIFT_SETTLE_MS = COVER_LIFT_DURATION_MS + 120
-
-/**
- * めくっている最中の1枚。
- *
- * 進むときは「去っていく紙」を持つ。位置はすぐ進み、下から次の紙が現れる。
- * 戻るときは「降りてくる紙」を持つ。降りきるまで位置は動かさず、
- * いま読んでいる紙を下に残しておく。そうしないと、降りてくる紙と
- * 同じ声が下にも見えてしまう。
- */
-type TurningPage =
-  | { kind: 'cover'; startAngle: number }
-  | { kind: 'concern'; concern: DemoConcern; page: number; startAngle: number; direction: 1 | -1 }
-
-type FeedReaderState = {
-  filter: Filter
-  index: number
-  direction: 1 | -1
-  /** 表紙を押し上げている最中か。紙束が上がりきってからめくりはじめる。 */
-  coverLifting: boolean
-  /** 表紙をめくり終えたか。最初の1枚は声ではなく表紙。 */
-  coverOpened: boolean
-  showLogin: boolean
-  filtersOpen: boolean
-  turning: TurningPage | null
-}
-
-type FeedReaderAction =
-  | { type: 'coverLifting' }
-  | { type: 'coverTurned'; turning: TurningPage | null }
-  | { type: 'next'; turning: TurningPage | null }
-  | { type: 'previous'; turning: TurningPage | null }
-  | { type: 'filterChanged'; field: keyof Filter; value: string }
-  | { type: 'filtersReset' }
-  | { type: 'loginVisibilityChanged'; visible: boolean }
-  | { type: 'filtersVisibilityChanged'; open: boolean }
-  | { type: 'turningFinished' }
-
-const initialFeedReaderState: FeedReaderState = {
-  filter: { gender: '', region: '' },
-  index: 0,
-  direction: 1,
-  coverLifting: false,
-  coverOpened: false,
-  showLogin: false,
-  filtersOpen: false,
-  turning: null,
-}
-
-/**
- * 戻りの紙がまだ降りきっていないときの、確定した位置。
- * 降りている途中で次の操作が来ても、位置がずれないようにする。
- */
-function settledIndex(state: FeedReaderState) {
-  return state.turning?.kind === 'concern' && state.turning.direction === -1
-    ? state.index - 1
-    : state.index
-}
-
-function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
-  switch (action.type) {
-    case 'coverLifting':
-      // まだ表紙のまま。ふもとの表紙操作が消える準備をして、紙束を上げる。
-      return { ...state, coverLifting: true }
-    case 'coverTurned':
-      // 表紙はここで開く。去っていく表紙だけがめくられて残る。
-      return { ...state, coverLifting: false, coverOpened: true, turning: action.turning }
-    case 'next':
-      return {
-        ...state,
-        index: settledIndex(state) + 1,
-        direction: 1,
-        showLogin: false,
-        turning: action.turning,
-      }
-    case 'previous': {
-      const base = settledIndex(state)
-      return {
-        ...state,
-        index: action.turning ? base : base - 1,
-        direction: -1,
-        showLogin: false,
-        turning: action.turning,
-      }
-    }
-    case 'filterChanged':
-      return {
-        ...state,
-        filter: { ...state.filter, [action.field]: action.value },
-        index: 0,
-        turning: null,
-      }
-    case 'filtersReset':
-      return { ...state, filter: { gender: '', region: '' }, index: 0, turning: null }
-    case 'loginVisibilityChanged':
-      return { ...state, showLogin: action.visible }
-    case 'filtersVisibilityChanged':
-      return { ...state, filtersOpen: action.open }
-    case 'turningFinished':
-      return { ...state, index: settledIndex(state), turning: null }
-  }
-}
 
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
@@ -159,8 +49,6 @@ function turningKey(turning: TurningPage) {
   return turning.kind === 'cover' ? 'cover' : `${turning.concern.id}-${turning.page}`
 }
 
-/** しぼりこみなしを表す選択肢の値。属性値とは衝突しない。 */
-const ALL = '__all__'
 /**
  * 手で描いたハート。左右をわざと揃えないのは、
  * 記号の ♡ を置くと、この画面の中でここだけ定規で引いた線に見えるため。
@@ -189,7 +77,7 @@ function ReactionSpark() {
   )
 }
 
-function FeedTabs({ concern, showTabs }: { concern: DemoConcern; showTabs: boolean }) {
+function FeedTabs({ concern, showTabs }: { concern: FeedConcern; showTabs: boolean }) {
   if (!showTabs) return null
 
   return (
@@ -205,12 +93,16 @@ function FeedTabs({ concern, showTabs }: { concern: DemoConcern; showTabs: boole
 }
 
 function FeedReaction({
-  concern,
   canReact,
+  reactionCount,
+  reacted,
+  submitting,
   onReact,
 }: {
-  concern: DemoConcern
   canReact: boolean
+  reactionCount: number
+  reacted: boolean
+  submitting: boolean
   onReact?: () => boolean
 }) {
   const [sparked, setSparked] = useState(false)
@@ -220,22 +112,23 @@ function FeedReaction({
   return (
     <button
       type="button"
-      className={`${styles.reaction} ${concern.reacted ? styles.reacted : ''} ${
+      className={`${styles.reaction} ${reacted ? styles.reacted : ''} ${
         sparked ? styles.sparked : ''
       }`}
       onClick={() => {
         if (onReact?.()) setSparked(true)
       }}
-      disabled={concern.reacted}
-      aria-pressed={concern.reacted}
+      disabled={reacted || submitting}
+      aria-pressed={reacted}
+      aria-busy={submitting}
     >
       <span className={styles.stamp}>
         <CrayonHeart />
         {sparked ? <ReactionSpark /> : null}
       </span>
-      <span className={styles.label}>{concern.reacted ? '寄りそいました' : 'そっと寄りそう'}</span>
-      <span className={styles.count} aria-label={`${concern.reactionCount}件の反応`}>
-        {concern.reactionCount}
+      <span className={styles.label}>{reacted ? '寄りそいました' : 'そっと寄りそう'}</span>
+      <span className={styles.count} aria-label={`${reactionCount}件の反応`}>
+        {reactionCount}
       </span>
     </button>
   )
@@ -264,7 +157,7 @@ function FeedCard({
   onLinkClick,
   showTabs = true,
 }: {
-  concern: DemoConcern
+  concern: FeedConcern
   page: number
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
@@ -336,7 +229,7 @@ function FeedCover() {
 }
 
 type FeedStackProps = {
-  concern: DemoConcern
+  concern: FeedConcern
   stackRef: RefObject<HTMLDivElement | null>
   index: number
   position: number
@@ -344,7 +237,7 @@ type FeedStackProps = {
   coverOpened: boolean
   coverOpening: boolean
   dragX: number
-  articleRef: RefCallback<HTMLElement>
+  articleRef?: RefCallback<HTMLElement>
   onNext: () => void
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
@@ -448,7 +341,7 @@ function FeedEmpty({ onReset }: { onReset: () => void }) {
 }
 
 type FeedStageProps = Omit<FeedStackProps, 'concern'> & {
-  concern: DemoConcern | undefined
+  concern: FeedConcern | undefined
   onReset: () => void
   onTouchStart: (event: TouchEvent) => void
   onTouchMove: (event: TouchEvent) => void
@@ -482,7 +375,28 @@ function FeedStage({
   )
 }
 
-type FilterOption = { value: string; label: string }
+type FeedActionsProps = {
+  showLogin: boolean
+  concern: FeedConcern | undefined
+  canReact: boolean
+  /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
+  coverOpening: boolean
+  filtersOpen: boolean
+  activeFilter: string
+  filter: FeedFilter
+  genderOptions: FeedFilterOption[]
+  regionOptions: FeedFilterOption[]
+  onNext: () => void
+  reactionCount: number
+  reacted: boolean
+  reactionSubmitting: boolean
+  reactionError: string | null
+  isAuthenticated: boolean
+  onShowLogin: () => void
+  onReact: () => Promise<void>
+  onFiltersToggle: (open: boolean) => void
+  onFilterChange: (field: keyof FeedFilter, value: string) => void
+}
 
 function FeedActions({
   showLogin,
@@ -495,30 +409,42 @@ function FeedActions({
   genderOptions,
   regionOptions,
   onNext,
+  reactionCount,
+  reacted,
+  reactionSubmitting,
+  reactionError,
+  isAuthenticated,
+  onShowLogin,
   onReact,
   onFiltersToggle,
   onFilterChange,
-}: {
-  showLogin: boolean
-  concern: DemoConcern | undefined
-  canReact: boolean
-  /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
-  coverOpening: boolean
-  filtersOpen: boolean
-  activeFilter: string
-  filter: Filter
-  genderOptions: FilterOption[]
-  regionOptions: FilterOption[]
-  onNext: () => void
-  onReact: () => boolean
-  onFiltersToggle: (open: boolean) => void
-  onFilterChange: (field: keyof Filter, value: string) => void
-}) {
+}: FeedActionsProps) {
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
       {concern && coverOpening ? (
-        <FeedReaction concern={concern} canReact={canReact} onReact={onReact} />
+        <>
+          <FeedReaction
+            canReact={canReact}
+            reactionCount={reactionCount}
+            reacted={reacted}
+            submitting={reactionSubmitting}
+            onReact={() => {
+              if (!isAuthenticated) {
+                onShowLogin()
+                return false
+              }
+              if (!concern) return false
+              void onReact()
+              return true
+            }}
+          />
+          {reactionError ? (
+            <p className={styles.submitError} role="alert">
+              {reactionError}
+            </p>
+          ) : null}
+        </>
       ) : null}
       {concern && !coverOpening ? (
         <div className={styles.coverOpenSlot}>
@@ -561,238 +487,160 @@ function FeedActions({
   )
 }
 
+type FeedPageViewProps = {
+  showInitialLoading: boolean
+  showInitialError: boolean
+  initialError: string | null
+  stageProps: FeedStageProps
+  actionsProps: FeedActionsProps
+  loadingMore: boolean
+  showPaginationError: boolean
+  paginationError: string | null
+  onRetry: () => Promise<void>
+  reactionAnnouncement: string
+}
+
+function FeedPageView({
+  showInitialLoading,
+  showInitialError,
+  initialError,
+  stageProps,
+  actionsProps,
+  loadingMore,
+  showPaginationError,
+  paginationError,
+  onRetry,
+  reactionAnnouncement,
+}: FeedPageViewProps) {
+  return (
+    <div className={styles.page}>
+      {showInitialLoading ? <LoadingState label="声を読み込んでいます…" /> : null}
+      {showInitialError ? (
+        <ErrorState
+          description={initialError ?? '投稿を読み込めませんでした。'}
+          onRetry={onRetry}
+        />
+      ) : null}
+      {!showInitialLoading && !showInitialError ? <FeedStage {...stageProps} /> : null}
+      <FeedActions {...actionsProps} />
+      {loadingMore ? <LoadingState label="次の声を読み込んでいます…" /> : null}
+      {showPaginationError ? (
+        <ErrorState
+          description={paginationError ?? '次の声を読み込めませんでした。'}
+          onRetry={onRetry}
+        />
+      ) : null}
+      <p className={styles.srOnly} aria-live="polite">
+        {reactionAnnouncement}
+      </p>
+    </div>
+  )
+}
+
 export function FeedPage() {
-  const { concerns: demoConcerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
-  const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
-  const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = reader
-  /** 表紙を開く操作が始まった時点で、ふもとの操作スペースが消える。 */
-  const coverOpening = coverLifting || coverOpened
-
-  const backendMode = isBackendDevMode
-  const apiFeed = useFeed({
-    enabled: backendMode,
+  const [reader, dispatch] = useFeedReaderState()
+  const feed = useFeed({
     sort: 'newest',
-    gender: genderCodeForLabel(filter.gender),
-    regionCode: regionCodeForLabel(filter.region),
+    gender: reader.filter.gender || undefined,
+    regionCode: reader.filter.region || undefined,
   })
-  const apiConcerns = useMemo(
-    () => apiFeed.items.map((item) => toDemoConcern(item)),
-    [apiFeed.items],
-  )
-  const concerns = useMemo(
-    () => (backendMode && apiFeed.status === 'success' ? apiConcerns : demoConcerns),
-    [apiConcerns, apiFeed.status, backendMode, demoConcerns],
-  )
-
-  const genderOptions = [
-    { value: ALL, label: 'すべて' },
-    ...[
-      ...new Set(
-        concerns
-          .map((concern) => concern.gender)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ].map((gender) => ({
-      value: gender,
-      label: gender,
-    })),
-  ]
-  const regionOptions = [
-    { value: ALL, label: 'すべて' },
-    ...[
-      ...new Set(
-        concerns
-          .map((concern) => concern.region)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ].map((region) => ({ value: region, label: region })),
-  ]
-  const filtered = useMemo(
-    () =>
-      concerns.filter(
-        (concern) =>
-          (!filter.gender || concern.gender === filter.gender) &&
-          (!filter.region || concern.region === filter.region),
-      ),
-    [concerns, filter.gender, filter.region],
-  )
-  const total = filtered.length
-  const position = total ? ((index % total) + total) % total : 0
-  const baseConcern = filtered[position]
+  const concerns = feed.items.map(toFeedConcern)
+  const readerView = useFeedReaderNavigation({
+    state: reader,
+    dispatch,
+    concerns,
+    feed,
+  })
+  const {
+    filter,
+    index,
+    coverOpened,
+    showLogin,
+    filtersOpen,
+    turning,
+    coverOpening,
+    position,
+    concern,
+    stackRef,
+    swipe,
+    goNext,
+    onTurningFinished,
+    onReset,
+    onLoginVisibilityChange,
+    onFiltersToggle,
+    onFilterChange,
+  } = readerView
+  const { genderOptions, regionOptions } = buildFeedFilterOptions()
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
   const reaction = useConcernReaction({
-    concernId: baseConcern?.id ?? '',
-    initialReactionCount: baseConcern?.reactionCount ?? 0,
-    initialReacted: baseConcern?.reacted ?? false,
+    concernId: concern?.id ?? '',
+    initialReactionCount: concern?.reactionCount ?? 0,
+    initialReacted: concern?.reacted ?? false,
   })
-  const concern = useMemo(
-    () =>
-      baseConcern && backendMode
-        ? {
-            ...baseConcern,
-            reactionCount: reaction.reactionCount,
-            reacted: reaction.reacted,
-          }
-        : baseConcern,
-    [backendMode, baseConcern, reaction.reacted, reaction.reactionCount],
-  )
-  useConcernViewOnDisplay(
-    backendMode && isLiff && authStatus === 'authenticated' ? baseConcern?.id : undefined,
-  )
-  const articleRef = useDemoViewed(
-    baseConcern?.id,
-    !backendMode && isLiff && authStatus === 'authenticated',
-  )
-  const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
+  useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
+  const activeFilter = activeFeedFilterLabel(filter)
 
-  const { stackRef, rememberStackPosition } = useStackLift(
+  const showInitialLoading =
+    feed.status === 'idle' || (feed.status === 'loading' && concerns.length === 0)
+  const showInitialError = feed.status === 'error' && concerns.length === 0
+
+  const stageProps: FeedStageProps = {
+    concern,
+    stackRef,
+    index,
+    position,
+    turning,
+    coverOpened,
     coverOpening,
-    () => undefined,
-    COVER_LIFT_DURATION_MS,
-  )
-
-  useEffect(() => {
-    if (!coverLifting || prefersReducedMotion()) return
-
-    // feed は表紙の拡大を見せることを優先し、transitionend の早い通知には依存しない。
-    const timer = window.setTimeout(() => {
-      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
-    }, COVER_LIFT_SETTLE_MS)
-    return () => window.clearTimeout(timer)
-  }, [coverLifting])
-
-  const goNext = useCallback(
-    (startAngle = 0) => {
-      // 表紙が残っているうちは、めくる相手は声ではなく表紙。
-      if (!coverOpened) {
-        if (prefersReducedMotion()) {
-          dispatch({ type: 'coverTurned', turning: null })
-          return
-        }
-        // 表紙を閉じた状態からのスワイプも、まず紙束を大きく見せる。
-        // 入口ごとに開始条件を分けると、feed だけ拡大途中でめくれ始めるため、
-        // 表紙の角度は最初のめくりでは使わず、同じ待機経路にそろえる。
-        if (startAngle !== 0) {
-          if (!coverLifting) {
-            rememberStackPosition()
-            dispatch({ type: 'coverLifting' })
-          }
-          return
-        }
-        // ボタンから開くときは、まず紙束を押し上げる。めくるのはそのあと。
-        if (!coverLifting) {
-          rememberStackPosition()
-          dispatch({ type: 'coverLifting' })
-        }
-        return
-      }
-      // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
-      dispatch({
-        type: 'next',
-        turning:
-          concern && !prefersReducedMotion()
-            ? { kind: 'concern', concern, page: position + 1, startAngle, direction: 1 }
-            : null,
-      })
-    },
-    [concern, coverLifting, coverOpened, position, rememberStackPosition],
-  )
-
-  const goPrev = useCallback(() => {
-    // 戻るときは、伏せてあった前の紙を拾い上げ、いま読んでいる紙の上へ降ろす。
-    if (!coverOpened || !total) return
-    const previousPosition = (((position - 1) % total) + total) % total
-    const previous = filtered[previousPosition]
-    dispatch({
-      type: 'previous',
-      turning:
-        previous && !prefersReducedMotion()
-          ? {
-              kind: 'concern',
-              concern: previous,
-              page: previousPosition + 1,
-              startAngle: 0,
-              direction: -1,
-            }
-          : null,
-    })
-  }, [coverOpened, filtered, position, total])
-
-  const swipe = useNotebookSwipe({
-    canGoNext: true,
-    canGoPrevious: coverOpened && total > 0,
+    dragX: swipe.dragX,
+    articleRef: undefined,
     onNext: goNext,
-    onPrevious: goPrev,
-  })
+    onLinkClick: swipe.handleLinkClick,
+    onTurningFinished,
+    onReset,
+    onTouchStart: swipe.handleTouchStart,
+    onTouchMove: swipe.handleTouchMove,
+    onTouchEnd: swipe.handleTouchEnd,
+    onTouchCancel: swipe.handleTouchCancel,
+  }
+  const actionsProps: FeedActionsProps = {
+    showLogin,
+    concern,
+    canReact: isLiff,
+    coverOpening,
+    filtersOpen,
+    activeFilter,
+    filter,
+    genderOptions,
+    regionOptions,
+    onNext: goNext,
+    reactionCount: reaction.reactionCount,
+    reacted: reaction.reacted,
+    reactionSubmitting: reaction.status === 'submitting',
+    reactionError: reaction.error,
+    isAuthenticated: authStatus === 'authenticated',
+    onShowLogin: () => onLoginVisibilityChange(true),
+    onReact: reaction.react,
+    onFiltersToggle,
+    onFilterChange,
+  }
 
   return (
-    <DemoBoundary
-      emptyTitle="まだ声が届いていません"
-      emptyDescription="しばらくしてから、また読みに来てください。"
-    >
-      {backendMode && (apiFeed.status === 'idle' || apiFeed.status === 'loading') ? (
-        <LoadingState label="届いた声を読み込んでいます…" />
-      ) : backendMode && apiFeed.status === 'error' ? (
-        <ErrorState
-          description={apiFeed.error ?? '投稿を読み込めませんでした。'}
-          onRetry={() => void apiFeed.retry()}
-        />
-      ) : (
-        <div className={styles.page}>
-          <FeedStage
-            concern={concern}
-            stackRef={stackRef}
-            index={index}
-            position={position}
-            turning={turning}
-            coverOpened={coverOpened}
-            coverOpening={coverOpening}
-            dragX={swipe.dragX}
-            articleRef={articleRef}
-            onNext={goNext}
-            onLinkClick={swipe.handleLinkClick}
-            onTurningFinished={() => dispatch({ type: 'turningFinished' })}
-            onReset={() => dispatch({ type: 'filtersReset' })}
-            onTouchStart={swipe.handleTouchStart}
-            onTouchMove={swipe.handleTouchMove}
-            onTouchEnd={swipe.handleTouchEnd}
-            onTouchCancel={swipe.handleTouchCancel}
-          />
-          <FeedActions
-            showLogin={showLogin}
-            concern={concern}
-            canReact={isLiff}
-            coverOpening={coverOpening}
-            filtersOpen={filtersOpen}
-            activeFilter={activeFilter}
-            filter={filter}
-            genderOptions={genderOptions}
-            regionOptions={regionOptions}
-            onNext={goNext}
-            onReact={() => {
-              if (authStatus !== 'authenticated') {
-                dispatch({ type: 'loginVisibilityChanged', visible: true })
-                return false
-              }
-              if (!concern) return false
-              if (backendMode) {
-                void reaction.react()
-              } else {
-                reactToDemoConcern(concern.id)
-              }
-              return true
-            }}
-            onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
-            onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
-          />
-
-          <p className={styles.srOnly} aria-live="polite">
-            {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}
-          </p>
-        </div>
-      )}
-    </DemoBoundary>
+    <FeedPageView
+      showInitialLoading={showInitialLoading}
+      showInitialError={showInitialError}
+      initialError={feed.error}
+      stageProps={stageProps}
+      actionsProps={actionsProps}
+      loadingMore={feed.status === 'loadingMore'}
+      showPaginationError={feed.status === 'error' && concerns.length > 0}
+      paginationError={feed.error}
+      onRetry={feed.retry}
+      reactionAnnouncement={
+        reaction.reacted ? `そっと寄りそいました。現在${reaction.reactionCount}件です。` : ''
+      }
+    />
   )
 }
