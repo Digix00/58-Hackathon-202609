@@ -88,7 +88,7 @@ Queueは `max_batch_size=1`、`max_retries=3` で開始し、AI障害時はメ�
 
 Vectorize導入前に `ready` になった投稿は、初回デプロイ後に一度バックフィルする。バックフィルはEmbedding version未登録、または指定したmodel/index versionと異なる投稿を既存のQueueへ再投入し、通常の `ConcernProcessingUseCase` で処理する。表現済みの投稿は既存表現を再利用する。index再作成やEmbedding model変更後にも同じコマンドを実行し、新しいindexへ過去のベクトルを再登録する。
 
-Cloudflare API tokenに `D1 Read`、`D1 Write`、`Queues Read`、`Queues Write` の権限を付与し、次の環境変数を設定する。`CLOUDFLARE_D1_DATABASE_ID` は `wrangler.jsonc` の `database_id`、queueは `58-hackathon-concern-processing` を使う。
+Cloudflare API tokenに `D1 Read`、`D1 Write`、`Queues Read`、`Queues Write` の権限を付与し、次の環境変数を設定する。これはデプロイ済みの本番Workerに対するバックフィルCLIの設定であり、通常の開発環境の起動には不要。`CLOUDFLARE_D1_DATABASE_ID` は `wrangler.jsonc` の `database_id`、queueは `58-hackathon-concern-processing` を使う。
 
 ```bash
 export CLOUDFLARE_API_TOKEN=...
@@ -99,13 +99,7 @@ pnpm --filter backend vectorize:backfill
 pnpm --filter backend vectorize:backfill -- --apply
 ```
 
-`CONCERN_VECTOR_EMBEDDING_VERSION` には `<実際に使うgeneratorのmodelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。本番用Workers AIでは上記のQwen versionを使う。`pnpm --filter backend dev:vectorize` は決定的なローカルEmbeddingを使うため、開発用indexでは次の値を指定する。
-
-```bash
-export CONCERN_VECTOR_EMBEDDING_VERSION='local-deterministic-1024-v1@development-v1'
-```
-
-generatorまたはindex versionを変更した場合も、再処理先Workerが実際に生成するversionと一致させる。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
+`CONCERN_VECTOR_EMBEDDING_VERSION` には、再処理を担当するデプロイ済みWorkerが使う `<modelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。上記は本番用Workers AIの例。バックフィルCLIはCloudflare API経由でremote D1とQueueを使うため、WranglerのローカルQueueを使う `dev:vectorize` の処理には接続できない。開発環境ではこのCLIを使った既存投稿のバックフィルは行わない。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
 
 
 ## 実装前に決める事項
