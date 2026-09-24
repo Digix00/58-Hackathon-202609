@@ -31,6 +31,8 @@ src/
 │       └── check-health.usecase.ts
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
 │   ├── ai/
+│   │   ├── local-text-embedding.generator.ts
+│   │   ├── local-text.translator.ts
 │   │   ├── workers-ai-speech.recognizer.ts
 │   │   ├── workers-ai-text-embedding.generator.ts
 │   │   └── workers-ai-text.translator.ts
@@ -67,6 +69,8 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
 
+Workers AI bindingはローカルシミュレーションが存在せず、`wrangler dev`実行時は常にCloudflareへのリモート接続を試みる。そのため`ai.binding`を持つ設定ファイルで`wrangler dev`を起動するとCloudflareの認証（`wrangler login`）が必須になる。ローカル開発 (`pnpm dev`) は`ai.binding`を含まない`wrangler.dev.jsonc`を使い、`bootstrap/container.ts`が`env.AI`の有無で`LocalTextTranslator`/`LocalTextEmbeddingGenerator`（決定的なダミー結果を返すだけでCloudflareを呼ばない）へ自動的に切り替えるため、認証なしで`pnpm dev`が起動できる。実際のWorkers AIで動作確認したい場合は`wrangler login`後に`pnpm --filter backend exec wrangler dev`（`--config`省略、本番用`wrangler.jsonc`を使用）で起動する。
+
 ## Queue
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
@@ -79,12 +83,19 @@ UseCaseは原文から英語・ひらがなへの変換とEmbeddingを実行し�
 pnpm --filter backend exec wrangler queues create 58-hackathon-concern-processing
 ```
 
-`wrangler dev` から実際に推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する。
+実際のWorkers AIで推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する（前述の通り、`pnpm dev`によるローカル開発では既定でこの呼び出しは発生しない）。
 
 ## セットアップ
 
 ```bash
 pnpm install
+```
+
+`pnpm dev` によるローカル開発だけであればここまでで完了する（`wrangler login`は不要）。
+`wrangler d1 create` でのDB新規作成、`db:migrate:remote`、`deploy`、実際のWorkers AIでの動作確認など、
+Cloudflareアカウントへアクセスする操作を行う場合だけ、追加で以下を行う。
+
+```bash
 wrangler login          # 初回のみ、Cloudflareアカウントとの連携
 wrangler d1 create 58-hackathon-db
 ```
@@ -96,8 +107,12 @@ wrangler d1 create 58-hackathon-db
 
 ```bash
 pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
-pnpm dev                # http://localhost:8787
+pnpm dev                # http://localhost:8787、wrangler.dev.jsonc を使用
 ```
+
+`pnpm dev` は `wrangler.dev.jsonc`（Workers AI bindingを含まない設定）で起動するため、
+Cloudflareへログインしていなくても動く。翻訳・ひらがな変換・Embedding生成は
+`LocalTextTranslator`/`LocalTextEmbeddingGenerator`によるダミー結果になる（[Workers AI](#workers-ai)を参照）。
 
 ## LINE MINI App認証
 
