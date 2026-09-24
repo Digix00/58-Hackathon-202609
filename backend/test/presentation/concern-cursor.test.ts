@@ -9,6 +9,7 @@ import {
 
 const context = {
   sort: "recommended" as const,
+  gender: "female",
   regionCode: "tokyo",
   clusterId: "cluster-filter",
 };

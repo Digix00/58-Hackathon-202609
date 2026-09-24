@@ -142,6 +142,7 @@ async function seedConcern(input: {
   body: string;
   createdAt: string;
   id?: string;
+  gender?: string | null;
   regionCode?: string | null;
   clusterId?: string | null;
   visibilityStatus?: "published" | "hidden" | "deleted";
@@ -167,7 +168,7 @@ async function seedConcern(input: {
       userId,
       body: input.body,
       ageGroup: null,
-      genderCode: null,
+      genderCode: input.gender ?? null,
       regionCode: input.regionCode ?? null,
       clusterId: input.clusterId ?? null,
       visibilityStatus: input.visibilityStatus ?? "published",
@@ -487,6 +488,30 @@ describe("GET /api/v1/concerns", () => {
     expect(body.items.map((item) => item.id)).not.toContain(tokyo);
   });
 
+  it("filters by the exact gender code", async () => {
+    const female = await seedConcern({
+      body: "女性として登録された投稿",
+      gender: "female",
+      createdAt: "9999-01-14T00:00:00.000Z",
+    });
+    const male = await seedConcern({
+      body: "男性として登録された投稿",
+      gender: "male",
+      createdAt: "9999-01-15T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?gender=female",
+      {},
+      env,
+    );
+    const body = await response.json<{ items: Array<{ id: string }> }>();
+
+    expect(response.status).toBe(200);
+    expect(body.items.map((item) => item.id)).toContain(female);
+    expect(body.items.map((item) => item.id)).not.toContain(male);
+  });
+
   it("returns a recommendation reason and cluster for a logged-in feed", async () => {
     const clusterId = await seedCluster({
       label: "昼休み・食堂",
@@ -674,6 +699,7 @@ describe("GET /api/v1/concerns", () => {
     ["limit=0", "INVALID_REQUEST"],
     ["limit=51", "INVALID_REQUEST"],
     ["sort=unknown", "INVALID_REQUEST"],
+    ["gender=unknown", "INVALID_REQUEST"],
     ["regionCode=kanto", "INVALID_REQUEST"],
     ["cursor=invalid", "INVALID_CURSOR"],
   ])("rejects invalid query %s", async (query, code) => {
@@ -779,6 +805,33 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
       .from(concernReactions)
       .where(eq(concernReactions.concernId, concernId));
     expect(rows).toHaveLength(1);
+
+    const feed = await app.request(
+      "/api/v1/concerns?sort=newest&limit=50&regionCode=osaka&gender=no_answer",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const feedBody = await feed.json<{
+      items: Array<{
+        id: string;
+        reactionCount: number;
+        reacted: boolean;
+      }>;
+    }>();
+    expect(feedBody.items.find((item) => item.id === concernId)).toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
+
+    const detail = await app.request(
+      `/api/v1/concerns/${concernId}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    await expect(detail.json()).resolves.toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
   });
 
   it("counts a reaction from a different user separately", async () => {

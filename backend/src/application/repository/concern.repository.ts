@@ -1,4 +1,4 @@
-import type { Concern } from "../entity/concern";
+import type { Concern, Gender } from "../entity/concern";
 import type {
   ConcernFeedCandidate,
   FeedImpression,
@@ -34,6 +34,7 @@ export interface ListPublishedConcernsResult {
 
 export interface ListConcernFeedInput extends ListPublishedConcernsInput {
   regionCode?: string;
+  gender?: Gender;
   clusterId?: string;
   userId?: string;
 }
@@ -46,6 +47,7 @@ export interface ListConcernFeedResult {
 export interface ListConcernFeedByIdsInput {
   ids: string[];
   regionCode?: string;
+  gender?: Gender;
   clusterId?: string;
   userId?: string;
   excludeUserId?: string;

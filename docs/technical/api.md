@@ -368,6 +368,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | cursor | 任意 | — | 次ページの opaque cursor |
 | sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
 | clusterId | 任意 | — | 指定クラスタに絞る |
+| gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかで性別に絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | original | original、jaHira、en |
 
@@ -413,6 +414,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
+- reactionCount は公開中の投稿に登録されたリアクション総数を返し、reacted はログイン済みユーザー自身のリアクション状態を返す
 - sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、都道府県の分散、新しさを使う
 - 未ログインの取得で sort=recommended を指定した場合は 400 AUTHENTICATION_REQUIRED を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す
