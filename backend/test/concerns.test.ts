@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 8012)
-Total output lines: 1051
-
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
@@ -539,7 +536,8 @@ describe("GET /api/v1/concerns", () => {
       clusterId,
       processingStatus: "ready",
       regionCode: "osaka",
-…12 tokens truncated…   });
+      createdAt: "9999-01-12T00:00:00.000Z",
+    });
     const app = createTestApp();
     const cookie = await loginCookie(app);
 
