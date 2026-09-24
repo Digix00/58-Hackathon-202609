@@ -45,13 +45,34 @@ describe("ConcernClusterSummary", () => {
   it.each([
     ["禁止語", "学校での悩み", "周りの人を馬鹿にする内容です。"],
     ["メールアドレス", "学校での悩み", "相談先は user@example.com です。"],
-    ["電話番号", "学校での悩み", "連絡先は 090-1234-5678 です。"],
+    ["電話番号（国内）", "学校での悩み", "連絡先は 090-1234-5678 です。"],
+    ["電話番号（国際）", "学校での悩み", "連絡先は +81 90-1234-5678 です。"],
     ["URL", "学校での悩み", "詳細は https://example.com を見てください。"],
     ["人名", "学校での悩み", "田中さんとの人間関係に関する悩みです。"],
   ])("rejects generated text containing %s", (_name, label, summary) => {
     expect(() => new ConcernClusterSummary({ label, summary })).toThrow();
   });
 });
+
+  it("allows years and prices that are not phone numbers", () => {
+    expect(
+      () =>
+        new ConcernClusterSummary({
+          label: "生活費の悩み",
+          summary: "2026年の物価上昇で、昼食代の1000円を負担に感じています。",
+        }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    "患者さんへの説明に困っています。",
+    "保護者さんとの連絡が難しいです。",
+    "看護師さんに相談しづらいです。",
+  ])("allows generic role references: %s", (summary) => {
+    expect(
+      () => new ConcernClusterSummary({ label: "相談の悩み", summary }),
+    ).not.toThrow();
+  });
 
 describe("ConcernClusterSummaryInput", () => {
   it("trims and bounds concern text sent to the model", () => {
