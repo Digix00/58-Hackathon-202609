@@ -1,7 +1,7 @@
 import {
   ConcernClusterSummary,
-  ConcernClusterValidationError,
   type ConcernClusterSummaryInput,
+  ConcernClusterValidationError,
 } from "../../application/entity/concern-cluster";
 import type { ConcernClusterSummaryGenerator } from "../../application/port/concern-cluster-summary-generator";
 
