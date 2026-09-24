@@ -1,8 +1,10 @@
 import { CONCERN_BODY_MAX_LENGTH } from "../entity/concern";
+import { ConcernCluster } from "../entity/concern-cluster";
 import {
   ConcernProcessing,
   ConcernRepresentation,
 } from "../entity/concern-processing";
+import type { ConcernClusterSummaryGenerator } from "../port/concern-cluster-summary-generator";
 import {
   CONCERN_PROCESSING_MESSAGE_TYPE,
   type ConcernProcessingMessage,
@@ -10,6 +12,7 @@ import {
 import type { ConcernVectorIndex } from "../port/concern-vector-index";
 import type { TextEmbeddingGenerator } from "../port/text-embedding-generator";
 import type { TextTranslator } from "../port/text-translator";
+import type { ConcernClusterSummaryRepository } from "../repository/concern-cluster-summary.repository";
 import type { ConcernProcessingRepository } from "../repository/concern-processing.repository";
 
 export const DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD = 0.8;
@@ -46,6 +49,8 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
   private readonly embeddingGenerator: TextEmbeddingGenerator;
   private readonly repository?: ConcernProcessingRepository;
   private readonly vectorIndex?: ConcernVectorIndex;
+  private readonly clusterSummaryRepository?: ConcernClusterSummaryRepository;
+  private readonly clusterSummaryGenerator?: ConcernClusterSummaryGenerator;
   private readonly similarityThreshold: number;
   private readonly vectorIndexVersion: string;
   private readonly now: () => Date;
@@ -56,10 +61,19 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
     repository?: ConcernProcessingRepository,
     vectorIndex?: ConcernVectorIndex,
     options: ConcernProcessingUseCaseOptions = {},
+    clusterSummaryRepository?: ConcernClusterSummaryRepository,
+    clusterSummaryGenerator?: ConcernClusterSummaryGenerator,
   ) {
     if (vectorIndex && !repository) {
       throw new TypeError(
         "Vectorize index requires a concern processing repository",
+      );
+    }
+    if (
+      Boolean(clusterSummaryRepository) !== Boolean(clusterSummaryGenerator)
+    ) {
+      throw new TypeError(
+        "cluster summary repository and generator must be provided together",
       );
     }
 
@@ -78,6 +92,8 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
     this.embeddingGenerator = embeddingGenerator;
     this.repository = repository;
     this.vectorIndex = vectorIndex;
+    this.clusterSummaryRepository = clusterSummaryRepository;
+    this.clusterSummaryGenerator = clusterSummaryGenerator;
     this.similarityThreshold = similarityThreshold;
     this.vectorIndexVersion = options.vectorIndexVersion?.trim() || "default";
     this.now = options.now ?? (() => new Date());
@@ -200,6 +216,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             clusterId,
             embedding,
           });
+          await this.generatePendingClusterSummary(clusterId);
         }
 
         await repository.saveResult(
@@ -236,6 +253,32 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
   private nowIso(): string {
     return this.now().toISOString();
+  }
+
+  private async generatePendingClusterSummary(
+    clusterId: string,
+  ): Promise<void> {
+    const repository = this.clusterSummaryRepository;
+    const generator = this.clusterSummaryGenerator;
+    if (!repository || !generator) {
+      return;
+    }
+
+    const input = await repository.findPendingSummaryInput(clusterId);
+    if (!input) {
+      return;
+    }
+
+    const summary = await generator.generate(input);
+    await repository.saveSummary(
+      new ConcernCluster({
+        id: clusterId,
+        label: summary.label,
+        summary: summary.summary,
+        status: "ready",
+        updatedAt: this.nowIso(),
+      }),
+    );
   }
 
   /**

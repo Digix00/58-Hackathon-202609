@@ -66,7 +66,9 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
 
-Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、Embeddingは1024次元の `@cf/qwen/qwen3-embedding-0.6b` を使う。PLaMo-Embedding-1Bは2048次元のためVectorizeの上限に収まらない。各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。処理結果の表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。Vectorizeにはローカルシミュレーターがないため開発用・本番用に別のindexを作成する。通常の `pnpm dev` はWorkers AIとVectorizeのremote bindingを使わず、Cloudflare認証なしでローカルアダプタを動かす。Vectorize連携の開発確認には `pnpm --filter backend dev:vectorize` を使い、開発用remote indexだけに接続する。
+Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、クラスタ表示文用の `ConcernClusterSummaryGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの英訳・ひらがな変換・クラスタ要約は `@cf/meta/llama-3.1-8b-instruct-fp8` を使い、Embeddingは1024次元の `@cf/qwen/qwen3-embedding-0.6b` を使う。PLaMo-Embedding-1Bは2048次元のためVectorizeの上限に収まらない。各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。処理結果の表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。Vectorizeにはローカルシミュレーターがないため開発用・本番用に別のindexを作成する。通常の `pnpm dev` はWorkers AIとVectorizeのremote bindingを使わず、Cloudflare認証なしでローカルアダプタを動かす。Vectorize連携の開発確認には `pnpm --filter backend dev:vectorize` を使い、開発用remote indexだけに接続する。
+
+新しく作られたpending clusterだけ、最大10件の公開済み悩みを入力してlabel（100文字以内）とsummary（500文字以内）を一度生成する。禁止語、メールアドレス、電話番号、URL、人名らしい表記を検査し、無効な結果は保存しない。検出パターンは既知の形式に限られるため、生成プロンプトでも個人を特定できる情報を出さないよう指示する。クラスタ生成は投稿ごとのEmbedding処理に続けて実行されるため、生成失敗時はQueue再試行となり、公開済み原文は保持される。既存クラスタに投稿が追加されたときの再生成は次の処理で実装する。
 
 Cloudflareアカウントに以下のindexを事前に作成する。dimensionsはEmbedding modelの出力次元に合わせ、metricは `cosine` とする。初回のみ、開発・本番のCloudflareアカウントで個別に実行する。
 

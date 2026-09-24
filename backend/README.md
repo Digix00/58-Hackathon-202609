@@ -13,14 +13,17 @@ src/
 ├── application/                 # UseCase、Port、Application model
 │   ├── entity/                  # Application Entity
 │   │   ├── health-status.entity.ts
+│   │   ├── concern-cluster.ts
 │   │   ├── session.ts
 │   │   └── user.ts
 │   ├── repository/              # 永続化処理のPort
 │   │   ├── auth.repository.ts
+│   │   ├── concern-cluster-summary.repository.ts
 │   │   ├── concern-processing.repository.ts
 │   │   └── health.repository.ts
 │   ├── port/                    # 外部サービスのPort
 │   │   ├── concern-processing-queue.ts
+│   │   ├── concern-cluster-summary-generator.ts
 │   │   ├── concern-vector-index.ts
 │   │   ├── line-token-verifier.ts
 │   │   ├── speech-recognizer.ts
@@ -33,13 +36,16 @@ src/
 │       └── check-health.usecase.ts
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
 │   ├── ai/
+│   │   ├── local-concern-cluster-summary.generator.ts
 │   │   ├── local-text-embedding.generator.ts
 │   │   ├── local-text.translator.ts
 │   │   ├── workers-ai-speech.recognizer.ts
+│   │   ├── workers-ai-concern-cluster-summary.generator.ts
 │   │   ├── workers-ai-text-embedding.generator.ts
 │   │   └── workers-ai-text.translator.ts
 │   ├── database/
 │   │   ├── d1-auth.repository.ts
+│   │   ├── d1-concern-cluster-summary.repository.ts
 │   │   ├── d1-concern-processing.repository.ts
 │   │   ├── d1-health.repository.ts
 │   │   └── schema.ts
@@ -79,9 +85,9 @@ Workers AI bindingはローカルシミュレーションが存在せず、`wran
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
 
-Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。ラベル・要約の生成は後続処理であり、この段階ではnullを許容する。
+Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。新規のpending clusterには、最大10件の公開済み悩みからlabelとsummaryを生成してD1へ保存する。生成済みクラスタへ投稿が追加された後の再生成は後続PRで扱う。
 
-Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。投稿ごとのEmbedding model/index versionをD1へ記録し、バージョンが変わった投稿はQueue再処理でVectorizeへ再登録する。処理が失敗した投稿は未分類として表示し、投稿原文は保持する。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
+生成結果は長さ、禁止語、連絡先・URL・人名のパターンを検査してから表示用列へ保存する。モデル出力が不正、または検査に失敗した場合はQueueを再試行し、投稿本文は保持する。Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。投稿ごとのEmbedding model/index versionをD1へ記録し、バージョンが変わった投稿はQueue再処理でVectorizeへ再登録する。処理が失敗した投稿はクラスタを表示せず原文で閲覧できる。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
 
 初回だけQueueを作成する。
 

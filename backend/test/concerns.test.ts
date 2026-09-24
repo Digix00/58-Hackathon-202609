@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 8012)
+Total output lines: 1051
+
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
@@ -186,18 +189,23 @@ async function seedCluster(input: {
   id?: string;
   label?: string;
   summary?: string;
+  status?: "pending" | "ready";
 }): Promise<string> {
   const id = input.id ?? `cluster-${crypto.randomUUID()}`;
   const timestamp = new Date().toISOString();
+  const status = input.status ?? "ready";
+  const label = input.label ?? (status === "ready" ? "食事のテーマ" : null);
+  const summary =
+    input.summary ?? (status === "ready" ? "食事や休憩に関する悩み" : null);
   await drizzle(env.DB)
     .insert(concernClusters)
     .values({
       id,
-      legacyLabel: input.label ?? "食事のテーマ",
-      legacySummary: input.summary ?? "食事や休憩に関する悩み",
-      label: input.label ?? "食事のテーマ",
-      summary: input.summary ?? "食事や休憩に関する悩み",
-      status: "ready",
+      legacyLabel: label ?? "__pending__",
+      legacySummary: summary ?? "__pending__",
+      label,
+      summary,
+      status,
       modelVersion: "test",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -531,8 +539,7 @@ describe("GET /api/v1/concerns", () => {
       clusterId,
       processingStatus: "ready",
       regionCode: "osaka",
-      createdAt: "9999-01-12T00:00:00.000Z",
-    });
+…12 tokens truncated…   });
     const app = createTestApp();
     const cookie = await loginCookie(app);
 
@@ -562,6 +569,25 @@ describe("GET /api/v1/concerns", () => {
         reasonCode: "unread_cluster",
       },
     });
+  });
+
+  it("hides a cluster until its label and summary are ready", async () => {
+    const clusterId = await seedCluster({ status: "pending" });
+    const concernId = await seedConcern({
+      body: "要約生成中の投稿",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: "9999-01-13T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request("/api/v1/concerns", {}, env);
+    const body = await response.json<{
+      items: Array<{ id: string; cluster: unknown }>;
+    }>();
+    const item = body.items.find((value) => value.id === concernId);
+
+    expect(response.status).toBe(200);
+    expect(item?.cluster).toBeNull();
   });
 
   it("excludes the logged-in user's own post from the recommended feed", async () => {

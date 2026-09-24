@@ -9,8 +9,10 @@ import {
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
+import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
 import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
 import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
+import { WorkersAiConcernClusterSummaryGenerator } from "../infrastructure/ai/workers-ai-concern-cluster-summary.generator";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -18,6 +20,7 @@ import {
   D1UserRepository,
 } from "../infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
+import { D1ConcernClusterSummaryRepository } from "../infrastructure/database/d1-concern-cluster-summary.repository";
 import { D1ConcernProcessingRepository } from "../infrastructure/database/d1-concern-processing.repository";
 import { D1ConcernReactionRepository } from "../infrastructure/database/d1-concern-reaction.repository";
 import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
@@ -57,6 +60,9 @@ export function createApplication(bindings: Bindings) {
   const concernProcessingRepository = new D1ConcernProcessingRepository(
     bindings.DB,
   );
+  const concernClusterSummaryRepository = new D1ConcernClusterSummaryRepository(
+    bindings.DB,
+  );
   // AI binding はローカルの `wrangler.dev.jsonc` には存在しない。
   // その場合はCloudflareを呼ばないローカル用アダプタへ切り替える。
   const concernTextTranslator = bindings.AI
@@ -65,6 +71,9 @@ export function createApplication(bindings: Bindings) {
   const concernTextEmbeddingGenerator = bindings.AI
     ? new WorkersAiTextEmbeddingGenerator(bindings.AI)
     : new LocalTextEmbeddingGenerator();
+  const concernClusterSummaryGenerator = bindings.AI
+    ? new WorkersAiConcernClusterSummaryGenerator(bindings.AI)
+    : new LocalConcernClusterSummaryGenerator();
   const concernVectorIndex = bindings.CONCERN_VECTOR_INDEX
     ? new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX)
     : undefined;
@@ -80,6 +89,8 @@ export function createApplication(bindings: Bindings) {
     concernProcessingRepository,
     concernVectorIndex,
     concernProcessingOptions,
+    concernClusterSummaryRepository,
+    concernClusterSummaryGenerator,
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,

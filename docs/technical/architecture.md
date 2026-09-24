@@ -53,7 +53,8 @@ flowchart LR
 - Vectorizeは投稿処理内部の近傍照合にだけ使う。公開の任意文検索APIやRAGはこの段階では提供しない。Vectorize metadataにはcluster IDだけを保存し、本文や属性は保存しない。Embeddingの次元とindex設定はモデルに合わせ、モデルを変更する場合はindexを再構築する。
 - 近傍照合はcosine metricで上位10件を取得し、scoreが既定値0.8以上の候補のうち最も高いものへ割り当てる。閾値は本番ではGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD`、ローカル開発では`wrangler.dev.jsonc`で設定する。新しいベクトルが検索可能になるまで遅延するため、短時間に連続投稿された悩みが初回処理時に同じクラスタへまとまらない場合がある（[Vectorize changelog](https://developers.cloudflare.com/changelog/product/vectorize/)）。
 - D1には投稿ごとにモデル名とindex versionを組み合わせたEmbedding versionを記録する。Queue再処理時に現在のversionと一致しない投稿は既存のひらがな・英語表現を再利用して再Embeddingし、対象Vectorize indexへ再upsertする。indexを再作成したときは環境固有の`CONCERN_VECTOR_INDEX_VERSION`を更新する。
-- クラスタ表示ラベル・要約の生成はこの基盤の範囲外とし、未生成の間はlabelとsummaryをnullにできる。失敗時はクラスタ割当をフィードに出さず、原文で閲覧を続ける。
+- 新規のpending clusterは最大10件の公開済み悩みを使ってlabelとsummaryを生成し、検証後にD1へ保存する。生成前はlabelとsummaryをnullにできる。生成に失敗した場合はQueueを再試行し、投稿の原文で閲覧を続ける。
+- 生成済みclusterへ悩みが追加された後のlabel・summary再生成は後続処理で扱う。現在の処理はpending clusterだけを生成し、既存表示を上書きしない。
 - `wrangler dev` はローカルD1・Queueと開発用remote Vectorize indexを使う。Vectorizeにはローカルシミュレーターがないため、開発・本番のindexを別々に作成する。
 - `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
 - 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
