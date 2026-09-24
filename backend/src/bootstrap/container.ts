@@ -6,6 +6,8 @@ import { ConcernProcessingUseCase } from "../application/usecase/concern-process
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
+import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
+import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -47,9 +49,15 @@ export function createApplication(bindings: Bindings) {
   const healthHandler = new HealthHandler(checkHealth);
 
   const concernRepository = new D1ConcernRepository(bindings.DB);
+  // AI binding はローカルの `wrangler dev` (wrangler.dev.jsonc) には存在しない。
+  // その場合はCloudflareへの認証なしで動かせるローカル用アダプタへ切り替える。
   const concernProcessingUseCase = new ConcernProcessingUseCase(
-    new WorkersAiTextTranslator(bindings.AI),
-    new WorkersAiTextEmbeddingGenerator(bindings.AI),
+    bindings.AI
+      ? new WorkersAiTextTranslator(bindings.AI)
+      : new LocalTextTranslator(),
+    bindings.AI
+      ? new WorkersAiTextEmbeddingGenerator(bindings.AI)
+      : new LocalTextEmbeddingGenerator(),
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,
