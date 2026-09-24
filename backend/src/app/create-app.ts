@@ -58,6 +58,7 @@ export function createApp({
     .use("/api/v1/*", createAuthMiddleware(authUseCase))
     .get("/health", ...healthHandler.get)
     .post("/api/v1/auth/line", ...authHandler.line)
+    .post("/api/v1/auth/dev", ...authHandler.dev)
     .get("/api/v1/auth/session", ...authHandler.session)
     .post("/api/v1/auth/logout", ...authHandler.logout)
     .put("/api/v1/users/me", ...userHandler.updateProfile)

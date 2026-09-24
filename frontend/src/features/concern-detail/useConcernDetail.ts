@@ -10,6 +10,11 @@ export interface UseConcernDetailResult {
   retry: () => Promise<void>
 }
 
+export interface UseConcernDetailOptions {
+  enabled?: boolean
+  trackView?: boolean
+}
+
 type ConcernDetailState = {
   status: ConcernDetailStatus
   concern: ConcernDetail | null
@@ -50,17 +55,24 @@ function concernDetailReducer(
  * Composition: 詳細画面のContainerから表示用状態として利用する。
  * Test notes: IDなし、成功、失敗、ID変更中の古いレスポンスを確認する。
  */
-export function useConcernDetail(id: string | undefined): UseConcernDetailResult {
+export function useConcernDetail(
+  id: string | undefined,
+  options: UseConcernDetailOptions = {},
+): UseConcernDetailResult {
+  const enabled = options.enabled ?? true
+  const trackView = options.trackView ?? true
   const [state, dispatch] = useReducer(concernDetailReducer, initialConcernDetailState)
   const requestVersion = useRef(0)
 
   useConcernViewOnDisplay(
-    state.status === 'success' && state.concern && state.concern.id === id
+    enabled && trackView && state.status === 'success' && state.concern && state.concern.id === id
       ? state.concern.id
       : undefined,
   )
 
   const load = useCallback(async (): Promise<void> => {
+    if (!enabled) return
+
     const version = ++requestVersion.current
     if (!id) {
       dispatch({ type: 'loadFailed', message: '投稿が指定されていません' })
@@ -77,9 +89,11 @@ export function useConcernDetail(id: string | undefined): UseConcernDetailResult
     }
 
     dispatch({ type: 'loadSucceeded', concern: result.data })
-  }, [id])
+  }, [enabled, id])
 
   useEffect(() => {
+    if (!enabled) return
+
     let active = true
     void Promise.resolve().then(() => {
       if (!active) return
@@ -89,7 +103,7 @@ export function useConcernDetail(id: string | undefined): UseConcernDetailResult
       requestVersion.current += 1
       active = false
     }
-  }, [load])
+  }, [enabled, load])
 
   return { status: state.status, concern: state.concern, error: state.error, retry: load }
 }

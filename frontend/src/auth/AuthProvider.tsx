@@ -1,7 +1,11 @@
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
-import { apiClient } from '../lib/api'
+import { apiClient, readApiError } from '../lib/api'
 import { getLineIdToken, initializeLiff, isLineLoggedIn, logoutLine, startLineLogin } from './liff'
 import { AuthContext, type AuthResponse, type AuthStatus } from './auth-context'
+
+const devAuthMode = import.meta.env.DEV ? import.meta.env.VITE_DEV_AUTH_MODE : undefined
+const useDevBackendSession = devAuthMode === 'backend'
+const devUserKey = import.meta.env.VITE_DEV_USER ?? 'demo-a'
 
 type AuthState = {
   status: AuthStatus
@@ -79,6 +83,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [applySession],
   )
 
+  const loginWithDevUser = useCallback(async (): Promise<void> => {
+    const response = await apiClient.api.v1.auth.dev.$post({
+      json: { userKey: devUserKey },
+    })
+    if (!response.ok) {
+      const error = await readApiError(response)
+      throw new Error(error?.message ?? '開発用ログインに失敗しました')
+    }
+    applySession(await response.json())
+  }, [applySession])
+
   const refresh = useCallback(async (): Promise<void> => {
     if (bootPromise.current) {
       return bootPromise.current
@@ -88,6 +103,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       dispatch({ type: 'refreshStarted' })
 
       try {
+        if (useDevBackendSession) {
+          await loginWithDevUser()
+          return
+        }
+
         const session = await requestSession()
         if (session.authenticated) {
           applySession(session)
@@ -113,12 +133,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     bootPromise.current = task
     return task
-  }, [applySession, loginWithIdToken, requestSession])
+  }, [applySession, loginWithDevUser, loginWithIdToken, requestSession])
 
   const login = useCallback(async (): Promise<void> => {
     dispatch({ type: 'errorCleared' })
 
     try {
+      if (useDevBackendSession) {
+        dispatch({ type: 'loginStarted' })
+        await loginWithDevUser()
+        return
+      }
+
       const liffInitialized = await initializeLiff()
       if (!liffInitialized) {
         throw new Error('VITE_LINE_LIFF_IDが設定されていません')
@@ -139,7 +165,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } catch (cause) {
       dispatch({ type: 'sessionFailed', message: toErrorMessage(cause) })
     }
-  }, [loginWithIdToken])
+  }, [loginWithDevUser, loginWithIdToken])
 
   const logout = useCallback(async (): Promise<void> => {
     dispatch({ type: 'errorCleared' })

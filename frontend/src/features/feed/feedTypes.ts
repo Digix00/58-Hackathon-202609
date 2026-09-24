@@ -20,7 +20,7 @@ export interface FeedQuery {
   limit?: number
   cursor?: string
   sort?: FeedSort
+  gender?: Gender
   regionCode?: RegionCode
   clusterId?: string
-  gender?: Gender
 }

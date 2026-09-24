@@ -157,6 +157,20 @@ AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
 LIFFアプリには`openid`スコープを設定する。プロフィール情報が必要になった場合でも、認証の根拠として
 フロントエンドからuserIdやプロフィール情報を送信せず、LINEから検証されたトークンを基準に扱う。
 
+### ローカル開発用認証
+
+`wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では `DEV_AUTH_ENABLED=true` が設定され、
+`POST /api/v1/auth/dev` で `demo-a`、`demo-b`、`demo-c` の開発ユーザーへログインできる。
+このエンドポイントは固定キーをサーバー側で開発用IDへ変換し、LINEログインと同じHttpOnly Cookieセッションを発行する。
+本番用 `wrangler.jsonc` にはこの変数がないため、開発用認証は404となる。
+
+`make dev` ではローカルD1へのマイグレーション後に、開発用ユーザー、サンプル投稿、当日クイズを投入する。
+個別に投入する場合は次を実行する。
+
+```bash
+pnpm --filter backend db:seed:local
+```
+
 ## CORS
 
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
