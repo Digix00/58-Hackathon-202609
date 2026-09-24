@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "58-hackathon-backend",
+  "name": "58-hackathon-backend-vectorize-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -10,17 +10,16 @@
   "secrets": {
     "required": ["LINE_CHANNEL_ID"]
   },
-  "ai": {
-    "binding": "AI"
-  },
   "vectorize": [
     {
       "binding": "CONCERN_VECTOR_INDEX",
-      "index_name": "58-hackathon-concern-vectors"
+      "index_name": "58-hackathon-concern-vectors-dev",
+      "remote": true
     }
   ],
   "vars": {
-    "CONCERN_VECTOR_INDEX_VERSION": "production-v1"
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
+    "CONCERN_VECTOR_INDEX_VERSION": "development-v1"
   },
   "queues": {
     "producers": [

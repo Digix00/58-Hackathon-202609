@@ -325,7 +325,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 3. concerns を visibilityStatus=published で保存する
 4. ja_hira、en_translation、clustering の非同期ジョブを登録する
 5. 投稿 ID と保存時点の状態を返す
-6. 各非同期処理の完了後に processingStatus と派生データを更新する
+6. Queue consumerがひらがな・英語表現とEmbeddingを生成し、Vectorizeで近傍照合する。D1へ表現とcluster IDを保存し、VectorizeへEmbeddingをupsertした後に processingStatus を更新する
 
 #### Response: 201 Created
 
@@ -352,6 +352,11 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - PoCで受け付けた新規投稿は visibilityStatus=published、processingStatus=pending で返す
 - 投稿本文の翻訳・ひらがな化・クラスタリングが未完了でも、published の原文投稿は一般フィードへ返す
+- Vectorizeは投稿処理内のクラスタリングに限って使い、利用者が任意の文章を送る検索APIやRAGは提供しない
+- 近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
+- Vectorizeへのupsertは検索可能になるまで遅延することがあり、短時間に連続した投稿を最初の処理で同じclusterへ割り当てられない場合がある
+- 近傍検索の設定はEmbedding modelとVectorize indexの組に固定する
+- クラスタの表示ラベルと要約を生成する処理は後続のため、生成前はcluster.label、cluster.summaryがnullの場合がある
 - hidden または deleted の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
@@ -392,8 +397,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       },
       "cluster": {
         "id": "cluster_01J...",
-        "label": "昼休み・食堂",
-        "summary": "昼休み中の食事や休憩に関する悩み"
+        "label": null,
+        "summary": null
       },
       "reactionCount": 12,
       "viewed": false,
@@ -955,22 +960,19 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
-PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。生成したひらがな・英語表現は concern_representations へ保存する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルは、後続の実装で追加する。
-
-現時点で実装済みのジョブは次の2つのみ。
+PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。生成したひらがな・英語表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。個別ジョブ単位の状態を持つ `concern_processing_jobs` テーブルはこの段階では追加しない。
 
 - ja_hira
 - en_translation
+- Embedding生成とクラスタ割当
 
-clustering（意味クラスタへの割当）は別機能として後続で追加する予定で、追加するまでは processingStatus の判定対象に含めない。
-
-API が返す concerns.processingStatus は、現時点で実装済みの処理（ja_hira、en_translation）の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。clustering などのジョブを追加する際は、ready の判定条件とこの節を合わせて更新する。
+API が返す concerns.processingStatus は、表現生成・保存とEmbedding生成・クラスタ割当の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。クラスタの表示ラベル・要約は後続処理のため、処理完了後もnullの場合がある。
 
 | processingStatus | 意味 |
 | --- | --- |
 | pending | ジョブ登録済みで未開始 |
 | processing | いずれかのジョブを実行中 |
-| ready | ひらがな・英語表現の生成と保存が完了 |
+| ready | 表現の保存とEmbeddingの近傍照合・クラスタ割当が完了。クラスタの表示ラベル・要約は後続処理のためnullの場合がある |
 | failed | 一部失敗。ただし原文は利用可能 |
 
 失敗時の共通ルール:

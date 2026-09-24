@@ -2,11 +2,16 @@ import { createApp } from "../app/create-app";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
-import { ConcernProcessingUseCase } from "../application/usecase/concern-processing.usecase";
+import {
+  ConcernProcessingUseCase,
+  DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
+} from "../application/usecase/concern-processing.usecase";
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
+import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
+import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -22,6 +27,7 @@ import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository"
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
+import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
 import { AuthHandler } from "../presentation/auth.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
@@ -51,10 +57,32 @@ export function createApplication(bindings: Bindings) {
   const healthHandler = new HealthHandler(checkHealth);
 
   const concernRepository = new D1ConcernRepository(bindings.DB);
+  const concernProcessingRepository = new D1ConcernProcessingRepository(
+    bindings.DB,
+  );
+  // AI binding はローカルの `wrangler.dev.jsonc` には存在しない。
+  // その場合はCloudflareを呼ばないローカル用アダプタへ切り替える。
+  const concernTextTranslator = bindings.AI
+    ? new WorkersAiTextTranslator(bindings.AI)
+    : new LocalTextTranslator();
+  const concernTextEmbeddingGenerator = bindings.AI
+    ? new WorkersAiTextEmbeddingGenerator(bindings.AI)
+    : new LocalTextEmbeddingGenerator();
+  const concernVectorIndex = bindings.CONCERN_VECTOR_INDEX
+    ? new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX)
+    : undefined;
+  const concernProcessingOptions = {
+    similarityThreshold: parseSimilarityThreshold(
+      bindings.CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
+    ),
+    vectorIndexVersion: bindings.CONCERN_VECTOR_INDEX_VERSION,
+  };
   const concernProcessingUseCase = new ConcernProcessingUseCase(
-    new WorkersAiTextTranslator(bindings.AI),
-    new WorkersAiTextEmbeddingGenerator(bindings.AI),
-    new D1ConcernProcessingRepository(bindings.DB),
+    concernTextTranslator,
+    concernTextEmbeddingGenerator,
+    concernProcessingRepository,
+    concernVectorIndex,
+    concernProcessingOptions,
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,
@@ -110,4 +138,18 @@ function parseSessionTtl(value: string | undefined): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseSimilarityThreshold(value: string | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new TypeError(
+      "CONCERN_CLUSTER_SIMILARITY_THRESHOLD must be between 0 and 1",
+    );
+  }
+  return parsed;
 }

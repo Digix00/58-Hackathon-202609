@@ -1,6 +1,7 @@
 import type { TextEmbeddingGenerator } from "../../application/port/text-embedding-generator";
 
-const PLAMO_EMBEDDING_MODEL = "@cf/pfnet/plamo-embedding-1b";
+const QWEN3_EMBEDDING_MODEL = "@cf/qwen/qwen3-embedding-0.6b";
+const QWEN3_EMBEDDING_DIMENSIONS = 1024;
 
 type WorkersAiBinding = Pick<Ai, "run">;
 
@@ -16,8 +17,9 @@ export class InvalidWorkersAiEmbeddingResponseError extends Error {
   }
 }
 
-/** Adapts the Japanese PLaMo model to the application embedding port. */
+/** Adapts Qwen3 Embedding to the application embedding port. */
 export class WorkersAiTextEmbeddingGenerator implements TextEmbeddingGenerator {
+  readonly modelVersion = QWEN3_EMBEDDING_MODEL;
   private readonly ai: WorkersAiBinding;
 
   constructor(ai: WorkersAiBinding) {
@@ -31,11 +33,13 @@ export class WorkersAiTextEmbeddingGenerator implements TextEmbeddingGenerator {
       return [];
     }
 
-    const response: unknown = await this.ai.run(PLAMO_EMBEDDING_MODEL, {
+    const response: unknown = await this.ai.run(QWEN3_EMBEDDING_MODEL, {
       text: [...texts],
     });
 
-    if (!isEmbeddingResponse(response, texts.length)) {
+    if (
+      !isEmbeddingResponse(response, texts.length, QWEN3_EMBEDDING_DIMENSIONS)
+    ) {
       throw new InvalidWorkersAiEmbeddingResponseError();
     }
 
@@ -46,6 +50,7 @@ export class WorkersAiTextEmbeddingGenerator implements TextEmbeddingGenerator {
 function isEmbeddingResponse(
   value: unknown,
   expectedCount: number,
+  expectedDimensions: number,
 ): value is EmbeddingResponse {
   if (
     typeof value !== "object" ||
@@ -65,7 +70,7 @@ function isEmbeddingResponse(
     value.data.length !== expectedCount ||
     typeof dimensions !== "number" ||
     !Number.isInteger(dimensions) ||
-    dimensions <= 0
+    dimensions !== expectedDimensions
   ) {
     return false;
   }

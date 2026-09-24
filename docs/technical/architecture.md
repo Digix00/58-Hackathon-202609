@@ -21,7 +21,9 @@ flowchart LR
   Worker --> D1["D1"]
   Worker --> Queue["Cloudflare Queue"]
   Queue --> Consumer["Worker queue handler"]
-  Consumer --> AI["AI処理"]
+  Consumer --> AI["Workers AI"]
+  Consumer <--> Vectorize["Cloudflare Vectorize"]
+  Consumer --> D1
   Worker --> Output["Web LINE"]
 ```
 
@@ -45,9 +47,14 @@ flowchart LR
 
 - `backend/wrangler.jsonc` の AI binding `AI` を Worker の `env.AI` として利用する。API キーは設定しない。
 - Application 層は `TextTranslator`、`TextEmbeddingGenerator`、`SpeechRecognizer` Portに依存し、Infrastructure層のWorkers AI Adapterが `env.AI.run(model, input)`を呼び出す。
-- 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は多言語の `@cf/openai/whisper`、Embeddingは `@cf/pfnet/plamo-embedding-1b` を使う。
-- 日本語の意味検索・クラスタリング向けEmbeddingモデルとして `@cf/pfnet/plamo-embedding-1b` を使う。複数テキストを一度に渡し、入力順に対応する数値ベクトルを受け取る。
-- AdapterはDIでApplication層や後続の非同期処理へ注入できる。投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。生成したひらがな・英語表現は `concern_representations` へ保存し、再配信時は保存済みの表現を確認して重複処理を避ける。
+- 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は多言語の `@cf/openai/whisper` を使う。
+- Embeddingは `@cf/qwen/qwen3-embedding-0.6b` を使い、複数テキストを入力順にベクトル化する。当初候補の `@cf/pfnet/plamo-embedding-1b` は2048次元で、Vectorizeの最大1536次元を超えるため採用しない。Qwen3の1024次元出力に合わせてVectorize indexを作成する（[PLaMo model card](https://huggingface.co/pfnet/plamo-embedding-1b/blob/main/README_ja.md)、[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Qwen3 model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)）。Qwen3 Embeddingは100以上の言語に対応する。
+- 投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。ひらがな・英語表現とクラスタ割当はD1に保存し、EmbeddingはVectorizeに保存する。D1の `concerns.cluster_id` を正とし、Queue再試行でも既存の割当を使う。
+- Vectorizeは投稿処理内部の近傍照合にだけ使う。公開の任意文検索APIやRAGはこの段階では提供しない。Vectorize metadataにはcluster IDだけを保存し、本文や属性は保存しない。Embeddingの次元とindex設定はモデルに合わせ、モデルを変更する場合はindexを再構築する。
+- 近傍照合はcosine metricで上位10件を取得し、scoreが既定値0.8以上の候補のうち最も高いものへ割り当てる。閾値は本番ではGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD`、ローカル開発では`wrangler.dev.jsonc`で設定する。新しいベクトルが検索可能になるまで遅延するため、短時間に連続投稿された悩みが初回処理時に同じクラスタへまとまらない場合がある（[Vectorize changelog](https://developers.cloudflare.com/changelog/product/vectorize/)）。
+- D1には投稿ごとにモデル名とindex versionを組み合わせたEmbedding versionを記録する。Queue再処理時に現在のversionと一致しない投稿は既存のひらがな・英語表現を再利用して再Embeddingし、対象Vectorize indexへ再upsertする。indexを再作成したときは環境固有の`CONCERN_VECTOR_INDEX_VERSION`を更新する。
+- クラスタ表示ラベル・要約の生成はこの基盤の範囲外とし、未生成の間はlabelとsummaryをnullにできる。失敗時はクラスタ割当をフィードに出さず、原文で閲覧を続ける。
+- `wrangler dev` はローカルD1・Queueと開発用remote Vectorize indexを使う。Vectorizeにはローカルシミュレーターがないため、開発・本番のindexを別々に作成する。
 - `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
 - 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
 
@@ -59,7 +66,7 @@ flowchart LR
 2. 投稿をD1へ保存する
 3. `concern.process` メッセージをQueueへ送信する
 4. 投稿者へ保存成功を返す
-5. Queue consumerから文字起こし、翻訳、Embedding、クラスタリング、推薦用データ更新、LINE通知を非同期で処理する
+5. Queue consumerから文字起こし、翻訳、Embedding、Vectorize近傍照合、クラスタ割当、推薦用データ更新、LINE通知を非同期で処理する
 6. 完了または失敗した状態を保存する
 
 ハッカソンでは小規模な非同期処理で実装してよいが、AIサービスの待ち時間で投稿APIがタイムアウトしないことを受け入れ条件とする。

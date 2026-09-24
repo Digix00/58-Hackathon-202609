@@ -13,8 +13,8 @@ export class ConcernClusterValidationError extends Error {
 
 export interface ConcernClusterProps {
   id: string;
-  label: string;
-  summary: string;
+  label: string | null;
+  summary: string | null;
   status?: string;
   modelVersion?: string | null;
   createdAt?: string;
@@ -23,41 +23,45 @@ export interface ConcernClusterProps {
 
 /**
  * AIによる分類結果を表す共有エンティティ。
- * #74では表示用のlabel/summaryを利用し、生成・検査・保存の処理は#71で追加する。
+ * label/summaryは表示用生成が完了するまでnullを許容する。
  */
 export class ConcernCluster {
   readonly id: string;
-  readonly label: string;
-  readonly summary: string;
+  readonly label: string | null;
+  readonly summary: string | null;
   readonly status: string;
   readonly modelVersion: string | null;
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
 
   constructor(props: ConcernClusterProps) {
-    const label = props.label.trim();
-    if (label.length === 0 || label.length > CONCERN_CLUSTER_LABEL_MAX_LENGTH) {
+    const status = props.status?.trim() || "ready";
+    const label = props.label?.trim() || null;
+    if (
+      (status === "ready" && label === null) ||
+      (label !== null && label.length > CONCERN_CLUSTER_LABEL_MAX_LENGTH)
+    ) {
       throw new ConcernClusterValidationError(
         "label",
-        `label must be a non-empty string of at most ${CONCERN_CLUSTER_LABEL_MAX_LENGTH} characters`,
+        `label must be set for a ready cluster and at most ${CONCERN_CLUSTER_LABEL_MAX_LENGTH} characters`,
       );
     }
 
-    const summary = props.summary.trim();
+    const summary = props.summary?.trim() || null;
     if (
-      summary.length === 0 ||
-      summary.length > CONCERN_CLUSTER_SUMMARY_MAX_LENGTH
+      (status === "ready" && summary === null) ||
+      (summary !== null && summary.length > CONCERN_CLUSTER_SUMMARY_MAX_LENGTH)
     ) {
       throw new ConcernClusterValidationError(
         "summary",
-        `summary must be a non-empty string of at most ${CONCERN_CLUSTER_SUMMARY_MAX_LENGTH} characters`,
+        `summary must be set for a ready cluster and at most ${CONCERN_CLUSTER_SUMMARY_MAX_LENGTH} characters`,
       );
     }
 
     this.id = props.id;
     this.label = label;
     this.summary = summary;
-    this.status = props.status?.trim() || "ready";
+    this.status = status;
     this.modelVersion = props.modelVersion ?? null;
     this.createdAt = props.createdAt ?? null;
     this.updatedAt = props.updatedAt ?? null;
