@@ -189,19 +189,31 @@ WHERE EXISTS (
 );
 
 INSERT OR IGNORE INTO quiz_options (quiz_id, concern_id, display_order)
-VALUES
-  (
-    'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-    'dev-concern-a',
-    1
-  ),
-  (
-    'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-    'dev-concern-b',
-    2
-  ),
-  (
-    'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-    'dev-concern-c',
-    3
-  );
+SELECT
+  'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
+  'dev-concern-a',
+  1
+WHERE EXISTS (
+  SELECT 1 FROM quizzes
+  WHERE id = 'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours')
+);
+
+INSERT OR IGNORE INTO quiz_options (quiz_id, concern_id, display_order)
+SELECT
+  'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
+  'dev-concern-b',
+  2
+WHERE EXISTS (
+  SELECT 1 FROM quizzes
+  WHERE id = 'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours')
+);
+
+INSERT OR IGNORE INTO quiz_options (quiz_id, concern_id, display_order)
+SELECT
+  'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
+  'dev-concern-c',
+  3
+WHERE EXISTS (
+  SELECT 1 FROM quizzes
+  WHERE id = 'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours')
+);
