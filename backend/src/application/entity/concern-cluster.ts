@@ -37,6 +37,25 @@ export class ConcernClusterSummaryInput {
   }
 }
 
+export interface ConcernClusterSummaryClaimProps {
+  input: ConcernClusterSummaryInput;
+  claimedAt: string;
+}
+
+/** Lease ownership returned by the repository's atomic pending-to-generating claim. */
+export class ConcernClusterSummaryClaim {
+  readonly input: ConcernClusterSummaryInput;
+  readonly claimedAt: string;
+
+  constructor(props: ConcernClusterSummaryClaimProps) {
+    const claimedAt = props.claimedAt.trim();
+    if (claimedAt.length === 0) {
+      throw new TypeError("cluster summary claim timestamp is required");
+    }
+    this.input = props.input;
+    this.claimedAt = claimedAt;
+  }
+}
 export interface ConcernClusterSummaryProps {
   label: string;
   summary: string;
