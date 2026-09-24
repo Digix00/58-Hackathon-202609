@@ -1,0 +1,288 @@
+import { useCallback, useEffect, useReducer, type Dispatch } from 'react'
+import { prefersReducedMotion, useNotebookSwipe } from '../../shared/hooks/useNotebookSwipe'
+import { useStackLift } from '../../shared/hooks/useStackLift'
+import type { FeedStatus } from './feedTypes'
+import type { FeedConcern, FeedFilter } from './feedViewModel'
+
+const COVER_LIFT_DURATION_MS = 760
+const COVER_LIFT_SETTLE_MS = COVER_LIFT_DURATION_MS + 120
+
+/**
+ * めくっている最中の1枚。
+ *
+ * 進むときは「去っていく紙」を持つ。位置はすぐ進み、下から次の紙が現れる。
+ * 戻るときは「降りてくる紙」を持つ。降りきるまで位置は動かさず、
+ * いま読んでいる紙を下に残しておく。そうしないと、降りてくる紙と
+ * 同じ声が下にも見えてしまう。
+ */
+export type TurningPage =
+  | { kind: 'cover'; startAngle: number }
+  | { kind: 'concern'; concern: FeedConcern; page: number; startAngle: number; direction: 1 | -1 }
+
+export type FeedReaderState = {
+  filter: FeedFilter
+  index: number
+  direction: 1 | -1
+  /** 表紙を押し上げている最中か。紙束が上がりきってからめくりはじめる。 */
+  coverLifting: boolean
+  /** 表紙をめくり終えたか。最初の1枚は声ではなく表紙。 */
+  coverOpened: boolean
+  showLogin: boolean
+  filtersOpen: boolean
+  turning: TurningPage | null
+}
+
+export type FeedReaderAction =
+  | { type: 'coverLifting' }
+  | { type: 'coverTurned'; turning: TurningPage | null }
+  | { type: 'next'; turning: TurningPage | null }
+  | { type: 'previous'; turning: TurningPage | null }
+  | { type: 'filterChanged'; field: keyof FeedFilter; value: string }
+  | { type: 'filtersReset' }
+  | { type: 'loginVisibilityChanged'; visible: boolean }
+  | { type: 'filtersVisibilityChanged'; open: boolean }
+  | { type: 'turningFinished' }
+
+const initialFeedReaderState: FeedReaderState = {
+  filter: { gender: '', region: '' },
+  index: 0,
+  direction: 1,
+  coverLifting: false,
+  coverOpened: false,
+  showLogin: false,
+  filtersOpen: false,
+  turning: null,
+}
+
+/**
+ * 戻りの紙がまだ降りきっていないときの、確定した位置。
+ * 降りている途中で次の操作が来ても、位置がずれないようにする。
+ */
+function settledIndex(state: FeedReaderState) {
+  return state.turning?.kind === 'concern' && state.turning.direction === -1
+    ? state.index - 1
+    : state.index
+}
+
+function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
+  switch (action.type) {
+    case 'coverLifting':
+      // まだ表紙のまま。ふもとの表紙操作が消える準備をして、紙束を上げる。
+      return { ...state, coverLifting: true }
+    case 'coverTurned':
+      // 表紙はここで開く。去っていく表紙だけがめくられて残る。
+      return { ...state, coverLifting: false, coverOpened: true, turning: action.turning }
+    case 'next':
+      return {
+        ...state,
+        index: settledIndex(state) + 1,
+        direction: 1,
+        showLogin: false,
+        turning: action.turning,
+      }
+    case 'previous': {
+      const base = settledIndex(state)
+      return {
+        ...state,
+        index: action.turning ? base : base - 1,
+        direction: -1,
+        showLogin: false,
+        turning: action.turning,
+      }
+    }
+    case 'filterChanged':
+      return {
+        ...state,
+        filter: { ...state.filter, [action.field]: action.value },
+        index: 0,
+        turning: null,
+      }
+    case 'filtersReset':
+      return { ...state, filter: { gender: '', region: '' }, index: 0, turning: null }
+    case 'loginVisibilityChanged':
+      return { ...state, showLogin: action.visible }
+    case 'filtersVisibilityChanged':
+      return { ...state, filtersOpen: action.open }
+    case 'turningFinished':
+      return { ...state, index: settledIndex(state), turning: null }
+  }
+}
+
+export function useFeedReaderState() {
+  return useReducer(feedReaderReducer, initialFeedReaderState)
+}
+
+type FeedNavigationData = {
+  hasMore: boolean
+  status: FeedStatus
+  loadMore: () => Promise<void>
+}
+
+type UseFeedReaderNavigationOptions = {
+  state: FeedReaderState
+  dispatch: Dispatch<FeedReaderAction>
+  concerns: FeedConcern[]
+  feed: FeedNavigationData
+}
+
+/**
+ * Intent: 紙めくり、表紙のアニメーション、フィードの位置操作を局所化する。
+ * Boundary: フィードの表示用投稿と追加取得操作を受け取り、読者UIの状態と操作を返す。
+ * State modeling: reducerの状態遷移と、めくり・スワイプの副作用を画面本体から分離する。
+ * Composition: FeedPageから利用し、API取得と表示部品の間をつなぐ。
+ */
+export function useFeedReaderNavigation({
+  state,
+  dispatch,
+  concerns,
+  feed,
+}: UseFeedReaderNavigationOptions) {
+  const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = state
+  const { hasMore, status: feedStatus, loadMore } = feed
+  const coverOpening = coverLifting || coverOpened
+  const total = concerns.length
+  const position = total ? ((index % total) + total) % total : 0
+  const concern = concerns[position]
+
+  const { stackRef, rememberStackPosition } = useStackLift(
+    coverOpening,
+    () => undefined,
+    COVER_LIFT_DURATION_MS,
+  )
+
+  useEffect(() => {
+    if (!coverLifting || prefersReducedMotion()) return
+
+    // feed は表紙の拡大を見せることを優先し、transitionend の早い通知には依存しない。
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'coverTurned', turning: { kind: 'cover', startAngle: 0 } })
+    }, COVER_LIFT_SETTLE_MS)
+    return () => window.clearTimeout(timer)
+  }, [coverLifting, dispatch])
+
+  const goNext = useCallback(
+    (startAngle = 0) => {
+      // 表紙が残っているうちは、めくる相手は声ではなく表紙。
+      if (!coverOpened) {
+        if (prefersReducedMotion()) {
+          dispatch({ type: 'coverTurned', turning: null })
+          return
+        }
+        // 表紙を閉じた状態からのスワイプも、まず紙束を大きく見せる。
+        // 入口ごとに開始条件を分けると、feed だけ拡大途中でめくれ始めるため、
+        // 表紙の角度は最初のめくりでは使わず、同じ待機経路にそろえる。
+        if (startAngle !== 0) {
+          if (!coverLifting) {
+            rememberStackPosition()
+            dispatch({ type: 'coverLifting' })
+          }
+          return
+        }
+        // ボタンから開くときは、まず紙束を押し上げる。めくるのはそのあと。
+        if (!coverLifting) {
+          rememberStackPosition()
+          dispatch({ type: 'coverLifting' })
+        }
+        return
+      }
+      if (position === total - 1 && hasMore && feedStatus !== 'loadingMore') {
+        void loadMore()
+        return
+      }
+      // いま読んでいる紙をめくって去らせ、その下から次の紙が現れる。
+      dispatch({
+        type: 'next',
+        turning:
+          concern && !prefersReducedMotion()
+            ? { kind: 'concern', concern, page: position + 1, startAngle, direction: 1 }
+            : null,
+      })
+    },
+    [
+      concern,
+      coverLifting,
+      coverOpened,
+      dispatch,
+      feedStatus,
+      hasMore,
+      loadMore,
+      position,
+      rememberStackPosition,
+      total,
+    ],
+  )
+
+  const goPrev = useCallback(() => {
+    // 戻るときは、伏せてあった前の紙を拾い上げ、いま読んでいる紙の上へ降ろす。
+    if (!coverOpened || !total) return
+    const previousPosition = (((position - 1) % total) + total) % total
+    const previous = concerns[previousPosition]
+    dispatch({
+      type: 'previous',
+      turning:
+        previous && !prefersReducedMotion()
+          ? {
+              kind: 'concern',
+              concern: previous,
+              page: previousPosition + 1,
+              startAngle: 0,
+              direction: -1,
+            }
+          : null,
+    })
+  }, [concerns, coverOpened, dispatch, position, total])
+
+  const swipe = useNotebookSwipe({
+    canGoNext: true,
+    canGoPrevious: coverOpened && total > 0,
+    onNext: goNext,
+    onPrevious: goPrev,
+  })
+
+  const onTurningFinished = useCallback(() => {
+    dispatch({ type: 'turningFinished' })
+  }, [dispatch])
+  const onReset = useCallback(() => {
+    dispatch({ type: 'filtersReset' })
+  }, [dispatch])
+  const onLoginVisibilityChange = useCallback(
+    (visible: boolean) => {
+      dispatch({ type: 'loginVisibilityChanged', visible })
+    },
+    [dispatch],
+  )
+  const onFiltersToggle = useCallback(
+    (open: boolean) => {
+      dispatch({ type: 'filtersVisibilityChanged', open })
+    },
+    [dispatch],
+  )
+  const onFilterChange = useCallback(
+    (field: keyof FeedFilter, value: string) => {
+      dispatch({ type: 'filterChanged', field, value })
+    },
+    [dispatch],
+  )
+
+  return {
+    filter,
+    index,
+    coverLifting,
+    coverOpened,
+    showLogin,
+    filtersOpen,
+    turning,
+    coverOpening,
+    total,
+    position,
+    concern,
+    stackRef,
+    swipe,
+    goNext,
+    onTurningFinished,
+    onReset,
+    onLoginVisibilityChange,
+    onFiltersToggle,
+    onFilterChange,
+  }
+}
