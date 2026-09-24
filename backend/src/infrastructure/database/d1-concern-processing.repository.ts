@@ -130,6 +130,13 @@ export class D1ConcernProcessingRepository
   }
 
   async saveResult(processing: ConcernProcessing): Promise<void> {
+    const updateCondition =
+      processing.status === "failed"
+        ? and(
+            eq(concerns.id, processing.concernId),
+            ne(concerns.processingStatus, "ready"),
+          )
+        : eq(concerns.id, processing.concernId);
     const updateConcern = this.db
       .update(concerns)
       .set({
@@ -137,10 +144,54 @@ export class D1ConcernProcessingRepository
         processingStatus: processing.status,
         updatedAt: processing.updatedAt,
       })
-      .where(eq(concerns.id, processing.concernId));
+      .where(updateCondition);
 
     if (processing.representations.length === 0) {
       await updateConcern.run();
+      return;
+    }
+
+    if (processing.status === "failed") {
+      const failureGatedUpserts = processing.representations.map(
+        (representation) => {
+          const eligibleRepresentation = this.db
+            .select({
+              concernId: sql`${representation.concernId}`.as("concern_id"),
+              locale: sql`${representation.locale}`.as("locale"),
+              body: sql`${representation.body}`.as("body"),
+              status: sql`${representation.status}`.as("status"),
+              errorCode: sql`${representation.errorCode}`.as("error_code"),
+              updatedAt: sql`${representation.updatedAt}`.as("updated_at"),
+            })
+            .from(concerns)
+            .where(
+              and(
+                eq(concerns.id, processing.concernId),
+                ne(concerns.processingStatus, "ready"),
+              ),
+            );
+
+          return this.db
+            .insert(concernRepresentations)
+            .select(eligibleRepresentation)
+            .onConflictDoUpdate({
+              target: [
+                concernRepresentations.concernId,
+                concernRepresentations.locale,
+              ],
+              set: {
+                body: sql.raw("excluded.body"),
+                status: sql.raw("excluded.status"),
+                errorCode: sql.raw("excluded.error_code"),
+                updatedAt: sql.raw("excluded.updated_at"),
+              },
+            });
+        },
+      );
+
+      // A concurrent successful run must keep both its ready state and its
+      // representations when a slower duplicate fails afterward.
+      await this.db.batch([updateConcern, ...failureGatedUpserts]);
       return;
     }
 
