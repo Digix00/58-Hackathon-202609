@@ -99,7 +99,13 @@ pnpm --filter backend vectorize:backfill
 pnpm --filter backend vectorize:backfill -- --apply
 ```
 
-`CONCERN_VECTOR_EMBEDDING_VERSION` には `<modelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。開発用indexなら、上記の `production-v1` を `development-v1` に置き換える。modelまたはindex versionを変更した場合も、デプロイ先のWorkerと一致する値を指定する。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
+`CONCERN_VECTOR_EMBEDDING_VERSION` には `<実際に使うgeneratorのmodelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。本番用Workers AIでは上記のQwen versionを使う。`pnpm --filter backend dev:vectorize` は決定的なローカルEmbeddingを使うため、開発用indexでは次の値を指定する。
+
+```bash
+export CONCERN_VECTOR_EMBEDDING_VERSION='local-deterministic-1024-v1@development-v1'
+```
+
+generatorまたはindex versionを変更した場合も、再処理先Workerが実際に生成するversionと一致させる。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
 
 
 ## 実装前に決める事項

@@ -11,6 +11,8 @@ const LOCAL_EMBEDDING_DIMENSIONS = 1024;
  * have no relation to the production model's embeddings.
  */
 export class LocalTextEmbeddingGenerator implements TextEmbeddingGenerator {
+  readonly modelVersion = "local-deterministic-1024-v1";
+
   generateEmbeddings(
     texts: readonly string[],
   ): Promise<readonly (readonly number[])[]> {
