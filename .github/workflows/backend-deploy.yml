@@ -45,12 +45,14 @@ jobs:
           LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
           CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
           AUTH_SESSION_TTL_SECONDS: ${{ vars.AUTH_SESSION_TTL_SECONDS }}
+          CONCERN_CLUSTER_SIMILARITY_THRESHOLD: ${{ vars.CONCERN_CLUSTER_SIMILARITY_THRESHOLD }}
         run: |
           set -euo pipefail
 
           : "${LINE_CHANNEL_ID:?GitHub Secret LINE_CHANNEL_ID is required}"
           : "${CORS_ORIGIN:?GitHub Actions Variable CORS_ORIGIN is required}"
           AUTH_SESSION_TTL_SECONDS="${AUTH_SESSION_TTL_SECONDS:-2592000}"
+          CONCERN_CLUSTER_SIMILARITY_THRESHOLD="${CONCERN_CLUSTER_SIMILARITY_THRESHOLD:-0.8}"
 
           secret_file="$(mktemp)"
           trap 'rm -f "$secret_file"' EXIT
@@ -61,4 +63,5 @@ jobs:
           pnpm exec wrangler deploy --minify \
             --secrets-file "$secret_file" \
             --var "CORS_ORIGIN:$CORS_ORIGIN" \
-            --var "AUTH_SESSION_TTL_SECONDS:$AUTH_SESSION_TTL_SECONDS"
+            --var "AUTH_SESSION_TTL_SECONDS:$AUTH_SESSION_TTL_SECONDS" \
+            --var "CONCERN_CLUSTER_SIMILARITY_THRESHOLD:$CONCERN_CLUSTER_SIMILARITY_THRESHOLD"

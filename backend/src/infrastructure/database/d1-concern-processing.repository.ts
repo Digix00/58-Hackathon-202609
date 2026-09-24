@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -6,7 +6,7 @@ import {
   ConcernRepresentation,
 } from "../../application/entity/concern-processing";
 import type { ConcernProcessingRepository } from "../../application/repository/concern-processing.repository";
-import { concernRepresentations, concerns } from "./schema";
+import { concernClusters, concernRepresentations, concerns } from "./schema";
 
 /** D1 implementation of the concern processing persistence port. */
 export class D1ConcernProcessingRepository
@@ -22,6 +22,8 @@ export class D1ConcernProcessingRepository
     const [row, representationRows] = await Promise.all([
       this.db
         .select({
+          clusterId: concerns.clusterId,
+          embeddingVersion: concerns.embeddingVersion,
           status: concerns.processingStatus,
           updatedAt: concerns.updatedAt,
         })
@@ -41,6 +43,8 @@ export class D1ConcernProcessingRepository
 
     return new ConcernProcessing({
       concernId,
+      clusterId: row.clusterId,
+      embeddingVersion: row.embeddingVersion,
       status: row.status as ConcernProcessing["status"],
       representations: representationRows.map(
         (representation) =>
@@ -54,6 +58,58 @@ export class D1ConcernProcessingRepository
           }),
       ),
       updatedAt: row.updatedAt,
+    });
+  }
+
+  async assignCluster(
+    processing: ConcernProcessing,
+  ): Promise<ConcernProcessing> {
+    const candidateClusterId = processing.clusterId;
+    if (!candidateClusterId) {
+      throw new TypeError("clusterId is required to assign a concern");
+    }
+
+    await this.db
+      .insert(concernClusters)
+      .values({
+        id: candidateClusterId,
+        legacyLabel: "__pending__",
+        legacySummary: "__pending__",
+        label: null,
+        summary: null,
+        status: "pending",
+        modelVersion: processing.modelVersion,
+        createdAt: processing.updatedAt,
+        updatedAt: processing.updatedAt,
+      })
+      .onConflictDoNothing()
+      .run();
+
+    await this.db
+      .update(concerns)
+      .set({ clusterId: candidateClusterId, updatedAt: processing.updatedAt })
+      .where(
+        and(eq(concerns.id, processing.concernId), isNull(concerns.clusterId)),
+      )
+      .run();
+
+    const row = await this.db
+      .select({ clusterId: concerns.clusterId })
+      .from(concerns)
+      .where(eq(concerns.id, processing.concernId))
+      .get();
+    if (!row?.clusterId) {
+      throw new Error("Concern disappeared while assigning a cluster");
+    }
+
+    return new ConcernProcessing({
+      concernId: processing.concernId,
+      clusterId: row.clusterId,
+      modelVersion: processing.modelVersion,
+      embeddingVersion: processing.embeddingVersion,
+      status: processing.status,
+      representations: processing.representations,
+      updatedAt: processing.updatedAt,
     });
   }
 
@@ -74,16 +130,68 @@ export class D1ConcernProcessingRepository
   }
 
   async saveResult(processing: ConcernProcessing): Promise<void> {
+    const updateCondition =
+      processing.status === "failed"
+        ? and(
+            eq(concerns.id, processing.concernId),
+            ne(concerns.processingStatus, "ready"),
+          )
+        : eq(concerns.id, processing.concernId);
     const updateConcern = this.db
       .update(concerns)
       .set({
+        embeddingVersion: processing.embeddingVersion,
         processingStatus: processing.status,
         updatedAt: processing.updatedAt,
       })
-      .where(eq(concerns.id, processing.concernId));
+      .where(updateCondition);
 
     if (processing.representations.length === 0) {
       await updateConcern.run();
+      return;
+    }
+
+    if (processing.status === "failed") {
+      const failureGatedUpserts = processing.representations.map(
+        (representation) => {
+          const eligibleRepresentation = this.db
+            .select({
+              concernId: sql`${representation.concernId}`.as("concern_id"),
+              locale: sql`${representation.locale}`.as("locale"),
+              body: sql`${representation.body}`.as("body"),
+              status: sql`${representation.status}`.as("status"),
+              errorCode: sql`${representation.errorCode}`.as("error_code"),
+              updatedAt: sql`${representation.updatedAt}`.as("updated_at"),
+            })
+            .from(concerns)
+            .where(
+              and(
+                eq(concerns.id, processing.concernId),
+                ne(concerns.processingStatus, "ready"),
+              ),
+            );
+
+          return this.db
+            .insert(concernRepresentations)
+            .select(eligibleRepresentation)
+            .onConflictDoUpdate({
+              target: [
+                concernRepresentations.concernId,
+                concernRepresentations.locale,
+              ],
+              set: {
+                body: sql.raw("excluded.body"),
+                status: sql.raw("excluded.status"),
+                errorCode: sql.raw("excluded.error_code"),
+                updatedAt: sql.raw("excluded.updated_at"),
+              },
+            });
+        },
+      );
+
+      // A concurrent successful run must keep both its ready state and its
+      // representations when a slower duplicate fails afterward.
+      await this.db.batch([updateConcern, ...failureGatedUpserts]);
       return;
     }
 

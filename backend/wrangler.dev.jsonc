@@ -13,6 +13,9 @@
   "secrets": {
     "required": ["LINE_CHANNEL_ID"]
   },
+  "vars": {
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8"
+  },
   "queues": {
     "producers": [
       {

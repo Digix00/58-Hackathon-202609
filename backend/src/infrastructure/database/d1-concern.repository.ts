@@ -113,6 +113,7 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+      conditions.push(eq(concerns.processingStatus, "ready"));
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));
@@ -191,6 +192,7 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+      conditions.push(eq(concerns.processingStatus, "ready"));
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));
@@ -361,7 +363,10 @@ function toFeedCandidate(row: {
 }) {
   return {
     concern: toConcern(row.concern),
-    cluster: toConcernCluster(row.cluster),
+    cluster:
+      row.concern.processingStatus === "ready"
+        ? toConcernCluster(row.cluster)
+        : null,
     viewed: row.view !== null,
     reactionCount: row.reactionCount ?? 0,
     reacted: row.reacted === 1 || row.reacted === true,
