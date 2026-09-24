@@ -53,6 +53,73 @@ function cookieFrom(response: Response): string {
 }
 
 describe("authentication routes", () => {
+  it("does not expose development authentication when disabled", async () => {
+    const app = createTestApp();
+
+    const response = await app.request(
+      "/api/v1/auth/dev",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userKey: "demo-a" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: { code: "NOT_FOUND" },
+    });
+  });
+
+  it("creates a regular authenticated session for a development user", async () => {
+    const app = createTestApp();
+    const devEnv = { ...env, DEV_AUTH_ENABLED: "true" };
+
+    const response = await app.request(
+      "/api/v1/auth/dev",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userKey: "demo-a" }),
+      },
+      devEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      authenticated: true,
+      user: {
+        id: expect.any(String),
+        birthYear: null,
+        birthMonth: null,
+        gender: null,
+        regionCode: null,
+        profileCompleted: false,
+      },
+    });
+    expect(cookieFrom(response)).toContain("__Host-session=");
+  });
+
+  it("accepts only the fixed development user keys", async () => {
+    const app = createTestApp();
+
+    const response = await app.request(
+      "/api/v1/auth/dev",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userKey: "arbitrary-user" }),
+      },
+      { ...env, DEV_AUTH_ENABLED: "true" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+  });
+
   it("creates an anonymous session and restores it", async () => {
     const app = createTestApp();
 

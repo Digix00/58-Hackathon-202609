@@ -14,6 +14,8 @@ make dev
 
 バックエンドは `http://localhost:8787`、フロントエンドは `http://localhost:5173` を利用する。D1はWranglerのローカル環境を使い、独立したDBサーバーを起動しない。
 
+Wrangler `4.131.1` が Node.js 22 以上を要求するため、ローカル開発・D1操作は Node.js 22 以上で実行する。
+
 ### CI前のローカル確認
 
 Pull Requestを作成する前に、GitHub Actions相当の確認をまとめて実行できる。
@@ -32,8 +34,11 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するAPI URL | フロントエンドの環境設定 |
 | `VITE_LINE_LIFF_ID` | LINE MINI AppのLIFF ID | フロントエンドの環境設定 |
+| `VITE_DEV_AUTH_MODE` | `authenticated` はUIモック、`backend` はローカルD1へ接続する開発認証 | フロントエンドの環境設定（開発時のみ） |
+| `VITE_DEV_USER` | 開発認証で使う固定ユーザーキー（`demo-a`〜`demo-c`） | フロントエンドの環境設定（開発時のみ） |
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |
 | `LINE_CHANNEL_ID` | LINE IDトークン検証に使うチャネルID | Worker環境変数 |
+| `DEV_AUTH_ENABLED` | 開発用認証エンドポイントの有効化 | `wrangler.dev.jsonc` のみ |
 | `AUTH_SESSION_TTL_SECONDS` | アプリセッションの有効秒数 | Worker環境変数（任意） |
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
@@ -130,6 +135,13 @@ pnpm --filter backend vectorize:backfill -- --apply
 - LINEログイン済み利用者向けの投稿フォーム、フィード、投稿詳細を作る
 - LINEログイン済み利用者向けのリアクションと入力エラーを実装する
 - モバイル表示とキーボード操作を確認する
+
+### ローカル統合認証
+
+- `VITE_DEV_AUTH_MODE=backend` でLINEログインなしのHttpOnly Cookieセッションを取得する
+- `make dev` でローカルD1へ開発用ユーザー、サンプル投稿、当日クイズを投入する
+- `backend` モードではフィード・投稿詳細・閲覧記録・リアクション・投稿・プロフィール保存をローカルAPIへ接続する
+- 開発用認証エンドポイントは本番設定で無効化し、実LINE認証の動作確認と混同しない
 
 ### Phase 2 デモ必須機能
 

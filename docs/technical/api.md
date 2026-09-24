@@ -228,6 +228,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
+| POST | /api/v1/auth/dev | ローカル開発のみ | 開発用固定キー | 開発用ユーザーへCookieセッションを発行。本番設定では404 |
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | ログイン状態を復元し、Cookie がない場合は未認証セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
@@ -249,6 +250,10 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
+
+`POST /api/v1/auth/dev` はローカル開発専用であり、本番のAPI契約には含めない。`DEV_AUTH_ENABLED=true` のWorkerだけが、
+サーバー側で定義した `demo-a`、`demo-b`、`demo-c` を受け付ける。任意の `userId`、LINE user ID、アクセストークンは受け付けず、
+発行するCookieと以降の認証処理はLINEログインと同じ経路を利用する。
 
 ### 2.1 PUT /api/v1/users/me
 
