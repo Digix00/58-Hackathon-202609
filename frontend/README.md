@@ -20,11 +20,23 @@ VITE_DEV_LIFF_MODE=true
 VITE_DEV_AUTH_MODE=authenticated
 ```
 
-`VITE_DEV_AUTH_MODE=authenticated` は Vite の開発時だけ有効な表示確認用のモックで、バックエンドの認証セッションやLINEログインを作成しない。実際の認証連携を確認するときは、この設定を外し、`VITE_LINE_LIFF_ID` を設定する。
+`VITE_DEV_AUTH_MODE=authenticated` は Vite の開発時だけ有効な表示確認用のモックで、バックエンドの認証セッションやLINEログインを作成しない。
+
+API・ローカルD1まで含めて確認する場合は、次のローカル統合モードを使う。これはリポジトリの `.env.development` にも設定済みなので、通常は追加設定なしで `make dev` を実行できる。
+
+```env
+VITE_DEV_LIFF_MODE=true
+VITE_DEV_AUTH_MODE=backend
+VITE_DEV_USER=demo-a
+```
+
+`backend` モードは、バックエンドの開発専用認証エンドポイントから通常のHttpOnly Cookieセッションを取得する。`VITE_DEV_USER` には `demo-a`、`demo-b`、`demo-c` のいずれかを指定する。`make dev` はローカルD1へ開発用ユーザー、投稿、当日クイズを冪等に投入する。
+
+実際のLINE認証連携を確認するときは、開発用認証モードを外し、`VITE_LINE_LIFF_ID` を設定する。
 
 ## 画面確認用データ
 
-取得・リアクション・クイズ・履歴のAPIが未実装の間、Vite開発環境ではサンプルの声で各画面を操作できる。通常ブラウザではフィードと詳細を確認できる。`.env.local` に上記2つの開発用設定を指定すると、投稿・クイズ・履歴も確認できる。開発用認証モードでの投稿はAPIへ送られず、画面内だけに反映される。サンプルの既読・リアクション・投稿・回答は再読み込みで消える。
+Vite開発環境ではサンプルの声で各画面を操作できる。`authenticated` モードでは投稿・既読・リアクション・クイズ回答を画面内のサンプルデータで確認でき、再読み込みで消える。`backend` モードでは、フィード・投稿詳細・閲覧記録・リアクション・投稿・プロフィール保存など、バックエンドへ接続する機能をローカルD1で確認できる。クイズと履歴は現時点では画面内のデモ状態を使う。
 
 開発時に `?mockState=loading`、`?mockState=empty`、`?mockState=error` を画面URLへ付けると、取得画面の各状態を確認できる。これらのサンプル表示は本番ビルドでは使わない。本番で未接続の取得画面には準備中の案内を表示する。投稿は実際のLINE認証後に既存のAPIへ送信する。
 

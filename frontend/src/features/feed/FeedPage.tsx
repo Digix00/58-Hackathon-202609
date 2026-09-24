@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useReducer,
   useState,
   type CSSProperties,
@@ -13,6 +14,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
+import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
@@ -28,11 +30,16 @@ import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
+import { isBackendDevMode } from '../../lib/devMode'
+import { genderCodeForLabel, regionCodeForLabel, toDemoConcern } from '../demo/demoAdapter'
 import { reactToDemoConcern, useDemoState, type DemoConcern } from '../demo/demoStore'
 import { useDemoViewed } from '../demo/useDemoViewed'
+import { useConcernReaction } from '../reaction/useConcernReaction'
+import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
 import { CoverArt } from './CoverArt'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
+import { useFeed } from './useFeed'
 
 type Filter = { gender: string; region: string }
 
@@ -555,13 +562,29 @@ function FeedActions({
 }
 
 export function FeedPage() {
-  const { concerns } = useDemoState()
+  const { concerns: demoConcerns } = useDemoState()
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
   const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = reader
   /** 表紙を開く操作が始まった時点で、ふもとの操作スペースが消える。 */
   const coverOpening = coverLifting || coverOpened
+
+  const backendMode = isBackendDevMode
+  const apiFeed = useFeed({
+    enabled: backendMode,
+    sort: 'newest',
+    gender: genderCodeForLabel(filter.gender),
+    regionCode: regionCodeForLabel(filter.region),
+  })
+  const apiConcerns = useMemo(
+    () => apiFeed.items.map((item) => toDemoConcern(item)),
+    [apiFeed.items],
+  )
+  const concerns = useMemo(
+    () => (backendMode && apiFeed.status === 'success' ? apiConcerns : demoConcerns),
+    [apiConcerns, apiFeed.status, backendMode, demoConcerns],
+  )
 
   const genderOptions = [
     { value: ALL, label: 'すべて' },
@@ -586,16 +609,42 @@ export function FeedPage() {
       ),
     ].map((region) => ({ value: region, label: region })),
   ]
-  const filtered = concerns.filter(
-    (concern) =>
-      (!filter.gender || concern.gender === filter.gender) &&
-      (!filter.region || concern.region === filter.region),
+  const filtered = useMemo(
+    () =>
+      concerns.filter(
+        (concern) =>
+          (!filter.gender || concern.gender === filter.gender) &&
+          (!filter.region || concern.region === filter.region),
+      ),
+    [concerns, filter.gender, filter.region],
   )
   const total = filtered.length
   const position = total ? ((index % total) + total) % total : 0
-  const concern = filtered[position]
+  const baseConcern = filtered[position]
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
-  const articleRef = useDemoViewed(concern?.id, isLiff && authStatus === 'authenticated')
+  const reaction = useConcernReaction({
+    concernId: baseConcern?.id ?? '',
+    initialReactionCount: baseConcern?.reactionCount ?? 0,
+    initialReacted: baseConcern?.reacted ?? false,
+  })
+  const concern = useMemo(
+    () =>
+      baseConcern && backendMode
+        ? {
+            ...baseConcern,
+            reactionCount: reaction.reactionCount,
+            reacted: reaction.reacted,
+          }
+        : baseConcern,
+    [backendMode, baseConcern, reaction.reacted, reaction.reactionCount],
+  )
+  useConcernViewOnDisplay(
+    backendMode && isLiff && authStatus === 'authenticated' ? baseConcern?.id : undefined,
+  )
+  const articleRef = useDemoViewed(
+    baseConcern?.id,
+    !backendMode && isLiff && authStatus === 'authenticated',
+  )
   const activeFilter = [filter.gender, filter.region].filter(Boolean).join(' · ')
 
   const { stackRef, rememberStackPosition } = useStackLift(
@@ -683,54 +732,67 @@ export function FeedPage() {
       emptyTitle="まだ声が届いていません"
       emptyDescription="しばらくしてから、また読みに来てください。"
     >
-      <div className={styles.page}>
-        <FeedStage
-          concern={concern}
-          stackRef={stackRef}
-          index={index}
-          position={position}
-          turning={turning}
-          coverOpened={coverOpened}
-          coverOpening={coverOpening}
-          dragX={swipe.dragX}
-          articleRef={articleRef}
-          onNext={goNext}
-          onLinkClick={swipe.handleLinkClick}
-          onTurningFinished={() => dispatch({ type: 'turningFinished' })}
-          onReset={() => dispatch({ type: 'filtersReset' })}
-          onTouchStart={swipe.handleTouchStart}
-          onTouchMove={swipe.handleTouchMove}
-          onTouchEnd={swipe.handleTouchEnd}
-          onTouchCancel={swipe.handleTouchCancel}
+      {backendMode && (apiFeed.status === 'idle' || apiFeed.status === 'loading') ? (
+        <LoadingState label="届いた声を読み込んでいます…" />
+      ) : backendMode && apiFeed.status === 'error' ? (
+        <ErrorState
+          description={apiFeed.error ?? '投稿を読み込めませんでした。'}
+          onRetry={() => void apiFeed.retry()}
         />
-        <FeedActions
-          showLogin={showLogin}
-          concern={concern}
-          canReact={isLiff}
-          coverOpening={coverOpening}
-          filtersOpen={filtersOpen}
-          activeFilter={activeFilter}
-          filter={filter}
-          genderOptions={genderOptions}
-          regionOptions={regionOptions}
-          onNext={goNext}
-          onReact={() => {
-            if (authStatus !== 'authenticated') {
-              dispatch({ type: 'loginVisibilityChanged', visible: true })
-              return false
-            }
-            if (!concern) return false
-            reactToDemoConcern(concern.id)
-            return true
-          }}
-          onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
-          onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
-        />
+      ) : (
+        <div className={styles.page}>
+          <FeedStage
+            concern={concern}
+            stackRef={stackRef}
+            index={index}
+            position={position}
+            turning={turning}
+            coverOpened={coverOpened}
+            coverOpening={coverOpening}
+            dragX={swipe.dragX}
+            articleRef={articleRef}
+            onNext={goNext}
+            onLinkClick={swipe.handleLinkClick}
+            onTurningFinished={() => dispatch({ type: 'turningFinished' })}
+            onReset={() => dispatch({ type: 'filtersReset' })}
+            onTouchStart={swipe.handleTouchStart}
+            onTouchMove={swipe.handleTouchMove}
+            onTouchEnd={swipe.handleTouchEnd}
+            onTouchCancel={swipe.handleTouchCancel}
+          />
+          <FeedActions
+            showLogin={showLogin}
+            concern={concern}
+            canReact={isLiff}
+            coverOpening={coverOpening}
+            filtersOpen={filtersOpen}
+            activeFilter={activeFilter}
+            filter={filter}
+            genderOptions={genderOptions}
+            regionOptions={regionOptions}
+            onNext={goNext}
+            onReact={() => {
+              if (authStatus !== 'authenticated') {
+                dispatch({ type: 'loginVisibilityChanged', visible: true })
+                return false
+              }
+              if (!concern) return false
+              if (backendMode) {
+                void reaction.react()
+              } else {
+                reactToDemoConcern(concern.id)
+              }
+              return true
+            }}
+            onFiltersToggle={(open) => dispatch({ type: 'filtersVisibilityChanged', open })}
+            onFilterChange={(field, value) => dispatch({ type: 'filterChanged', field, value })}
+          />
 
-        <p className={styles.srOnly} aria-live="polite">
-          {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}
-        </p>
-      </div>
+          <p className={styles.srOnly} aria-live="polite">
+            {concern?.reacted ? `そっと寄りそいました。現在${concern.reactionCount}件です。` : ''}
+          </p>
+        </div>
+      )}
     </DemoBoundary>
   )
 }
