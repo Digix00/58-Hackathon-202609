@@ -6,8 +6,8 @@ import {
   ConcernClusterSummaryClaim,
   ConcernClusterSummaryInput,
 } from "../../application/entity/concern-cluster";
-import { ConcernClusterSummaryClaimConflictError } from "../../application/repository/concern-cluster-summary.repository";
 import type { ConcernClusterSummaryRepository } from "../../application/repository/concern-cluster-summary.repository";
+import { ConcernClusterSummaryClaimConflictError } from "../../application/repository/concern-cluster-summary.repository";
 import { concernClusters, concerns } from "./schema";
 
 const CLUSTER_SUMMARY_CONCERN_LIMIT = 10;
