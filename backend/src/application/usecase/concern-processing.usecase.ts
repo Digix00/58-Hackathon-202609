@@ -225,7 +225,27 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             embedding,
           });
           allowReadyFailure = state?.status === "ready";
-          await this.generatePendingClusterSummary(clusterId);
+          try {
+            await this.generatePendingClusterSummary(clusterId);
+          } catch (error) {
+            if (
+              state?.status !== "ready" &&
+              error instanceof ConcernClusterSummaryClaimConflictError
+            ) {
+              await repository.saveResult(
+                new ConcernProcessing({
+                  concernId: input.concernId,
+                  status: "ready",
+                  clusterId,
+                  modelVersion,
+                  embeddingVersion,
+                  representations,
+                  updatedAt: this.nowIso(),
+                }),
+              );
+            }
+            throw error;
+          }
         }
 
         await repository.saveResult(
@@ -245,10 +265,9 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
       return result;
     } catch (error) {
-      const isReadyConcernClaimConflict =
-        state?.status === "ready" &&
+      const isSummaryClaimConflict =
         error instanceof ConcernClusterSummaryClaimConflictError;
-      if (!isReadyConcernClaimConflict) {
+      if (!isSummaryClaimConflict) {
         await repository
           ?.markFailed(
             new ConcernProcessing({
