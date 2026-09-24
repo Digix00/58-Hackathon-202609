@@ -32,14 +32,14 @@
   padding: 0;
   margin: 0;
   color: var(--color-purple-ink);
-  font-size: 1em;
+  font-size: calc(16px * var(--font-scale));
   font-weight: 700;
 }
 
 .group p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.9em;
+  font-size: calc(14px * var(--font-scale));
   line-height: 1.7;
 }
 

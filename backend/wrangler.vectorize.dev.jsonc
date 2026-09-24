@@ -1,9 +1,6 @@
 {
-  // Excludes the remote Workers AI binding so `pnpm dev` runs fully locally
-  // without Cloudflare authentication. See src/bootstrap/container.ts for the
-  // local adapters that stand in for it.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "58-hackathon-backend-dev",
+  "name": "58-hackathon-backend-vectorize-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -13,8 +10,16 @@
   "secrets": {
     "required": ["LINE_CHANNEL_ID"]
   },
+  "vectorize": [
+    {
+      "binding": "CONCERN_VECTOR_INDEX",
+      "index_name": "58-hackathon-concern-vectors-dev",
+      "remote": true
+    }
+  ],
   "vars": {
-    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8"
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
+    "CONCERN_VECTOR_INDEX_VERSION": "development-v1"
   },
   "queues": {
     "producers": [

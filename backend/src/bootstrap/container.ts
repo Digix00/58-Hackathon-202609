@@ -9,6 +9,8 @@ import {
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
+import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
+import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -55,10 +57,14 @@ export function createApplication(bindings: Bindings) {
   const concernProcessingRepository = new D1ConcernProcessingRepository(
     bindings.DB,
   );
-  const concernTextTranslator = new WorkersAiTextTranslator(bindings.AI);
-  const concernTextEmbeddingGenerator = new WorkersAiTextEmbeddingGenerator(
-    bindings.AI,
-  );
+  // AI binding はローカルの `wrangler.dev.jsonc` には存在しない。
+  // その場合はCloudflareを呼ばないローカル用アダプタへ切り替える。
+  const concernTextTranslator = bindings.AI
+    ? new WorkersAiTextTranslator(bindings.AI)
+    : new LocalTextTranslator();
+  const concernTextEmbeddingGenerator = bindings.AI
+    ? new WorkersAiTextEmbeddingGenerator(bindings.AI)
+    : new LocalTextEmbeddingGenerator();
   const concernVectorIndex = bindings.CONCERN_VECTOR_INDEX
     ? new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX)
     : undefined;

@@ -19,6 +19,7 @@ import type {
 } from "../../application/repository/concern.repository";
 import {
   concernClusters,
+  concernReactions,
   concerns,
   concernViews,
   feedImpressions,
@@ -59,6 +60,9 @@ export class D1ConcernRepository implements ConcernRepository {
     const conditions = [eq(concerns.visibilityStatus, "published")];
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));
+    }
+    if (input.gender) {
+      conditions.push(eq(concerns.genderCode, input.gender));
     }
     const cursorCondition = input.cursor
       ? or(
@@ -101,6 +105,9 @@ export class D1ConcernRepository implements ConcernRepository {
 
   async listFeed(input: ListConcernFeedInput): Promise<ListConcernFeedResult> {
     const conditions = [eq(concerns.visibilityStatus, "published")];
+    if (input.gender) {
+      conditions.push(eq(concerns.genderCode, input.gender));
+    }
     if (input.regionCode) {
       conditions.push(eq(concerns.regionCode, input.regionCode));
     }
@@ -130,11 +137,26 @@ export class D1ConcernRepository implements ConcernRepository {
           eq(concernViews.actorKey, input.userId),
         )
       : sql`1 = 0`;
+    const reactionCount = sql<number>`(
+      select count(*)
+      from ${concernReactions}
+      where ${concernReactions.concernId} = ${concerns.id}
+    )`.as("reaction_count");
+    const reacted = input.userId
+      ? sql<number>`exists (
+          select 1
+          from ${concernReactions}
+          where ${concernReactions.concernId} = ${concerns.id}
+            and ${concernReactions.userId} = ${input.userId}
+        )`.as("reacted")
+      : sql<number>`0`.as("reacted");
     const rows = await this.db
       .select({
         concern: concerns,
         cluster: concernClusters,
         view: concernViews,
+        reactionCount,
+        reacted,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -162,6 +184,9 @@ export class D1ConcernRepository implements ConcernRepository {
       eq(concerns.visibilityStatus, "published"),
       inArray(concerns.id, input.ids),
     ];
+    if (input.gender) {
+      conditions.push(eq(concerns.genderCode, input.gender));
+    }
     if (input.regionCode) {
       conditions.push(eq(concerns.regionCode, input.regionCode));
     }
@@ -179,11 +204,26 @@ export class D1ConcernRepository implements ConcernRepository {
           eq(concernViews.actorKey, input.userId),
         )
       : sql`1 = 0`;
+    const reactionCount = sql<number>`(
+      select count(*)
+      from ${concernReactions}
+      where ${concernReactions.concernId} = ${concerns.id}
+    )`.as("reaction_count");
+    const reacted = input.userId
+      ? sql<number>`exists (
+          select 1
+          from ${concernReactions}
+          where ${concernReactions.concernId} = ${concerns.id}
+            and ${concernReactions.userId} = ${input.userId}
+        )`.as("reacted")
+      : sql<number>`0`.as("reacted");
     const rows = await this.db
       .select({
         concern: concerns,
         cluster: concernClusters,
         view: concernViews,
+        reactionCount,
+        reacted,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -201,11 +241,26 @@ export class D1ConcernRepository implements ConcernRepository {
           eq(concernViews.actorKey, userId),
         )
       : sql`1 = 0`;
+    const reactionCount = sql<number>`(
+      select count(*)
+      from ${concernReactions}
+      where ${concernReactions.concernId} = ${concerns.id}
+    )`.as("reaction_count");
+    const reacted = userId
+      ? sql<number>`exists (
+          select 1
+          from ${concernReactions}
+          where ${concernReactions.concernId} = ${concerns.id}
+            and ${concernReactions.userId} = ${userId}
+        )`.as("reacted")
+      : sql<number>`0`.as("reacted");
     const row = await this.db
       .select({
         concern: concerns,
         cluster: concernClusters,
         view: concernViews,
+        reactionCount,
+        reacted,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -303,6 +358,8 @@ function toFeedCandidate(row: {
   concern: typeof concerns.$inferSelect;
   cluster: typeof concernClusters.$inferSelect | null;
   view: typeof concernViews.$inferSelect | null;
+  reactionCount?: number | null;
+  reacted?: number | boolean | null;
 }) {
   return {
     concern: toConcern(row.concern),
@@ -311,5 +368,7 @@ function toFeedCandidate(row: {
         ? toConcernCluster(row.cluster)
         : null,
     viewed: row.view !== null,
+    reactionCount: row.reactionCount ?? 0,
+    reacted: row.reacted === 1 || row.reacted === true,
   };
 }

@@ -25,6 +25,8 @@ export interface ConcernFeedCandidate {
   concern: Concern;
   cluster: ConcernCluster | null;
   viewed: boolean;
+  reactionCount?: number;
+  reacted?: boolean;
 }
 
 export interface RecommendationHistory {

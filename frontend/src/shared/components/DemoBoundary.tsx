@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { EmptyState, ErrorState, LoadingState } from './AsyncStates'
+import { ComingSoonLabel } from './ComingSoonLabel'
 import { getDemoScenario } from '../../features/demo/demoStore'
 
 export function DemoBoundary({
@@ -14,7 +15,7 @@ export function DemoBoundary({
   if (!import.meta.env.DEV) {
     return (
       <ErrorState
-        title="この画面は準備中です"
+        title={<ComingSoonLabel ariaLabel="この画面は準備中です" />}
         description="データの接続が完了していません。しばらくお待ちください。"
       />
     )

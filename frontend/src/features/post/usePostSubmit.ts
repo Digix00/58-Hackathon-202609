@@ -10,7 +10,8 @@ type PostSubmitState =
   | { status: 'failed'; fieldErrors: PostFormFieldErrors; error: string; result: null }
 
 export type UsePostSubmitResult = PostSubmitState & {
-  submit: (input: PostFormInput) => Promise<void>
+  /** 保存できたかを返す。投稿できた瞬間だけ起こす画面側の動きに使う。 */
+  submit: (input: PostFormInput) => Promise<boolean>
   reset: () => void
 }
 
@@ -58,12 +59,12 @@ export function usePostSubmit(demo = false): UsePostSubmitResult {
   const inFlight = useRef(false)
 
   const submit = useCallback(
-    async (input: PostFormInput): Promise<void> => {
-      if (inFlight.current || state.status === 'succeeded') return
+    async (input: PostFormInput): Promise<boolean> => {
+      if (inFlight.current || state.status === 'succeeded') return false
       const validationErrors = validatePostInput(input)
       if (Object.keys(validationErrors).length > 0) {
         dispatch({ type: 'validationFailed', fieldErrors: validationErrors })
-        return
+        return false
       }
 
       inFlight.current = true
@@ -89,15 +90,16 @@ export function usePostSubmit(demo = false): UsePostSubmitResult {
               createdAt: new Date().toISOString(),
             },
           })
-          return
+          return true
         }
         const response = await createConcern(input)
         if (response.ok) {
           dispatch({ type: 'submitSucceeded', result: response.concern })
-          return
+          return true
         }
 
         dispatch({ type: 'submitFailed', error: response.message })
+        return false
       } catch (cause) {
         dispatch({
           type: 'submitFailed',
@@ -106,6 +108,7 @@ export function usePostSubmit(demo = false): UsePostSubmitResult {
               ? cause.message
               : '投稿に失敗しました。時間をおいて再度お試しください',
         })
+        return false
       } finally {
         inFlight.current = false
       }

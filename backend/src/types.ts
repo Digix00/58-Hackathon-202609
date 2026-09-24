@@ -6,7 +6,9 @@ declare global {
   namespace Cloudflare {
     interface Env {
       DB: D1Database;
-      AI: Ai;
+      // ローカル開発では wrangler.dev.jsonc がこの binding を持たないため、
+      // 未定義を許容してローカル用アダプタへフォールバックできるようにする。
+      AI?: Ai;
       CONCERN_PROCESSING_QUEUE?: Queue<ConcernProcessingMessage>;
       CONCERN_VECTOR_INDEX?: Vectorize;
       CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;

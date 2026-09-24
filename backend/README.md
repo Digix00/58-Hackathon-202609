@@ -33,6 +33,8 @@ src/
 │       └── check-health.usecase.ts
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
 │   ├── ai/
+│   │   ├── local-text-embedding.generator.ts
+│   │   ├── local-text.translator.ts
 │   │   ├── workers-ai-speech.recognizer.ts
 │   │   ├── workers-ai-text-embedding.generator.ts
 │   │   └── workers-ai-text.translator.ts
@@ -71,6 +73,8 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
 
+Workers AI bindingはローカルシミュレーションが存在せず、`wrangler dev`実行時はCloudflareへのリモート接続を試みる。ローカル開発 (`pnpm dev`) は`ai.binding`を含まない`wrangler.dev.jsonc`を使い、`bootstrap/container.ts`が`env.AI`の有無で`LocalTextTranslator`/`LocalTextEmbeddingGenerator`（決定的なダミー結果を返すだけでCloudflareを呼ばない）へ自動的に切り替えるため、Workers AIの認証なしで起動できる。実際のWorkers AIで動作確認したい場合は`wrangler login`後に`pnpm --filter backend exec wrangler dev`（`--config`省略、本番用`wrangler.jsonc`を使用）で起動する。この設定は本番用Vectorize indexへ書き込むため、通常の開発には使わない。Vectorizeの連携確認には、開発用indexを使う`pnpm dev:vectorize`を利用する。
+
 ## Queue
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
@@ -85,12 +89,19 @@ Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster
 pnpm --filter backend exec wrangler queues create 58-hackathon-concern-processing
 ```
 
-`wrangler dev` から実際に推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する。
+実際のWorkers AIで推論した場合はCloudflareアカウントのWorkers AI利用量に計上されるため、[料金と無料枠](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認して必要最小限の回数で実行する（前述の通り、`pnpm dev`によるローカル開発では既定でこの呼び出しは発生しない）。
 
 ## セットアップ
 
 ```bash
 pnpm install
+```
+
+`pnpm dev` によるローカル開発だけであればここまでで完了する（`wrangler login`は不要）。
+`wrangler d1 create` でのDB新規作成、`db:migrate:remote`、`deploy`、実際のWorkers AIでの動作確認など、
+Cloudflareアカウントへアクセスする操作を行う場合だけ、追加で以下を行う。
+
+```bash
 wrangler login          # 初回のみ、Cloudflareアカウントとの連携
 wrangler d1 create 58-hackathon-db
 ```
@@ -102,10 +113,12 @@ wrangler d1 create 58-hackathon-db
 
 ```bash
 pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
-pnpm dev                # http://localhost:8787
+pnpm dev                # http://localhost:8787、wrangler.dev.jsonc を使用
 ```
 
-`pnpm dev` は `wrangler.dev.jsonc` を使い、ローカルD1・Queueと開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) に接続する。Vectorizeにはローカルシミュレーターがないため、開発・本番indexをCloudflareアカウントに個別作成する。開発用bindingは本番用indexと分け、開発時のupsertが本番の検索データを変えないようにする。
+`pnpm dev` は `wrangler.dev.jsonc` を使い、Workers AI / Vectorizeのremote bindingなしでローカルD1・Queueを起動する。Workers AIの処理はローカル用アダプタの決定的なダミー結果になるため、`wrangler login` は不要。
+
+Vectorizeとの連携を開発環境で確認するときは `pnpm dev:vectorize` を使う。この設定もWorkers AI bindingは使わず、ローカル用Embeddingを開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) へ登録する。このモードではVectorizeへの接続にCloudflareログインが必要。本番indexとは分離され、開発中のupsertが本番の検索データを変更しない。
 
 PLaMo-Embedding-1Bは2048次元ですが、Cloudflare Vectorizeの現行上限1536次元を超えるため使いません。Qwen3-Embedding-0.6Bは1024次元でVectorizeに対応します（[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Workers AI Qwen3 Embedding](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/)）。初回のみ次を開発・本番環境で個別に実行します。
 
