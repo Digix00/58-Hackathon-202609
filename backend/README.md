@@ -70,6 +70,7 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 - `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、原文（日本語）→英語、原文（日本語）→ひらがなを処理する
 - `WorkersAiTextEmbeddingGenerator`: [Qwen3-Embedding-0.6B](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/) で入力順を保ったベクトルを生成する
 - `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
+- `WorkersAiConcernClusterSummaryGenerator`: 最大10件、各2000文字までの悩み本文を使ってクラスタラベルと要約を生成する
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
 

@@ -1,6 +1,3 @@
-export const CONCERN_CLUSTER_LABEL_MAX_LENGTH = 100;
-export const CONCERN_CLUSTER_SUMMARY_MAX_LENGTH = 500;
-
 export class ConcernClusterValidationError extends Error {
   readonly field: string;
 
@@ -8,6 +5,66 @@ export class ConcernClusterValidationError extends Error {
     super(message);
     this.name = "ConcernClusterValidationError";
     this.field = field;
+  }
+}
+
+export interface ConcernClusterSummaryInputProps {
+  clusterId: string;
+  concernBodies: readonly string[];
+}
+
+/** Public concern text supplied to the cluster summary model. */
+export class ConcernClusterSummaryInput {
+  readonly clusterId: string;
+  readonly concernBodies: readonly string[];
+
+  constructor(props: ConcernClusterSummaryInputProps) {
+    const clusterId = props.clusterId.trim();
+    const concernBodies = props.concernBodies.map((body) => body.trim());
+    if (
+      clusterId.length === 0 ||
+      concernBodies.length === 0 ||
+      concernBodies.some((body) => body.length === 0)
+    ) {
+      throw new ConcernClusterValidationError(
+        "input",
+        "cluster summary input is invalid",
+      );
+    }
+
+    this.clusterId = clusterId;
+    this.concernBodies = concernBodies;
+  }
+}
+
+export interface ConcernClusterSummaryProps {
+  label: string;
+  summary: string;
+}
+
+/** Display text returned by the cluster summary model. */
+export class ConcernClusterSummary {
+  readonly label: string;
+  readonly summary: string;
+
+  constructor(props: ConcernClusterSummaryProps) {
+    const label = props.label.trim();
+    const summary = props.summary.trim();
+    if (label.length === 0) {
+      throw new ConcernClusterValidationError(
+        "label",
+        "label must not be empty",
+      );
+    }
+    if (summary.length === 0) {
+      throw new ConcernClusterValidationError(
+        "summary",
+        "summary must not be empty",
+      );
+    }
+
+    this.label = label;
+    this.summary = summary;
   }
 }
 
@@ -37,24 +94,18 @@ export class ConcernCluster {
   constructor(props: ConcernClusterProps) {
     const status = props.status?.trim() || "ready";
     const label = props.label?.trim() || null;
-    if (
-      (status === "ready" && label === null) ||
-      (label !== null && label.length > CONCERN_CLUSTER_LABEL_MAX_LENGTH)
-    ) {
+    if (status === "ready" && label === null) {
       throw new ConcernClusterValidationError(
         "label",
-        `label must be set for a ready cluster and at most ${CONCERN_CLUSTER_LABEL_MAX_LENGTH} characters`,
+        "label must be set for a ready cluster",
       );
     }
 
     const summary = props.summary?.trim() || null;
-    if (
-      (status === "ready" && summary === null) ||
-      (summary !== null && summary.length > CONCERN_CLUSTER_SUMMARY_MAX_LENGTH)
-    ) {
+    if (status === "ready" && summary === null) {
       throw new ConcernClusterValidationError(
         "summary",
-        `summary must be set for a ready cluster and at most ${CONCERN_CLUSTER_SUMMARY_MAX_LENGTH} characters`,
+        "summary must be set for a ready cluster",
       );
     }
 
