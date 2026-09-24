@@ -3,9 +3,6 @@ import { apiClient } from '../lib/api'
 import { getLineIdToken, initializeLiff, isLineLoggedIn, logoutLine, startLineLogin } from './liff'
 import { AuthContext, type AuthResponse, type AuthStatus } from './auth-context'
 
-const useDevAuthenticatedSession =
-  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_MODE === 'authenticated'
-
 type AuthState = {
   status: AuthStatus
   user: AuthResponse['user']
@@ -91,21 +88,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       dispatch({ type: 'refreshStarted' })
 
       try {
-        if (useDevAuthenticatedSession) {
-          applySession({
-            authenticated: true,
-            user: {
-              id: 'dev-user',
-              birthYear: null,
-              birthMonth: null,
-              gender: null,
-              regionCode: null,
-              profileCompleted: false,
-            },
-          })
-          return
-        }
-
         const session = await requestSession()
         if (session.authenticated) {
           applySession(session)

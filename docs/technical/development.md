@@ -14,6 +14,16 @@ make dev
 
 バックエンドは `http://localhost:8787`、フロントエンドは `http://localhost:5173` を利用する。D1はWranglerのローカル環境を使い、独立したDBサーバーを起動しない。
 
+Feed・投稿詳細の動作確認用データが必要な場合は、バックエンドのローカル専用seedを使う。
+
+```bash
+pnpm --filter backend db:seed:local
+```
+
+固定IDのダミーユーザーと公開投稿6件を登録し、再実行しても重複しない。投稿は原文表示を確認できるように
+`visibility_status=published`、非同期処理の状態を再現するために `processing_status=pending` で登録する。
+このコマンドはローカルD1専用であり、本番D1へ適用してはならない。投稿送信・リアクション・既読などの認証フローは、別途LINEログインを使って確認する。
+
 ### CI前のローカル確認
 
 Pull Requestを作成する前に、GitHub Actions相当の確認をまとめて実行できる。
