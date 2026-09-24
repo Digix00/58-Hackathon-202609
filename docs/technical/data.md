@@ -9,7 +9,7 @@
 | エンティティ | 主な項目 | 用途 |
 | --- | --- | --- |
 | `concerns` | id、user_id、原文、属性、公開状態、処理状態、cluster_id、embedding_version、日時 | 悩み本体とVectorize登録version |
-| `concern_clusters` | id、表示ラベル、要約、状態、Embedding model version、日時 | 意味の近い悩みのまとまり。新規クラスタの表示ラベルと要約は生成前にNULLを許容 |
+| `concern_clusters` | id、表示ラベル、要約、状態、Embedding model version、日時 | 意味の近い悩みのまとまり。状態はpending/generating/ready。生成中のlease時刻はupdated_atに保存し、期限切れ後は再claimできる |
 | `concern_representations` | concern_id、言語、本文、生成状態、日時 | ひらがな表示と英語翻訳 |
 | `concern_processing_jobs` | id、concern_id、処理種別、状態、試行回数 | 翻訳・ひらがな化・クラスタリングなどの非同期処理 |
 | `concern_reactions` | concern_id、user_id、reaction_type、created_at | リアクションの重複防止と集計 |

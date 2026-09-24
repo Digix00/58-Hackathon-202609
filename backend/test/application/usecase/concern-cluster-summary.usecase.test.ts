@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   ConcernClusterSummary,
+  ConcernClusterSummaryClaim,
   ConcernClusterSummaryInput,
 } from "../../../src/application/entity/concern-cluster";
 import { ConcernProcessing } from "../../../src/application/entity/concern-processing";
@@ -77,14 +78,19 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
       clusterId: "cluster-1",
       concernBodies: [message.body],
     });
+    const claim = new ConcernClusterSummaryClaim({
+      input: summaryInput,
+      claimedAt: "2026-09-24T00:00:00.000Z",
+    });
     const summaryRepository: ConcernClusterSummaryRepository = {
-      findPendingSummaryInput: vi.fn().mockImplementation(async () => {
-        events.push("find-summary-input");
-        return summaryInput;
+      claimPendingSummaryInput: vi.fn().mockImplementation(async () => {
+        events.push("claim-summary-input");
+        return claim;
       }),
       saveSummary: vi.fn().mockImplementation(async () => {
         events.push("save-summary");
       }),
+      releaseSummaryClaim: vi.fn(),
     };
     const summaryGenerator: ConcernClusterSummaryGenerator = {
       generate: vi.fn().mockImplementation(async () => {
@@ -117,7 +123,12 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
 
     await useCase.execute(message);
 
-    expect(summaryGenerator.generate).toHaveBeenCalledWith(summaryInput);
+    expect(summaryGenerator.generate).toHaveBeenCalledWith(claim.input);
+    expect(summaryRepository.claimPendingSummaryInput).toHaveBeenCalledWith(
+      "cluster-1",
+      "2026-09-24T00:00:00.000Z",
+      "2026-09-23T23:55:00.000Z",
+    );
     expect(summaryRepository.saveSummary).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "cluster-1",
@@ -125,10 +136,11 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
         summary: "友人との距離感や、周囲に相談しづらい悩みです。",
         status: "ready",
       }),
+      claim.claimedAt,
     );
     expect(events).toEqual([
       "vector-upsert",
-      "find-summary-input",
+      "claim-summary-input",
       "generate-summary",
       "save-summary",
       "concern-ready",
@@ -137,14 +149,17 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
 
   it("retries the queue message when summary generation fails", async () => {
     const processingRepository = createProcessingRepository();
+    const claim = new ConcernClusterSummaryClaim({
+      input: new ConcernClusterSummaryInput({
+        clusterId: "cluster-1",
+        concernBodies: [message.body],
+      }),
+      claimedAt: "2026-09-24T00:00:00.000Z",
+    });
     const summaryRepository: ConcernClusterSummaryRepository = {
-      findPendingSummaryInput: vi.fn().mockResolvedValue(
-        new ConcernClusterSummaryInput({
-          clusterId: "cluster-1",
-          concernBodies: [message.body],
-        }),
-      ),
+      claimPendingSummaryInput: vi.fn().mockResolvedValue(claim),
       saveSummary: vi.fn(),
+      releaseSummaryClaim: vi.fn().mockResolvedValue(undefined),
     };
     const summaryGenerator: ConcernClusterSummaryGenerator = {
       generate: vi.fn().mockRejectedValue(new Error("Workers AI unavailable")),
@@ -161,7 +176,7 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
           ]),
         upsert: vi.fn(),
       },
-      {},
+      { now: () => new Date("2026-09-24T00:00:00.000Z") },
       summaryRepository,
       summaryGenerator,
     );
@@ -170,17 +185,89 @@ describe("ConcernProcessingUseCase cluster summaries", () => {
       "Workers AI unavailable",
     );
     expect(summaryRepository.saveSummary).not.toHaveBeenCalled();
+    expect(summaryRepository.releaseSummaryClaim).toHaveBeenCalledWith(
+      "cluster-1",
+      claim.claimedAt,
+      "2026-09-24T00:00:00.000Z",
+    );
     expect(processingRepository.saveResult).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: "ready" }),
     );
     expect(processingRepository.markFailed).toHaveBeenCalledOnce();
   });
 
+  it("marks a ready concern failed when retrying its pending cluster summary fails", async () => {
+    const processingRepository = createProcessingRepository();
+    vi.mocked(processingRepository.findState).mockResolvedValue(
+      new ConcernProcessing({
+        concernId: message.concernId,
+        status: "ready",
+        clusterId: "cluster-1",
+        representations: [
+          {
+            concernId: message.concernId,
+            locale: "ja-Hira",
+            body: "がっこうでゆうじんとはなしづらい",
+            status: "ready",
+            errorCode: null,
+            updatedAt: "2026-09-23T00:00:00.000Z",
+          },
+          {
+            concernId: message.concernId,
+            locale: "en",
+            body: "It is hard to talk to friends at school",
+            status: "ready",
+            errorCode: null,
+            updatedAt: "2026-09-23T00:00:00.000Z",
+          },
+        ],
+        updatedAt: "2026-09-23T00:00:00.000Z",
+      }),
+    );
+    const claim = new ConcernClusterSummaryClaim({
+      input: new ConcernClusterSummaryInput({
+        clusterId: "cluster-1",
+        concernBodies: [message.body],
+      }),
+      claimedAt: "2026-09-24T00:00:00.000Z",
+    });
+    const summaryRepository: ConcernClusterSummaryRepository = {
+      claimPendingSummaryInput: vi.fn().mockResolvedValue(claim),
+      saveSummary: vi.fn(),
+      releaseSummaryClaim: vi.fn().mockResolvedValue(undefined),
+    };
+    const summaryGenerator: ConcernClusterSummaryGenerator = {
+      generate: vi.fn().mockRejectedValue(new Error("Workers AI unavailable")),
+    };
+    const useCase = new ConcernProcessingUseCase(
+      createTextTranslator(),
+      createEmbeddingGenerator(),
+      processingRepository,
+      undefined,
+      { now: () => new Date("2026-09-24T00:00:00.000Z") },
+      summaryRepository,
+      summaryGenerator,
+    );
+
+    await expect(useCase.execute(message)).rejects.toThrow(
+      "Workers AI unavailable",
+    );
+
+    expect(processingRepository.markFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        concernId: message.concernId,
+        status: "failed",
+      }),
+      { allowReady: true },
+    );
+  });
+
   it("skips model calls when a cluster summary is already complete", async () => {
     const processingRepository = createProcessingRepository();
     const summaryRepository: ConcernClusterSummaryRepository = {
-      findPendingSummaryInput: vi.fn().mockResolvedValue(null),
+      claimPendingSummaryInput: vi.fn().mockResolvedValue(null),
       saveSummary: vi.fn(),
+      releaseSummaryClaim: vi.fn(),
     };
     const summaryGenerator: ConcernClusterSummaryGenerator = {
       generate: vi.fn(),

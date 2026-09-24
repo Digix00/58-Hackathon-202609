@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ConcernCluster,
-  ConcernClusterSummaryInput,
+  ConcernClusterSummaryClaim,
 } from "../../../src/application/entity/concern-cluster";
 import { D1ConcernClusterSummaryRepository } from "../../../src/infrastructure/database/d1-concern-cluster-summary.repository";
 import {
@@ -64,7 +64,7 @@ async function seedConcern(input: {
 }
 
 describe("D1ConcernClusterSummaryRepository", () => {
-  it("loads only published concern text and bounds the summary input", async () => {
+  it("claims only published concern text and bounds the model input", async () => {
     const clusterId = `summary-cluster-${crypto.randomUUID()}`;
     await seedPendingCluster(clusterId);
     for (let index = 0; index < 12; index++) {
@@ -82,16 +82,22 @@ describe("D1ConcernClusterSummaryRepository", () => {
     });
 
     const repository = new D1ConcernClusterSummaryRepository(env.DB);
-    const input = await repository.findPendingSummaryInput(clusterId);
+    const claim = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:01:00.000Z",
+      "2026-09-23T23:56:00.000Z",
+    );
 
-    expect(input).toBeInstanceOf(ConcernClusterSummaryInput);
-    expect(input?.concernBodies).toHaveLength(10);
-    expect(input?.concernBodies[0]).toBe("公開悩み-11");
-    expect(input?.concernBodies[9]).toBe("公開悩み-2");
-    expect(input?.concernBodies).not.toContain("非公開の内容はAIへ送らない");
+    expect(claim).toBeInstanceOf(ConcernClusterSummaryClaim);
+    expect(claim?.input.concernBodies).toHaveLength(10);
+    expect(claim?.input.concernBodies[0]).toBe("公開悩み-11");
+    expect(claim?.input.concernBodies[9]).toBe("公開悩み-2");
+    expect(claim?.input.concernBodies).not.toContain(
+      "非公開の内容はAIへ送らない",
+    );
   });
 
-  it("does not request a new summary for missing, ready, or empty clusters", async () => {
+  it("does not claim missing or ready clusters and releases empty ones", async () => {
     const readyClusterId = `summary-ready-${crypto.randomUUID()}`;
     const emptyClusterId = `summary-empty-${crypto.randomUUID()}`;
     const timestamp = "2026-09-24T00:00:00.000Z";
@@ -114,20 +120,163 @@ describe("D1ConcernClusterSummaryRepository", () => {
     const repository = new D1ConcernClusterSummaryRepository(env.DB);
 
     await expect(
-      repository.findPendingSummaryInput("missing"),
+      repository.claimPendingSummaryInput(
+        "missing",
+        "2026-09-24T00:01:00.000Z",
+        "2026-09-23T23:56:00.000Z",
+      ),
     ).resolves.toBeNull();
     await expect(
-      repository.findPendingSummaryInput(readyClusterId),
+      repository.claimPendingSummaryInput(
+        readyClusterId,
+        "2026-09-24T00:01:00.000Z",
+        "2026-09-23T23:56:00.000Z",
+      ),
     ).resolves.toBeNull();
     await expect(
-      repository.findPendingSummaryInput(emptyClusterId),
+      repository.claimPendingSummaryInput(
+        emptyClusterId,
+        "2026-09-24T00:01:00.000Z",
+        "2026-09-23T23:56:00.000Z",
+      ),
     ).resolves.toBeNull();
+    const emptyCluster = await drizzle(env.DB)
+      .select({ status: concernClusters.status })
+      .from(concernClusters)
+      .where(eq(concernClusters.id, emptyClusterId))
+      .get();
+    expect(emptyCluster?.status).toBe("pending");
+  });
+
+  it("allows only one concurrent delivery to claim a pending cluster", async () => {
+    const clusterId = `summary-claim-${crypto.randomUUID()}`;
+    await seedPendingCluster(clusterId);
+    await seedConcern({
+      clusterId,
+      body: "公開された悩み",
+      createdAt: "2026-09-24T00:00:00.000Z",
+    });
+    const repository = new D1ConcernClusterSummaryRepository(env.DB);
+    const claim = () =>
+      repository.claimPendingSummaryInput(
+        clusterId,
+        "2026-09-24T00:01:00.000Z",
+        "2026-09-23T23:56:00.000Z",
+      );
+
+    const claims = await Promise.all([claim(), claim()]);
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    expect(claims.filter(Boolean)[0]?.input.concernBodies).toEqual([
+      "公開された悩み",
+    ]);
+  });
+
+  it("reclaims an expired lease and only allows its current owner to save or release", async () => {
+    const clusterId = `summary-lease-${crypto.randomUUID()}`;
+    await seedPendingCluster(clusterId);
+    await seedConcern({
+      clusterId,
+      body: "公開された悩み",
+      createdAt: "2026-09-24T00:00:00.000Z",
+    });
+    const repository = new D1ConcernClusterSummaryRepository(env.DB);
+    const firstClaim = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:01:00.000Z",
+      "2026-09-23T23:56:00.000Z",
+    );
+    const retryClaim = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:10:00.000Z",
+      "2026-09-24T00:05:00.000Z",
+    );
+    expect(firstClaim).not.toBeNull();
+    expect(retryClaim?.claimedAt).toBe("2026-09-24T00:10:00.000Z");
+
+    const staleSummary = new ConcernCluster({
+      id: clusterId,
+      label: "古い要約",
+      summary: "期限切れのclaimからは保存できません。",
+      status: "ready",
+      updatedAt: "2026-09-24T00:11:00.000Z",
+    });
+    await repository.saveSummary(staleSummary, firstClaim?.claimedAt ?? "");
+    await repository.releaseSummaryClaim(
+      clusterId,
+      firstClaim?.claimedAt ?? "",
+      "2026-09-24T00:12:00.000Z",
+    );
+
+    await repository.saveSummary(
+      new ConcernCluster({
+        id: clusterId,
+        label: "学校での人間関係",
+        summary: "友人との距離感や、周囲に相談しづらい悩みです。",
+        status: "ready",
+        updatedAt: "2026-09-24T00:13:00.000Z",
+      }),
+      retryClaim?.claimedAt ?? "",
+    );
+
+    const saved = await drizzle(env.DB)
+      .select()
+      .from(concernClusters)
+      .where(eq(concernClusters.id, clusterId))
+      .get();
+    expect(saved).toMatchObject({
+      label: "学校での人間関係",
+      summary: "友人との距離感や、周囲に相談しづらい悩みです。",
+      status: "ready",
+      modelVersion: "@cf/qwen/qwen3-embedding-0.6b",
+    });
+  });
+
+  it("releases a failed claim so a queue retry can claim it", async () => {
+    const clusterId = `summary-release-${crypto.randomUUID()}`;
+    await seedPendingCluster(clusterId);
+    await seedConcern({
+      clusterId,
+      body: "公開された悩み",
+      createdAt: "2026-09-24T00:00:00.000Z",
+    });
+    const repository = new D1ConcernClusterSummaryRepository(env.DB);
+    const claim = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:01:00.000Z",
+      "2026-09-23T23:56:00.000Z",
+    );
+    expect(claim).not.toBeNull();
+
+    await repository.releaseSummaryClaim(
+      clusterId,
+      claim?.claimedAt ?? "",
+      "2026-09-24T00:02:00.000Z",
+    );
+
+    const retry = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:03:00.000Z",
+      "2026-09-23T23:58:00.000Z",
+    );
+    expect(retry?.input.concernBodies).toEqual(["公開された悩み"]);
   });
 
   it("saves a summary once and preserves the embedding model version", async () => {
     const clusterId = `summary-save-${crypto.randomUUID()}`;
     await seedPendingCluster(clusterId);
+    await seedConcern({
+      clusterId,
+      body: "公開された悩み",
+      createdAt: "2026-09-24T00:00:00.000Z",
+    });
     const repository = new D1ConcernClusterSummaryRepository(env.DB);
+    const claim = await repository.claimPendingSummaryInput(
+      clusterId,
+      "2026-09-24T00:01:00.000Z",
+      "2026-09-23T23:56:00.000Z",
+    );
+    expect(claim).not.toBeNull();
     const summary = new ConcernCluster({
       id: clusterId,
       label: "学校での人間関係",
@@ -136,7 +285,7 @@ describe("D1ConcernClusterSummaryRepository", () => {
       updatedAt: "2026-09-24T00:01:00.000Z",
     });
 
-    await repository.saveSummary(summary);
+    await repository.saveSummary(summary, claim?.claimedAt ?? "");
     await repository.saveSummary(
       new ConcernCluster({
         id: clusterId,
@@ -145,6 +294,7 @@ describe("D1ConcernClusterSummaryRepository", () => {
         status: "ready",
         updatedAt: "2026-09-24T00:02:00.000Z",
       }),
+      claim?.claimedAt ?? "",
     );
 
     const saved = await drizzle(env.DB)

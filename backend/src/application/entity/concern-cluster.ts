@@ -3,13 +3,13 @@ export const CONCERN_CLUSTER_SUMMARY_MAX_LENGTH = 500;
 export const CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT = 10;
 export const CONCERN_CLUSTER_SUMMARY_INPUT_MAX_CHARACTERS = 20_000;
 
-const FORBIDDEN_CLUSTER_TERMS = [
-  "死ね",
-  "くたばれ",
-  "殺してやる",
-  "馬鹿",
-  "ばか",
-  "クズ",
+const FORBIDDEN_CLUSTER_PATTERNS = [
+  /死ね/u,
+  /くたばれ/u,
+  /殺してやる/u,
+  /(?:馬鹿|バカ)(?:だ|で|な|に|の|者|野郎|を|$|[、。！？!?\s])/u,
+  /ばか(?:だ|で|な|に|の|者|野郎|を|みたい|っぽい|$|[、。！？!?\s])/u,
+  /クズ/u,
 ];
 const PHONE_NUMBER_PATTERN =
   /(?<!\d)(?:0(?:[\s‐‑‒–—−-]?\d){9,10}|\+81[\s‐‑‒–—−-]?[1-9](?:[\s‐‑‒–—−-]?\d){8,9})(?!\d)/u;
@@ -42,10 +42,16 @@ const GENERIC_PERSON_REFERENCES = new Set([
   "保育士",
   "相談者",
 ]);
+const JAPANESE_POSTAL_CODE_PATTERN =
+  /(?:〒\s*)?(?<!\d)\d{3}[-－ー]\d{4}(?!\d)/u;
+const JAPANESE_ADDRESS_PATTERN =
+  /(?:北海道|東京都|(?:京都|大阪)府|[\p{Script=Han}]{2,3}県)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,20}(?:市|区|町|村)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,24}(?:\d{1,4}(?:[-‐‑‒–—−ー]\d{1,4}){1,2}|\d{1,4}丁目\d{1,4}番(?:地?\d{1,4}号?)?|\d{1,4}番地\d{1,4}号?)/u;
 const PERSONAL_INFORMATION_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   PHONE_NUMBER_PATTERN,
   /(?:https?:\/\/|www\.)\S+/i,
+  JAPANESE_POSTAL_CODE_PATTERN,
+  JAPANESE_ADDRESS_PATTERN,
 ];
 
 export class ConcernClusterValidationError extends Error {
@@ -87,6 +93,26 @@ export class ConcernClusterSummaryInput {
 
     this.clusterId = clusterId;
     this.concernBodies = concernBodies;
+  }
+}
+
+export interface ConcernClusterSummaryClaimProps {
+  input: ConcernClusterSummaryInput;
+  claimedAt: string;
+}
+
+/** Lease ownership returned by the repository's atomic pending-to-generating claim. */
+export class ConcernClusterSummaryClaim {
+  readonly input: ConcernClusterSummaryInput;
+  readonly claimedAt: string;
+
+  constructor(props: ConcernClusterSummaryClaimProps) {
+    const claimedAt = props.claimedAt.trim();
+    if (claimedAt.length === 0) {
+      throw new TypeError("cluster summary claim timestamp is required");
+    }
+    this.input = props.input;
+    this.claimedAt = claimedAt;
   }
 }
 
@@ -195,7 +221,7 @@ function validateGeneratedText(
   }
 
   if (
-    FORBIDDEN_CLUSTER_TERMS.some((term) => value.includes(term)) ||
+    FORBIDDEN_CLUSTER_PATTERNS.some((pattern) => pattern.test(value)) ||
     /\b(?:fuck|shit|bitch)\b/i.test(value)
   ) {
     throw new ConcernClusterValidationError(

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ConcernClusterSummary,
+  ConcernClusterSummaryClaim,
   ConcernClusterSummaryInput,
 } from "../../../src/application/entity/concern-cluster";
 import {
@@ -333,9 +334,14 @@ describe("ConcernProcessingUseCase", () => {
       clusterId,
       concernBodies: ["学校で友人と話しづらい"],
     });
+    const summaryClaim = new ConcernClusterSummaryClaim({
+      input: summaryInput,
+      claimedAt: timestamp,
+    });
     const summaryRepository: ConcernClusterSummaryRepository = {
-      findPendingSummaryInput: vi.fn().mockResolvedValue(summaryInput),
+      claimPendingSummaryInput: vi.fn().mockResolvedValue(summaryClaim),
       saveSummary: vi.fn().mockResolvedValue(undefined),
+      releaseSummaryClaim: vi.fn().mockResolvedValue(undefined),
     };
     const summaryGenerator: ConcernClusterSummaryGenerator = {
       generate: vi.fn().mockImplementation(async () => {
@@ -370,8 +376,14 @@ describe("ConcernProcessingUseCase", () => {
           status: "failed",
           clusterId,
         }),
+        { allowReady: true },
       );
       expect(summaryRepository.saveSummary).not.toHaveBeenCalled();
+      expect(summaryRepository.releaseSummaryClaim).toHaveBeenCalledWith(
+        clusterId,
+        timestamp,
+        timestamp,
+      );
     } else {
       await expect(execution).resolves.toBeNull();
       expect(summaryRepository.saveSummary).toHaveBeenCalledWith(
@@ -381,14 +393,17 @@ describe("ConcernProcessingUseCase", () => {
           summary: "友人との関わりに関する悩みです。",
           status: "ready",
         }),
+        timestamp,
       );
       expect(repository.markFailed).not.toHaveBeenCalled();
     }
 
-    expect(summaryRepository.findPendingSummaryInput).toHaveBeenCalledWith(
+    expect(summaryRepository.claimPendingSummaryInput).toHaveBeenCalledWith(
       clusterId,
+      timestamp,
+      "2026-09-23T23:55:00.000Z",
     );
-    expect(summaryGenerator.generate).toHaveBeenCalledWith(summaryInput);
+    expect(summaryGenerator.generate).toHaveBeenCalledWith(summaryClaim.input);
     expect(repository.markProcessing).not.toHaveBeenCalled();
     expect(embeddingGenerator.generateEmbeddings).not.toHaveBeenCalled();
     expect(vectorIndex.search).not.toHaveBeenCalled();

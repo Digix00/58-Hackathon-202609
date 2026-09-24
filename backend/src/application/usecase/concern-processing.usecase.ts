@@ -18,6 +18,7 @@ import type { ConcernProcessingRepository } from "../repository/concern-processi
 export const DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD = 0.8;
 
 const NEAREST_CONCERN_LIMIT = 10;
+const CLUSTER_SUMMARY_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
 export interface ConcernProcessingResult {
   concernId: string;
@@ -116,6 +117,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
     const modelVersion = this.embeddingGenerator.modelVersion ?? "unknown";
     const embeddingVersion = `${modelVersion}@${this.vectorIndexVersion}`;
     const processingTimestamp = this.nowIso();
+    let allowReadyFailure = false;
     try {
       if (
         state?.status === "ready" &&
@@ -125,6 +127,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             state.embeddingVersion === embeddingVersion))
       ) {
         if (state.clusterId) {
+          allowReadyFailure = true;
           await this.generatePendingClusterSummary(state.clusterId);
         }
         return null;
@@ -247,6 +250,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             modelVersion,
             updatedAt: this.nowIso(),
           }),
+          { allowReady: allowReadyFailure },
         )
         .catch(() => undefined);
       throw error;
@@ -266,21 +270,38 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
       return;
     }
 
-    const input = await repository.findPendingSummaryInput(clusterId);
-    if (!input) {
+    const claimTime = this.now();
+    const claimedAt = claimTime.toISOString();
+    const staleBefore = new Date(
+      claimTime.getTime() - CLUSTER_SUMMARY_CLAIM_LEASE_MS,
+    ).toISOString();
+    const claim = await repository.claimPendingSummaryInput(
+      clusterId,
+      claimedAt,
+      staleBefore,
+    );
+    if (!claim) {
       return;
     }
 
-    const summary = await generator.generate(input);
-    await repository.saveSummary(
-      new ConcernCluster({
-        id: clusterId,
-        label: summary.label,
-        summary: summary.summary,
-        status: "ready",
-        updatedAt: this.nowIso(),
-      }),
-    );
+    try {
+      const summary = await generator.generate(claim.input);
+      await repository.saveSummary(
+        new ConcernCluster({
+          id: clusterId,
+          label: summary.label,
+          summary: summary.summary,
+          status: "ready",
+          updatedAt: this.nowIso(),
+        }),
+        claim.claimedAt,
+      );
+    } catch (error) {
+      await repository
+        .releaseSummaryClaim(clusterId, claim.claimedAt, this.nowIso())
+        .catch(() => undefined);
+      throw error;
+    }
   }
 
   /**

@@ -225,7 +225,10 @@ export class D1ConcernProcessingRepository
     await this.db.batch([upsertRepresentations, updateConcern]);
   }
 
-  async markFailed(processing: ConcernProcessing): Promise<void> {
+  async markFailed(
+    processing: ConcernProcessing,
+    options: { allowReady?: boolean } = {},
+  ): Promise<void> {
     await this.db
       .update(concerns)
       .set({
@@ -233,10 +236,12 @@ export class D1ConcernProcessingRepository
         updatedAt: processing.updatedAt,
       })
       .where(
-        and(
-          eq(concerns.id, processing.concernId),
-          ne(concerns.processingStatus, "ready"),
-        ),
+        options.allowReady
+          ? eq(concerns.id, processing.concernId)
+          : and(
+              eq(concerns.id, processing.concernId),
+              ne(concerns.processingStatus, "ready"),
+            ),
       )
       .run();
   }
