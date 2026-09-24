@@ -12,23 +12,47 @@
 
 .primary {
   position: relative;
-  padding: 0 19px;
-  border-radius: 49% 51% 48% 52%;
-  color: var(--color-paper);
-  background: var(--color-purple);
-  box-shadow: 2px 3px 0 var(--color-purple-dark);
+  padding: 0 1.1em;
+  border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
+  color: var(--color-purple-ink);
+  background: #fff8e8;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
   font-weight: 700;
   text-decoration: none;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
 }
 
 .primary::after {
   position: absolute;
   inset: -1px;
-  border: 2px solid var(--color-purple-dark);
+  border: 2.5px solid var(--color-outline);
   border-radius: inherit;
   filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
   pointer-events: none;
   content: '';
+}
+
+.primary:not(:disabled):hover {
+  transform: translateY(-1px) rotate(-0.4deg);
+  box-shadow: 2px 3.5px 0 #c3b89f;
+}
+
+.primary:not(:disabled):active {
+  transform: translate(1px, 2px);
+  box-shadow: 0 0 0 #c3b89f;
+}
+
+.primary:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 4px;
 }
 
 .secondary {

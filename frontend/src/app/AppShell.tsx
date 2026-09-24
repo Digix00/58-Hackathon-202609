@@ -33,7 +33,7 @@ export function AppShell() {
         {leftNavigation.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
             <NavIcon name={item.icon} />
-            {item.label}
+            <span className={styles.navLabel}>{item.label}</span>
           </NavLink>
         ))}
         <NavLink
@@ -43,12 +43,12 @@ export function AppShell() {
           }
         >
           <NavIcon name="post" />
-          投稿
+          <span className={styles.navLabel}>投稿</span>
         </NavLink>
         {rightNavigation.map((item) => (
           <NavLink key={item.to} to={item.to} className={navLinkClass}>
             <NavIcon name={item.icon} />
-            {item.label}
+            <span className={styles.navLabel}>{item.label}</span>
           </NavLink>
         ))}
       </nav>

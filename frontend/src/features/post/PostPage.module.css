@@ -1,0 +1,615 @@
+/*
+ * 投稿画面。
+ *
+ * フィードが「一冊のリングノートを読む」画面なら、投稿は「その一冊に自分の紙を
+ * 書き足す」画面である。だから紙・とじリング・上辺のしおりはフィードと同じ作りにし、
+ * 書く面だけをフィードの本文から入力欄へ差し替える。
+ * 画面の主役は白い紙と罫線であり、見出しやボタンを紙の外に積み上げない。
+ */
+.page {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+/* 一枚の紙だけを置く舞台。上下の間合いはここの余白で取る。 */
+.stage {
+  display: grid;
+  /* 紙の幅は画面の幅で決める。入力欄の既定の幅（cols）に紙を広げさせない。 */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding-block: clamp(0.9em, 2.8vh, 1.5em);
+}
+
+/*
+ * 紙束。書き足す先が一冊のノートであることを、件数ではなく
+ * 下に控えた紙のふちで伝える。
+ */
+.stack {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
+}
+
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  content: '';
+}
+
+/* 遠い方の紙。先に描かれるので束の一番下になる。 */
+.sheetFar {
+  background: #fdf5e4;
+  transform: rotate(2.4deg) translate(8px, 10px);
+}
+
+.sheetNear {
+  background: #fffaef;
+  transform: rotate(1.3deg) translate(4px, 5px);
+}
+
+.enter {
+  /* 紙束の上に重ねる。下に控えた紙より手前で書かせる。 */
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+/*
+ * 書く紙・読み返す紙・お礼の紙。
+ * どれも同じ大きさ・同じとじ代にする。めくった先で紙が入れ替わって見えないため。
+ * 高さは下限だけを決め、書いたぶんだけ下へ伸ばす。フィードは本文を行数で切るが、
+ * 投稿では書いた言葉を切ってはいけない。
+ */
+.card {
+  position: relative;
+  z-index: 1;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.7em, 2vh, 1.05em);
+  /*
+   * 紙の高さ。書く紙・読み返す紙・お礼の紙で必ずそろえる。
+   * 一冊のノートなので、めくった先で紙の大きさが変わってはいけない。
+   * 下限だけを決め、書いたぶんだけ下へ伸ばす。
+   */
+  min-height: clamp(19em, 48vh, 28em);
+  /* まだ誰も読んでいない一枚。フィードのページ色は当てず、生成りのまま置く。 */
+  background: var(--paper-tint);
+  /* 左はとじ代。リングの上に文字が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.35em, 5vw, 1.7em)
+    calc(clamp(1.55em, 7vw, 2em) + 15px);
+  box-shadow: 4px 5px 0 var(--color-paper-shadow);
+}
+
+/* 書く紙。呼びかけ、書く面、ふもとの3段。 */
+.writeCard {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+/* 読み返す紙とお礼の紙は、載せるものを紙の中央に置く。 */
+.readCard,
+.doneCard {
+  grid-template-rows: minmax(0, 1fr);
+  align-content: center;
+}
+
+/*
+ * 上辺のインデックス。フィードが年代・地域を挟むのと同じ位置に、
+ * 投稿では「いま何をする紙か」を挟む。
+ * 左はとじリングの領分なので、そこまでは伸ばさない。
+ */
+.tabs {
+  position: absolute;
+  z-index: 2;
+  top: -0.9em;
+  right: 1.4em;
+  left: calc(clamp(1.35em, 6vw, 1.8em) + 15px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4em;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.tab {
+  position: relative;
+  min-width: 0;
+  padding: 0.32em 0.75em 0.38em;
+  border-radius: 4px 8px 3px 7px;
+  color: var(--color-purple-ink);
+  /* 貼った角度をそろえない。ひとつずつ手で貼ったものとして扱う。 */
+  background: #f0e7d0;
+  box-shadow: 1.5px 2px 0 #b0a894;
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  transform: rotate(1.2deg);
+}
+
+.tab:first-child {
+  transform: rotate(-2.4deg);
+}
+
+/*
+ * いまの手順。色だけで示さず、紙から高く出して、濃い輪郭で前に出す。
+ * 読み上げには aria-current と添えた言葉で伝える。
+ */
+.tabCurrent {
+  padding-bottom: 0.52em;
+  background: #ded5f0;
+  box-shadow: 1.5px 2.5px 0 #9d94b8;
+  font-size: calc(12px * var(--font-scale));
+  transform: rotate(-1.2deg) translateY(-0.18em);
+}
+
+/* 付箋のふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
+.tab::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.8;
+  pointer-events: none;
+  content: '';
+}
+
+.tabCurrent::before {
+  border-color: #7d76a6;
+  opacity: 0.95;
+}
+
+/*
+ * 紙の上の呼びかけ。ほかの画面の見出しと同じ手書き・波線で書き、
+ * そのまま入力欄のラベルを兼ねる。見出しを紙の外に積むと、
+ * 「書く場所」が見出しの下の別の箱に見えてしまう。
+ */
+.prompt {
+  display: grid;
+  gap: 0.25em;
+}
+
+.promptTitle {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--color-purple-ink);
+  font-size: calc(20px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.18em;
+  transform: rotate(-0.65deg);
+  cursor: text;
+}
+
+.promptLead {
+  color: var(--color-muted);
+  font-size: calc(14px * var(--font-scale));
+  line-height: 1.7;
+}
+
+/*
+ * 書く面。紙に引いた罫線を先に敷き、その上へ文字を乗せる。
+ * 線は文字とは別のレイヤーに置き、線の揺らぎが文字の輪郭を汚さないようにする。
+ */
+.write {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  isolation: isolate;
+  min-width: 0;
+  font-size: calc(18px * var(--font-scale));
+  --line: 1.95em;
+  --rule-color: rgba(138, 132, 122, 0.22);
+}
+
+.write::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line) - 1.5px),
+    var(--rule-color) calc(var(--line) - 1.5px),
+    var(--rule-color) var(--line)
+  );
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
+}
+
+/*
+ * 入力欄そのものには枠を持たせない。枠のある箱を紙に置くと、
+ * 紙の上に別の紙が乗って見える。書く場所は罫線が示す。
+ */
+.input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: var(--color-ink);
+  background: transparent;
+  font: inherit;
+  font-size: inherit;
+  line-height: var(--line);
+  letter-spacing: 0.02em;
+  /* 書いたぶんだけ紙が伸びる。欄の中だけを送ると、文字が罫線からずれる。 */
+  overflow: hidden;
+  resize: none;
+}
+
+.input::placeholder {
+  /* 入力済みの本文と区別できるよう、例文は一段薄く表示する。 */
+  color: #aaa39a;
+}
+
+.input:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid var(--color-focus);
+  outline-offset: 5px;
+}
+
+/* 読み返す紙の本文。書いていたときと同じ行送りの上に置く。 */
+.readBody {
+  align-self: center;
+  font-size: inherit;
+  line-height: var(--line);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.error {
+  color: #9b333a;
+  font-size: calc(15px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/*
+ * 紙のふもと。
+ * 話して書く操作と書いた量を同じ行に並べ、準備中ラベルはボタンに貼って見せる。
+ * 文字を大きくすると1行に収まらなくなるので、文字数は途中で折らず行ごと送る。
+ */
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em 0.8em;
+  padding-top: 0.2em;
+}
+
+/*
+ * 「話して書く」。フィードの「そっと寄りそう」と同じ、紙に貼った小さな
+ * スタンプ台として置く。濃い色の塊にすると、書く面と主役を奪い合う。
+ */
+.voiceButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-height: 44px;
+  padding: 0 1em 0 0.85em;
+  border: 0;
+  border-radius: 20px 24px 19px 23px / 23px 19px 24px 20px;
+  color: var(--color-ink);
+  background: #fffdf5;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
+  font: inherit;
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.voiceButton::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+.voiceButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+/* ボタンに貼った小さな付箋。ボタンの役割を邪魔せず、準備中だけを添える。 */
+.voiceLabel {
+  position: absolute;
+  z-index: 1;
+  top: -0.8em;
+  right: -0.7em;
+  font-size: calc(11px * var(--font-scale));
+  transform: rotate(3deg);
+}
+
+.mic {
+  width: 1.3em;
+  height: 1.3em;
+  overflow: visible;
+  fill: none;
+  stroke: var(--color-outline);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#crayon-edge-fine);
+}
+
+/*
+ * 準備中の知らせ。
+ * 貼った札の大きさは札の側で決まっているので、ここで字を縮めない。
+ * 縮めると、ほかの画面に貼ってある同じ札より小さくなる。
+ */
+.voiceNote {
+  flex-basis: 100%;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.count {
+  margin-inline-start: auto;
+  color: var(--color-muted);
+  font-size: calc(13px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* 上限を越えたことは、色だけでなく文言でも伝える。 */
+.countOver {
+  color: #9b333a;
+  font-weight: 700;
+}
+
+/* お礼の紙。小さな落書きを一つだけ添える。 */
+.doneCard {
+  justify-items: center;
+  text-align: center;
+}
+
+.doneInner {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.7em;
+}
+
+.star {
+  width: 2.6em;
+  height: 2.6em;
+  overflow: visible;
+  fill: #f6dc9a;
+  stroke: #d9b45f;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#crayon-edge-art);
+  transform: rotate(-4deg);
+}
+
+.doneTitle {
+  color: var(--color-purple-ink);
+  font-size: calc(21px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: rotate(-1deg);
+}
+
+.doneLead {
+  /* 題字の波線が下の行に触れないだけの間合いを取る。 */
+  padding-top: 0.3em;
+  max-width: 22em;
+  color: var(--color-muted);
+  line-height: 1.85;
+}
+
+/* 紙の外。主操作をここへ一つだけ置く。 */
+.actions {
+  display: grid;
+  justify-items: center;
+  gap: 0.75em;
+  width: 100%;
+}
+
+/*
+ * 次へ進む操作。
+ * 紙片の形は共通の主操作と同じにし、下部ナビの「投稿」と同じ淡い紫だけを敷く。
+ * 生成りのまま置くと、紙に貼った「話して書く」と同じ重さに見えてしまう。
+ */
+.nextButton {
+  gap: 0.8em;
+  width: min(100%, 20em);
+  min-height: 56px;
+  background: #efeaf6;
+  font-size: calc(17px * var(--font-scale));
+}
+
+/* 押す先を目で拾えるよう、矢印だけがときどき先へ進む。 */
+.nextButton span {
+  font-size: calc(18px * var(--font-scale));
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
+/*
+ * 匿名と安全の注意。
+ * 装飾で薄めず、紙片として本文と同じ濃さの言葉で置く。
+ */
+.caution {
+  position: relative;
+  width: 100%;
+  padding: 0.85em 1.05em 0.9em;
+  border-radius: 14px 11px 15px 12px;
+  color: var(--color-muted);
+  background: #f7f1e4;
+  font-size: calc(15px * var(--font-scale));
+  line-height: 1.8;
+}
+
+.caution::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-field-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.7;
+  pointer-events: none;
+  content: '';
+}
+
+.submitError {
+  width: 100%;
+  color: #9b333a;
+  font-weight: 700;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 背の低い端末では、1画面に収まることを文字の大きさより優先する。 */
+@media (max-height: 700px) {
+  .card {
+    gap: 0.6em;
+    min-height: clamp(16em, 44vh, 22em);
+    padding-block: 1.15em;
+    padding-inline-start: calc(clamp(1.55em, 7vw, 2em) + 10px);
+  }
+
+  .write {
+    font-size: calc(17px * var(--font-scale));
+    --line: 1.75em;
+  }
+
+  .promptTitle {
+    font-size: calc(18px * var(--font-scale));
+  }
+
+  .stack {
+    --binding-inset: 4%;
+  }
+
+  /* 注意は省略せず、字だけを一段落として投稿操作を画面内へ引き上げる。 */
+  .caution {
+    padding: 0.7em 0.9em 0.75em;
+    font-size: calc(14px * var(--font-scale));
+    line-height: 1.7;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .write {
+    --rule-color: rgba(93, 88, 80, 0.45);
+  }
+
+  .write::before {
+    opacity: 0.85;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  /* 高コントラスト時は、かすれを外して紙とふちを確実に示す。 */
+  .tab::before,
+  .sheet::before,
+  .voiceButton::before,
+  .caution::before {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .mic,
+  .star {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nextButton span {
+    animation: none;
+  }
+}

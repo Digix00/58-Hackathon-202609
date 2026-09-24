@@ -200,6 +200,7 @@ export class ConcernUseCase implements IConcernUseCase {
         const candidates = await this.listFeedCandidates({
           limit: candidateLimit,
           cursor: sourceCursor ?? undefined,
+          gender: input.gender,
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
@@ -247,6 +248,7 @@ export class ConcernUseCase implements IConcernUseCase {
         const fallback = await this.listFeedCandidates({
           limit: recommendationCursor ? candidateLimit : input.limit,
           cursor: candidateWindowCursor ?? undefined,
+          gender: input.gender,
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
@@ -305,6 +307,7 @@ export class ConcernUseCase implements IConcernUseCase {
 
     const candidates = await this.repository.listFeedByIds({
       ids,
+      gender: input.gender,
       regionCode: input.regionCode,
       clusterId: input.clusterId,
       userId: input.userId,

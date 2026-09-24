@@ -91,7 +91,7 @@ export function validatePostInput(input: PostFormInput): PostFormFieldErrors {
 
   const trimmedBody = input.body.trim()
   if (trimmedBody.length === 0) {
-    fieldErrors.body = '悩みの内容を入力してください'
+    fieldErrors.body = '悩みをひとこと入力してください'
   } else if (trimmedBody.length > POST_BODY_MAX_LENGTH) {
     fieldErrors.body = `本文は${POST_BODY_MAX_LENGTH}文字以内で入力してください`
   }
