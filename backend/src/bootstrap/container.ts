@@ -59,6 +59,7 @@ export function createApplication(bindings: Bindings) {
     bindings.AI
       ? new WorkersAiTextEmbeddingGenerator(bindings.AI)
       : new LocalTextEmbeddingGenerator(),
+    new D1ConcernProcessingRepository(bindings.DB),
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,
