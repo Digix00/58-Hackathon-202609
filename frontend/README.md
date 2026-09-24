@@ -2,22 +2,17 @@
 
 ## LINE MINI App認証
 
-ローカルでは`.env.example`を`.env.local`へコピーし、LINE Developers Consoleで発行したLIFF IDを設定する。
+ローカルの環境変数はGit管理外の`.env.local`で設定する。`make dev`または`make frontend`を実行すると、`.env.local`がない場合だけ`.env.example`から自動作成される。手動で作成する場合は次を実行する。
 
 ```bash
-cp .env.example .env.local
+cp frontend/.env.example frontend/.env.local
 ```
 
-`VITE_LINE_LIFF_ID`は公開されるフロントエンド設定値であり、チャネルシークレットは設定しない。
-認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
-
-### 開発時のLINE認証
-
-投稿、リアクション、既読を確認する場合は、`.env.local` にLIFF IDを設定し、LINEミニアプリから開く。認証状態はバックエンドのHttpOnly Cookieで管理する。
+`VITE_LINE_LIFF_ID`は公開されるフロントエンド設定値であり、チャネルシークレットは設定しない。実際のLINE認証を確認する場合だけ、LINE Developers Consoleで発行したLIFF IDを設定する。
 
 ### ローカル開発用認証
 
-LINEログインなしでAPI・D1を含む動作確認をする場合は、開発時の環境変数を次のように設定する。
+`.env.example`は、LINEログインなしでAPI・D1を含む動作確認ができるデバッグモードを既定値としている。
 
 ```env
 VITE_DEV_LIFF_MODE=true
@@ -25,9 +20,20 @@ VITE_DEV_AUTH_MODE=backend
 VITE_DEV_USER=demo-a
 ```
 
-リポジトリの`.env.development`にはこの設定が入っているため、通常は`make dev`を実行するだけで利用できる。
 `VITE_DEV_USER`には`demo-a`、`demo-b`、`demo-c`のいずれかを指定する。フロントエンドは開発専用APIからLINEログインと同じHttpOnly Cookieセッションを取得するため、フィード・投稿詳細・閲覧記録・リアクション・投稿・プロフィール保存をローカルD1で確認できる。
 開発用認証エンドポイントは開発用Worker設定でのみ有効で、本番用設定では利用できない。
+
+### 開発時のLINE認証
+
+実際のLINE認証を確認する場合は、`.env.local`を次のように変更する。
+
+```env
+VITE_LINE_LIFF_ID=<LINE Developers Consoleで発行したLIFF ID>
+VITE_DEV_LIFF_MODE=false
+VITE_DEV_AUTH_MODE=
+```
+
+設定変更後に開発サーバーを再起動し、LINEミニアプリから開く。認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
 
 ## デモ画面
 

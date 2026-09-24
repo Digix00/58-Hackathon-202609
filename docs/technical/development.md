@@ -14,6 +14,8 @@ make dev
 
 バックエンドは `http://localhost:8787`、フロントエンドは `http://localhost:5173` を利用する。D1はWranglerのローカル環境を使い、独立したDBサーバーを起動しない。
 
+`make dev`または`make frontend`は、`frontend/.env.local`がない場合だけ`frontend/.env.example`から自動作成する。`.env.local`はGit管理外であり、既存のファイルは上書きしない。初期設定ではLINEログインなしで確認できるローカルデバッグモードが有効になる。
+
 Wrangler `4.131.1` が Node.js 22 以上を要求するため、ローカル開発・D1操作は Node.js 22 以上で実行する。
 
 Feed・投稿詳細の動作確認用データが必要な場合は、バックエンドのローカル専用seedを使う。
@@ -28,10 +30,12 @@ pnpm --filter backend db:seed:local
 
 ### ローカル統合認証
 
-LINEログインなしで認証が必要な機能を確認する場合は、フロントエンドで`VITE_DEV_AUTH_MODE=backend`を設定する。
+LINEログインなしで認証が必要な機能を確認する場合は、`frontend/.env.local`で`VITE_DEV_LIFF_MODE=true`、`VITE_DEV_AUTH_MODE=backend`を設定する。これらは`frontend/.env.example`の既定値であり、`make dev`の初回実行時に`.env.local`へコピーされる。
 フロントエンドは`POST /api/v1/auth/dev`から通常のHttpOnly Cookieセッションを取得し、`VITE_DEV_USER`（`demo-a`〜`demo-c`）に対応する開発用ユーザーとしてローカルAPIへ接続する。
 `make dev`はマイグレーション後にこの認証用データとサンプルデータを投入する。
 開発用認証エンドポイントは`wrangler.dev.jsonc`と`wrangler.vectorize.dev.jsonc`でのみ有効で、本番設定では無効である。
+
+実際のLINE認証を確認する場合は、`.env.local`の`VITE_DEV_LIFF_MODE`を`false`、`VITE_DEV_AUTH_MODE`を空にし、`VITE_LINE_LIFF_ID`へLIFF IDを設定してから開発サーバーを再起動する。
 
 ### CI前のローカル確認
 
@@ -51,6 +55,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | フロントエンドが接続するAPI URL | フロントエンドの環境設定 |
 | `VITE_LINE_LIFF_ID` | LINE MINI AppのLIFF ID | フロントエンドの環境設定 |
+| `VITE_DEV_LIFF_MODE` | ローカルでLIFF SDKを使わないデバッグモードを有効化 | フロントエンドの環境設定（開発時のみ） |
 | `VITE_DEV_AUTH_MODE` | `backend`でローカルAPIの開発用認証を有効化 | フロントエンドの環境設定（開発時のみ） |
 | `VITE_DEV_USER` | 開発認証で使う固定ユーザーキー（`demo-a`〜`demo-c`） | フロントエンドの環境設定（開発時のみ） |
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |

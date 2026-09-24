@@ -1,10 +1,11 @@
-.PHONY: help install db-migrate db-seed-local dev backend frontend format-frontend format-check-frontend format-backend format-check-backend lint-frontend lint-backend build-frontend build-backend test-backend check-frontend check-backend check dev-vars
+.PHONY: help install db-migrate db-seed-local dev backend frontend format-frontend format-check-frontend format-backend format-check-backend lint-frontend lint-backend build-frontend build-backend test-backend check-frontend check-backend check dev-vars frontend-env
 
 help:
 	@echo "make dev         - 依存インストール + ローカルD1へのマイグレーション・開発用データ適用 + backend/frontend同時起動"
 	@echo "make install     - 依存関係のインストール"
 	@echo "make db-migrate  - ローカルD1にマイグレーションを適用"
 	@echo "make db-seed-local - ローカルD1に開発用データを投入"
+	@echo "make frontend-env - frontend/.env.localがなければサンプルから作成"
 	@echo "make backend     - backendのみ起動 (http://localhost:8787)"
 	@echo "make frontend    - frontendのみ起動 (http://localhost:5173)"
 	@echo "make format-frontend       - frontendのコードを整形"
@@ -34,16 +35,21 @@ db-migrate: install
 dev-vars:
 	@test -f backend/.dev.vars || cp backend/.dev.vars.example backend/.dev.vars
 
+# フロントエンドのローカル設定がない場合だけサンプルから作成する。
+# 既存の.env.localは上書きせず、LINE認証などの開発者固有の設定を保持する。
+frontend-env:
+	@test -f frontend/.env.local || cp frontend/.env.example frontend/.env.local
+
 db-seed-local: db-migrate
 	pnpm --filter backend db:seed:local
 
-dev: db-migrate dev-vars db-seed-local
+dev: db-migrate dev-vars frontend-env db-seed-local
 	pnpm dev
 
 backend: install dev-vars
 	pnpm --filter backend dev
 
-frontend: install
+frontend: install frontend-env
 	pnpm --filter frontend dev
 
 format-frontend:
