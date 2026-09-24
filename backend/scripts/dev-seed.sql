@@ -1,5 +1,6 @@
 -- ローカル開発専用のサンプルデータ。remote D1へ適用しない。
 -- INSERT OR IGNORE で make dev を繰り返しても既存の投稿・回答を壊さない。
+-- 開発認証APIが先に作成したユーザーにも紐づけられるよう、後続データはline_user_idから実IDを参照する。
 
 INSERT OR IGNORE INTO users (
   id,
@@ -58,7 +59,7 @@ INSERT OR IGNORE INTO concerns (
 VALUES
   (
     'dev-concern-a',
-    'dev-user-a',
+    (SELECT id FROM users WHERE line_user_id = 'dev:demo-a'),
     '昼休みの食堂がいつも混んでいて、食べ終わるころには休憩時間がなくなってしまいます。',
     '20s',
     'female',
@@ -70,7 +71,7 @@ VALUES
   ),
   (
     'dev-concern-b',
-    'dev-user-b',
+    (SELECT id FROM users WHERE line_user_id = 'dev:demo-b'),
     '駅から家までの道が暗く、仕事の帰りが遅い日は少し不安です。',
     '40s',
     'male',
@@ -82,7 +83,7 @@ VALUES
   ),
   (
     'dev-concern-c',
-    'dev-user-c',
+    (SELECT id FROM users WHERE line_user_id = 'dev:demo-c'),
     '病院の予約が電話とウェブで分かれていて、どこから申し込めばよいのか分かりにくいです。',
     '30s',
     'no_answer',
@@ -124,7 +125,7 @@ INSERT OR IGNORE INTO quiz_participants (
 SELECT
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours') || '-a',
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-  'dev-user-a',
+  (SELECT id FROM users WHERE line_user_id = 'dev:demo-a'),
   'dev-concern-a',
   1,
   '20s',
@@ -150,7 +151,7 @@ INSERT OR IGNORE INTO quiz_participants (
 SELECT
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours') || '-b',
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-  'dev-user-b',
+  (SELECT id FROM users WHERE line_user_id = 'dev:demo-b'),
   'dev-concern-b',
   2,
   '40s',
@@ -176,7 +177,7 @@ INSERT OR IGNORE INTO quiz_participants (
 SELECT
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours') || '-c',
   'dev-quiz-' || strftime('%Y-%m-%d', 'now', '+9 hours'),
-  'dev-user-c',
+  (SELECT id FROM users WHERE line_user_id = 'dev:demo-c'),
   'dev-concern-c',
   3,
   '30s',
