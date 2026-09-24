@@ -115,6 +115,8 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
     const modelVersion = this.embeddingGenerator.modelVersion ?? "unknown";
     const embeddingVersion = `${modelVersion}@${this.vectorIndexVersion}`;
+    const processingTimestamp = this.nowIso();
+    try {
     if (
       state?.status === "ready" &&
       hasCompleteRepresentations(state.representations) &&
@@ -127,9 +129,6 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
       }
       return null;
     }
-
-    const processingTimestamp = this.nowIso();
-    try {
       if (repository) {
         await repository.markProcessing(
           new ConcernProcessing({

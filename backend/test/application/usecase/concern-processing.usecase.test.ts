@@ -274,7 +274,14 @@ describe("ConcernProcessingUseCase", () => {
     );
   });
 
-  it("generates a pending cluster summary before skipping a ready concern", async () => {
+  it.each([
+    { description: "generates a pending summary", shouldFail: false },
+    {
+      description:
+        "marks the ready concern failed when summary generation fails",
+      shouldFail: true,
+    },
+  ])("$description", async ({ shouldFail }) => {
     const modelVersion = "@cf/qwen/qwen3-embedding-0.6b";
     const concernId = "concern-existing";
     const clusterId = "cluster-pending-summary";
@@ -331,12 +338,15 @@ describe("ConcernProcessingUseCase", () => {
       saveSummary: vi.fn().mockResolvedValue(undefined),
     };
     const summaryGenerator: ConcernClusterSummaryGenerator = {
-      generate: vi.fn().mockResolvedValue(
-        new ConcernClusterSummary({
+      generate: vi.fn().mockImplementation(async () => {
+        if (shouldFail) {
+          throw new Error("Workers AI unavailable");
+        }
+        return new ConcernClusterSummary({
           label: "学校での人間関係",
           summary: "友人との関わりに関する悩みです。",
-        }),
-      ),
+        });
+      }),
     };
     const useCase = new ConcernProcessingUseCase(
       translator,
@@ -348,26 +358,38 @@ describe("ConcernProcessingUseCase", () => {
       summaryGenerator,
     );
 
-    await expect(
-      useCase.execute({
-        type: CONCERN_PROCESSING_MESSAGE_TYPE,
-        concernId,
-        body: "既存投稿本文",
-      }),
-    ).resolves.toBeNull();
+    const execution = useCase.execute({
+      type: CONCERN_PROCESSING_MESSAGE_TYPE,
+      concernId,
+      body: "既存投稿本文",
+    });
+    if (shouldFail) {
+      await expect(execution).rejects.toThrow("Workers AI unavailable");
+      expect(repository.markFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          clusterId,
+        }),
+      );
+      expect(summaryRepository.saveSummary).not.toHaveBeenCalled();
+    } else {
+      await expect(execution).resolves.toBeNull();
+      expect(summaryRepository.saveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: clusterId,
+          label: "学校での人間関係",
+          summary: "友人との関わりに関する悩みです。",
+          status: "ready",
+        }),
+      );
+      expect(repository.markFailed).not.toHaveBeenCalled();
+    }
 
     expect(summaryRepository.findPendingSummaryInput).toHaveBeenCalledWith(
       clusterId,
     );
     expect(summaryGenerator.generate).toHaveBeenCalledWith(summaryInput);
-    expect(summaryRepository.saveSummary).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: clusterId,
-        label: "学校での人間関係",
-        summary: "友人との関わりに関する悩みです。",
-        status: "ready",
-      }),
-    );
+    expect(repository.markProcessing).not.toHaveBeenCalled();
     expect(embeddingGenerator.generateEmbeddings).not.toHaveBeenCalled();
     expect(vectorIndex.search).not.toHaveBeenCalled();
     expect(vectorIndex.upsert).not.toHaveBeenCalled();
