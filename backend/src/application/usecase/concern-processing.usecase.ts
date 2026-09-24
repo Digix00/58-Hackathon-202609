@@ -117,18 +117,18 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
     const embeddingVersion = `${modelVersion}@${this.vectorIndexVersion}`;
     const processingTimestamp = this.nowIso();
     try {
-    if (
-      state?.status === "ready" &&
-      hasCompleteRepresentations(state.representations) &&
-      (!vectorIndex ||
-        (state.clusterId !== null &&
-          state.embeddingVersion === embeddingVersion))
-    ) {
-      if (state.clusterId) {
-        await this.generatePendingClusterSummary(state.clusterId);
+      if (
+        state?.status === "ready" &&
+        hasCompleteRepresentations(state.representations) &&
+        (!vectorIndex ||
+          (state.clusterId !== null &&
+            state.embeddingVersion === embeddingVersion))
+      ) {
+        if (state.clusterId) {
+          await this.generatePendingClusterSummary(state.clusterId);
+        }
+        return null;
       }
-      return null;
-    }
       if (repository) {
         await repository.markProcessing(
           new ConcernProcessing({

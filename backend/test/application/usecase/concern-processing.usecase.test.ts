@@ -7,11 +7,11 @@ import {
   ConcernProcessing,
   ConcernRepresentation,
 } from "../../../src/application/entity/concern-processing";
+import type { ConcernClusterSummaryGenerator } from "../../../src/application/port/concern-cluster-summary-generator";
 import {
   CONCERN_PROCESSING_MESSAGE_TYPE,
   type ConcernProcessingMessage,
 } from "../../../src/application/port/concern-processing-queue";
-import type { ConcernClusterSummaryGenerator } from "../../../src/application/port/concern-cluster-summary-generator";
 import type { ConcernVectorIndex } from "../../../src/application/port/concern-vector-index";
 import type { TextEmbeddingGenerator } from "../../../src/application/port/text-embedding-generator";
 import type { TextTranslator } from "../../../src/application/port/text-translator";
