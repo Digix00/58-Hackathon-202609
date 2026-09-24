@@ -266,7 +266,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
 | concerns | id, user_id, body, age_group, gender_code, region_code, visibility_status, processing_status, cluster_id, embedding_version, moderation_reason_code, created_at, updated_at, published_at, deleted_at | 悩み本体とVectorize登録version。region_code は任意の都道府県コード。visibility_status は pending, published, hidden, deleted |
-| concern_clusters | id, legacy_label, legacy_summary, label, summary, status, model_version, created_at, updated_at | AI が作った分類。`legacy_*` は既存外部キーを保ったまま移行するための互換用必須列。アプリケーションが使うlabel/summaryは生成前にNULL。画面表示前に長さ・禁止語・個人情報を検査 |
+| concern_clusters | id, legacy_label, legacy_summary, label, summary, status, model_version, created_at, updated_at | AI が作った分類。`legacy_*` は既存外部キーを保ったまま移行するための互換用必須列。アプリケーションが使うlabel/summaryは生成前にNULL。画面表示前に長さと個人情報を検査 |
 | concern_representations | concern_id, locale, body, status, error_code, updated_at | locale は ja-Hira または en。原文は concerns.body に保持 |
 | concern_processing_jobs | id, concern_id, job_type, status, attempt_count, available_at, last_error, started_at, completed_at | job_type は moderation, ja_hira, en_translation, clustering。concern_id と job_type の組を UNIQUE |
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |

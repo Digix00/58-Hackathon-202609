@@ -83,8 +83,39 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
   });
 
   it.each([
+    [
+      "a fenced JSON object",
+      '```json\n{"label":"相談のしづらさ","summary":"周囲へ相談しづらい悩みです。"}\n```',
+    ],
+    [
+      "a JSON object with a short preface",
+      '要約結果です。\n{"label":"相談のしづらさ","summary":"周囲へ相談しづらい悩みです。"}',
+    ],
+  ])(
+    "accepts %s and extracts only the JSON object",
+    async (_name, response) => {
+      const run = vi.fn<Run>().mockResolvedValue({ response });
+      const generator = new WorkersAiConcernClusterSummaryGenerator(
+        createAiBinding(run),
+      );
+
+      await expect(generator.generate(input)).resolves.toMatchObject({
+        label: "相談のしづらさ",
+        summary: "周囲へ相談しづらい悩みです。",
+      });
+    },
+  );
+
+  it.each([
     ["malformed JSON", { response: "label: school, summary: friends" }],
     ["missing fields", { response: '{"label":"学校の悩み"}' }],
+    [
+      "unexpected fields",
+      {
+        response:
+          '{"label":"学校の悩み","summary":"有効な要約です。","name":"田中太郎"}',
+      },
+    ],
     ["invalid response", { unexpected: true }],
     [
       "contact details",

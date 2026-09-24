@@ -3,17 +3,11 @@ export const CONCERN_CLUSTER_SUMMARY_MAX_LENGTH = 500;
 export const CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT = 10;
 export const CONCERN_CLUSTER_SUMMARY_INPUT_MAX_CHARACTERS = 20_000;
 
-const FORBIDDEN_CLUSTER_PATTERNS = [
-  /死ね/u,
-  /くたばれ/u,
-  /殺してやる/u,
-  /(?:馬鹿|バカ)(?:だ|で|な|に|の|者|野郎|を|$|[、。！？!?\s])/u,
-  /ばか(?:だ|で|な|に|の|者|野郎|を|みたい|っぽい|$|[、。！？!?\s])/u,
-  /クズ/u,
-];
 const PHONE_NUMBER_PATTERN =
   /(?<!\d)(?:0(?:[\s‐‑‒–—−-]?\d){9,10}|\+81[\s‐‑‒–—−-]?[1-9](?:[\s‐‑‒–—−-]?\d){8,9})(?!\d)/u;
 const PERSON_NAME_PATTERN = /([\p{Script=Han}]{2,4})(?:さん|氏|くん|ちゃん)/gu;
+const FULL_PERSON_NAME_WITHOUT_HONORIFIC_PATTERN =
+  /([\p{Script=Han}]{3,4})(?=との)/gu;
 const GENERIC_PERSON_REFERENCES = new Set([
   "患者",
   "保護者",
@@ -41,11 +35,15 @@ const GENERIC_PERSON_REFERENCES = new Set([
   "家族",
   "保育士",
   "相談者",
+  "当事者",
+  "関係者",
+  "被害者",
+  "加害者",
 ]);
 const JAPANESE_POSTAL_CODE_PATTERN =
   /(?:〒\s*)?(?<!\d)\d{3}[-－ー]\d{4}(?!\d)/u;
 const JAPANESE_ADDRESS_PATTERN =
-  /(?:北海道|東京都|(?:京都|大阪)府|[\p{Script=Han}]{2,3}県)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,20}(?:市|区|町|村)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,24}(?:\d{1,4}(?:[-‐‑‒–—−ー]\d{1,4}){1,2}|\d{1,4}丁目\d{1,4}番(?:地?\d{1,4}号?)?|\d{1,4}番地\d{1,4}号?)/u;
+  /(?:北海道|東京都|(?:京都|大阪)府|[\p{Script=Han}]{2,3}県)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,20}(?:市|区|町|村)(?!では|で|の|は|が|に|へ|と|も|や|から|まで|より)[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{0,24}(?:\d{1,4}(?:[-‐‑‒–—−ー]\d{1,4}){2}|\d{1,4}丁目\d{1,4}番(?:地?\d{1,4}号?)?|\d{1,4}番地\d{1,4}号?)/u;
 const PERSONAL_INFORMATION_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   PHONE_NUMBER_PATTERN,
@@ -88,7 +86,10 @@ export class ConcernClusterSummaryInput {
       concernBodies.some((body) => body.length === 0) ||
       inputCharacters > CONCERN_CLUSTER_SUMMARY_INPUT_MAX_CHARACTERS
     ) {
-      throw new TypeError("cluster summary input is invalid");
+      throw new ConcernClusterValidationError(
+        "input",
+        "cluster summary input is invalid",
+      );
     }
 
     this.clusterId = clusterId;
@@ -179,10 +180,15 @@ export class ConcernCluster {
 }
 
 function containsLikelyPersonName(value: string): boolean {
-  for (const match of value.matchAll(PERSON_NAME_PATTERN)) {
-    const candidate = match[1];
-    if (candidate && !GENERIC_PERSON_REFERENCES.has(candidate)) {
-      return true;
+  for (const pattern of [
+    PERSON_NAME_PATTERN,
+    FULL_PERSON_NAME_WITHOUT_HONORIFIC_PATTERN,
+  ]) {
+    for (const match of value.matchAll(pattern)) {
+      const candidate = match[1];
+      if (candidate && !GENERIC_PERSON_REFERENCES.has(candidate)) {
+        return true;
+      }
     }
   }
   return false;
@@ -197,16 +203,6 @@ function validateGeneratedText(
     throw new ConcernClusterValidationError(
       field,
       `${field} must contain 1-${maxLength} characters`,
-    );
-  }
-
-  if (
-    FORBIDDEN_CLUSTER_PATTERNS.some((pattern) => pattern.test(value)) ||
-    /\b(?:fuck|shit|bitch)\b/i.test(value)
-  ) {
-    throw new ConcernClusterValidationError(
-      field,
-      `${field} contains a prohibited term`,
     );
   }
 

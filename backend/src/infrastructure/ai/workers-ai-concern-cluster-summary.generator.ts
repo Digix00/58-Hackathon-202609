@@ -44,14 +44,17 @@ export class WorkersAiConcernClusterSummaryGenerator
     });
 
     const text = extractText(response);
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch {
+    const value = parseJsonObject(text);
+
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw new InvalidWorkersAiConcernClusterSummaryError();
     }
-
-    if (typeof value !== "object" || value === null) {
+    const keys = Object.keys(value);
+    if (
+      keys.length !== 2 ||
+      !keys.includes("label") ||
+      !keys.includes("summary")
+    ) {
       throw new InvalidWorkersAiConcernClusterSummaryError();
     }
     const label = Reflect.get(value, "label");
@@ -77,6 +80,48 @@ function extractText(value: unknown): string {
     const candidate = Reflect.get(value, key);
     if (typeof candidate === "string" && candidate.trim().length > 0) {
       return candidate.trim();
+    }
+  }
+
+  throw new InvalidWorkersAiConcernClusterSummaryError();
+}
+
+function parseJsonObject(text: string): unknown {
+  for (let start = 0; start < text.length; start += 1) {
+    if (text[start] !== "{") {
+      continue;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+    for (let end = start; end < text.length; end += 1) {
+      const character = text[end];
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (character === "\\") {
+          isEscaped = true;
+        } else if (character === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (character === '"') {
+        inString = true;
+      } else if (character === "{") {
+        depth += 1;
+      } else if (character === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, end + 1));
+          } catch {
+            break;
+          }
+        }
+      }
     }
   }
 
