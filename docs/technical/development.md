@@ -86,7 +86,7 @@ Queueは `max_batch_size=1`、`max_retries=3` で開始し、AI障害時はメ�
 
 ### 既存投稿のVectorizeバックフィル
 
-Vectorize導入前に `ready` になった投稿は、初回デプロイ後に一度バックフィルする。バックフィルはEmbedding version未登録の投稿を既存のQueueへ再投入し、通常の `ConcernProcessingUseCase` で処理する。表現済みの投稿は既存表現を再利用する。
+Vectorize導入前に `ready` になった投稿は、初回デプロイ後に一度バックフィルする。バックフィルはEmbedding version未登録、または指定したmodel/index versionと異なる投稿を既存のQueueへ再投入し、通常の `ConcernProcessingUseCase` で処理する。表現済みの投稿は既存表現を再利用する。index再作成やEmbedding model変更後にも同じコマンドを実行し、新しいindexへ過去のベクトルを再登録する。
 
 Cloudflare API tokenに `D1 Read`、`D1 Write`、`Queues Read`、`Queues Write` の権限を付与し、次の環境変数を設定する。`CLOUDFLARE_D1_DATABASE_ID` は `wrangler.jsonc` の `database_id`、queueは `58-hackathon-concern-processing` を使う。
 
@@ -94,11 +94,12 @@ Cloudflare API tokenに `D1 Read`、`D1 Write`、`Queues Read`、`Queues Write` 
 export CLOUDFLARE_API_TOKEN=...
 export CLOUDFLARE_ACCOUNT_ID=...
 export CLOUDFLARE_D1_DATABASE_ID=...
+export CONCERN_VECTOR_EMBEDDING_VERSION='@cf/qwen/qwen3-embedding-0.6b@production-v1'
 pnpm --filter backend vectorize:backfill
 pnpm --filter backend vectorize:backfill -- --apply
 ```
 
-引数なしでは対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録の投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
+`CONCERN_VECTOR_EMBEDDING_VERSION` には `<modelVersion>@<CONCERN_VECTOR_INDEX_VERSION>` を指定する。開発用indexなら、上記の `production-v1` を `development-v1` に置き換える。modelまたはindex versionを変更した場合も、デプロイ先のWorkerと一致する値を指定する。引数なしでは未登録または指定versionと不一致の対象件数だけを表示する。`--apply` を指定すると投稿ごとに処理状態をclaimしてQueueへ送る。HTTP応答が不明な中断に備え、30分以上 `processing` のままか、`ready` / `failed` でEmbedding versionが未登録または指定versionと異なる投稿は再実行対象になる。Queueの再試行上限を超えた失敗投稿はこのコマンドを再実行して再投入できる。
 
 
 ## 実装前に決める事項

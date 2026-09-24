@@ -25,7 +25,8 @@ function requireEnvironmentVariable(name) {
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.stdout.write(
     "Usage: pnpm --filter backend vectorize:backfill [-- --apply]\n\n" +
-      "Without --apply, prints the number of unvectorized concerns. " +
+      "Set CONCERN_VECTOR_EMBEDDING_VERSION to the target model@index version. " +
+      "Without --apply, prints the number of concerns whose embedding version differs. " +
       "With --apply, claims each eligible concern and sends its normal processing message to Cloudflare Queues.\n",
   );
   process.exit(0);
@@ -34,9 +35,12 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
 const accountId = requireEnvironmentVariable("CLOUDFLARE_ACCOUNT_ID");
 const apiToken = requireEnvironmentVariable("CLOUDFLARE_API_TOKEN");
 const databaseId = requireEnvironmentVariable("CLOUDFLARE_D1_DATABASE_ID");
+const targetEmbeddingVersion = requireEnvironmentVariable(
+  "CONCERN_VECTOR_EMBEDDING_VERSION",
+);
 const apply = process.argv.includes("--apply");
 const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
-const candidateCondition = `embedding_version IS NULL AND (
+const candidateCondition = `(embedding_version IS NULL OR embedding_version <> ?) AND (
   processing_status IN ('ready', 'failed')
   OR (processing_status = 'processing' AND updated_at < ?)
 )`;
@@ -108,9 +112,15 @@ async function restoreClaim(concern, claimedAt) {
      SET processing_status = ?, updated_at = ?
      WHERE id = ?
        AND processing_status = 'processing'
-       AND embedding_version IS NULL
+       AND (embedding_version IS NULL OR embedding_version <> ?)
        AND updated_at = ?`,
-    [concern.processing_status, concern.updated_at, concern.id, claimedAt],
+    [
+      concern.processing_status,
+      concern.updated_at,
+      concern.id,
+      targetEmbeddingVersion,
+      claimedAt,
+    ],
   );
 }
 
@@ -128,7 +138,7 @@ async function sendConcernMessage(queueId, concern) {
 async function main() {
   const countResult = await queryDatabase(
     `SELECT COUNT(*) AS count FROM concerns WHERE ${candidateCondition}`,
-    [staleBefore],
+    [targetEmbeddingVersion, staleBefore],
   );
   const candidateCount = Number(countResult.results?.[0]?.count ?? 0);
 
@@ -142,7 +152,7 @@ async function main() {
   }
 
   process.stdout.write(
-    `Vectorize backfill:Embedding version未登録の対象は${candidateCount}件です。\n`,
+    `Vectorize backfill:${candidateCount}件が対象です（target=${targetEmbeddingVersion}）。\n`,
   );
   if (!apply) {
     process.stdout.write(
@@ -162,7 +172,7 @@ async function main() {
        WHERE ${candidateCondition} AND id > ?
        ORDER BY id
        LIMIT ${PAGE_SIZE}`,
-      [staleBefore, cursor],
+      [targetEmbeddingVersion, staleBefore, cursor],
     );
     const concerns = rowsResult.results ?? [];
     if (concerns.length === 0) {
@@ -176,12 +186,12 @@ async function main() {
         `UPDATE concerns
          SET processing_status = 'processing', updated_at = ?
          WHERE id = ?
-           AND embedding_version IS NULL
+           AND (embedding_version IS NULL OR embedding_version <> ?)
            AND (
              processing_status IN ('ready', 'failed')
              OR (processing_status = 'processing' AND updated_at < ?)
            )`,
-        [claimedAt, concern.id, staleBefore],
+        [claimedAt, concern.id, targetEmbeddingVersion, staleBefore],
       );
 
       if (claimResult.meta?.changes !== 1) {
