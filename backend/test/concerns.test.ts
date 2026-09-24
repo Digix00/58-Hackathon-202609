@@ -142,6 +142,7 @@ async function seedConcern(input: {
   body: string;
   createdAt: string;
   id?: string;
+  genderCode?: string | null;
   regionCode?: string | null;
   clusterId?: string | null;
   visibilityStatus?: "published" | "hidden" | "deleted";
@@ -167,7 +168,7 @@ async function seedConcern(input: {
       userId,
       body: input.body,
       ageGroup: null,
-      genderCode: null,
+      genderCode: input.genderCode ?? null,
       regionCode: input.regionCode ?? null,
       clusterId: input.clusterId ?? null,
       visibilityStatus: input.visibilityStatus ?? "published",
@@ -487,6 +488,36 @@ describe("GET /api/v1/concerns", () => {
     expect(body.items.map((item) => item.id)).not.toContain(tokyo);
   });
 
+  it("filters by the exact gender code and keeps other genders out", async () => {
+    const male = await seedConcern({
+      body: "男性の投稿",
+      genderCode: "male",
+      createdAt: "9999-01-20T00:00:00.000Z",
+    });
+    const female = await seedConcern({
+      body: "女性の投稿",
+      genderCode: "female",
+      createdAt: "9999-01-21T00:00:00.000Z",
+    });
+    const noAnswer = await seedConcern({
+      body: "回答しない投稿",
+      genderCode: "no_answer",
+      createdAt: "9999-01-22T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?gender=male",
+      {},
+      env,
+    );
+    const body = await response.json<{ items: Array<{ id: string }> }>();
+
+    expect(response.status).toBe(200);
+    expect(body.items.map((item) => item.id)).toContain(male);
+    expect(body.items.map((item) => item.id)).not.toContain(female);
+    expect(body.items.map((item) => item.id)).not.toContain(noAnswer);
+  });
+
   it("returns a recommendation reason and cluster for a logged-in feed", async () => {
     const clusterId = await seedCluster({
       label: "昼休み・食堂",
@@ -670,10 +701,46 @@ describe("GET /api/v1/concerns", () => {
     }
   });
 
+  it("rejects a cursor when the gender filter changes", async () => {
+    await seedConcern({
+      id: `gender-cursor-${crypto.randomUUID()}-b`,
+      body: "性別カーソルの1件目",
+      genderCode: "male",
+      createdAt: "9999-02-10T00:00:00.000Z",
+    });
+    await seedConcern({
+      id: `gender-cursor-${crypto.randomUUID()}-a`,
+      body: "性別カーソルの2件目",
+      genderCode: "male",
+      createdAt: "9999-02-09T00:00:00.000Z",
+    });
+
+    const app = createTestApp();
+    const firstPage = await app.request(
+      "/api/v1/concerns?gender=male&limit=1",
+      {},
+      env,
+    );
+    const firstBody = await firstPage.json<{ nextCursor: string | null }>();
+    expect(firstPage.status).toBe(200);
+    expect(firstBody.nextCursor).toEqual(expect.any(String));
+
+    const mismatchedPage = await app.request(
+      `/api/v1/concerns?gender=female&cursor=${encodeURIComponent(firstBody.nextCursor ?? "")}`,
+      {},
+      env,
+    );
+    expect(mismatchedPage.status).toBe(400);
+    await expect(mismatchedPage.json()).resolves.toMatchObject({
+      error: { code: "INVALID_CURSOR" },
+    });
+  });
+
   it.each([
     ["limit=0", "INVALID_REQUEST"],
     ["limit=51", "INVALID_REQUEST"],
     ["sort=unknown", "INVALID_REQUEST"],
+    ["gender=unknown", "INVALID_REQUEST"],
     ["regionCode=kanto", "INVALID_REQUEST"],
     ["cursor=invalid", "INVALID_CURSOR"],
   ])("rejects invalid query %s", async (query, code) => {
@@ -723,6 +790,49 @@ describe("GET /api/v1/concerns/:concernId", () => {
     });
     expect(body).not.toHaveProperty("userId");
     expect(body).not.toHaveProperty("recommendation");
+  });
+
+  it("returns the reaction count and the logged-in user's reacted state", async () => {
+    const app = createTestApp(`line-reaction-state-${crypto.randomUUID()}`);
+    const cookie = await loginCookie(app);
+    const id = await seedConcern({
+      body: "リアクション状態を確認する投稿",
+      genderCode: "male",
+      createdAt: "9999-12-31T00:00:00.000Z",
+    });
+    const reactionResponse = await app.request(
+      `/api/v1/concerns/${id}/reactions`,
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+    expect(reactionResponse.status).toBe(201);
+
+    const feedResponse = await app.request(
+      "/api/v1/concerns?gender=male&limit=50",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const feedBody = await feedResponse.json<{
+      items: Array<{ id: string; reactionCount: number; reacted: boolean }>;
+    }>();
+    expect(feedBody.items.find((item) => item.id === id)).toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
+
+    const detailResponse = await app.request(
+      `/api/v1/concerns/${id}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
   });
 
   it("returns 404 for hidden, deleted, or missing concerns", async () => {
