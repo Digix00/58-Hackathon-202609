@@ -47,7 +47,7 @@ flowchart LR
 - Application 層は `TextTranslator`、`TextEmbeddingGenerator`、`SpeechRecognizer` Portに依存し、Infrastructure層のWorkers AI Adapterが `env.AI.run(model, input)`を呼び出す。
 - 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は多言語の `@cf/openai/whisper`、Embeddingは `@cf/pfnet/plamo-embedding-1b` を使う。
 - 日本語の意味検索・クラスタリング向けEmbeddingモデルとして `@cf/pfnet/plamo-embedding-1b` を使う。複数テキストを一度に渡し、入力順に対応する数値ベクトルを受け取る。
-- AdapterはDIでApplication層や後続の非同期処理へ注入できる。投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。現段階では生成結果を保存するDBテーブルは追加しない。
+- AdapterはDIでApplication層や後続の非同期処理へ注入できる。投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。生成したひらがな・英語表現は `concern_representations` へ保存し、再配信時は保存済みの表現を確認して重複処理を避ける。
 - `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。
 - 投稿本文を入力に使う場合、本文がCloudflareへ送信されることを前提に利用目的を明示し、呼び出し回数を制限する。投稿内容のモデレーションは行わない。
 
