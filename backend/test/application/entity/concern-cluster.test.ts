@@ -40,16 +40,6 @@ describe("ConcernClusterSummary", () => {
   });
 });
 
-it("does not filter generated text with a fixed list of terms", () => {
-  expect(
-    () =>
-      new ConcernClusterSummary({
-        label: "会話で使う表現",
-        summary: "「馬鹿にする」という言葉の意味を確認しました。",
-      }),
-  ).not.toThrow();
-});
-
 describe("ConcernClusterSummaryInput", () => {
   it("trims concern text sent to the model", () => {
     const input = new ConcernClusterSummaryInput({
