@@ -47,12 +47,27 @@ describe("ConcernClusterSummary", () => {
     ["メールアドレス", "学校での悩み", "相談先は user@example.com です。"],
     ["電話番号（国内）", "学校での悩み", "連絡先は 090-1234-5678 です。"],
     ["電話番号（国際）", "学校での悩み", "連絡先は +81 90-1234-5678 です。"],
+    ["郵便番号", "学校での悩み", "住所は〒160-0023です。"],
+    ["住所", "学校での悩み", "東京都新宿区西新宿2-8-1に住んでいます。"],
     ["URL", "学校での悩み", "詳細は https://example.com を見てください。"],
     ["人名", "学校での悩み", "田中さんとの人間関係に関する悩みです。"],
   ])("rejects generated text containing %s", (_name, label, summary) => {
     expect(() => new ConcernClusterSummary({ label, summary })).toThrow();
   });
 });
+
+it.each(["馬鹿にする", "ばかにする", "バカだ", "ばか者"])(
+  "rejects an explicit insult: %s",
+  (text) => {
+    expect(
+      () =>
+        new ConcernClusterSummary({
+          label: "学校での悩み",
+          summary: `周りの人を${text}内容です。`,
+        }),
+    ).toThrow("summary contains a prohibited term");
+  },
+);
 
 it("allows years and prices that are not phone numbers", () => {
   expect(
@@ -63,6 +78,15 @@ it("allows years and prices that are not phone numbers", () => {
       }),
   ).not.toThrow();
 });
+
+it.each(["仕事ばかりで休めない", "不安ばかりが増える"])(
+  "allows normal Japanese text containing ばかり: %s",
+  (summary) => {
+    expect(
+      () => new ConcernClusterSummary({ label: "生活の悩み", summary }),
+    ).not.toThrow();
+  },
+);
 
 it.each([
   "患者さんへの説明に困っています。",
