@@ -106,6 +106,7 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+      conditions.push(eq(concerns.processingStatus, "ready"));
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));
@@ -166,6 +167,7 @@ export class D1ConcernRepository implements ConcernRepository {
     }
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
+      conditions.push(eq(concerns.processingStatus, "ready"));
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));

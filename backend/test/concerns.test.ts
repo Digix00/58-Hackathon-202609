@@ -572,6 +572,7 @@ describe("GET /api/v1/concerns", () => {
         id,
         body: "推薦ページングのテスト投稿",
         clusterId,
+        processingStatus: "ready",
         createdAt: "9998-06-01T00:00:00.000Z",
       });
     }

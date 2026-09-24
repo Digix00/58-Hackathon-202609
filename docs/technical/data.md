@@ -24,7 +24,7 @@
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
 
-投稿EmbeddingはD1へ保存せず、Cloudflare Vectorizeのconcern indexへ保存する。VectorizeのIDはconcern ID、metadataはcluster IDのみとする。D1の `concerns.cluster_id` を正とし、投稿の処理状態がreadyになるまでフィード上のcluster割当を公開しない。`concerns.embedding_version` にはEmbeddingモデル名と環境別index versionを記録し、未登録またはversionが変わった投稿をQueue再処理時に再登録する。Vectorizeは非同期クラスタリングの内部検索専用であり、利用者向けの自由入力検索やRAGには使わない。
+投稿EmbeddingはD1へ保存せず、Cloudflare Vectorizeのconcern indexへ保存する。VectorizeのIDはconcern ID、metadataはcluster IDのみとする。D1の `concerns.cluster_id` を正とし、投稿の処理状態がreadyになるまでフィード上のcluster割当を公開しない。`clusterId` 指定のフィード検索も `processing_status = 'ready'` の投稿だけを対象とする。`concerns.embedding_version` にはEmbeddingモデル名と環境別index versionを記録し、未登録またはversionが変わった投稿をQueue再処理時に再登録する。Vectorizeは非同期クラスタリングの内部検索専用であり、利用者向けの自由入力検索やRAGには使わない。
 
 ### 投稿の状態
 
