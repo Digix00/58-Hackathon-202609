@@ -122,6 +122,9 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
         (state.clusterId !== null &&
           state.embeddingVersion === embeddingVersion))
     ) {
+      if (state.clusterId) {
+        await this.generatePendingClusterSummary(state.clusterId);
+      }
       return null;
     }
 

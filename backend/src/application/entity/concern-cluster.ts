@@ -11,11 +11,42 @@ const FORBIDDEN_CLUSTER_TERMS = [
   "ばか",
   "クズ",
 ];
+const PHONE_NUMBER_PATTERN =
+  /(?<!\d)(?:0(?:[\s‐‑‒–—−-]?\d){9,10}|\+81[\s‐‑‒–—−-]?[1-9](?:[\s‐‑‒–—−-]?\d){8,9})(?!\d)/u;
+const PERSON_NAME_PATTERN =
+  /([\p{Script=Han}]{2,4})(?:さん|氏|くん|ちゃん)/gu;
+const GENERIC_PERSON_REFERENCES = new Set([
+  "患者",
+  "保護者",
+  "看護師",
+  "医師",
+  "教師",
+  "先生",
+  "教授",
+  "生徒",
+  "学生",
+  "職員",
+  "社員",
+  "店員",
+  "上司",
+  "同僚",
+  "友人",
+  "先輩",
+  "後輩",
+  "担当者",
+  "相談員",
+  "支援員",
+  "利用者",
+  "管理者",
+  "児童",
+  "家族",
+  "保育士",
+  "相談者",
+]);
 const PERSONAL_INFORMATION_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
-  /(?:\+?81[\s-]?)?0\d{1,4}(?:[\s-]?\d{1,4}){1,2}/u,
+  PHONE_NUMBER_PATTERN,
   /(?:https?:\/\/|www\.)\S+/i,
-  /[\p{Script=Han}]{2,4}(?:さん|氏|くん|ちゃん)/u,
 ];
 
 export class ConcernClusterValidationError extends Error {
@@ -142,6 +173,16 @@ export class ConcernCluster {
   }
 }
 
+function containsLikelyPersonName(value: string): boolean {
+  for (const match of value.matchAll(PERSON_NAME_PATTERN)) {
+    const candidate = match[1];
+    if (candidate && !GENERIC_PERSON_REFERENCES.has(candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function validateGeneratedText(
   field: "label" | "summary",
   value: string,
@@ -164,7 +205,10 @@ function validateGeneratedText(
     );
   }
 
-  if (PERSONAL_INFORMATION_PATTERNS.some((pattern) => pattern.test(value))) {
+  if (
+    PERSONAL_INFORMATION_PATTERNS.some((pattern) => pattern.test(value)) ||
+    containsLikelyPersonName(value)
+  ) {
     throw new ConcernClusterValidationError(
       field,
       `${field} contains contact information or a person name`,
