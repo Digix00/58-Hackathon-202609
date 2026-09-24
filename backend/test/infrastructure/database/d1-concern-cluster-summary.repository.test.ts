@@ -208,7 +208,9 @@ describe("D1ConcernClusterSummaryRepository", () => {
       status: "ready",
       updatedAt: "2026-09-24T00:11:00.000Z",
     });
-    await repository.saveSummary(staleSummary, firstClaim?.claimedAt ?? "");
+    await expect(
+      repository.saveSummary(staleSummary, firstClaim?.claimedAt ?? ""),
+    ).rejects.toThrow("Cluster summary claim was lost");
     await repository.releaseSummaryClaim(
       clusterId,
       firstClaim?.claimedAt ?? "",

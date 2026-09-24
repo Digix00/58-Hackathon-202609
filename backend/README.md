@@ -76,6 +76,7 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 - `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、原文（日本語）→英語、原文（日本語）→ひらがなを処理する
 - `WorkersAiTextEmbeddingGenerator`: [Qwen3-Embedding-0.6B](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/) で入力順を保ったベクトルを生成する
 - `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
+- `WorkersAiConcernClusterSummaryGenerator`: 最大10件、各2000文字までの悩み本文を使ってクラスタラベルと要約を生成する
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
 
@@ -87,7 +88,7 @@ Workers AI bindingはローカルシミュレーションが存在せず、`wran
 
 Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。新規のpending clusterには、最大10件の公開済み悩みからlabelとsummaryを生成してD1へ保存する。生成済みクラスタへ投稿が追加された後の再生成は後続PRで扱う。
 
-生成結果は長さ、禁止語、連絡先・URL・人名のパターンを検査してから表示用列へ保存する。モデル出力が不正、または検査に失敗した場合はQueueを再試行し、投稿本文は保持する。別のQueue配信が同じclusterを生成中の場合、投稿をreadyにせず再試行する。claim後のD1読み込みに失敗した場合もclaimの解放を試みて再試行する。Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。投稿ごとのEmbedding model/index versionをD1へ記録し、バージョンが変わった投稿はQueue再処理でVectorizeへ再登録する。処理が失敗した投稿はクラスタを表示せず原文で閲覧できる。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
+Workers AIへ送る本文は1クラスタあたり最大10件、各2000文字までに制限する。生成結果はJSON形式とlabel/summaryの非空を検証し、出力内容の長さ、個人情報、語句によるパターン検査は行わない。プロンプトで連絡先、URL、個人名、住所、攻撃的・差別的な表現を出さないよう指示し、形式が不正な応答はQueueで再試行する。別のQueue配信が同じclusterを生成中の場合、投稿をreadyにせず再試行する。claim後のD1読み込みに失敗した場合もclaimの解放を試みて再試行する。Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。投稿ごとのEmbedding model/index versionをD1へ記録し、バージョンが変わった投稿はQueue再処理でVectorizeへ再登録する。処理が失敗した投稿はクラスタを表示せず原文で閲覧できる。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
 
 初回だけQueueを作成する。
 

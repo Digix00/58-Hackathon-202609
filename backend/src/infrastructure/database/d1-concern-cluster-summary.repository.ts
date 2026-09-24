@@ -2,13 +2,14 @@ import { and, desc, eq, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
-  CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT,
   ConcernCluster,
   ConcernClusterSummaryClaim,
   ConcernClusterSummaryInput,
 } from "../../application/entity/concern-cluster";
 import type { ConcernClusterSummaryRepository } from "../../application/repository/concern-cluster-summary.repository";
 import { concernClusters, concerns } from "./schema";
+
+const CLUSTER_SUMMARY_CONCERN_LIMIT = 10;
 
 /** D1 implementation of the cluster summary persistence port. */
 export class D1ConcernClusterSummaryRepository
@@ -75,7 +76,7 @@ export class D1ConcernClusterSummaryRepository
           ),
         )
         .orderBy(desc(concerns.createdAt), desc(concerns.id))
-        .limit(CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT)
+        .limit(CLUSTER_SUMMARY_CONCERN_LIMIT)
         .all();
 
       if (rows.length === 0) {
@@ -107,7 +108,7 @@ export class D1ConcernClusterSummaryRepository
       throw new TypeError("a completed cluster summary is required");
     }
 
-    await this.db
+    const saved = await this.db
       .update(concernClusters)
       .set({
         label: cluster.label,
@@ -122,7 +123,12 @@ export class D1ConcernClusterSummaryRepository
           eq(concernClusters.updatedAt, claimedAt),
         ),
       )
-      .run();
+      .returning({ id: concernClusters.id })
+      .get();
+
+    if (!saved) {
+      throw new Error("Cluster summary claim was lost before saving");
+    }
   }
 
   async releaseSummaryClaim(

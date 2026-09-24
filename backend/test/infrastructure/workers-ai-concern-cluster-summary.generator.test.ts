@@ -83,16 +83,40 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
   });
 
   it.each([
+    [
+      "a fenced JSON object",
+      '```json\n{"label":"相談のしづらさ","summary":"周囲へ相談しづらい悩みです。"}\n```',
+    ],
+    [
+      "a JSON object with a short preface",
+      '要約結果です。\n{"label":"相談のしづらさ","summary":"周囲へ相談しづらい悩みです。"}',
+    ],
+  ])(
+    "accepts %s and extracts only the JSON object",
+    async (_name, response) => {
+      const run = vi.fn<Run>().mockResolvedValue({ response });
+      const generator = new WorkersAiConcernClusterSummaryGenerator(
+        createAiBinding(run),
+      );
+
+      await expect(generator.generate(input)).resolves.toMatchObject({
+        label: "相談のしづらさ",
+        summary: "周囲へ相談しづらい悩みです。",
+      });
+    },
+  );
+
+  it.each([
     ["malformed JSON", { response: "label: school, summary: friends" }],
     ["missing fields", { response: '{"label":"学校の悩み"}' }],
-    ["invalid response", { unexpected: true }],
     [
-      "contact details",
+      "unexpected fields",
       {
         response:
-          '{"label":"学校の悩み","summary":"連絡先は user@example.com です。"}',
+          '{"label":"学校の悩み","summary":"有効な要約です。","name":"田中太郎"}',
       },
     ],
+    ["invalid response", { unexpected: true }],
   ])("rejects %s without returning display text", async (_name, response) => {
     const run = vi.fn<Run>().mockResolvedValue(response);
     const generator = new WorkersAiConcernClusterSummaryGenerator(
@@ -101,6 +125,52 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
 
     await expect(generator.generate(input)).rejects.toBeInstanceOf(
       InvalidWorkersAiConcernClusterSummaryError,
+    );
+  });
+
+  it("returns generated text without filtering personal information", async () => {
+    const run = vi.fn<Run>().mockResolvedValue({
+      response:
+        '{"label":"学校の悩み","summary":"連絡先は user@example.com です。"}',
+    });
+    const generator = new WorkersAiConcernClusterSummaryGenerator(
+      createAiBinding(run),
+    );
+
+    await expect(generator.generate(input)).resolves.toMatchObject({
+      label: "学校の悩み",
+      summary: "連絡先は user@example.com です。",
+    });
+  });
+
+  it("bounds concern text sent to Workers AI", async () => {
+    let requestMessages: unknown[] = [];
+    const run = vi.fn<Run>().mockImplementation(async (_model, inputs) => {
+      requestMessages = inputs.messages as unknown[];
+      return {
+        response:
+          '{"label":"学校の悩み","summary":"人間関係に関する悩みです。"}',
+      };
+    });
+    const generator = new WorkersAiConcernClusterSummaryGenerator(
+      createAiBinding(run),
+    );
+    const largeInput = new ConcernClusterSummaryInput({
+      clusterId: "cluster-large",
+      concernBodies: Array.from({ length: 12 }, () => "x".repeat(2_501)),
+    });
+
+    await generator.generate(largeInput);
+
+    const userMessage = requestMessages
+      .map((message) => message as { role?: unknown; content?: unknown })
+      .find((message) => message.role === "user");
+    const payload = JSON.parse(String(userMessage?.content)) as {
+      concern_bodies: string[];
+    };
+    expect(payload.concern_bodies).toHaveLength(10);
+    expect(payload.concern_bodies.every((body) => body.length === 2_000)).toBe(
+      true,
     );
   });
 });
