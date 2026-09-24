@@ -69,6 +69,10 @@ export class LineUseCase {
     this.createId = createId;
   }
 
+  get deliveryMode(): LineBroadcastSender["deliveryMode"] {
+    return this.broadcastSender.deliveryMode;
+  }
+
   readonly receiveWebhook = async (
     rawBody: Uint8Array,
     signature: string | null,

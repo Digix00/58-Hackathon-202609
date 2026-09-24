@@ -14,6 +14,7 @@ export type LineBroadcastResult =
   | { status: "unknown" };
 
 export interface LineBroadcastSender {
+  readonly deliveryMode: "line_api" | "simulation";
   isConfigured(): boolean;
   sendDailyQuiz(url: string, retryKey: string): Promise<LineBroadcastResult>;
 }

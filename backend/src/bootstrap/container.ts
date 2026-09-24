@@ -29,6 +29,7 @@ import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository"
 import { HmacLineSignatureVerifier } from "../infrastructure/line/hmac-line-signature.verifier";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { LineBroadcastApiSender } from "../infrastructure/line/line-broadcast.sender";
+import { LocalLineBroadcastSender } from "../infrastructure/line/local-line-broadcast.sender";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
 import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
@@ -121,10 +122,14 @@ export function createApplication(bindings: Bindings) {
   const quizUseCase = new QuizUseCase(quizRepository);
   const quizHandler = new QuizHandler(quizUseCase);
   const lineRepository = new D1LineRepository(bindings.DB);
-  const lineBroadcastSender = new LineBroadcastApiSender(
-    bindings.LINE_CHANNEL_ACCESS_TOKEN,
-    bindings.CORS_ORIGIN,
-  );
+  const useLocalLineBroadcastSimulation =
+    isLocalLineBroadcastSimulationEnabled(bindings);
+  const lineBroadcastSender = useLocalLineBroadcastSimulation
+    ? new LocalLineBroadcastSender()
+    : new LineBroadcastApiSender(
+        bindings.LINE_CHANNEL_ACCESS_TOKEN,
+        bindings.CORS_ORIGIN,
+      );
   const lineUseCase = new LineUseCase(
     lineRepository,
     new HmacLineSignatureVerifier(bindings.LINE_CHANNEL_SECRET),
@@ -149,6 +154,19 @@ export function createApplication(bindings: Bindings) {
     queue: concernProcessingConsumer.handle,
     scheduled: lineUseCase.triggerDailyRun,
   };
+}
+
+export function isLocalLineBroadcastSimulationEnabled(
+  bindings: Pick<
+    Bindings,
+    "DEV_AUTH_ENABLED" | "DEV_ACCESS_BYPASS" | "DEV_LINE_BROADCAST_SIMULATION"
+  >,
+): boolean {
+  return (
+    bindings.DEV_AUTH_ENABLED === "true" &&
+    bindings.DEV_ACCESS_BYPASS === "true" &&
+    bindings.DEV_LINE_BROADCAST_SIMULATION === "true"
+  );
 }
 
 function parseSessionTtl(value: string | undefined): number | undefined {

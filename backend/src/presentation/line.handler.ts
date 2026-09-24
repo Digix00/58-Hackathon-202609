@@ -105,7 +105,12 @@ export class LineHandler {
       const result = await this.lineUseCase.executeDailyBroadcast(
         parsed.data.quizId,
       );
-      return internalExecutionResponse(c, requestId, result);
+      return internalExecutionResponse(
+        c,
+        requestId,
+        result,
+        this.lineUseCase.deliveryMode,
+      );
     } catch (error) {
       if (error instanceof LineIntegrationConfigurationError) {
         return apiError(
@@ -133,7 +138,10 @@ export class LineHandler {
       );
     }
     const view = await this.lineUseCase.getDailyBroadcast(parsed.data.quizDate);
-    return c.json(view, 200);
+    return c.json(
+      { ...view, deliveryMode: this.lineUseCase.deliveryMode },
+      200,
+    );
   });
 
   readonly adminTrigger = factory.createHandlers(async (c) => {
@@ -148,16 +156,24 @@ export class LineHandler {
               message: "今日の公開クイズを用意できませんでした",
               requestId,
             },
-            status: result.view,
+            status: {
+              ...result.view,
+              deliveryMode: this.lineUseCase.deliveryMode,
+            },
           },
           409,
         );
       }
-      return adminExecutionResponse(c, requestId, {
-        status: result.status,
-        broadcastId: null,
-        view: result.view,
-      });
+      return adminExecutionResponse(
+        c,
+        requestId,
+        {
+          status: result.status,
+          broadcastId: null,
+          view: result.view,
+        },
+        this.lineUseCase.deliveryMode,
+      );
     } catch (error) {
       if (error instanceof LineIntegrationConfigurationError) {
         return apiError(
@@ -177,6 +193,7 @@ function internalExecutionResponse(
   c: Context<{ Bindings: Bindings }>,
   requestId: string,
   result: DailyBroadcastExecution,
+  deliveryMode: "line_api" | "simulation",
 ) {
   if (result.status === "succeeded") {
     return c.json(
@@ -185,6 +202,7 @@ function internalExecutionResponse(
         quizId: result.view?.quizId ?? null,
         quizDate: result.view?.quizDate,
         status: "succeeded",
+        deliveryMode,
         requestedAt: result.view?.requestedAt ?? null,
         sentAt: result.view?.sentAt ?? null,
       },
@@ -222,12 +240,13 @@ function adminExecutionResponse(
   c: Context<{ Bindings: Bindings }>,
   requestId: string,
   result: DailyBroadcastExecution,
+  deliveryMode: "line_api" | "simulation",
 ) {
   if (result.status === "succeeded") {
-    return c.json(result.view, 200);
+    return c.json({ ...result.view, deliveryMode }, 200);
   }
   if (result.status === "in_progress") {
-    return c.json(result.view, 202);
+    return c.json({ ...result.view, deliveryMode }, 202);
   }
   if (result.status === "not_available") {
     return apiError(

@@ -1,6 +1,45 @@
 import { describe, expect, it } from "vitest";
 
+import { isLocalLineBroadcastSimulationEnabled } from "../src/bootstrap/container";
 import { LineBroadcastApiSender } from "../src/infrastructure/line/line-broadcast.sender";
+import { LocalLineBroadcastSender } from "../src/infrastructure/line/local-line-broadcast.sender";
+
+it("enables the local simulation only when all local development flags are set", () => {
+  expect(
+    isLocalLineBroadcastSimulationEnabled({
+      DEV_AUTH_ENABLED: "true",
+      DEV_ACCESS_BYPASS: "true",
+      DEV_LINE_BROADCAST_SIMULATION: "true",
+    }),
+  ).toBe(true);
+  expect(
+    isLocalLineBroadcastSimulationEnabled({
+      DEV_AUTH_ENABLED: "true",
+      DEV_ACCESS_BYPASS: "true",
+    }),
+  ).toBe(false);
+  expect(
+    isLocalLineBroadcastSimulationEnabled({
+      DEV_AUTH_ENABLED: "true",
+      DEV_LINE_BROADCAST_SIMULATION: "true",
+    }),
+  ).toBe(false);
+});
+
+it("simulates local broadcast without calling LINE", async () => {
+  const sender = new LocalLineBroadcastSender();
+
+  expect(sender.deliveryMode).toBe("simulation");
+  expect(sender.isConfigured()).toBe(true);
+  await expect(
+    sender.sendDailyQuiz("https://frontend.example/quiz/today", "retry-key"),
+  ).resolves.toEqual({
+    status: "accepted",
+    httpStatus: 200,
+    requestId: null,
+    acceptedRequestId: null,
+  });
+});
 
 describe("LineBroadcastApiSender", () => {
   it("treats a 409 with X-Line-Accepted-Request-Id as accepted and reuses the Retry Key", async () => {

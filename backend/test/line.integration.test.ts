@@ -32,6 +32,7 @@ function createTestApp() {
     repository,
     new HmacLineSignatureVerifier(lineChannelSecret),
     {
+      deliveryMode: "line_api",
       isConfigured: () => true,
       sendDailyQuiz: async () => {
         sendCount += 1;
@@ -240,6 +241,7 @@ describe("LINE broadcast API integration", () => {
     expect(await localStatus.json()).toMatchObject({
       quizStatus: "missing",
       broadcastStatus: "not_started",
+      deliveryMode: "line_api",
     });
 
     const id = await seedPublishedQuiz();

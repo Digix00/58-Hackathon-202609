@@ -21,6 +21,7 @@ declare global {
       ACCESS_AUD?: string;
       DEV_AUTH_ENABLED?: string;
       DEV_ACCESS_BYPASS?: string;
+      DEV_LINE_BROADCAST_SIMULATION?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;
     }

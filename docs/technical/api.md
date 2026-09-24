@@ -911,8 +911,8 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 2. quizId のクイズが published であることを確認する
 3. quizDate が当日の配信対象として妥当か確認する
 4. idempotencyKey=daily-quiz:YYYY-MM-DD の line_broadcasts を取得または作成する
-5. LINE Messaging API の POST /v2/bot/message/broadcast を一回の論理配信として呼び出す
-6. LINEミニアプリのクイズ URL を含む同一メッセージを LINE 公式アカウントの全友だちへ送信する
+5. 本番は LINE Messaging API の POST /v2/bot/message/broadcast を一回の論理配信として呼び出す。ローカル開発の模擬モードでは外部 API を呼び出さない
+6. 本番は LINEミニアプリのクイズ URL を含む同一メッセージを LINE 公式アカウントの全友だちへ送信する
 7. line_broadcast_attempts に試行結果、HTTP status、X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key を記録する
 8. 成功時は line_broadcasts を succeeded にし、送信時刻を保存する
 
@@ -923,7 +923,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 - LINE Broadcast API の全友だち配信を一回の論理実行として扱う
 - アプリケーションの idempotencyKey と LINE API の Retry Key は別に管理する
 - LINE API の応答が不明な状態で再試行する場合は、同じ論理リクエストの Retry Key を再利用して二重配信を抑止する
-- response の status=succeeded は LINE Broadcast API が一回の論理リクエストを受理したことを示すもので、全友だちの個別配信完了や個別 delivery status を表さない
+- deliveryMode=line_api の status=succeeded は LINE Broadcast API が一回の論理リクエストを受理したことを示すもので、全友だちの個別配信完了や個別 delivery status を表さない。simulation は外部送信なしのローカル模擬実行を示す
 - LINE API が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みであるため attempt を論理成功として扱い、BROADCAST_UPSTREAM_UNAVAILABLE にはしない
 - BROADCAST_IN_PROGRESS はアプリケーション内で同じ idempotencyKey の runner が並行実行中の場合だけに用い、LINE API の 409 とは区別する
 
@@ -935,6 +935,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
   "quizId": "quiz_2026-09-21",
   "quizDate": "2026-09-21",
   "status": "succeeded",
+  "deliveryMode": "line_api",
   "requestedAt": "2026-09-21T00:00:00.000Z",
   "sentAt": "2026-09-21T00:00:01.000Z"
 }
@@ -966,8 +967,8 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 - 本番の GET / POST は Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
 - `ACCESS_TEAM_DOMAIN` から issuer と JWKS URL を決め、`ACCESS_AUD` を audience として署名・issuer・audience を検証する
 - Cloudflare Access 側のアプリケーションポリシーで、運用担当者だけを許可する
-- ローカルの Wrangler 開発設定では `DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方がある場合だけ Access 検証を省略する。本番設定にはこの2つを置かない
-- 配信 API の `succeeded` は LINE API がリクエストを受け付けた状態を示す。個別の配信到達状況は追跡しない
+- ローカルの Wrangler 開発設定では `DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方がある場合にAccess検証を省略する。さらに `DEV_LINE_BROADCAST_SIMULATION=true` が揃う場合はLINE APIを呼ばず、配信状態を模擬する。本番設定にはこれらのフラグを置かない
+- `deliveryMode` は `line_api` または `simulation`。`succeeded` は `line_api` のときLINE APIが受理した状態、`simulation` のときはLINEへ送信しないローカル模擬実行の完了を示す
 
 #### GET /api/v1/admin/line/broadcasts/daily-quiz
 
@@ -979,13 +980,14 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
   "quizId": "quiz_2026-09-25",
   "quizStatus": "published",
   "broadcastStatus": "succeeded",
+  "deliveryMode": "line_api",
   "requestedAt": "2026-09-25T00:00:00.000Z",
   "sentAt": "2026-09-25T00:00:01.000Z",
   "finishedAt": "2026-09-25T00:00:01.000Z"
 }
 ~~~
 
-`quizStatus` は `missing` または `published`。`broadcastStatus` は `not_started`, `pending`, `running`, `succeeded`, `failed`。レスポンスには LINE user ID、LINE request ID、Retry Key、内部エラー本文を含めない。
+`quizStatus` は `missing` または `published`。`broadcastStatus` は `not_started`, `pending`, `running`, `succeeded`, `failed`。`deliveryMode` は `line_api` または `simulation`。レスポンスには LINE user ID、LINE request ID、Retry Key、内部エラー本文を含めない。
 
 #### POST /api/v1/admin/line/broadcasts/daily-quiz
 
@@ -996,7 +998,7 @@ Request body は持たない。今日の公開クイズがなければ生成を�
 ### 9.4 APIレスポンスとDBの責務
 
 - この API は受信者一覧、ユーザーごとの送信結果、個別 delivery status を返さない
-- status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない
+- `deliveryMode=line_api` の status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない。`simulation` はローカル模擬実行の完了を意味する
 - アプリケーションの broadcastId / idempotencyKey と、LINE API の Retry Key / Request ID は別の識別子として扱う
 - DBの物理カラムや制約は #32 の database.md で定義し、この PR は HTTP の認証、Request/Response、状態コード、冪等性の契約を定義する
 

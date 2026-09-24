@@ -44,6 +44,7 @@ describe("LineUseCase daily quiz runner", () => {
       }),
       { verify: async () => true },
       {
+        deliveryMode: "line_api",
         isConfigured: () => true,
         sendDailyQuiz: async () => {
           calls.push("send");
@@ -70,6 +71,7 @@ describe("LineUseCase daily quiz runner", () => {
       })(),
     );
 
+    expect(lineUseCase.deliveryMode).toBe("line_api");
     const result = await lineUseCase.triggerDailyRun();
 
     expect(requestedDate).toBe("2099-12-30");
@@ -100,6 +102,7 @@ describe("LineUseCase daily quiz runner", () => {
       }),
       { verify: async () => true },
       {
+        deliveryMode: "line_api",
         isConfigured: () => true,
         sendDailyQuiz: async () => {
           calls.push("send");

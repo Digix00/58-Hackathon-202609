@@ -7,6 +7,7 @@ const BROADCAST_ENDPOINT = "https://api.line.me/v2/bot/message/broadcast";
 
 /** LINE Messaging API の全友だち向け Broadcast API Adapter。 */
 export class LineBroadcastApiSender implements LineBroadcastSender {
+  readonly deliveryMode = "line_api" as const;
   private readonly accessToken: string | undefined;
   private readonly quizUrl: string | undefined;
   private readonly fetcher: typeof fetch;

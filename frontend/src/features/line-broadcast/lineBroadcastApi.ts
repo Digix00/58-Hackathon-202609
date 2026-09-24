@@ -1,12 +1,14 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
 
 export type BroadcastStatus = 'not_started' | 'pending' | 'running' | 'succeeded' | 'failed'
+export type DeliveryMode = 'line_api' | 'simulation'
 
 export interface DailyBroadcastStatus {
   quizDate: string
   quizId: string | null
   quizStatus: 'missing' | 'published'
   broadcastStatus: BroadcastStatus
+  deliveryMode: DeliveryMode
   requestedAt: string | null
   sentAt: string | null
   finishedAt: string | null
