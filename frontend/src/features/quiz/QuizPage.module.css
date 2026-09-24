@@ -653,6 +653,13 @@
   width: 100%;
 }
 
+.submitError {
+  max-width: 26em;
+  color: #9b333a;
+  line-height: 1.65;
+  text-align: center;
+}
+
 .nextButton {
   gap: 0.8em;
   width: min(100%, 20em);
