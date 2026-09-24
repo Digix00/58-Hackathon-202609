@@ -29,6 +29,15 @@ describe("ConcernClusterSummary", () => {
       summary,
     });
   });
+
+  it("rejects blank labels and summaries", () => {
+    expect(
+      () => new ConcernClusterSummary({ label: " ", summary: "要約です。" }),
+    ).toThrow(ConcernClusterValidationError);
+    expect(
+      () => new ConcernClusterSummary({ label: "学校の悩み", summary: " " }),
+    ).toThrow(ConcernClusterValidationError);
+  });
 });
 
 it("does not filter generated text with a fixed list of terms", () => {

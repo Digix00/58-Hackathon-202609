@@ -142,4 +142,35 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
       summary: "連絡先は user@example.com です。",
     });
   });
+
+  it("bounds concern text sent to Workers AI", async () => {
+    let requestMessages: unknown[] = [];
+    const run = vi.fn<Run>().mockImplementation(async (_model, inputs) => {
+      requestMessages = inputs.messages as unknown[];
+      return {
+        response:
+          '{"label":"学校の悩み","summary":"人間関係に関する悩みです。"}',
+      };
+    });
+    const generator = new WorkersAiConcernClusterSummaryGenerator(
+      createAiBinding(run),
+    );
+    const largeInput = new ConcernClusterSummaryInput({
+      clusterId: "cluster-large",
+      concernBodies: Array.from({ length: 12 }, () => "x".repeat(2_501)),
+    });
+
+    await generator.generate(largeInput);
+
+    const userMessage = requestMessages
+      .map((message) => message as { role?: unknown; content?: unknown })
+      .find((message) => message.role === "user");
+    const payload = JSON.parse(String(userMessage?.content)) as {
+      concern_bodies: string[];
+    };
+    expect(payload.concern_bodies).toHaveLength(10);
+    expect(payload.concern_bodies.every((body) => body.length === 2_000)).toBe(
+      true,
+    );
+  });
 });

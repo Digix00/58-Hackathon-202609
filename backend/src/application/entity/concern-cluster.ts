@@ -50,6 +50,18 @@ export class ConcernClusterSummary {
   constructor(props: ConcernClusterSummaryProps) {
     const label = props.label.trim();
     const summary = props.summary.trim();
+    if (label.length === 0) {
+      throw new ConcernClusterValidationError(
+        "label",
+        "label must not be empty",
+      );
+    }
+    if (summary.length === 0) {
+      throw new ConcernClusterValidationError(
+        "summary",
+        "summary must not be empty",
+      );
+    }
 
     this.label = label;
     this.summary = summary;
