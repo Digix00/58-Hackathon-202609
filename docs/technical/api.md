@@ -208,7 +208,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 - limit の既定値は 20、指定可能な範囲は 1〜50
 - cursor はサーバーが発行する opaque string とする
 - クライアントは cursor をデコード・編集してはならない
-- cursor が不正、期限切れ、または Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
+- cursor が不正、期限切れ、または sort、clusterId、gender、regionCode の Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
 - nextCursor が null の場合、次のページはない
 - newest の並びは createdAt DESC, id DESC とし、同時刻でも順序を安定させる
 - recommended の cursor は、そのフィードの条件と推薦アルゴリズムのバージョンに紐づける
@@ -368,6 +368,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | cursor | 任意 | — | 次ページの opaque cursor |
 | sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
 | clusterId | 任意 | — | 指定クラスタに絞る |
+| gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | original | original、jaHira、en |
 
@@ -410,6 +411,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - visibilityStatus が published の投稿だけを返す
 - hidden、deleted の投稿は 404 と区別せず、一覧から除外する
+- gender を指定した場合は、投稿の gender コードが指定値と完全一致する投稿だけを返す
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする

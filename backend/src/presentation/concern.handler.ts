@@ -7,6 +7,7 @@ import {
   type AgeGroup,
   type Concern,
   ConcernValidationError,
+  GENDERS,
   type Gender,
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
@@ -33,6 +34,7 @@ const listConcernQuery = z
     cursor: z.string().min(1).optional(),
     sort: z.enum(CONCERN_SORT_OPTIONS).default("newest"),
     clusterId: z.string().min(1).optional(),
+    gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
     language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
   })
@@ -150,6 +152,7 @@ export class ConcernHandler {
       sort: parsed.data.sort,
       regionCode: parsed.data.regionCode,
       clusterId: parsed.data.clusterId,
+      gender: parsed.data.gender,
     } as const;
     const decodedCursor = parsed.data.cursor
       ? decodeConcernCursor(parsed.data.cursor, cursorContext)
@@ -174,6 +177,7 @@ export class ConcernHandler {
         limit: parsed.data.limit,
         cursor,
         sort: parsed.data.sort,
+        gender: parsed.data.gender,
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
         userId: auth?.user?.id,
@@ -192,6 +196,7 @@ export class ConcernHandler {
     const result = await this.concernUsecase.listPublished({
       limit: parsed.data.limit,
       cursor,
+      gender: parsed.data.gender,
     });
     const nextCursor = result.nextCursor
       ? encodeConcernCursor(result.nextCursor, cursorContext)
@@ -255,7 +260,13 @@ function toFeedResponse(
 ) {
   const candidate = isFeedItem(source)
     ? source
-    : { concern: source, cluster: null, viewed: false };
+    : {
+        concern: source,
+        cluster: null,
+        viewed: false,
+        reactionCount: 0,
+        reacted: false,
+      };
   const concern = candidate.concern;
 
   return {
@@ -278,9 +289,9 @@ function toFeedResponse(
           summary: candidate.cluster.summary,
         }
       : null,
-    reactionCount: 0,
+    reactionCount: candidate.reactionCount ?? 0,
     viewed: candidate.viewed,
-    reacted: false,
+    reacted: candidate.reacted ?? false,
     ...(includeRecommendation
       ? {
           recommendation: isFeedItem(source)
