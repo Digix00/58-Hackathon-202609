@@ -54,25 +54,25 @@ describe("ConcernClusterSummary", () => {
   });
 });
 
-  it("allows years and prices that are not phone numbers", () => {
-    expect(
-      () =>
-        new ConcernClusterSummary({
-          label: "生活費の悩み",
-          summary: "2026年の物価上昇で、昼食代の1000円を負担に感じています。",
-        }),
-    ).not.toThrow();
-  });
+it("allows years and prices that are not phone numbers", () => {
+  expect(
+    () =>
+      new ConcernClusterSummary({
+        label: "生活費の悩み",
+        summary: "2026年の物価上昇で、昼食代の1000円を負担に感じています。",
+      }),
+  ).not.toThrow();
+});
 
-  it.each([
-    "患者さんへの説明に困っています。",
-    "保護者さんとの連絡が難しいです。",
-    "看護師さんに相談しづらいです。",
-  ])("allows generic role references: %s", (summary) => {
-    expect(
-      () => new ConcernClusterSummary({ label: "相談の悩み", summary }),
-    ).not.toThrow();
-  });
+it.each([
+  "患者さんへの説明に困っています。",
+  "保護者さんとの連絡が難しいです。",
+  "看護師さんに相談しづらいです。",
+])("allows generic role references: %s", (summary) => {
+  expect(
+    () => new ConcernClusterSummary({ label: "相談の悩み", summary }),
+  ).not.toThrow();
+});
 
 describe("ConcernClusterSummaryInput", () => {
   it("trims and bounds concern text sent to the model", () => {
