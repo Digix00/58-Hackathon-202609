@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "22ea77e7-cc0b-4445-846f-538d38f54ca9",
+  "id": "ffc25b94-bc57-4866-a62f-3afa530590da",
   "prevId": "e03caf88-3216-4952-a2e5-18ccd9550198",
   "tables": {
     "concern_clusters": {
@@ -11,6 +11,20 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "legacy_label": {
+          "name": "legacy_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "legacy_summary": {
+          "name": "legacy_summary",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -366,6 +380,13 @@
         },
         "cluster_id": {
           "name": "cluster_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "embedding_version": {
+          "name": "embedding_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

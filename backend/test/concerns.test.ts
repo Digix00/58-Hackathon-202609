@@ -144,6 +144,7 @@ async function seedConcern(input: {
   id?: string;
   regionCode?: string | null;
   clusterId?: string | null;
+  processingStatus?: "pending" | "processing" | "ready" | "failed";
   visibilityStatus?: "published" | "hidden" | "deleted";
 }): Promise<string> {
   const suffix = crypto.randomUUID();
@@ -171,7 +172,7 @@ async function seedConcern(input: {
       regionCode: input.regionCode ?? null,
       clusterId: input.clusterId ?? null,
       visibilityStatus: input.visibilityStatus ?? "published",
-      processingStatus: "pending",
+      processingStatus: input.processingStatus ?? "pending",
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
     })
@@ -191,6 +192,8 @@ async function seedCluster(input: {
     .insert(concernClusters)
     .values({
       id,
+      legacyLabel: input.label ?? "食事のテーマ",
+      legacySummary: input.summary ?? "食事や休憩に関する悩み",
       label: input.label ?? "食事のテーマ",
       summary: input.summary ?? "食事や休憩に関する悩み",
       status: "ready",
@@ -495,6 +498,7 @@ describe("GET /api/v1/concerns", () => {
     const concernId = await seedConcern({
       body: "おすすめ対象の投稿",
       clusterId,
+      processingStatus: "ready",
       regionCode: "osaka",
       createdAt: "9999-01-12T00:00:00.000Z",
     });

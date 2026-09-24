@@ -353,7 +353,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - PoCで受け付けた新規投稿は visibilityStatus=published、processingStatus=pending で返す
 - 投稿本文の翻訳・ひらがな化・クラスタリングが未完了でも、published の原文投稿は一般フィードへ返す
 - Vectorizeは投稿処理内のクラスタリングに限って使い、利用者が任意の文章を送る検索APIやRAGは提供しない
-- 近傍上位5件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
+- 近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
 - Vectorizeへのupsertは検索可能になるまで遅延することがあり、短時間に連続した投稿を最初の処理で同じclusterへ割り当てられない場合がある
 - 近傍検索の設定はEmbedding modelとVectorize indexの組に固定する
 - クラスタの表示ラベルと要約を生成する処理は後続のため、生成前はcluster.label、cluster.summaryがnullの場合がある
@@ -961,7 +961,7 @@ PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Que
 
 - ja_hira
 - en_translation
-- embedding and cluster assignment
+- Embedding生成とクラスタ割当
 
 API が返す concerns.processingStatus は、表現生成・保存とEmbedding生成・クラスタ割当の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。クラスタの表示ラベル・要約は後続処理のため、処理完了後もnullの場合がある。
 

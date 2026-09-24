@@ -14,7 +14,7 @@ import type { ConcernProcessingRepository } from "../repository/concern-processi
 
 export const DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD = 0.8;
 
-const NEAREST_CONCERN_LIMIT = 5;
+const NEAREST_CONCERN_LIMIT = 10;
 
 export interface ConcernProcessingResult {
   concernId: string;
@@ -33,6 +33,7 @@ export interface IConcernProcessingUseCase {
 
 export interface ConcernProcessingUseCaseOptions {
   similarityThreshold?: number;
+  vectorIndexVersion?: string;
   now?: () => Date;
 }
 
@@ -46,6 +47,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
   private readonly repository?: ConcernProcessingRepository;
   private readonly vectorIndex?: ConcernVectorIndex;
   private readonly similarityThreshold: number;
+  private readonly vectorIndexVersion: string;
   private readonly now: () => Date;
 
   constructor(
@@ -77,6 +79,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
     this.repository = repository;
     this.vectorIndex = vectorIndex;
     this.similarityThreshold = similarityThreshold;
+    this.vectorIndexVersion = options.vectorIndexVersion?.trim() || "default";
     this.now = options.now ?? (() => new Date());
   }
 
@@ -94,15 +97,18 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
       throw new Error("Concern not found for processing");
     }
 
+    const modelVersion = this.embeddingGenerator.modelVersion ?? "unknown";
+    const embeddingVersion = `${modelVersion}@${this.vectorIndexVersion}`;
     if (
       state?.status === "ready" &&
       hasCompleteRepresentations(state.representations) &&
-      (!vectorIndex || state.clusterId !== null)
+      (!vectorIndex ||
+        (state.clusterId !== null &&
+          state.embeddingVersion === embeddingVersion))
     ) {
       return null;
     }
 
-    const modelVersion = this.embeddingGenerator.modelVersion ?? "unknown";
     const processingTimestamp = this.nowIso();
     try {
       if (repository) {
@@ -118,8 +124,10 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
       }
 
       const [jaHira, en, embedding] = await Promise.all([
-        this.translator.convertToHiragana(input.body),
-        this.translator.translateToEnglish(input.body),
+        findReadyRepresentation(state, "ja-Hira") ??
+          this.translator.convertToHiragana(input.body),
+        findReadyRepresentation(state, "en") ??
+          this.translator.translateToEnglish(input.body),
         this.generateEmbedding(input.concernId, input.body),
       ]);
 
@@ -149,6 +157,21 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
         let clusterId = state?.clusterId ?? null;
 
         if (vectorIndex) {
+          if (!embedding) {
+            await repository.saveResult(
+              new ConcernProcessing({
+                concernId: input.concernId,
+                status: "failed",
+                clusterId,
+                modelVersion,
+                embeddingVersion: state?.embeddingVersion,
+                representations,
+                updatedAt: this.nowIso(),
+              }),
+            );
+            throw new Error("Embedding generation returned no vector");
+          }
+
           const proposedClusterId =
             clusterId ??
             (await this.findMatchingCluster(vectorIndex, embedding)) ??
@@ -159,6 +182,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
               status: "processing",
               clusterId: proposedClusterId,
               modelVersion,
+              embeddingVersion,
               representations,
               updatedAt: this.nowIso(),
             }),
@@ -184,6 +208,9 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             status: "ready",
             clusterId,
             modelVersion,
+            embeddingVersion: vectorIndex
+              ? embeddingVersion
+              : (state?.embeddingVersion ?? null),
             representations,
             updatedAt: this.nowIso(),
           }),
@@ -212,9 +239,9 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
   }
 
   /**
-   * Embedding is not persisted by this feature yet, so a failure here must
-   * not block saving the ja_hira/en_translation representations that already
-   * succeeded (see docs/technical/api.md §10 processingStatus contract).
+   * A failed embedding must not discard generated representations. Without a
+   * Vectorize index they can still complete; with one, the caller saves them
+   * as failed and lets the Queue retry the missing vector step.
    */
   private async generateEmbedding(
     concernId: string,
@@ -268,6 +295,16 @@ function hasCompleteRepresentations(
     ) &&
     representations.some((representation) => representation.locale === "en")
   );
+}
+
+function findReadyRepresentation(
+  processing: ConcernProcessing | null,
+  locale: ConcernRepresentation["locale"],
+): string | null {
+  const representation = processing?.representations.find(
+    (candidate) => candidate.locale === locale && candidate.status === "ready",
+  );
+  return representation?.body ?? null;
 }
 
 function validateMessage(

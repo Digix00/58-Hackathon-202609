@@ -39,7 +39,8 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
 | `AI` (Workers AI binding) | Workers AI 推論 | `backend/wrangler.jsonc` |
 | `CONCERN_VECTOR_INDEX` | 投稿Embeddingの近傍照合・upsert | `backend/wrangler.jsonc`（本番）/ `backend/wrangler.dev.jsonc`（開発用） |
-| `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` | 既存クラスタを採用する最小類似度 | Worker環境変数（既定値 `0.8`） |
+| `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` | 既存クラスタを採用する最小類似度 | 本番はGitHub Actions Variable（未設定時 `0.8`）、開発は`wrangler.dev.jsonc` |
+| `CONCERN_VECTOR_INDEX_VERSION` | 投稿Embeddingの登録先index version | `wrangler.jsonc`（本番）/ `wrangler.dev.jsonc`（開発用）。index再作成時に更新 |
 | `CONCERN_PROCESSING_QUEUE` | 投稿後のAI処理Queue producer | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINEクイズ配信 | Worker環境変数またはSecret |

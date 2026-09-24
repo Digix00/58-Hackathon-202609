@@ -75,9 +75,9 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 `wrangler.jsonc` の `CONCERN_PROCESSING_QUEUE` producer binding と consumer設定で、投稿保存後のAI処理をQueueへ分離する。投稿作成時に `concern.process` メッセージを送信し、Workerの `queue` ハンドラーから `ConcernProcessingUseCase` を呼び出す。
 
-Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位5件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。ラベル・要約の生成は後続処理であり、この段階ではnullを許容する。
+Queue consumerからひらがな・英語表現とEmbeddingを生成し、表現とクラスタ割当をD1へ、EmbeddingをCloudflare Vectorizeへ保存する。Vectorizeは内部のクラスタリング処理からのみ利用し、任意の文章を受け取る公開検索APIやRAGは追加しない。近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位クラスタへ割り当てる。近傍候補のない投稿は新しいクラスタを作る。ラベル・要約の生成は後続処理であり、この段階ではnullを許容する。
 
-Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。処理が失敗した投稿は未分類として表示し、投稿原文は保持する。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
+Queueの失敗はメッセージ単位で再試行し、D1に確定したcluster IDを再利用する。投稿ごとのEmbedding model/index versionをD1へ記録し、バージョンが変わった投稿はQueue再処理でVectorizeへ再登録する。処理が失敗した投稿は未分類として表示し、投稿原文は保持する。Vectorize metadataにはcluster IDだけを保存し、投稿本文などの個人情報を含めない。
 
 初回だけQueueを作成する。
 
@@ -105,7 +105,7 @@ pnpm db:migrate:local   # ローカルD1にマイグレーションを適用
 pnpm dev                # http://localhost:8787
 ```
 
-`pnpm dev` は `wrangler.dev.jsonc` を使い、ローカルD1・Queueと開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) に接続する。Vectorizeにはローカルシミュレーターがないため、開発・本番indexをCloudflareアカウントに個別作成する。
+`pnpm dev` は `wrangler.dev.jsonc` を使い、ローカルD1・Queueと開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) に接続する。Vectorizeにはローカルシミュレーターがないため、開発・本番indexをCloudflareアカウントに個別作成する。開発用bindingは本番用indexと分け、開発時のupsertが本番の検索データを変えないようにする。
 
 PLaMo-Embedding-1Bは2048次元ですが、Cloudflare Vectorizeの現行上限1536次元を超えるため使いません。Qwen3-Embedding-0.6Bは1024次元でVectorizeに対応します（[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Workers AI Qwen3 Embedding](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/)）。初回のみ次を開発・本番環境で個別に実行します。
 
@@ -113,6 +113,8 @@ PLaMo-Embedding-1Bは2048次元ですが、Cloudflare Vectorizeの現行上限15
 pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors-dev --dimensions=1024 --metric=cosine
 pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=1024 --metric=cosine
 ```
+
+Vectorize indexを再作成した場合は、`CONCERN_VECTOR_INDEX_VERSION` を環境ごとに更新してください。登録済み投稿のEmbedding versionと一致しなくなるため、次にQueueで再処理された投稿は現在のindexへupsertされます。本番の類似度閾値はGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` から渡し、未設定時は `0.8` を使います。ローカル開発の閾値は `wrangler.dev.jsonc` で設定します。
 
 ## LINE MINI App認証
 

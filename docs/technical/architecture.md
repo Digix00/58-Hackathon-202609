@@ -51,7 +51,8 @@ flowchart LR
 - Embeddingは `@cf/qwen/qwen3-embedding-0.6b` を使い、複数テキストを入力順にベクトル化する。当初候補の `@cf/pfnet/plamo-embedding-1b` は2048次元で、Vectorizeの最大1536次元を超えるため採用しない。Qwen3の1024次元出力に合わせてVectorize indexを作成する（[PLaMo model card](https://huggingface.co/pfnet/plamo-embedding-1b/blob/main/README_ja.md)、[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Qwen3 model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)）。Qwen3 Embeddingは100以上の言語に対応する。
 - 投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。ひらがな・英語表現とクラスタ割当はD1に保存し、EmbeddingはVectorizeに保存する。D1の `concerns.cluster_id` を正とし、Queue再試行でも既存の割当を使う。
 - Vectorizeは投稿処理内部の近傍照合にだけ使う。公開の任意文検索APIやRAGはこの段階では提供しない。Vectorize metadataにはcluster IDだけを保存し、本文や属性は保存しない。Embeddingの次元とindex設定はモデルに合わせ、モデルを変更する場合はindexを再構築する。
-- 近傍照合はcosine metricで上位5件を取得し、scoreが既定値0.8以上の候補のうち最も高いものへ割り当てる。閾値は `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` で調整する。新しいベクトルが検索可能になるまで遅延するため、短時間に連続投稿された悩みが初回処理時に同じクラスタへまとまらない場合がある（[Vectorize changelog](https://developers.cloudflare.com/changelog/product/vectorize/)）。
+- 近傍照合はcosine metricで上位10件を取得し、scoreが既定値0.8以上の候補のうち最も高いものへ割り当てる。閾値は本番ではGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD`、ローカル開発では`wrangler.dev.jsonc`で設定する。新しいベクトルが検索可能になるまで遅延するため、短時間に連続投稿された悩みが初回処理時に同じクラスタへまとまらない場合がある（[Vectorize changelog](https://developers.cloudflare.com/changelog/product/vectorize/)）。
+- D1には投稿ごとにモデル名とindex versionを組み合わせたEmbedding versionを記録する。Queue再処理時に現在のversionと一致しない投稿は既存のひらがな・英語表現を再利用して再Embeddingし、対象Vectorize indexへ再upsertする。indexを再作成したときは環境固有の`CONCERN_VECTOR_INDEX_VERSION`を更新する。
 - クラスタ表示ラベル・要約の生成はこの基盤の範囲外とし、未生成の間はlabelとsummaryをnullにできる。失敗時はクラスタ割当をフィードに出さず、原文で閲覧を続ける。
 - `wrangler dev` はローカルD1・Queueと開発用remote Vectorize indexを使う。Vectorizeにはローカルシミュレーターがないため、開発・本番のindexを別々に作成する。
 - `wrangler dev` 中でも実際の推論はCloudflareアカウントへ接続し、Workers AIの利用枠を消費する。テストでは実AIを呼ばずFakeを使う。

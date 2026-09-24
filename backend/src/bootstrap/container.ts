@@ -55,18 +55,25 @@ export function createApplication(bindings: Bindings) {
   const concernProcessingRepository = new D1ConcernProcessingRepository(
     bindings.DB,
   );
+  const concernTextTranslator = new WorkersAiTextTranslator(bindings.AI);
+  const concernTextEmbeddingGenerator = new WorkersAiTextEmbeddingGenerator(
+    bindings.AI,
+  );
+  const concernVectorIndex = bindings.CONCERN_VECTOR_INDEX
+    ? new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX)
+    : undefined;
+  const concernProcessingOptions = {
+    similarityThreshold: parseSimilarityThreshold(
+      bindings.CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
+    ),
+    vectorIndexVersion: bindings.CONCERN_VECTOR_INDEX_VERSION,
+  };
   const concernProcessingUseCase = new ConcernProcessingUseCase(
-    new WorkersAiTextTranslator(bindings.AI),
-    new WorkersAiTextEmbeddingGenerator(bindings.AI),
+    concernTextTranslator,
+    concernTextEmbeddingGenerator,
     concernProcessingRepository,
-    bindings.CONCERN_VECTOR_INDEX
-      ? new CloudflareConcernVectorIndex(bindings.CONCERN_VECTOR_INDEX)
-      : undefined,
-    {
-      similarityThreshold: parseSimilarityThreshold(
-        bindings.CONCERN_CLUSTER_SIMILARITY_THRESHOLD,
-      ),
-    },
+    concernVectorIndex,
+    concernProcessingOptions,
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,

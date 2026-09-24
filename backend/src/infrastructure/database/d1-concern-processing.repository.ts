@@ -23,12 +23,11 @@ export class D1ConcernProcessingRepository
       this.db
         .select({
           clusterId: concerns.clusterId,
-          modelVersion: concernClusters.modelVersion,
+          embeddingVersion: concerns.embeddingVersion,
           status: concerns.processingStatus,
           updatedAt: concerns.updatedAt,
         })
         .from(concerns)
-        .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
         .where(eq(concerns.id, concernId))
         .get(),
       this.db
@@ -45,7 +44,7 @@ export class D1ConcernProcessingRepository
     return new ConcernProcessing({
       concernId,
       clusterId: row.clusterId,
-      modelVersion: row.modelVersion,
+      embeddingVersion: row.embeddingVersion,
       status: row.status as ConcernProcessing["status"],
       representations: representationRows.map(
         (representation) =>
@@ -74,6 +73,8 @@ export class D1ConcernProcessingRepository
       .insert(concernClusters)
       .values({
         id: candidateClusterId,
+        legacyLabel: "__pending__",
+        legacySummary: "__pending__",
         label: null,
         summary: null,
         status: "pending",
@@ -105,6 +106,7 @@ export class D1ConcernProcessingRepository
       concernId: processing.concernId,
       clusterId: row.clusterId,
       modelVersion: processing.modelVersion,
+      embeddingVersion: processing.embeddingVersion,
       status: processing.status,
       representations: processing.representations,
       updatedAt: processing.updatedAt,
@@ -131,6 +133,7 @@ export class D1ConcernProcessingRepository
     const updateConcern = this.db
       .update(concerns)
       .set({
+        embeddingVersion: processing.embeddingVersion,
         processingStatus: processing.status,
         updatedAt: processing.updatedAt,
       })

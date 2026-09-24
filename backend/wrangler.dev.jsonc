@@ -21,7 +21,8 @@
     }
   ],
   "vars": {
-    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8"
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
+    "CONCERN_VECTOR_INDEX_VERSION": "development-v1"
   },
   "queues": {
     "producers": [

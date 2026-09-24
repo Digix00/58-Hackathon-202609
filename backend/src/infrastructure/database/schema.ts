@@ -53,6 +53,8 @@ export const concernClusters = sqliteTable(
   "concern_clusters",
   {
     id: text("id").primaryKey(),
+    legacyLabel: text("legacy_label").notNull(),
+    legacySummary: text("legacy_summary").notNull(),
     label: text("label"),
     summary: text("summary"),
     status: text("status").notNull().default("ready"),
@@ -77,6 +79,7 @@ export const concerns = sqliteTable(
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
     clusterId: text("cluster_id").references(() => concernClusters.id),
+    embeddingVersion: text("embedding_version"),
     visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
