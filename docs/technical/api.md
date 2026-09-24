@@ -963,9 +963,10 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 #### 認証
 
-- GET / POST の両方で Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
+- 本番の GET / POST は Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
 - `ACCESS_TEAM_DOMAIN` から issuer と JWKS URL を決め、`ACCESS_AUD` を audience として署名・issuer・audience を検証する
 - Cloudflare Access 側のアプリケーションポリシーで、運用担当者だけを許可する
+- ローカルの Wrangler 開発設定では `DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方がある場合だけ Access 検証を省略する。本番設定にはこの2つを置かない
 - 配信 API の `succeeded` は LINE API がリクエストを受け付けた状態を示す。個別の配信到達状況は追跡しない
 
 #### GET /api/v1/admin/line/broadcasts/daily-quiz

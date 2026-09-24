@@ -20,6 +20,7 @@ declare global {
       ACCESS_TEAM_DOMAIN?: string;
       ACCESS_AUD?: string;
       DEV_AUTH_ENABLED?: string;
+      DEV_ACCESS_BYPASS?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;
     }

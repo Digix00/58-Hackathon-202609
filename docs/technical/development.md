@@ -74,6 +74,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `INTERNAL_API_TOKEN` | 内部専用のデイリークイズ配信API | Worker Secret。フロントエンドに設定しない |
 | `ACCESS_TEAM_DOMAIN` | Cloudflare Access JWT の issuer と JWKS | Worker環境変数 |
 | `ACCESS_AUD` | Worker API用 Cloudflare Access application の audience | Worker環境変数 |
+| `DEV_ACCESS_BYPASS` | ローカル管理画面でのCloudflare Access検証迂回 | `wrangler.dev.jsonc` / `wrangler.vectorize.dev.jsonc` のみ。`DEV_AUTH_ENABLED=true` と併用 |
 | `E2E_BASE_URL` | E2Eテスト対象のWeb URL | GitHub Actions Secretまたは環境設定 |
 
 ### CIとPR

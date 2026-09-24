@@ -214,6 +214,34 @@ describe("LINE broadcast API integration", () => {
     expect(unauthorized.status).toBe(401);
     expect(getSendCount()).toBe(0);
 
+    const bypassWithoutDevAuth = await app.request(
+      "/api/v1/admin/line/broadcasts/daily-quiz",
+      {},
+      { DB: env.DB, DEV_ACCESS_BYPASS: "true" },
+    );
+    const bypassWithoutExplicitBypass = await app.request(
+      "/api/v1/admin/line/broadcasts/daily-quiz",
+      {},
+      { DB: env.DB, DEV_AUTH_ENABLED: "true" },
+    );
+    expect(bypassWithoutDevAuth.status).toBe(401);
+    expect(bypassWithoutExplicitBypass.status).toBe(401);
+
+    const localStatus = await app.request(
+      "/api/v1/admin/line/broadcasts/daily-quiz",
+      {},
+      {
+        DB: env.DB,
+        DEV_AUTH_ENABLED: "true",
+        DEV_ACCESS_BYPASS: "true",
+      },
+    );
+    expect(localStatus.status).toBe(200);
+    expect(await localStatus.json()).toMatchObject({
+      quizStatus: "missing",
+      broadcastStatus: "not_started",
+    });
+
     const id = await seedPublishedQuiz();
     const response = await app.request(
       "/api/v1/line/broadcasts/daily-quiz",

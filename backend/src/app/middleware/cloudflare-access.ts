@@ -11,6 +11,11 @@ const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 export const requireCloudflareAccess: MiddlewareHandler<
   AccessMiddlewareEnvironment
 > = async (c, next) => {
+  if (c.env.DEV_AUTH_ENABLED === "true" && c.env.DEV_ACCESS_BYPASS === "true") {
+    await next();
+    return;
+  }
+
   const assertion = c.req.header("cf-access-jwt-assertion");
   const teamDomain = normalizeIssuer(c.env.ACCESS_TEAM_DOMAIN);
   const audience = c.env.ACCESS_AUD?.trim();

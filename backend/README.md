@@ -180,6 +180,8 @@ CORS_ORIGIN=<管理画面を配信するフロントエンドのorigin>
 
 Workerは `Cf-Access-Jwt-Assertion` の署名、issuer、audienceを検証する。Cloudflare Accessのポリシーでも担当者を制限し、API側のJWT検証を無効にしない。管理画面はAccess認証CookieでAPIを呼び出すため、`INTERNAL_API_TOKEN` はブラウザーに渡らない。
 
+ローカルの `wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では、`DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方が設定されるため、Cloudflare Accessなしで管理画面の状態確認ができる。この迂回はローカル開発設定だけに置き、本番設定には追加しない。Workerは両方のフラグが明示された場合だけAccess検証を省略する。
+
 WranglerのCron Triggerは毎日 `0 0 * * *` UTC（09:00 JST）に起動する。当日公開クイズがなければ候補から生成を試み、公開クイズができた場合だけLINE Broadcast APIで配信する。管理画面から同じ日次処理を手動実行できる。配信状態の `succeeded` はLINE APIがリクエストを受け付けたことを示し、各友だちへの到達状況を表さない。
 
 内部連携から既存の公開クイズだけを再試行する場合は `POST /api/v1/line/broadcasts/daily-quiz` を使い、`INTERNAL_API_TOKEN` をBearer認証で渡す。このトークンをブラウザーから送信しない。
