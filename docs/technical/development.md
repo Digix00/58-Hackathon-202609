@@ -68,7 +68,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、クラスタ表示文用の `ConcernClusterSummaryGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの英訳・ひらがな変換・クラスタ要約は `@cf/meta/llama-3.1-8b-instruct-fp8` を使い、Embeddingは1024次元の `@cf/qwen/qwen3-embedding-0.6b` を使う。PLaMo-Embedding-1Bは2048次元のためVectorizeの上限に収まらない。各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。処理結果の表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。Vectorizeにはローカルシミュレーターがないため開発用・本番用に別のindexを作成する。通常の `pnpm dev` はWorkers AIとVectorizeのremote bindingを使わず、Cloudflare認証なしでローカルアダプタを動かす。Vectorize連携の開発確認には `pnpm --filter backend dev:vectorize` を使い、開発用remote indexだけに接続する。
 
-新しく作られたpending clusterだけ、最大10件の公開済み悩みを入力してlabel（100文字以内）とsummary（500文字以内）を一度生成する。生成前にD1の条件付き更新でclusterを`generating`へ原子的にclaimし、同じclusterに対する同時Queue配信の重複推論を防ぐ。claimは5分で失効し、Worker停止後も再投入で回復できる。生成失敗時はclaimを`pending`へ戻してQueue再試行を行い、公開済み原文は保持する。禁止表現、メールアドレス、電話番号、URL、郵便番号、日本の住所形式、人名らしい表記を検査し、無効な結果は保存しない。検出パターンは既知の形式に限られるため、生成プロンプトでも個人を特定できる情報を出さないよう指示する。既存クラスタに投稿が追加されたときの再生成は次の処理で実装する。
+新しく作られたpending clusterだけ、最大10件の公開済み悩みを入力してlabel（100文字以内）とsummary（500文字以内）を一度生成する。生成前にD1の条件付き更新でclusterを`generating`へ原子的にclaimし、同じclusterに対する同時Queue配信の重複推論を防ぐ。別workerが生成中のclusterに当たった配信は投稿をreadyにせず、Queueで再試行する。claim後のD1読み込みや生成に失敗した場合はclaimの解放を試みてQueue再試行を行い、公開済み原文は保持する。claimは5分で失効し、Worker停止後も再投入で回復できる。禁止表現、メールアドレス、電話番号、URL、郵便番号、日本の住所形式、人名らしい表記を検査し、無効な結果は保存しない。検出パターンは既知の形式に限られるため、生成プロンプトでも個人を特定できる情報を出さないよう指示する。既存クラスタに投稿が追加されたときの再生成は次の処理で実装する。
 
 Cloudflareアカウントに以下のindexを事前に作成する。dimensionsはEmbedding modelの出力次元に合わせ、metricは `cosine` とする。初回のみ、開発・本番のCloudflareアカウントで個別に実行する。
 

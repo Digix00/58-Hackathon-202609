@@ -46,28 +46,42 @@ export class D1ConcernClusterSummaryRepository
       .get();
 
     if (!cluster) {
-      return null;
-    }
+      const current = await this.db
+        .select({ status: concernClusters.status })
+        .from(concernClusters)
+        .where(eq(concernClusters.id, clusterId))
+        .get();
 
-    const rows = await this.db
-      .select({ body: concerns.body })
-      .from(concerns)
-      .where(
-        and(
-          eq(concerns.clusterId, clusterId),
-          eq(concerns.visibilityStatus, "published"),
-        ),
-      )
-      .orderBy(desc(concerns.createdAt), desc(concerns.id))
-      .limit(CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT)
-      .all();
-
-    if (rows.length === 0) {
-      await this.releaseSummaryClaim(clusterId, claimedAt, claimedAt);
-      return null;
+      if (current?.status === "ready") {
+        return null;
+      }
+      if (current?.status === "generating") {
+        throw new Error("Cluster summary generation is already in progress");
+      }
+      if (!current) {
+        throw new Error("Concern cluster not found while claiming summary");
+      }
+      throw new Error("Pending cluster summary could not be claimed");
     }
 
     try {
+      const rows = await this.db
+        .select({ body: concerns.body })
+        .from(concerns)
+        .where(
+          and(
+            eq(concerns.clusterId, clusterId),
+            eq(concerns.visibilityStatus, "published"),
+          ),
+        )
+        .orderBy(desc(concerns.createdAt), desc(concerns.id))
+        .limit(CONCERN_CLUSTER_SUMMARY_INPUT_LIMIT)
+        .all();
+
+      if (rows.length === 0) {
+        throw new Error("No published concerns are available for the summary");
+      }
+
       return new ConcernClusterSummaryClaim({
         input: new ConcernClusterSummaryInput({
           clusterId: cluster.id,

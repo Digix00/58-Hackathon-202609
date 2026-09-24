@@ -97,7 +97,7 @@ describe("D1ConcernClusterSummaryRepository", () => {
     );
   });
 
-  it("does not claim missing or ready clusters and releases empty ones", async () => {
+  it("only skips completed clusters and releases empty claims", async () => {
     const readyClusterId = `summary-ready-${crypto.randomUUID()}`;
     const emptyClusterId = `summary-empty-${crypto.randomUUID()}`;
     const timestamp = "2026-09-24T00:00:00.000Z";
@@ -125,7 +125,7 @@ describe("D1ConcernClusterSummaryRepository", () => {
         "2026-09-24T00:01:00.000Z",
         "2026-09-23T23:56:00.000Z",
       ),
-    ).resolves.toBeNull();
+    ).rejects.toThrow("Concern cluster not found");
     await expect(
       repository.claimPendingSummaryInput(
         readyClusterId,
@@ -139,7 +139,7 @@ describe("D1ConcernClusterSummaryRepository", () => {
         "2026-09-24T00:01:00.000Z",
         "2026-09-23T23:56:00.000Z",
       ),
-    ).resolves.toBeNull();
+    ).rejects.toThrow("No published concerns");
     const emptyCluster = await drizzle(env.DB)
       .select({ status: concernClusters.status })
       .from(concernClusters)
@@ -164,12 +164,19 @@ describe("D1ConcernClusterSummaryRepository", () => {
         "2026-09-23T23:56:00.000Z",
       );
 
-    const claims = await Promise.all([claim(), claim()]);
+    const outcomes = await Promise.allSettled([claim(), claim()]);
+    const claims = outcomes.flatMap((outcome) =>
+      outcome.status === "fulfilled" ? [outcome.value] : [],
+    );
 
     expect(claims.filter(Boolean)).toHaveLength(1);
     expect(claims.filter(Boolean)[0]?.input.concernBodies).toEqual([
       "公開された悩み",
     ]);
+    expect(
+      outcomes.filter((outcome) => outcome.status === "rejected"),
+    ).toHaveLength(1);
+    await expect(claim()).rejects.toThrow("already in progress");
   });
 
   it("reclaims an expired lease and only allows its current owner to save or release", async () => {
