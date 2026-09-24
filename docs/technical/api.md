@@ -522,7 +522,6 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- cluster の label、summary は AI 生成後に長さと個人情報を検査する
 - 公開済みの悩みが 0 件のクラスタは返さない
 - concernCount は published の悩みだけを数える
 

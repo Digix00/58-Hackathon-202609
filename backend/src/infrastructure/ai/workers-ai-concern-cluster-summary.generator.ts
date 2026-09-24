@@ -18,7 +18,7 @@ export class InvalidWorkersAiConcernClusterSummaryError extends Error {
   }
 }
 
-/** Generates and validates public display text for a pending concern cluster. */
+/** Generates public display text for a pending concern cluster. */
 export class WorkersAiConcernClusterSummaryGenerator
   implements ConcernClusterSummaryGenerator
 {
@@ -63,11 +63,7 @@ export class WorkersAiConcernClusterSummaryGenerator
       throw new InvalidWorkersAiConcernClusterSummaryError();
     }
 
-    try {
-      return new ConcernClusterSummary({ label, summary });
-    } catch {
-      throw new InvalidWorkersAiConcernClusterSummaryError();
-    }
+    return new ConcernClusterSummary({ label, summary });
   }
 }
 

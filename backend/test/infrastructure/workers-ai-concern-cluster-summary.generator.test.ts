@@ -117,13 +117,6 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
       },
     ],
     ["invalid response", { unexpected: true }],
-    [
-      "contact details",
-      {
-        response:
-          '{"label":"学校の悩み","summary":"連絡先は user@example.com です。"}',
-      },
-    ],
   ])("rejects %s without returning display text", async (_name, response) => {
     const run = vi.fn<Run>().mockResolvedValue(response);
     const generator = new WorkersAiConcernClusterSummaryGenerator(
@@ -133,5 +126,20 @@ describe("WorkersAiConcernClusterSummaryGenerator", () => {
     await expect(generator.generate(input)).rejects.toBeInstanceOf(
       InvalidWorkersAiConcernClusterSummaryError,
     );
+  });
+
+  it("returns generated text without filtering personal information", async () => {
+    const run = vi.fn<Run>().mockResolvedValue({
+      response:
+        '{"label":"学校の悩み","summary":"連絡先は user@example.com です。"}',
+    });
+    const generator = new WorkersAiConcernClusterSummaryGenerator(
+      createAiBinding(run),
+    );
+
+    await expect(generator.generate(input)).resolves.toMatchObject({
+      label: "学校の悩み",
+      summary: "連絡先は user@example.com です。",
+    });
   });
 });
