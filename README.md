@@ -14,14 +14,14 @@ frontendは`backend`パッケージをworkspace依存として参照し、[Hono 
 make dev
 ```
 
-依存インストール → ローカルD1へのマイグレーション適用 → backend([http://localhost:8787](http://localhost:8787))と
+依存インストール → ローカルD1へのマイグレーション・開発用データ適用 → backend([http://localhost:8787](http://localhost:8787))と
 frontend([http://localhost:5173](http://localhost:5173))の同時起動、をこの1コマンドで行う。終了はCtrl+C。
 
-個別に立ち上げたい場合は `make backend` / `make frontend` / `make db-migrate`、コマンド一覧は `make help`。
+個別に立ち上げたい場合は `make backend` / `make frontend` / `make db-migrate`、開発用データだけを再投入する場合は `make db-seed-local`、コマンド一覧は `make help`。
 
 > Cloudflare D1はローカル開発時`wrangler dev`が内部(miniflare)でSQLiteとして扱うため、
 > 独立して常駐する「DBサーバー」は存在しない。ローカルDBを使える状態にする作業は
-> マイグレーション適用(`make db-migrate`)のみで完結する。
+> マイグレーション適用(`make db-migrate`)と開発用データ投入(`make db-seed-local`)で完結する。
 
 ## セットアップ
 

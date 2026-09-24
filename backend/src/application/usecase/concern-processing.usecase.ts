@@ -12,7 +12,10 @@ import {
 import type { ConcernVectorIndex } from "../port/concern-vector-index";
 import type { TextEmbeddingGenerator } from "../port/text-embedding-generator";
 import type { TextTranslator } from "../port/text-translator";
-import type { ConcernClusterSummaryRepository } from "../repository/concern-cluster-summary.repository";
+import {
+  ConcernClusterSummaryClaimConflictError,
+  type ConcernClusterSummaryRepository,
+} from "../repository/concern-cluster-summary.repository";
 import type { ConcernProcessingRepository } from "../repository/concern-processing.repository";
 
 export const DEFAULT_CONCERN_CLUSTER_SIMILARITY_THRESHOLD = 0.8;
@@ -221,6 +224,7 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
             clusterId,
             embedding,
           });
+          allowReadyFailure = state?.status === "ready";
           await this.generatePendingClusterSummary(clusterId);
         }
 
@@ -241,18 +245,23 @@ export class ConcernProcessingUseCase implements IConcernProcessingUseCase {
 
       return result;
     } catch (error) {
-      await repository
-        ?.markFailed(
-          new ConcernProcessing({
-            concernId: input.concernId,
-            status: "failed",
-            clusterId: state?.clusterId,
-            modelVersion,
-            updatedAt: this.nowIso(),
-          }),
-          { allowReady: allowReadyFailure },
-        )
-        .catch(() => undefined);
+      const isReadyConcernClaimConflict =
+        state?.status === "ready" &&
+        error instanceof ConcernClusterSummaryClaimConflictError;
+      if (!isReadyConcernClaimConflict) {
+        await repository
+          ?.markFailed(
+            new ConcernProcessing({
+              concernId: input.concernId,
+              status: "failed",
+              clusterId: state?.clusterId,
+              modelVersion,
+              updatedAt: this.nowIso(),
+            }),
+            { allowReady: allowReadyFailure },
+          )
+          .catch(() => undefined);
+      }
       throw error;
     }
   };

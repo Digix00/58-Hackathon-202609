@@ -4,8 +4,11 @@ export type DemoConcern = {
   id: string
   body: string
   gender?: string
+  genderCode?: string
   ageGroup?: string
+  ageGroupCode?: string
   region?: string
+  regionCode?: string
   createdLabel: string
   reason: string
   reactionCount: number

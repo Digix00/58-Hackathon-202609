@@ -6,6 +6,7 @@ import {
   ConcernClusterSummaryClaim,
   ConcernClusterSummaryInput,
 } from "../../application/entity/concern-cluster";
+import { ConcernClusterSummaryClaimConflictError } from "../../application/repository/concern-cluster-summary.repository";
 import type { ConcernClusterSummaryRepository } from "../../application/repository/concern-cluster-summary.repository";
 import { concernClusters, concerns } from "./schema";
 
@@ -57,7 +58,9 @@ export class D1ConcernClusterSummaryRepository
         return null;
       }
       if (current?.status === "generating") {
-        throw new Error("Cluster summary generation is already in progress");
+        throw new ConcernClusterSummaryClaimConflictError(
+          "Cluster summary generation is already in progress",
+        );
       }
       if (!current) {
         throw new Error("Concern cluster not found while claiming summary");
@@ -127,7 +130,9 @@ export class D1ConcernClusterSummaryRepository
       .get();
 
     if (!saved) {
-      throw new Error("Cluster summary claim was lost before saving");
+      throw new ConcernClusterSummaryClaimConflictError(
+        "Cluster summary claim was lost before saving",
+      );
     }
   }
 

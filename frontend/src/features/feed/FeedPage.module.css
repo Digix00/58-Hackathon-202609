@@ -511,6 +511,13 @@
   width: 100%;
 }
 
+.submitError {
+  margin: 0;
+  color: var(--color-purple-dark);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 /* 表紙の中身を静かに保ち、読みはじめる操作だけを紙の外に置く。 */
 .coverOpenSlot {
   display: grid;

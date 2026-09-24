@@ -136,6 +136,18 @@ pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vector
 
 Vectorize indexを再作成した場合は、`CONCERN_VECTOR_INDEX_VERSION` を環境ごとに更新してください。登録済み投稿のEmbedding versionと一致しなくなるため、次にQueueで再処理された投稿は現在のindexへupsertされます。本番の類似度閾値はGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` から渡し、未設定時は `0.8` を使います。ローカル開発の閾値は `wrangler.dev.jsonc` で設定します。
 
+### ローカル用サンプル投稿
+
+Feed・投稿詳細の動作確認に使うサンプル投稿は、ローカルD1へ次のコマンドで投入できる。
+
+```bash
+pnpm db:seed:local
+```
+
+`scripts/seed-local-posts.sql` は固定IDと `INSERT OR IGNORE` を使うため、何度実行しても同じ6件だけが登録される。
+投稿は `published`、処理状態は `pending` として登録されるため、翻訳・ひらがな化が未完了でも原文のFeed表示を確認できる。
+このSQLはローカル動作確認専用であり、`db:migrate:remote` やリモートD1への実行には使わない。
+
 ## LINE MINI App認証
 
 LINE Developers Consoleで設定したチャネルIDを、Workerの`LINE_CHANNEL_ID`へ設定する。
@@ -151,6 +163,20 @@ AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
 
 LIFFアプリには`openid`スコープを設定する。プロフィール情報が必要になった場合でも、認証の根拠として
 フロントエンドからuserIdやプロフィール情報を送信せず、LINEから検証されたトークンを基準に扱う。
+
+### ローカル開発用認証
+
+`wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では `DEV_AUTH_ENABLED=true` が設定され、
+`POST /api/v1/auth/dev` で `demo-a`、`demo-b`、`demo-c` の開発ユーザーへログインできる。
+このエンドポイントは固定キーをサーバー側で開発用IDへ変換し、LINEログインと同じHttpOnly Cookieセッションを発行する。
+本番用 `wrangler.jsonc` にはこの変数がないため、開発用認証は404となる。
+
+`make dev` ではローカルD1へのマイグレーション後に、開発用ユーザー、サンプル投稿、当日クイズを投入する。
+個別に投入する場合は次を実行する。
+
+```bash
+pnpm --filter backend db:seed:local
+```
 
 ## CORS
 

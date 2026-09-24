@@ -56,7 +56,6 @@ export class ConcernClusterSummaryClaim {
     this.claimedAt = claimedAt;
   }
 }
-
 export interface ConcernClusterSummaryProps {
   label: string;
   summary: string;

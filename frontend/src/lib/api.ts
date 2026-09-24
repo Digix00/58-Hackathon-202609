@@ -12,6 +12,8 @@ export const apiClient = hc<AppType>(baseUrl, {
 
 export type AuthResponse = InferResponseType<typeof apiClient.api.v1.auth.session.$get, 200>
 
+export type DevAuthResponse = InferResponseType<typeof apiClient.api.v1.auth.dev.$post, 200>
+
 export type CreateConcernResponse = InferResponseType<typeof apiClient.api.v1.concerns.$post, 201>
 
 export type ListConcernsResponse = InferResponseType<typeof apiClient.api.v1.concerns.$get, 200>
