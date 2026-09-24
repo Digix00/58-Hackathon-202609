@@ -1,5 +1,5 @@
 import type { ListConcernsResponse } from '../../lib/api'
-import type { RegionCode } from '../post/postTypes'
+import type { Gender, RegionCode } from '../post/postTypes'
 
 export type FeedItem = ListConcernsResponse['items'][number]
 
@@ -22,4 +22,5 @@ export interface FeedQuery {
   sort?: FeedSort
   regionCode?: RegionCode
   clusterId?: string
+  gender?: Gender
 }

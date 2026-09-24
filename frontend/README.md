@@ -11,22 +11,13 @@ cp .env.example .env.local
 `VITE_LINE_LIFF_ID`は公開されるフロントエンド設定値であり、チャネルシークレットは設定しない。
 認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
 
-### 開発用の認証状態確認
+### 開発時のLINE認証
 
-LINEログインなしで認証後の画面を確認する場合は、`.env.local` に次を設定する。
+投稿、リアクション、既読を確認する場合は、`.env.local` にLIFF IDを設定し、LINEミニアプリから開く。認証状態はバックエンドのHttpOnly Cookieで管理する。
 
-```env
-VITE_DEV_LIFF_MODE=true
-VITE_DEV_AUTH_MODE=authenticated
-```
+## デモ画面
 
-`VITE_DEV_AUTH_MODE=authenticated` は Vite の開発時だけ有効な表示確認用のモックで、バックエンドの認証セッションやLINEログインを作成しない。実際の認証連携を確認するときは、この設定を外し、`VITE_LINE_LIFF_ID` を設定する。
-
-## 画面確認用データ
-
-取得・リアクション・クイズ・履歴のAPIが未実装の間、Vite開発環境ではサンプルの声で各画面を操作できる。通常ブラウザではフィードと詳細を確認できる。`.env.local` に上記2つの開発用設定を指定すると、投稿・クイズ・履歴も確認できる。開発用認証モードでの投稿はAPIへ送られず、画面内だけに反映される。サンプルの既読・リアクション・投稿・回答は再読み込みで消える。
-
-開発時に `?mockState=loading`、`?mockState=empty`、`?mockState=error` を画面URLへ付けると、取得画面の各状態を確認できる。これらのサンプル表示は本番ビルドでは使わない。本番で未接続の取得画面には準備中の案内を表示する。投稿は実際のLINE認証後に既存のAPIへ送信する。
+QuizとHistoryはAPI未実装のため、Vite開発環境ではサンプルデータを表示する。Feed、詳細、投稿、リアクション、既読は実APIへ接続している。
 
 ## コード整形
 
