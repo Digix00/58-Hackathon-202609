@@ -13,8 +13,7 @@ const FORBIDDEN_CLUSTER_TERMS = [
 ];
 const PHONE_NUMBER_PATTERN =
   /(?<!\d)(?:0(?:[\s‐‑‒–—−-]?\d){9,10}|\+81[\s‐‑‒–—−-]?[1-9](?:[\s‐‑‒–—−-]?\d){8,9})(?!\d)/u;
-const PERSON_NAME_PATTERN =
-  /([\p{Script=Han}]{2,4})(?:さん|氏|くん|ちゃん)/gu;
+const PERSON_NAME_PATTERN = /([\p{Script=Han}]{2,4})(?:さん|氏|くん|ちゃん)/gu;
 const GENERIC_PERSON_REFERENCES = new Set([
   "患者",
   "保護者",
