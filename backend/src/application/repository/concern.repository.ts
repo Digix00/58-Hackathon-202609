@@ -25,6 +25,7 @@ export interface ListPublishedConcernsInput {
   limit: number;
   cursor?: ConcernListCursor;
   excludeUserId?: string;
+  gender?: string;
 }
 
 export interface ListPublishedConcernsResult {
@@ -45,6 +46,7 @@ export interface ListConcernFeedResult {
 
 export interface ListConcernFeedByIdsInput {
   ids: string[];
+  gender?: string;
   regionCode?: string;
   clusterId?: string;
   userId?: string;

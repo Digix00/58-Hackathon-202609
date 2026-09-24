@@ -63,7 +63,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 
 ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
 
-Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。現段階では生成結果を保存しない。
+Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの翻訳2方向は `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。生成した英語・ひらがな表現は `concern_representations` に保存する。
 
 `wrangler dev` からのWorkers AI推論もCloudflareアカウントへ接続し、利用量に計上される。Vitestは `wrangler.test.jsonc` を使い、実AI bindingなしのローカル環境でFakeを使う。開発時もモデル呼び出しを必要な回数に制限してWorkers AIダッシュボードで利用量を確認する。クラスタリング、翻訳、音声認識の呼び出しは投稿ごとに無制限に実行せず、クラスタ単位、バッチ単位、またはデモ用データ単位で制限する。LINE配信の宛先と回数もデモ用に制限し、課金が発生する外部サービスを採用する場合は、利用量の上限と停止方法をREADMEへ記載する。
 

@@ -14,6 +14,7 @@ import {
   D1UserRepository,
 } from "../infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
+import { D1ConcernProcessingRepository } from "../infrastructure/database/d1-concern-processing.repository";
 import { D1ConcernReactionRepository } from "../infrastructure/database/d1-concern-reaction.repository";
 import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
@@ -53,6 +54,7 @@ export function createApplication(bindings: Bindings) {
   const concernProcessingUseCase = new ConcernProcessingUseCase(
     new WorkersAiTextTranslator(bindings.AI),
     new WorkersAiTextEmbeddingGenerator(bindings.AI),
+    new D1ConcernProcessingRepository(bindings.DB),
   );
   const concernProcessingConsumer = new CloudflareConcernProcessingConsumer(
     concernProcessingUseCase,

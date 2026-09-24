@@ -1,3 +1,4 @@
+import { GENDERS, type Gender } from "../application/entity/concern";
 import type { ConcernSort } from "../application/entity/feed";
 import { RECOMMENDATION_ALGORITHM_VERSION } from "../application/recommendation/recommendation.policy";
 import type {
@@ -7,8 +8,8 @@ import type {
 } from "../application/repository/concern.repository";
 
 const LEGACY_CURSOR_VERSION = 1;
-const CURSOR_VERSION = 2;
-const RECOMMENDED_CURSOR_VERSION = 5;
+const CURSOR_VERSION = 3;
+const RECOMMENDED_CURSOR_VERSION = 6;
 const MAX_PENDING_CONCERN_IDS = 300;
 const MAX_RETURNED_CONCERN_IDS = 300;
 const MAX_CURSOR_ID_LENGTH = 200;
@@ -17,6 +18,7 @@ export interface ConcernCursorContext {
   sort: ConcernSort;
   regionCode?: string;
   clusterId?: string;
+  gender?: Gender;
 }
 
 interface EncodedLegacyConcernCursor extends ConcernListCursor {
@@ -28,6 +30,7 @@ interface EncodedConcernCursor extends ConcernListCursor {
   sort: ConcernSort;
   regionCode: string | null;
   clusterId: string | null;
+  gender: Gender | null;
 }
 
 interface EncodedRecommendedConcernCursor extends RecommendedConcernCursor {
@@ -36,6 +39,7 @@ interface EncodedRecommendedConcernCursor extends RecommendedConcernCursor {
   sort: "recommended";
   regionCode: string | null;
   clusterId: string | null;
+  gender: Gender | null;
 }
 
 export interface DecodedConcernCursor {
@@ -63,6 +67,7 @@ export function encodeConcernCursor(
         sort: "recommended",
         regionCode: context?.regionCode ?? null,
         clusterId: context?.clusterId ?? null,
+        gender: context?.gender ?? null,
       }
     : context?.sort === "recommended"
       ? {
@@ -77,6 +82,7 @@ export function encodeConcernCursor(
           sort: "recommended" as const,
           regionCode: context.regionCode ?? null,
           clusterId: context.clusterId ?? null,
+          gender: context.gender ?? null,
         }
       : context
         ? {
@@ -85,6 +91,7 @@ export function encodeConcernCursor(
             sort: context.sort,
             regionCode: context.regionCode ?? null,
             clusterId: context.clusterId ?? null,
+            gender: context.gender ?? null,
           }
         : {
             version: LEGACY_CURSOR_VERSION,
@@ -172,6 +179,7 @@ function isEncodedConcernCursor(value: unknown): value is EncodedConcernCursor {
     (cursor.sort === "newest" || cursor.sort === "recommended") &&
     (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
     (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
+    (cursor.gender === null || GENDERS.includes(cursor.gender as Gender)) &&
     isConcernListCursor(cursor)
   );
 }
@@ -193,6 +201,7 @@ function isEncodedRecommendedConcernCursor(
     cursor.sort === "recommended" &&
     (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
     (cursor.clusterId === null || typeof cursor.clusterId === "string") &&
+    (cursor.gender === null || GENDERS.includes(cursor.gender as Gender)) &&
     (cursor.lastClusterId === null ||
       (typeof cursor.lastClusterId === "string" &&
         cursor.lastClusterId.length > 0 &&
@@ -261,6 +270,7 @@ function matchesContext(
     sort: ConcernSort;
     regionCode: string | null;
     clusterId: string | null;
+    gender: Gender | null;
   },
   expectedContext?: ConcernCursorContext,
 ): boolean {
@@ -268,6 +278,7 @@ function matchesContext(
     !expectedContext ||
     (cursor.sort === expectedContext.sort &&
       cursor.regionCode === (expectedContext.regionCode ?? null) &&
-      cursor.clusterId === (expectedContext.clusterId ?? null))
+      cursor.clusterId === (expectedContext.clusterId ?? null) &&
+      cursor.gender === (expectedContext.gender ?? null))
   );
 }

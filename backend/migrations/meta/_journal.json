@@ -61,8 +61,15 @@
     {
       "idx": 8,
       "version": "6",
-      "when": 1790183197829,
-      "tag": "0008_safe_deathstrike",
+      "when": 1790176587148,
+      "tag": "0008_silly_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790220696900,
+      "tag": "0009_colorful_grandmaster",
       "breakpoints": true
     }
   ]

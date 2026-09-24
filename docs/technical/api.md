@@ -208,7 +208,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 - limit の既定値は 20、指定可能な範囲は 1〜50
 - cursor はサーバーが発行する opaque string とする
 - クライアントは cursor をデコード・編集してはならない
-- cursor が不正、期限切れ、または Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
+- cursor が不正、期限切れ、または sort、clusterId、gender、regionCode の Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
 - nextCursor が null の場合、次のページはない
 - newest の並びは createdAt DESC, id DESC とし、同時刻でも順序を安定させる
 - recommended の cursor は、そのフィードの条件と推薦アルゴリズムのバージョンに紐づける
@@ -368,6 +368,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | cursor | 任意 | — | 次ページの opaque cursor |
 | sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
 | clusterId | 任意 | — | 指定クラスタに絞る |
+| gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | original | original、jaHira、en |
 
@@ -410,6 +411,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - visibilityStatus が published の投稿だけを返す
 - hidden、deleted の投稿は 404 と区別せず、一覧から除外する
+- gender を指定した場合は、投稿の gender コードが指定値と完全一致する投稿だけを返す
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
@@ -953,19 +955,22 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
-PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルと派生データの保存は、後続の実装で追加する。
+PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。生成したひらがな・英語表現は concern_representations へ保存する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルは、後続の実装で追加する。
+
+現時点で実装済みのジョブは次の2つのみ。
 
 - ja_hira
 - en_translation
-- clustering
 
-API が返す concerns.processingStatus は処理全体の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。
+clustering（意味クラスタへの割当）は別機能として後続で追加する予定で、追加するまでは processingStatus の判定対象に含めない。
+
+API が返す concerns.processingStatus は、現時点で実装済みの処理（ja_hira、en_translation）の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。clustering などのジョブを追加する際は、ready の判定条件とこの節を合わせて更新する。
 
 | processingStatus | 意味 |
 | --- | --- |
 | pending | ジョブ登録済みで未開始 |
 | processing | いずれかのジョブを実行中 |
-| ready | 画面表示に必要な派生データが生成済み |
+| ready | ひらがな・英語表現の生成と保存が完了 |
 | failed | 一部失敗。ただし原文は利用可能 |
 
 失敗時の共通ルール:
