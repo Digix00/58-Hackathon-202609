@@ -295,16 +295,18 @@ describe("D1ConcernClusterSummaryRepository", () => {
     });
 
     await repository.saveSummary(summary, claim?.claimedAt ?? "");
-    await repository.saveSummary(
-      new ConcernCluster({
-        id: clusterId,
-        label: "上書きされないラベル",
-        summary: "すでに完了した要約は上書きしません。",
-        status: "ready",
-        updatedAt: "2026-09-24T00:02:00.000Z",
-      }),
-      claim?.claimedAt ?? "",
-    );
+    await expect(
+      repository.saveSummary(
+        new ConcernCluster({
+          id: clusterId,
+          label: "上書きされないラベル",
+          summary: "すでに完了した要約は上書きしません。",
+          status: "ready",
+          updatedAt: "2026-09-24T00:02:00.000Z",
+        }),
+        claim?.claimedAt ?? "",
+      ),
+    ).rejects.toThrow("Cluster summary claim was lost");
 
     const saved = await drizzle(env.DB)
       .select()
