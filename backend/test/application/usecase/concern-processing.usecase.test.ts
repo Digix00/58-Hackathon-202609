@@ -323,7 +323,7 @@ describe("ConcernProcessingUseCase", () => {
       markProcessing: vi.fn(),
       assignCluster: vi.fn(),
       saveResult: vi.fn(),
-      markFailed: vi.fn(),
+      markFailed: vi.fn().mockResolvedValue(undefined),
     };
     const vectorIndex: ConcernVectorIndex = {
       search: vi.fn(),
