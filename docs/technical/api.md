@@ -576,7 +576,7 @@ reasonCode の初期値は次のとおり。
       "attributes": {
         "ageGroup": "no_answer",
         "gender": "no_answer",
-        "regionCode": "osaka"
+        "regionCode": "hyogo"
       },
       "displayOrder": 3
     }
@@ -607,6 +607,7 @@ reasonCode の初期値は次のとおり。
 
 - participants と concerns はそれぞれ 3 件ちょうど返す
 - participants と concerns の配列順はそれぞれシャッフルする
+- 3 件の participants は、ageGroup、gender、regionCode の各属性がそれぞれ重複しない組み合わせにする。未入力値は `no_answer` として扱う
 - participantId は当該クイズ内だけで利用する opaque ID とし、users.id や LINE user ID を使わない
 - concernId は公開済みの元投稿を参照するが、参加者との正しい対応は返さない
 - 3 件の concern は実際の投稿であり、架空の選択肢は作らない
