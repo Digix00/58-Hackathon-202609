@@ -158,6 +158,32 @@ AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
 LIFFアプリには`openid`スコープを設定する。プロフィール情報が必要になった場合でも、認証の根拠として
 フロントエンドからuserIdやプロフィール情報を送信せず、LINEから検証されたトークンを基準に扱う。
 
+### LINE Webhook とデイリークイズ配信
+
+Webhook署名と配信には、Worker側だけに次のSecretを設定する。これらをフロントエンドの環境変数へ置かない。
+
+```text
+LINE_CHANNEL_SECRET=<Messaging APIチャネルのシークレット>
+LINE_CHANNEL_ACCESS_TOKEN=<Messaging APIチャネルアクセストークン>
+INTERNAL_API_TOKEN=<内部配信API用の十分に長いランダム値>
+```
+
+自動デプロイでは、これらを GitHub Secrets の `LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`INTERNAL_API_TOKEN` に設定する。`LINE_CHANNEL_ID` は既存の GitHub Secret を使う。GitHub Actions Variables には `CORS_ORIGIN`、`ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` を設定する。
+
+管理画面 `/admin/line-broadcast` の API は Cloudflare Access で保護する。Cloudflare Access に管理画面と Worker API のアプリケーションを設定し、運用担当者だけを許可する。Workerの変数には次を設定する。
+
+```text
+ACCESS_TEAM_DOMAIN=<team-name>.cloudflareaccess.com
+ACCESS_AUD=<Worker API用 Access application の AUD tag>
+CORS_ORIGIN=<管理画面を配信するフロントエンドのorigin>
+```
+
+Workerは `Cf-Access-Jwt-Assertion` の署名、issuer、audienceを検証する。Cloudflare Accessのポリシーでも担当者を制限し、API側のJWT検証を無効にしない。管理画面はAccess認証CookieでAPIを呼び出すため、`INTERNAL_API_TOKEN` はブラウザーに渡らない。
+
+WranglerのCron Triggerは毎日 `0 0 * * *` UTC（09:00 JST）に起動する。当日公開クイズがなければ候補から生成を試み、公開クイズができた場合だけLINE Broadcast APIで配信する。管理画面から同じ日次処理を手動実行できる。配信状態の `succeeded` はLINE APIがリクエストを受け付けたことを示し、各友だちへの到達状況を表さない。
+
+内部連携から既存の公開クイズだけを再試行する場合は `POST /api/v1/line/broadcasts/daily-quiz` を使い、`INTERNAL_API_TOKEN` をBearer認証で渡す。このトークンをブラウザーから送信しない。
+
 ### ローカル開発用認証
 
 `wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では `DEV_AUTH_ENABLED=true` が設定され、

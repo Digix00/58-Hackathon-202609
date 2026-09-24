@@ -14,6 +14,11 @@ declare global {
       CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;
       CONCERN_VECTOR_INDEX_VERSION?: string;
       LINE_CHANNEL_ID?: string;
+      LINE_CHANNEL_SECRET?: string;
+      LINE_CHANNEL_ACCESS_TOKEN?: string;
+      INTERNAL_API_TOKEN?: string;
+      ACCESS_TEAM_DOMAIN?: string;
+      ACCESS_AUD?: string;
       DEV_AUTH_ENABLED?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;

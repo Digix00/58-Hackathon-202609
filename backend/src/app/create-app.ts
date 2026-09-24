@@ -7,11 +7,13 @@ import type { ConcernHandler } from "../presentation/concern.handler";
 import type { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import type { ConcernViewHandler } from "../presentation/concern-view.handler";
 import type { HealthHandler } from "../presentation/health.handler";
+import type { LineHandler } from "../presentation/line.handler";
 import type { QuizHandler } from "../presentation/quiz.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
 import { createAuthMiddleware } from "./middleware/auth";
+import { requireCloudflareAccess } from "./middleware/cloudflare-access";
 import { requestLogger } from "./middleware/request-logger";
 
 export interface ApplicationDependencies {
@@ -21,6 +23,7 @@ export interface ApplicationDependencies {
   concernReactionHandler: ConcernReactionHandler;
   concernViewHandler: ConcernViewHandler;
   healthHandler: HealthHandler;
+  lineHandler?: LineHandler;
   quizHandler: QuizHandler;
   userHandler: UserHandler;
 }
@@ -33,6 +36,7 @@ export function createApp({
   concernReactionHandler,
   concernViewHandler,
   healthHandler,
+  lineHandler,
   quizHandler,
   userHandler,
 }: ApplicationDependencies) {
@@ -54,7 +58,7 @@ export function createApp({
   app.onError(handleError);
 
   // 同じ式でチェーンし、Hono RPCがルートとレスポンスの型を保持できるようにする。
-  return app
+  const publicApp = app
     .use("/api/v1/*", createAuthMiddleware(authUseCase))
     .get("/health", ...healthHandler.get)
     .post("/api/v1/auth/line", ...authHandler.line)
@@ -73,6 +77,34 @@ export function createApp({
     .get("/api/v1/quizzes/today", ...quizHandler.getToday)
     .get("/api/v1/quizzes/:quizId", ...quizHandler.getById)
     .post("/api/v1/quizzes/:quizId/answers", ...quizHandler.answer);
+
+  // 運用 API は実行時 app にだけ登録し、Hono RPC の AppType には公開しない。
+  const runtimeApp = publicApp as Hono<{
+    Bindings: Bindings;
+    Variables: {
+      auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
+    };
+  }>;
+  if (lineHandler) {
+    runtimeApp
+      .post("/api/v1/webhooks/line", ...lineHandler.webhook)
+      .post(
+        "/api/v1/line/broadcasts/daily-quiz",
+        ...lineHandler.internalBroadcast,
+      )
+      .get(
+        "/api/v1/admin/line/broadcasts/daily-quiz",
+        requireCloudflareAccess,
+        ...lineHandler.adminStatus,
+      )
+      .post(
+        "/api/v1/admin/line/broadcasts/daily-quiz",
+        requireCloudflareAccess,
+        ...lineHandler.adminTrigger,
+      );
+  }
+
+  return publicApp;
 }
 
 export type AppType = ReturnType<typeof createApp>;

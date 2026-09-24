@@ -248,6 +248,8 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
+| GET | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日の配信状況を管理者向けに取得 |
+| POST | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日のクイズ生成と配信を手動実行 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
 
@@ -948,12 +950,49 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 ### 9.2 Cloudflare Cron
 
+- 毎日 09:00 JST に実行し、Wrangler の Cron expression は `0 0 * * *`（00:00 UTC）とする
 - Cron の実行時刻は UTC として受け取る
 - 実行対象の quizDate は Asia/Tokyo へ変換して決める
-- scheduled handler は HTTP endpoint を自己呼び出しせず、9.1 と同じ配信ランナーを直接起動する
+- scheduled handler は HTTP endpoint を自己呼び出しせず、まず当日の公開クイズを確認し、なければ `QuizUseCase.ensureDailyQuiz()` で生成を試みてから、9.1 と同じ配信ランナーを直接起動する
+- 候補不足などで公開クイズがない場合は配信を行わず、その日の処理結果を `quiz_not_available` とする
 - Cron と内部 POST のどちらから起動しても、line_broadcasts の idempotencyKey により同じ日付の成功配信を二重実行しない
 
-### 9.3 APIレスポンスとDBの責務
+### 9.3 管理画面向け配信 API
+
+通常の Hono RPC 型には含めない運用 API。管理画面 `/admin/line-broadcast` から使い、ブラウザーには `INTERNAL_API_TOKEN` を渡さない。
+
+#### 認証
+
+- GET / POST の両方で Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
+- `ACCESS_TEAM_DOMAIN` から issuer と JWKS URL を決め、`ACCESS_AUD` を audience として署名・issuer・audience を検証する
+- Cloudflare Access 側のアプリケーションポリシーで、運用担当者だけを許可する
+- 配信 API の `succeeded` は LINE API がリクエストを受け付けた状態を示す。個別の配信到達状況は追跡しない
+
+#### GET /api/v1/admin/line/broadcasts/daily-quiz
+
+`quizDate` query は省略時に Asia/Tokyo の当日を使う。
+
+~~~json
+{
+  "quizDate": "2026-09-25",
+  "quizId": "quiz_2026-09-25",
+  "quizStatus": "published",
+  "broadcastStatus": "succeeded",
+  "requestedAt": "2026-09-25T00:00:00.000Z",
+  "sentAt": "2026-09-25T00:00:01.000Z",
+  "finishedAt": "2026-09-25T00:00:01.000Z"
+}
+~~~
+
+`quizStatus` は `missing` または `published`。`broadcastStatus` は `not_started`, `pending`, `running`, `succeeded`, `failed`。レスポンスには LINE user ID、LINE request ID、Retry Key、内部エラー本文を含めない。
+
+#### POST /api/v1/admin/line/broadcasts/daily-quiz
+
+Request body は持たない。今日の公開クイズがなければ生成を試し、公開済みクイズが得られた場合に配信する。すでに成功済みなら既存状態を返し、再配信しない。`running` の場合は 202 を返す。
+
+管理画面は `credentials: include` でこの API を呼び出し、Cloudflare Access の認証状態を利用する。フロントエンドのビルド変数・ソース・ブラウザーストレージに `INTERNAL_API_TOKEN` を置かない。
+
+### 9.4 APIレスポンスとDBの責務
 
 - この API は受信者一覧、ユーザーごとの送信結果、個別 delivery status を返さない
 - status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない
@@ -1025,6 +1064,8 @@ PoCでは公開前の人手確認や自動判定を行わない。実在の個�
 - GET /health
 - POST /api/v1/webhooks/line
 - POST /api/v1/line/broadcasts/daily-quiz
+- GET /api/v1/admin/line/broadcasts/daily-quiz
+- POST /api/v1/admin/line/broadcasts/daily-quiz
 
 Hono の route chaining の型推論を維持するため、機能単位の route を createApp へ接続する。route の登録順は、固定パス /today をパラメータパス /:quizId より先に登録する。
 

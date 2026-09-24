@@ -1,0 +1,1700 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "9d5cb181-d9fc-4ab8-80fe-fe762df896a6",
+  "prevId": "a867b31b-19f5-4103-b100-7e4a7c55f2f9",
+  "tables": {
+    "concern_clusters": {
+      "name": "concern_clusters",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "legacy_label": {
+          "name": "legacy_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "legacy_summary": {
+          "name": "legacy_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ready'"
+        },
+        "model_version": {
+          "name": "model_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "concern_clusters_status_idx": {
+          "name": "concern_clusters_status_idx",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "concern_reactions": {
+      "name": "concern_reactions",
+      "columns": {
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reaction_type": {
+          "name": "reaction_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "reactions_user_idx": {
+          "name": "reactions_user_idx",
+          "columns": [
+            "user_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "concern_reactions_concern_id_concerns_id_fk": {
+          "name": "concern_reactions_concern_id_concerns_id_fk",
+          "tableFrom": "concern_reactions",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "concern_reactions_user_id_users_id_fk": {
+          "name": "concern_reactions_user_id_users_id_fk",
+          "tableFrom": "concern_reactions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "concern_reactions_concern_id_user_id_reaction_type_pk": {
+          "columns": [
+            "concern_id",
+            "user_id",
+            "reaction_type"
+          ],
+          "name": "concern_reactions_concern_id_user_id_reaction_type_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "concern_reactions_type_check": {
+          "name": "concern_reactions_type_check",
+          "value": "reaction_type in ('empathy')"
+        }
+      }
+    },
+    "concern_representations": {
+      "name": "concern_representations",
+      "columns": {
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ready'"
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "concern_representations_concern_id_concerns_id_fk": {
+          "name": "concern_representations_concern_id_concerns_id_fk",
+          "tableFrom": "concern_representations",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "concern_representations_concern_id_locale_pk": {
+          "columns": [
+            "concern_id",
+            "locale"
+          ],
+          "name": "concern_representations_concern_id_locale_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "concern_representations_locale_check": {
+          "name": "concern_representations_locale_check",
+          "value": "\"concern_representations\".\"locale\" in ('ja-Hira', 'en')"
+        },
+        "concern_representations_status_check": {
+          "name": "concern_representations_status_check",
+          "value": "\"concern_representations\".\"status\" in ('ready', 'failed')"
+        }
+      }
+    },
+    "concern_views": {
+      "name": "concern_views",
+      "columns": {
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_key": {
+          "name": "actor_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "viewed_at": {
+          "name": "viewed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "concern_views_concern_actor_idx": {
+          "name": "concern_views_concern_actor_idx",
+          "columns": [
+            "concern_id",
+            "actor_key"
+          ],
+          "isUnique": true
+        },
+        "concern_views_actor_viewed_at_idx": {
+          "name": "concern_views_actor_viewed_at_idx",
+          "columns": [
+            "actor_key",
+            "viewed_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "concern_views_concern_id_concerns_id_fk": {
+          "name": "concern_views_concern_id_concerns_id_fk",
+          "tableFrom": "concern_views",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "concern_views_actor_key_users_id_fk": {
+          "name": "concern_views_actor_key_users_id_fk",
+          "tableFrom": "concern_views",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_key"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "concerns": {
+      "name": "concerns",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "age_group": {
+          "name": "age_group",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gender_code": {
+          "name": "gender_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "region_code": {
+          "name": "region_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cluster_id": {
+          "name": "cluster_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "embedding_version": {
+          "name": "embedding_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "visibility_status": {
+          "name": "visibility_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'published'"
+        },
+        "processing_status": {
+          "name": "processing_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "concerns_feed_idx": {
+          "name": "concerns_feed_idx",
+          "columns": [
+            "visibility_status",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "concerns_region_feed_idx": {
+          "name": "concerns_region_feed_idx",
+          "columns": [
+            "region_code",
+            "visibility_status",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "concerns_cluster_feed_idx": {
+          "name": "concerns_cluster_feed_idx",
+          "columns": [
+            "cluster_id",
+            "visibility_status",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "concerns_user_idx": {
+          "name": "concerns_user_idx",
+          "columns": [
+            "user_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "concerns_user_id_users_id_fk": {
+          "name": "concerns_user_id_users_id_fk",
+          "tableFrom": "concerns",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "concerns_cluster_id_concern_clusters_id_fk": {
+          "name": "concerns_cluster_id_concern_clusters_id_fk",
+          "tableFrom": "concerns",
+          "tableTo": "concern_clusters",
+          "columnsFrom": [
+            "cluster_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "concerns_age_group_check": {
+          "name": "concerns_age_group_check",
+          "value": "\"concerns\".\"age_group\" is null or \"concerns\".\"age_group\" in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')"
+        },
+        "concerns_gender_code_check": {
+          "name": "concerns_gender_code_check",
+          "value": "\"concerns\".\"gender_code\" is null or \"concerns\".\"gender_code\" in ('male', 'female', 'non_binary', 'other', 'no_answer')"
+        },
+        "concerns_visibility_status_check": {
+          "name": "concerns_visibility_status_check",
+          "value": "\"concerns\".\"visibility_status\" in ('pending', 'published', 'hidden', 'deleted')"
+        },
+        "concerns_processing_status_check": {
+          "name": "concerns_processing_status_check",
+          "value": "\"concerns\".\"processing_status\" in ('pending', 'processing', 'ready', 'failed')"
+        }
+      }
+    },
+    "feed_impressions": {
+      "name": "feed_impressions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "strategy": {
+          "name": "strategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "algorithm_version": {
+          "name": "algorithm_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "exposed_at": {
+          "name": "exposed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "opened_at": {
+          "name": "opened_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "feed_impressions_user_idx": {
+          "name": "feed_impressions_user_idx",
+          "columns": [
+            "user_id",
+            "exposed_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "feed_impressions_user_id_users_id_fk": {
+          "name": "feed_impressions_user_id_users_id_fk",
+          "tableFrom": "feed_impressions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "feed_impressions_concern_id_concerns_id_fk": {
+          "name": "feed_impressions_concern_id_concerns_id_fk",
+          "tableFrom": "feed_impressions",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_health": {
+      "name": "_health",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "line_broadcast_attempts": {
+      "name": "line_broadcast_attempts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "broadcast_id": {
+          "name": "broadcast_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "http_status": {
+          "name": "http_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_request_id": {
+          "name": "line_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_accepted_request_id": {
+          "name": "line_accepted_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_retry_key": {
+          "name": "line_retry_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_broadcast_attempts_number_idx": {
+          "name": "line_broadcast_attempts_number_idx",
+          "columns": [
+            "broadcast_id",
+            "attempt_number"
+          ],
+          "isUnique": true
+        },
+        "line_broadcast_attempts_retry_key_idx": {
+          "name": "line_broadcast_attempts_retry_key_idx",
+          "columns": [
+            "line_retry_key"
+          ],
+          "isUnique": true
+        },
+        "line_broadcast_attempts_status_attempted_idx": {
+          "name": "line_broadcast_attempts_status_attempted_idx",
+          "columns": [
+            "status",
+            "attempted_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_broadcast_attempts_broadcast_id_line_broadcasts_id_fk": {
+          "name": "line_broadcast_attempts_broadcast_id_line_broadcasts_id_fk",
+          "tableFrom": "line_broadcast_attempts",
+          "tableTo": "line_broadcasts",
+          "columnsFrom": [
+            "broadcast_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_broadcast_attempts_status_check": {
+          "name": "line_broadcast_attempts_status_check",
+          "value": "\"line_broadcast_attempts\".\"status\" in ('started', 'succeeded', 'failed')"
+        },
+        "line_broadcast_attempts_number_check": {
+          "name": "line_broadcast_attempts_number_check",
+          "value": "\"line_broadcast_attempts\".\"attempt_number\" > 0"
+        }
+      }
+    },
+    "line_broadcasts": {
+      "name": "line_broadcasts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_broadcasts_quiz_idx": {
+          "name": "line_broadcasts_quiz_idx",
+          "columns": [
+            "quiz_id"
+          ],
+          "isUnique": true
+        },
+        "line_broadcasts_idempotency_idx": {
+          "name": "line_broadcasts_idempotency_idx",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "line_broadcasts_status_requested_idx": {
+          "name": "line_broadcasts_status_requested_idx",
+          "columns": [
+            "status",
+            "requested_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_broadcasts_quiz_id_quizzes_id_fk": {
+          "name": "line_broadcasts_quiz_id_quizzes_id_fk",
+          "tableFrom": "line_broadcasts",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_broadcasts_status_check": {
+          "name": "line_broadcasts_status_check",
+          "value": "\"line_broadcasts\".\"status\" in ('pending', 'running', 'succeeded', 'failed')"
+        },
+        "line_broadcasts_lease_check": {
+          "name": "line_broadcasts_lease_check",
+          "value": "(\"line_broadcasts\".\"status\" = 'running' and \"line_broadcasts\".\"claim_token\" is not null and \"line_broadcasts\".\"lease_expires_at\" is not null) or (\"line_broadcasts\".\"status\" <> 'running' and \"line_broadcasts\".\"claim_token\" is null and \"line_broadcasts\".\"lease_expires_at\" is null)"
+        }
+      }
+    },
+    "line_webhook_events": {
+      "name": "line_webhook_events",
+      "columns": {
+        "webhook_event_id": {
+          "name": "webhook_event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_webhook_events_user_received_idx": {
+          "name": "line_webhook_events_user_received_idx",
+          "columns": [
+            "user_id",
+            "received_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_webhook_events_user_id_users_id_fk": {
+          "name": "line_webhook_events_user_id_users_id_fk",
+          "tableFrom": "line_webhook_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_webhook_events_status_check": {
+          "name": "line_webhook_events_status_check",
+          "value": "\"line_webhook_events\".\"status\" in ('received', 'processed', 'ignored', 'failed')"
+        }
+      }
+    },
+    "quiz_answers": {
+      "name": "quiz_answers",
+      "columns": {
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "selected_concern_id": {
+          "name": "selected_concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_correct": {
+          "name": "is_correct",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quiz_answers_attempt_quiz_fk": {
+          "name": "quiz_answers_attempt_quiz_fk",
+          "tableFrom": "quiz_answers",
+          "tableTo": "quiz_attempts",
+          "columnsFrom": [
+            "attempt_id",
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id",
+            "quiz_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_answers_participant_quiz_fk": {
+          "name": "quiz_answers_participant_quiz_fk",
+          "tableFrom": "quiz_answers",
+          "tableTo": "quiz_participants",
+          "columnsFrom": [
+            "participant_id",
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id",
+            "quiz_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_answers_option_fk": {
+          "name": "quiz_answers_option_fk",
+          "tableFrom": "quiz_answers",
+          "tableTo": "quiz_options",
+          "columnsFrom": [
+            "quiz_id",
+            "selected_concern_id"
+          ],
+          "columnsTo": [
+            "quiz_id",
+            "concern_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "quiz_answers_attempt_id_participant_id_pk": {
+          "columns": [
+            "attempt_id",
+            "participant_id"
+          ],
+          "name": "quiz_answers_attempt_id_participant_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quiz_answers_is_correct_check": {
+          "name": "quiz_answers_is_correct_check",
+          "value": "\"quiz_answers\".\"is_correct\" in (0, 1)"
+        }
+      }
+    },
+    "quiz_attempts": {
+      "name": "quiz_attempts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "answered_at": {
+          "name": "answered_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "quiz_attempts_quiz_user_idx": {
+          "name": "quiz_attempts_quiz_user_idx",
+          "columns": [
+            "quiz_id",
+            "user_id"
+          ],
+          "isUnique": true
+        },
+        "quiz_attempts_id_quiz_idx": {
+          "name": "quiz_attempts_id_quiz_idx",
+          "columns": [
+            "id",
+            "quiz_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "quiz_attempts_quiz_id_quizzes_id_fk": {
+          "name": "quiz_attempts_quiz_id_quizzes_id_fk",
+          "tableFrom": "quiz_attempts",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_attempts_user_id_users_id_fk": {
+          "name": "quiz_attempts_user_id_users_id_fk",
+          "tableFrom": "quiz_attempts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quiz_attempts_score_check": {
+          "name": "quiz_attempts_score_check",
+          "value": "\"quiz_attempts\".\"score\" between 0 and 3"
+        }
+      }
+    },
+    "quiz_options": {
+      "name": "quiz_options",
+      "columns": {
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "quiz_options_quiz_order_idx": {
+          "name": "quiz_options_quiz_order_idx",
+          "columns": [
+            "quiz_id",
+            "display_order"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "quiz_options_quiz_id_quizzes_id_fk": {
+          "name": "quiz_options_quiz_id_quizzes_id_fk",
+          "tableFrom": "quiz_options",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_options_concern_id_concerns_id_fk": {
+          "name": "quiz_options_concern_id_concerns_id_fk",
+          "tableFrom": "quiz_options",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_options_participant_fk": {
+          "name": "quiz_options_participant_fk",
+          "tableFrom": "quiz_options",
+          "tableTo": "quiz_participants",
+          "columnsFrom": [
+            "quiz_id",
+            "concern_id"
+          ],
+          "columnsTo": [
+            "quiz_id",
+            "concern_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "quiz_options_quiz_id_concern_id_pk": {
+          "columns": [
+            "quiz_id",
+            "concern_id"
+          ],
+          "name": "quiz_options_quiz_id_concern_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quiz_options_display_order_check": {
+          "name": "quiz_options_display_order_check",
+          "value": "\"quiz_options\".\"display_order\" between 1 and 3"
+        }
+      }
+    },
+    "quiz_participants": {
+      "name": "quiz_participants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "age_group_snapshot": {
+          "name": "age_group_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gender_snapshot": {
+          "name": "gender_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "region_code_snapshot": {
+          "name": "region_code_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "quiz_participants_quiz_user_idx": {
+          "name": "quiz_participants_quiz_user_idx",
+          "columns": [
+            "quiz_id",
+            "user_id"
+          ],
+          "isUnique": true
+        },
+        "quiz_participants_quiz_concern_idx": {
+          "name": "quiz_participants_quiz_concern_idx",
+          "columns": [
+            "quiz_id",
+            "concern_id"
+          ],
+          "isUnique": true
+        },
+        "quiz_participants_quiz_id_idx": {
+          "name": "quiz_participants_quiz_id_idx",
+          "columns": [
+            "id",
+            "quiz_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "quiz_participants_quiz_id_quizzes_id_fk": {
+          "name": "quiz_participants_quiz_id_quizzes_id_fk",
+          "tableFrom": "quiz_participants",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_participants_user_id_users_id_fk": {
+          "name": "quiz_participants_user_id_users_id_fk",
+          "tableFrom": "quiz_participants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quiz_participants_concern_id_concerns_id_fk": {
+          "name": "quiz_participants_concern_id_concerns_id_fk",
+          "tableFrom": "quiz_participants",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quiz_participants_display_order_check": {
+          "name": "quiz_participants_display_order_check",
+          "value": "\"quiz_participants\".\"display_order\" between 1 and 3"
+        },
+        "quiz_participants_age_group_check": {
+          "name": "quiz_participants_age_group_check",
+          "value": "\"quiz_participants\".\"age_group_snapshot\" is null or \"quiz_participants\".\"age_group_snapshot\" in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')"
+        },
+        "quiz_participants_gender_check": {
+          "name": "quiz_participants_gender_check",
+          "value": "\"quiz_participants\".\"gender_snapshot\" is null or \"quiz_participants\".\"gender_snapshot\" in ('male', 'female', 'non_binary', 'other', 'no_answer')"
+        }
+      }
+    },
+    "quizzes": {
+      "name": "quizzes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_date": {
+          "name": "quiz_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "quizzes_quiz_date_idx": {
+          "name": "quizzes_quiz_date_idx",
+          "columns": [
+            "quiz_date"
+          ],
+          "isUnique": true
+        },
+        "quizzes_status_date_idx": {
+          "name": "quizzes_status_date_idx",
+          "columns": [
+            "status",
+            "quiz_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quizzes_status_check": {
+          "name": "quizzes_status_check",
+          "value": "\"quizzes\".\"status\" in ('draft', 'published', 'closed', 'hidden')"
+        }
+      }
+    },
+    "sessions": {
+      "name": "sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "sessions_token_hash_idx": {
+          "name": "sessions_token_hash_idx",
+          "columns": [
+            "token_hash"
+          ],
+          "isUnique": true
+        },
+        "sessions_user_id_idx": {
+          "name": "sessions_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "sessions_user_id_users_id_fk": {
+          "name": "sessions_user_id_users_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "line_user_id": {
+          "name": "line_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "birth_year": {
+          "name": "birth_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "birth_month": {
+          "name": "birth_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gender_code": {
+          "name": "gender_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "region_code": {
+          "name": "region_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "friend_status": {
+          "name": "friend_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "unfollowed_at": {
+          "name": "unfollowed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "users_line_user_id_idx": {
+          "name": "users_line_user_id_idx",
+          "columns": [
+            "line_user_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}
