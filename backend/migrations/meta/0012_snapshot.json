@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2dd5866c-1859-43b6-a758-a0dd98ca697b",
-  "prevId": "a867b31b-19f5-4103-b100-7e4a7c55f2f9",
+  "id": "acf534bf-57c3-4bf2-bb3c-22cc94eab4f7",
+  "prevId": "2dd5866c-1859-43b6-a758-a0dd98ca697b",
   "tables": {
     "concern_clusters": {
       "name": "concern_clusters",
@@ -1236,6 +1236,67 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "speech_transcription_rate_limit_events": {
+      "name": "speech_transcription_rate_limit_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "speech_transcription_rate_limit_user_created_idx": {
+          "name": "speech_transcription_rate_limit_user_created_idx",
+          "columns": [
+            "user_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "speech_transcription_rate_limit_created_idx": {
+          "name": "speech_transcription_rate_limit_created_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "speech_transcription_rate_limit_events_user_id_users_id_fk": {
+          "name": "speech_transcription_rate_limit_events_user_id_users_id_fk",
+          "tableFrom": "speech_transcription_rate_limit_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

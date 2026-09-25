@@ -124,7 +124,7 @@ type AuthState = "initializing" | "anonymous" | "authenticated" | "unavailable";
 | LIFF内の未ログイン利用者が操作する                  | LINEログイン案内         |
 | LIFF内でログイン済み                                | 対象画面を表示           |
 | ログイン中止・失敗                                  | 元の閲覧画面へ戻る       |
-| LIFF初期化失敗                                      | 再起動・LINEへ戻る案内   |
+| LIFF初期化失敗                                      | 公開フィード・投稿詳細を新着順で閲覧できる。失敗案内を表示し、操作系画面は通常Webと同様にLINEへ案内する |
 
 LINE user ID、アクセストークン、プロフィール情報はURL、ログ、画面表示、`localStorage` に保存しない。
 

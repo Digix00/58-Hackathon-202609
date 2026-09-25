@@ -318,6 +318,7 @@ describe("POST /api/v1/concerns", () => {
       ageGroup: "20s",
       gender: "no_answer",
       regionCode: "osaka",
+      regionName: "大阪府",
     });
   });
 
@@ -787,16 +788,37 @@ describe("GET /api/v1/concerns", () => {
     expect(body.error.code).toBe(code);
   });
 
-  it("requires authentication for recommended sorting", async () => {
+  it("falls back to newest sorting when recommended is requested anonymously", async () => {
+    const newestId = await seedConcern({
+      body: "未ログインでも読める新しい投稿",
+      createdAt: "9999-11-02T00:00:00.000Z",
+    });
+    const olderId = await seedConcern({
+      body: "未ログインでも読める古い投稿",
+      createdAt: "9999-11-01T00:00:00.000Z",
+    });
     const res = await createTestApp().request(
-      "/api/v1/concerns?sort=recommended",
+      "/api/v1/concerns?sort=recommended&limit=50",
       {},
       env,
     );
 
-    expect(res.status).toBe(400);
-    const body = await res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
+    expect(res.status).toBe(200);
+    const body = await res.json<{
+      items: Array<{
+        id: string;
+        recommendation: { strategy: string; reasonCode: string };
+      }>;
+    }>();
+    const ids = body.items.map((item) => item.id);
+
+    expect(ids.indexOf(newestId)).toBeLessThan(ids.indexOf(olderId));
+    expect(
+      body.items.find((item) => item.id === newestId)?.recommendation,
+    ).toEqual({
+      strategy: "newest",
+      reasonCode: "newest",
+    });
   });
 });
 

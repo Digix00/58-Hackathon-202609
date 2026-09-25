@@ -34,6 +34,7 @@ const authenticatedSession: SessionView = {
   user: {
     id: "speech-test-user",
     lineUserId: "line-speech-test-user",
+    displayLanguage: "original",
     birthYear: null,
     birthMonth: null,
     gender: null,
