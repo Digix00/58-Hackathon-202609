@@ -2,6 +2,14 @@ const WAV_SAMPLE_RATE = 8_000;
 const WAV_CHANNELS = 1;
 const WAV_BITS_PER_SAMPLE = 16;
 
+type Mp4SampleGroupDescriptionOptions = {
+  version: 1 | 2;
+  defaultLength: number;
+  defaultSampleDescriptionIndex?: number;
+  entryCount: number;
+  entryData: Uint8Array;
+};
+
 export function createWavAudio(
   durationSeconds: number,
   zeroLengthUnknownChunkCount = 0,
@@ -179,6 +187,7 @@ export function createMp4Audio(
   declaredDurationSeconds = durationSeconds,
   stszSampleCountOverride?: number,
   tableEntryCountOverrides: Record<string, number> = {},
+  sampleGroupDescription?: Mp4SampleGroupDescriptionOptions,
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -373,7 +382,25 @@ export function createMp4Audio(
       ),
     );
   }
-  if ("sgpd" in tableEntryCountOverrides) {
+  if (sampleGroupDescription) {
+    const { version, defaultLength, entryCount, entryData } =
+      sampleGroupDescription;
+    auxiliarySampleTables.push(
+      atom(
+        "sgpd",
+        concat(
+          Uint8Array.of(version, 0, 0, 0),
+          ascii("roll"),
+          u32be(defaultLength),
+          ...(version === 2
+            ? [u32be(sampleGroupDescription.defaultSampleDescriptionIndex ?? 0)]
+            : []),
+          u32be(entryCount),
+          entryData,
+        ),
+      ),
+    );
+  } else if ("sgpd" in tableEntryCountOverrides) {
     auxiliarySampleTables.push(
       atom(
         "sgpd",

@@ -6,7 +6,7 @@ const MAX_AAC_SAMPLE_RATE = 96_000;
 // A supported AAC-LC track needs at most 6,000 access units for 60 seconds.
 export const MAX_MP4_SAMPLE_ENTRIES = 10_000;
 const MAX_MP4_BOX_VISITS = 100_000;
-const MAX_MP4_TABLE_ENTRIES = 100_000;
+export const MAX_MP4_TABLE_ENTRIES = 100_000;
 const MAX_MP4_BOX_DEPTH = 16;
 const MP4_CONTAINER_BOXES = new Set([
   "dinf",
@@ -26,7 +26,7 @@ const MP4_CONTAINER_BOXES = new Set([
 export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
   return new Promise((resolve, reject) => {
     try {
-      enforceMp4SampleEntryBudget(audio);
+      validateMp4BeforeParsing(audio);
     } catch (error) {
       reject(error);
       return;
@@ -266,7 +266,7 @@ type Mp4ParseBudget = {
   tableEntries: number;
 };
 
-function enforceMp4SampleEntryBudget(audio: Uint8Array): void {
+export function validateMp4BeforeParsing(audio: Uint8Array): void {
   const budget: Mp4ParseBudget = {
     boxVisits: 0,
     sampleEntries: 0,
@@ -597,22 +597,86 @@ function visitSampleGroupDescriptionBox(
     throw new TypeError("Invalid MP4 sgpd table");
   }
   const version = audio[payloadStart]!;
-  const countOffset = version === 0 ? 8 : 12;
+  if (version > 2) {
+    throw new TypeError("Unsupported MP4 sgpd version");
+  }
+
+  let defaultLength = 0;
+  let defaultSampleDescriptionIndex = 0;
+  let countOffset = 8;
+  if (version >= 1) {
+    if (payloadStart + 12 > boxEnd) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+    defaultLength = readUint32Be(audio, payloadStart + 8);
+    countOffset = 12;
+  }
+  if (version >= 2) {
+    if (payloadStart + 16 > boxEnd) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+    defaultSampleDescriptionIndex = readUint32Be(audio, payloadStart + 12);
+    countOffset = 16;
+  }
+
   const countPosition = payloadStart + countOffset;
   if (countPosition + 4 > boxEnd) {
     throw new TypeError("Invalid MP4 sgpd table");
   }
   const entryCount = readUint32Be(audio, countPosition);
   addMp4TableEntries(entryCount, budget, "sgpd");
-  if (version === 1) {
-    const defaultLength = readUint32Be(audio, payloadStart + 8);
-    const minimumRecordSize = defaultLength === 0 ? 4 : defaultLength;
+
+  if (version === 2) {
+    // The installed MP4Box parser reads this v2 field as its entry count.
+    // Keep it within the already-capped actual count before passing the file on.
+    if (defaultSampleDescriptionIndex > entryCount) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+  }
+
+  if (version >= 1) {
+    validateSampleGroupDescriptionEntries(
+      audio,
+      countPosition + 4,
+      boxEnd,
+      entryCount,
+      defaultLength,
+    );
+  }
+}
+
+function validateSampleGroupDescriptionEntries(
+  audio: Uint8Array,
+  entriesStart: number,
+  boxEnd: number,
+  entryCount: number,
+  defaultLength: number,
+): void {
+  if (defaultLength > 0) {
+    const availableLength = boxEnd - entriesStart;
     if (
-      entryCount >
-      Math.floor((boxEnd - (countPosition + 4)) / minimumRecordSize)
+      entryCount > Math.floor(availableLength / defaultLength) ||
+      entryCount * defaultLength !== availableLength
     ) {
       throw new TypeError("Invalid MP4 sgpd table");
     }
+    return;
+  }
+
+  let offset = entriesStart;
+  for (let entry = 0; entry < entryCount; entry += 1) {
+    if (offset + 4 > boxEnd) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+    const descriptionLength = readUint32Be(audio, offset);
+    offset += 4;
+    if (descriptionLength > boxEnd - offset) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+    offset += descriptionLength;
+  }
+  if (offset !== boxEnd) {
+    throw new TypeError("Invalid MP4 sgpd table");
   }
 }
 

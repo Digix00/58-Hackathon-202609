@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { SpeechAudioDurationLimitExceededError } from "../../../src/application/port/speech-audio-duration-reader";
-import { MAX_MP4_SAMPLE_ENTRIES } from "../../../src/infrastructure/ai/mp4-speech-audio-duration";
+import {
+  MAX_MP4_SAMPLE_ENTRIES,
+  MAX_MP4_TABLE_ENTRIES,
+  validateMp4BeforeParsing,
+} from "../../../src/infrastructure/ai/mp4-speech-audio-duration";
 import { VerifiedSpeechAudioDurationReader } from "../../../src/infrastructure/ai/speech-audio-duration.reader";
 import { MAX_WAV_CHUNK_VISITS } from "../../../src/infrastructure/ai/wav-speech-audio-duration";
 import { MAX_WEBM_EBML_ELEMENT_VISITS } from "../../../src/infrastructure/ai/webm-opus-speech-audio-duration";
@@ -99,6 +103,124 @@ describe("VerifiedSpeechAudioDurationReader", () => {
       "MP4 sample count exceeds parser budget",
     );
   });
+
+  it.each([
+    [
+      "version 1 fixed-length entries",
+      {
+        version: 1,
+        defaultLength: 2,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 1),
+      },
+    ],
+    [
+      "version 2 fixed-length entries",
+      {
+        version: 2,
+        defaultLength: 2,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 1),
+      },
+    ],
+    [
+      "version 2 per-entry lengths",
+      {
+        version: 2,
+        defaultLength: 0,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 2,
+        entryData: Uint8Array.of(0, 0, 0, 2, 0, 1, 0, 0, 0, 2, 0, 2),
+      },
+    ],
+  ] as const)(
+    "accepts valid MP4 sgpd %s during preflight",
+    async (_name, sgpd) => {
+      const audio = createMp4Audio(1, 1, undefined, {}, sgpd);
+
+      expect(() => validateMp4BeforeParsing(audio)).not.toThrow();
+    },
+  );
+
+  it.each([
+    [
+      "version 2 actual entry_count over budget with a zero default index",
+      {
+        version: 2,
+        defaultLength: 0,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: MAX_MP4_TABLE_ENTRIES + 1,
+        entryData: new Uint8Array(),
+      },
+      "MP4 sgpd table exceeds parser budget",
+    ],
+    [
+      "version 2 default index beyond entry_count",
+      {
+        version: 2,
+        defaultLength: 2,
+        defaultSampleDescriptionIndex: 2,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 1),
+      },
+      "Invalid MP4 sgpd table",
+    ],
+    [
+      "version 2 fixed-length records shorter than entry_count",
+      {
+        version: 2,
+        defaultLength: 2,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 2,
+        entryData: Uint8Array.of(0, 1),
+      },
+      "Invalid MP4 sgpd table",
+    ],
+    [
+      "version 2 truncated per-entry description length",
+      {
+        version: 2,
+        defaultLength: 0,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 0, 0, 2, 0),
+      },
+      "Invalid MP4 sgpd table",
+    ],
+    [
+      "version 2 per-entry length extending past the box",
+      {
+        version: 2,
+        defaultLength: 0,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 0, 0, 3, 0, 1),
+      },
+      "Invalid MP4 sgpd table",
+    ],
+    [
+      "version 2 trailing bytes after the declared entries",
+      {
+        version: 2,
+        defaultLength: 2,
+        defaultSampleDescriptionIndex: 0,
+        entryCount: 1,
+        entryData: Uint8Array.of(0, 1, 2),
+      },
+      "Invalid MP4 sgpd table",
+    ],
+  ] as const)(
+    "rejects malformed MP4 sgpd %s before MP4Box",
+    async (_name, sgpd, error) => {
+      const audio = createMp4Audio(1, 1, undefined, {}, sgpd);
+      expect(audio.byteLength).toBeLessThan(10_000);
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/mp4"),
+      ).rejects.toThrow(error);
+    },
+  );
 
   it.each([
     "stts",
