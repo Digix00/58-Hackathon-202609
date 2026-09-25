@@ -15,9 +15,10 @@ function CenteredState({ children }: { children: ReactNode }) {
 }
 
 export function AppLayout() {
-  const { state } = useRuntime()
+  const { state, liffUrl } = useRuntime()
   const location = useLocation()
   const crayonFilters = <CrayonFilters key={location.key} />
+  const liffTarget = liffUrl(location.pathname)
 
   if (state.status === 'initializing') {
     return (
@@ -30,25 +31,27 @@ export function AppLayout() {
     )
   }
 
-  if (state.status === 'failed') {
-    return (
-      <>
-        {crayonFilters}
-        <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
-          <ErrorState
-            title="LINEを準備できませんでした"
-            description="LINEミニアプリで開き直してください。"
-          />
-        </main>
-      </>
-    )
-  }
-
   return (
     <>
       {crayonFilters}
       {state.mode === 'liff' ? (
         <AppShell />
+      ) : state.liffInitializationFailed ? (
+        <main className={`${styles.browserFallbackPage} ${notebookBackground.grid}`}>
+          <section className={styles.runtimeNotice} role="status">
+            <p>
+              LINEの初期化に失敗したため、公開フィードを表示しています。投稿などの操作を使うには、LINEミニアプリで開き直してください。
+            </p>
+            {liffTarget ? (
+              <a className={actionStyles.text} href={liffTarget}>
+                LINEで開き直す
+              </a>
+            ) : null}
+          </section>
+          <div className={styles.browserFallbackContent}>
+            <Outlet />
+          </div>
+        </main>
       ) : (
         <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
           <Outlet />
