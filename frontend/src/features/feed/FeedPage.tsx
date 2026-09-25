@@ -541,8 +541,13 @@ export function FeedPage() {
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
+  const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
+  const feedEnabled =
+    runtime.status === 'ready' && (!isLiff || authStatus !== 'initializing')
+  const sort = isLiff && authStatus === 'authenticated' ? 'recommended' : 'newest'
   const feed = useFeed({
-    sort: 'newest',
+    enabled: feedEnabled,
+    sort,
     gender: reader.filter.gender || undefined,
     regionCode: reader.filter.region || undefined,
   })
@@ -573,7 +578,6 @@ export function FeedPage() {
     onFilterChange,
   } = readerView
   const { genderOptions, regionOptions } = buildFeedFilterOptions()
-  const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',
     initialReactionCount: concern?.reactionCount ?? 0,
