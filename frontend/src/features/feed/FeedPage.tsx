@@ -542,8 +542,7 @@ export function FeedPage() {
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
   const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
-  const feedEnabled =
-    runtime.status === 'ready' && (!isLiff || authStatus !== 'initializing')
+  const feedEnabled = runtime.status === 'ready' && (!isLiff || authStatus !== 'initializing')
   const sort = isLiff && authStatus === 'authenticated' ? 'recommended' : 'newest'
   const feed = useFeed({
     enabled: feedEnabled,
