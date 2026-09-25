@@ -6,6 +6,9 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
     if (audio.byteLength < 10) {
       throw new TypeError("Invalid ID3 header");
     }
+    const version = audio[3]!;
+    const revision = audio[4]!;
+    const flags = audio[5]!;
     const sizeBytes = audio.subarray(6, 10);
     if (sizeBytes.some((byte) => (byte & 0x80) !== 0)) {
       throw new TypeError("Invalid ID3 size");
@@ -18,6 +21,25 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
     offset = 10 + tagLength;
     if (offset > audio.byteLength) {
       throw new TypeError("Truncated ID3 tag");
+    }
+
+    if ((flags & 0x10) !== 0) {
+      if (version !== 4) {
+        throw new TypeError("ID3 footer is only supported in ID3v2.4");
+      }
+      if (offset + 10 > audio.byteLength) {
+        throw new TypeError("Truncated ID3 footer");
+      }
+      if (
+        readAscii(audio, offset, 3) !== "3DI" ||
+        audio[offset + 3] !== version ||
+        audio[offset + 4] !== revision ||
+        audio[offset + 5] !== flags ||
+        !sizeBytes.every((byte, index) => audio[offset + 6 + index] === byte)
+      ) {
+        throw new TypeError("Invalid ID3 footer");
+      }
+      offset += 10;
     }
   }
 

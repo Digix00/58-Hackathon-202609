@@ -15,6 +15,7 @@ import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { SpeechHandler } from "../src/presentation/speech.handler";
 import {
+  createMp3Audio,
   createMp4Audio,
   createWavAudio,
   createWebmAudio,
@@ -207,6 +208,27 @@ describe("POST /api/v1/speech/transcriptions", () => {
     );
     expect(sixtySecondResponse.status).toBe(200);
     expect(transcribe).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts MP3 audio with an ID3v2.4 footer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createMp3Audio(1, true)], "voice.mp3", {
+          type: "audio/mpeg",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      text: "recognized",
+      language: "ja",
+    });
+    expect(transcribe).toHaveBeenCalledOnce();
   });
 
   it("requires an authenticated user before reading audio", async () => {

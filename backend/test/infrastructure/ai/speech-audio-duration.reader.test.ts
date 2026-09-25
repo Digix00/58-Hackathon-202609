@@ -30,6 +30,27 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     },
   );
 
+  it("skips a valid ID3v2.4 footer before parsing MPEG frames", async () => {
+    const audio = createMp3Audio(1, true);
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/mpeg"),
+    ).resolves.toBeCloseTo(1.018, 2);
+
+    const mpegFrames = createMp3Audio(1);
+    const footerOffset = audio.byteLength - mpegFrames.byteLength - 10;
+    const truncatedFooter = audio.subarray(0, footerOffset + 5);
+    await expect(
+      reader.getDurationSeconds(truncatedFooter, "audio/mpeg"),
+    ).rejects.toThrow("Truncated ID3 footer");
+
+    const invalidFooter = audio.slice();
+    invalidFooter[footerOffset] = 0;
+    await expect(
+      reader.getDurationSeconds(invalidFooter, "audio/mpeg"),
+    ).rejects.toThrow("Invalid ID3 footer");
+  });
+
   it("rejects WebM with more EBML elements than the parser budget", async () => {
     const audio = createWebmAudio(1, 1, MAX_WEBM_EBML_ELEMENT_VISITS + 1);
 

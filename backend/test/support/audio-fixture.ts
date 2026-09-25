@@ -25,7 +25,10 @@ export function createWavAudio(durationSeconds: number): Uint8Array {
   return new Uint8Array(buffer);
 }
 
-export function createMp3Audio(durationSeconds: number): Uint8Array {
+export function createMp3Audio(
+  durationSeconds: number,
+  includeId3v24Footer = false,
+): Uint8Array {
   const frameLength = 417;
   const samplesPerFrame = 1_152;
   const sampleRate = 44_100;
@@ -39,7 +42,19 @@ export function createMp3Audio(durationSeconds: number): Uint8Array {
     audio.set(frameHeader, frame * frameLength);
   }
 
-  return audio;
+  if (!includeId3v24Footer) {
+    return audio;
+  }
+
+  const tag = concat(
+    ascii("TIT2"),
+    encodeSynchsafeSize(1),
+    Uint8Array.of(0, 0, 0),
+  );
+  const size = encodeSynchsafeSize(tag.length);
+  const header = concat(ascii("ID3"), Uint8Array.of(4, 0, 0x10), size);
+  const footer = concat(ascii("3DI"), Uint8Array.of(4, 0, 0x10), size);
+  return concat(header, tag, footer, audio);
 }
 
 export function createWebmAudio(
@@ -333,6 +348,15 @@ function u16be(value: number): Uint8Array {
 
 function u32be(value: number): Uint8Array {
   return Uint8Array.of(value >>> 24, value >>> 16, value >>> 8, value);
+}
+
+function encodeSynchsafeSize(value: number): Uint8Array {
+  return Uint8Array.of(
+    (value >> 21) & 0x7f,
+    (value >> 14) & 0x7f,
+    (value >> 7) & 0x7f,
+    value & 0x7f,
+  );
 }
 
 function atom(type: string, body: Uint8Array): Uint8Array {
