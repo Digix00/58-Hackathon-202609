@@ -33,6 +33,18 @@ export type ConcernReactionResponse = Extract<
   }
 >
 
+export type TodayQuizResponse = InferResponseType<typeof apiClient.api.v1.quizzes.today.$get, 200>
+
+export type QuizByIdResponse = InferResponseType<
+  (typeof apiClient.api.v1.quizzes)[':quizId']['$get'],
+  200
+>
+
+export type QuizAnswerResponse = InferResponseType<
+  (typeof apiClient.api.v1.quizzes)[':quizId']['answers']['$post'],
+  201
+>
+
 export const API_REQUEST_TIMEOUT_MS = 10_000
 
 export class ApiTimeoutError extends Error {

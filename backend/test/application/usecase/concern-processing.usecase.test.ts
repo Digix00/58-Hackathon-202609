@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ConcernClusterSummary,
+  ConcernClusterSummaryClaim,
+  ConcernClusterSummaryInput,
+} from "../../../src/application/entity/concern-cluster";
+import {
   ConcernProcessing,
   ConcernRepresentation,
 } from "../../../src/application/entity/concern-processing";
+import type { ConcernClusterSummaryGenerator } from "../../../src/application/port/concern-cluster-summary-generator";
 import {
   CONCERN_PROCESSING_MESSAGE_TYPE,
   type ConcernProcessingMessage,
@@ -10,6 +16,7 @@ import {
 import type { ConcernVectorIndex } from "../../../src/application/port/concern-vector-index";
 import type { TextEmbeddingGenerator } from "../../../src/application/port/text-embedding-generator";
 import type { TextTranslator } from "../../../src/application/port/text-translator";
+import type { ConcernClusterSummaryRepository } from "../../../src/application/repository/concern-cluster-summary.repository";
 import type { ConcernProcessingRepository } from "../../../src/application/repository/concern-processing.repository";
 import { ConcernProcessingUseCase } from "../../../src/application/usecase/concern-processing.usecase";
 
@@ -266,6 +273,142 @@ describe("ConcernProcessingUseCase", () => {
         embeddingVersion: `${modelVersion}@development-v1`,
       }),
     );
+  });
+
+  it.each([
+    { description: "generates a pending summary", shouldFail: false },
+    {
+      description:
+        "marks the ready concern failed when summary generation fails",
+      shouldFail: true,
+    },
+  ])("$description", async ({ shouldFail }) => {
+    const modelVersion = "@cf/qwen/qwen3-embedding-0.6b";
+    const concernId = "concern-existing";
+    const clusterId = "cluster-pending-summary";
+    const timestamp = "2026-09-24T00:00:00.000Z";
+    const translator: TextTranslator = {
+      convertToHiragana: vi.fn(),
+      translateToEnglish: vi.fn(),
+    };
+    const embeddingGenerator: TextEmbeddingGenerator = {
+      modelVersion,
+      generateEmbeddings: vi.fn(),
+    };
+    const repository: ConcernProcessingRepository = {
+      findState: vi.fn().mockResolvedValue(
+        new ConcernProcessing({
+          concernId,
+          status: "ready",
+          clusterId,
+          embeddingVersion: "@cf/qwen/qwen3-embedding-0.6b@development-v1",
+          representations: [
+            new ConcernRepresentation({
+              concernId,
+              locale: "ja-Hira",
+              body: "すでにあるひらがな",
+              status: "ready",
+              updatedAt: timestamp,
+            }),
+            new ConcernRepresentation({
+              concernId,
+              locale: "en",
+              body: "Existing English representation",
+              status: "ready",
+              updatedAt: timestamp,
+            }),
+          ],
+          updatedAt: timestamp,
+        }),
+      ),
+      markProcessing: vi.fn(),
+      assignCluster: vi.fn(),
+      saveResult: vi.fn(),
+      markFailed: vi.fn().mockResolvedValue(undefined),
+    };
+    const vectorIndex: ConcernVectorIndex = {
+      search: vi.fn(),
+      upsert: vi.fn(),
+    };
+    const summaryInput = new ConcernClusterSummaryInput({
+      clusterId,
+      concernBodies: ["学校で友人と話しづらい"],
+    });
+    const summaryClaim = new ConcernClusterSummaryClaim({
+      input: summaryInput,
+      claimedAt: timestamp,
+    });
+    const summaryRepository: ConcernClusterSummaryRepository = {
+      claimPendingSummaryInput: vi.fn().mockResolvedValue(summaryClaim),
+      saveSummary: vi.fn().mockResolvedValue(undefined),
+      releaseSummaryClaim: vi.fn().mockResolvedValue(undefined),
+    };
+    const summaryGenerator: ConcernClusterSummaryGenerator = {
+      generate: vi.fn().mockImplementation(async () => {
+        if (shouldFail) {
+          throw new Error("Workers AI unavailable");
+        }
+        return new ConcernClusterSummary({
+          label: "学校での人間関係",
+          summary: "友人との関わりに関する悩みです。",
+        });
+      }),
+    };
+    const useCase = new ConcernProcessingUseCase(
+      translator,
+      embeddingGenerator,
+      repository,
+      vectorIndex,
+      { vectorIndexVersion: "development-v1", now: () => new Date(timestamp) },
+      summaryRepository,
+      summaryGenerator,
+    );
+
+    const execution = useCase.execute({
+      type: CONCERN_PROCESSING_MESSAGE_TYPE,
+      concernId,
+      body: "既存投稿本文",
+    });
+    if (shouldFail) {
+      await expect(execution).rejects.toThrow("Workers AI unavailable");
+      expect(repository.markFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          clusterId,
+        }),
+        { allowReady: true },
+      );
+      expect(summaryRepository.saveSummary).not.toHaveBeenCalled();
+      expect(summaryRepository.releaseSummaryClaim).toHaveBeenCalledWith(
+        clusterId,
+        timestamp,
+        timestamp,
+      );
+    } else {
+      await expect(execution).resolves.toBeNull();
+      expect(summaryRepository.saveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: clusterId,
+          label: "学校での人間関係",
+          summary: "友人との関わりに関する悩みです。",
+          status: "ready",
+        }),
+        timestamp,
+      );
+      expect(repository.markFailed).not.toHaveBeenCalled();
+    }
+
+    expect(summaryRepository.claimPendingSummaryInput).toHaveBeenCalledWith(
+      clusterId,
+      timestamp,
+      "2026-09-23T23:55:00.000Z",
+    );
+    expect(summaryGenerator.generate).toHaveBeenCalledWith(summaryClaim.input);
+    expect(repository.markProcessing).not.toHaveBeenCalled();
+    expect(embeddingGenerator.generateEmbeddings).not.toHaveBeenCalled();
+    expect(vectorIndex.search).not.toHaveBeenCalled();
+    expect(vectorIndex.upsert).not.toHaveBeenCalled();
+    expect(repository.saveResult).not.toHaveBeenCalled();
   });
 
   it("searches the ten nearest concerns when choosing a cluster", async () => {

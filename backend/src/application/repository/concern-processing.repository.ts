@@ -6,5 +6,8 @@ export interface ConcernProcessingRepository {
   markProcessing(processing: ConcernProcessing): Promise<void>;
   assignCluster(processing: ConcernProcessing): Promise<ConcernProcessing>;
   saveResult(processing: ConcernProcessing): Promise<void>;
-  markFailed(processing: ConcernProcessing): Promise<void>;
+  markFailed(
+    processing: ConcernProcessing,
+    options?: { allowReady?: boolean },
+  ): Promise<void>;
 }

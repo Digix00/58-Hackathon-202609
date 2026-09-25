@@ -363,7 +363,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - 近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
 - Vectorizeへのupsertは検索可能になるまで遅延することがあり、短時間に連続した投稿を最初の処理で同じclusterへ割り当てられない場合がある
 - 近傍検索の設定はEmbedding modelとVectorize indexの組に固定する
-- クラスタの表示ラベルと要約を生成する処理は後続のため、生成前はcluster.label、cluster.summaryがnullの場合がある
+- 新しいクラスタではQueue処理中に表示用labelとsummaryを生成する。生成前はnullで、完了するとcluster一覧・フィードで表示される
+- 生成済みクラスタへ悩みが追加された後のlabel・summary再生成は後続処理で扱う
 - hidden または deleted の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
@@ -1014,13 +1015,13 @@ PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Que
 - en_translation
 - Embedding生成とクラスタ割当
 
-API が返す concerns.processingStatus は、表現生成・保存とEmbedding生成・クラスタ割当の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。クラスタの表示ラベル・要約は後続処理のため、処理完了後もnullの場合がある。
+API が返す concerns.processingStatus は、表現生成・保存、Embedding生成、クラスタ割当、新規クラスタの表示ラベル・要約生成までの概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。失敗時は原文を表示し、クラスタをフィードに返さない。
 
 | processingStatus | 意味 |
 | --- | --- |
 | pending | ジョブ登録済みで未開始 |
 | processing | いずれかのジョブを実行中 |
-| ready | 表現の保存とEmbeddingの近傍照合・クラスタ割当が完了。クラスタの表示ラベル・要約は後続処理のためnullの場合がある |
+| ready | 表現の保存、Embeddingの近傍照合・クラスタ割当、および新規クラスタの表示ラベル・要約保存が完了 |
 | failed | 一部失敗。ただし原文は利用可能 |
 
 失敗時の共通ルール:

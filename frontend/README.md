@@ -37,7 +37,7 @@ VITE_DEV_AUTH_MODE=
 
 ## デモ画面
 
-QuizとHistoryはAPI未実装のため、Vite開発環境ではサンプルデータを表示する。Feed、詳細、投稿、リアクション、既読は実APIへ接続している。
+QuizはAPIへ接続している。HistoryはAPI未実装のため、Vite開発環境ではサンプルデータを表示する。Feed、詳細、投稿、リアクション、既読も実APIへ接続している。
 
 ## コード整形
 
