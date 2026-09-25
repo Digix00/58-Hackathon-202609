@@ -91,6 +91,9 @@ async function seedHistory(userId: string) {
   const authorId = `history-author-${suffix}`;
   const otherUserId = `history-other-${suffix}`;
   const clusterId = `history-cluster-${suffix}`;
+  const unreadThemeClusterId = `history-unread-theme-cluster-${suffix}`;
+  const failedViewedClusterId = `history-failed-viewed-cluster-${suffix}`;
+  const failedCandidateClusterId = `history-failed-candidate-cluster-${suffix}`;
   const createdAt = "2098-01-01T00:00:00.000Z";
   const quizIds = [1, 2, 3].map((number) => `${suffix}-quiz-${number}`);
   const quizDates = ["2098-01-01", "2098-01-02", "2098-01-03"];
@@ -109,21 +112,54 @@ async function seedHistory(userId: string) {
       updatedAt: createdAt,
     },
   ]);
-  await db.insert(concernClusters).values({
-    id: clusterId,
-    legacyLabel: "old label",
-    legacySummary: "old summary",
-    label: "仕事と生活",
-    summary: "働き方について",
-    status: "ready",
-    createdAt,
-    updatedAt: createdAt,
-  });
+  await db.insert(concernClusters).values([
+    {
+      id: clusterId,
+      legacyLabel: "old label",
+      legacySummary: "old summary",
+      label: "仕事と生活",
+      summary: "働き方について",
+      status: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: unreadThemeClusterId,
+      legacyLabel: "old unread label",
+      legacySummary: "old unread summary",
+      label: "まだ出会っていないテーマ",
+      summary: "未読テーマについて",
+      status: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: failedViewedClusterId,
+      legacyLabel: "old failed label",
+      legacySummary: "old failed summary",
+      label: "処理失敗済みのテーマ",
+      summary: "処理失敗した投稿のテーマ",
+      status: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: failedCandidateClusterId,
+      legacyLabel: "old pending label",
+      legacySummary: "old pending summary",
+      label: "処理未完了の候補テーマ",
+      summary: "処理未完了投稿のテーマ",
+      status: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ]);
 
-  const concernIds = [1, 2, 3, 4, 5, 6].map(
-    (number) => `${suffix}-concern-${number}`,
+  const concernIds = Array.from(
+    { length: 11 },
+    (_, index) => `${suffix}-concern-${index + 1}`,
   );
-  await db.insert(concerns).values([
+  const concernRows = [
     {
       id: concernIds[0],
       userId: authorId,
@@ -170,7 +206,7 @@ async function seedHistory(userId: string) {
       ageGroup: null,
       genderCode: null,
       regionCode: "kyoto",
-      clusterId,
+      clusterId: unreadThemeClusterId,
       visibilityStatus: "published",
       processingStatus: "ready",
       createdAt: "2098-01-08T00:00:00.000Z",
@@ -202,7 +238,75 @@ async function seedHistory(userId: string) {
       createdAt: "2098-01-09T00:00:00.000Z",
       updatedAt: "2098-01-09T00:00:00.000Z",
     },
-  ]);
+    {
+      id: concernIds[6],
+      userId: authorId,
+      body: "既読テーマの未読投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "osaka",
+      clusterId,
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt: "2098-01-13T00:00:00.000Z",
+      updatedAt: "2098-01-13T00:00:00.000Z",
+    },
+    {
+      id: concernIds[7],
+      userId: authorId,
+      body: "処理に失敗した既読投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "shizuoka",
+      clusterId: failedViewedClusterId,
+      visibilityStatus: "published",
+      processingStatus: "failed",
+      createdAt: "2098-01-03T00:00:00.000Z",
+      updatedAt: "2098-01-03T00:00:00.000Z",
+    },
+    {
+      id: concernIds[8],
+      userId: authorId,
+      body: "処理に失敗した未読投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: null,
+      clusterId: failedCandidateClusterId,
+      visibilityStatus: "published",
+      processingStatus: "failed",
+      createdAt: "2098-01-14T00:00:00.000Z",
+      updatedAt: "2098-01-14T00:00:00.000Z",
+    },
+    {
+      id: concernIds[9],
+      userId: authorId,
+      body: "同じ未読テーマの別投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "kyoto",
+      clusterId: unreadThemeClusterId,
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt: "2098-01-11T00:00:00.000Z",
+      updatedAt: "2098-01-11T00:00:00.000Z",
+    },
+    {
+      id: concernIds[10],
+      userId: authorId,
+      body: "既読地域の未読投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "osaka",
+      clusterId: null,
+      visibilityStatus: "published",
+      processingStatus: "pending",
+      createdAt: "2098-01-15T00:00:00.000Z",
+      updatedAt: "2098-01-15T00:00:00.000Z",
+    },
+  ];
+  for (let index = 0; index < concernRows.length; index += 5) {
+    await db.insert(concerns).values(concernRows.slice(index, index + 5));
+  }
   await db.insert(concernViews).values([
     {
       concernId: concernIds[0],
@@ -218,6 +322,11 @@ async function seedHistory(userId: string) {
       concernId: concernIds[2],
       actorKey: userId,
       viewedAt: "2098-01-06T00:00:00.000Z",
+    },
+    {
+      concernId: concernIds[7],
+      actorKey: userId,
+      viewedAt: "2098-01-03T00:00:00.000Z",
     },
     {
       concernId: concernIds[0],
@@ -314,11 +423,12 @@ describe("learning history routes", () => {
       };
     }>();
     expect(summary).toMatchObject({
-      viewedConcernCount: 2,
-      nextSuggestion: { kind: "theme", label: "仕事と生活" },
+      viewedConcernCount: 3,
+      nextSuggestion: { kind: "theme", label: "まだ出会っていないテーマ" },
       clusters: [{ label: "仕事と生活", count: 2 }],
       regions: [
         { regionCode: "osaka", count: 1 },
+        { regionCode: "shizuoka", count: 1 },
         { regionCode: "tokyo", count: 1 },
       ],
       attributes: {

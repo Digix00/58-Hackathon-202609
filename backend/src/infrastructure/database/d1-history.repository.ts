@@ -73,6 +73,7 @@ export class D1HistoryRepository implements HistoryRepository {
               "INNER JOIN concern_clusters ON concern_clusters.id = concerns.cluster_id " +
               "WHERE concern_views.actor_key = ? " +
               "AND concerns.visibility_status = 'published' " +
+              "AND concerns.processing_status = 'ready' " +
               "AND concern_clusters.status = 'ready' " +
               "AND concern_clusters.label IS NOT NULL " +
               "GROUP BY concerns.cluster_id, concern_clusters.label " +
@@ -120,22 +121,52 @@ export class D1HistoryRepository implements HistoryRepository {
   ): Promise<HistoryNextSuggestion | null> {
     const row = await this.database
       .prepare(
-        "SELECT CASE WHEN concern_clusters.status = 'ready' " +
-          "AND concern_clusters.label IS NOT NULL THEN 'theme' ELSE 'region' END AS kind, " +
+        "WITH viewed_themes AS ( " +
+          "SELECT DISTINCT viewed_concerns.cluster_id AS clusterId " +
+          "FROM concern_views AS viewed_views " +
+          "INNER JOIN concerns AS viewed_concerns " +
+          "ON viewed_concerns.id = viewed_views.concern_id " +
+          "INNER JOIN concern_clusters AS viewed_clusters " +
+          "ON viewed_clusters.id = viewed_concerns.cluster_id " +
+          "WHERE viewed_views.actor_key = ? " +
+          "AND viewed_concerns.visibility_status = 'published' " +
+          "AND viewed_concerns.processing_status = 'ready' " +
+          "AND viewed_clusters.status = 'ready' " +
+          "AND viewed_clusters.label IS NOT NULL), " +
+          "viewed_regions AS ( " +
+          "SELECT DISTINCT viewed_concerns.region_code AS regionCode " +
+          "FROM concern_views AS viewed_views " +
+          "INNER JOIN concerns AS viewed_concerns " +
+          "ON viewed_concerns.id = viewed_views.concern_id " +
+          "WHERE viewed_views.actor_key = ? " +
+          "AND viewed_concerns.visibility_status = 'published' " +
+          "AND viewed_concerns.region_code IS NOT NULL) " +
+          "SELECT CASE WHEN concerns.processing_status = 'ready' " +
+          "AND concern_clusters.status = 'ready' " +
+          "AND concern_clusters.label IS NOT NULL " +
+          "AND viewed_themes.clusterId IS NULL THEN 'theme' ELSE 'region' END AS kind, " +
           "concern_clusters.label AS themeLabel, concerns.region_code AS regionCode " +
           "FROM concerns " +
           "LEFT JOIN concern_clusters ON concern_clusters.id = concerns.cluster_id " +
+          "LEFT JOIN viewed_themes ON viewed_themes.clusterId = concerns.cluster_id " +
+          "LEFT JOIN viewed_regions ON viewed_regions.regionCode = concerns.region_code " +
           "WHERE concerns.visibility_status = 'published' " +
           "AND concerns.user_id <> ? " +
           "AND NOT EXISTS (SELECT 1 FROM concern_views " +
           "WHERE concern_views.concern_id = concerns.id AND concern_views.actor_key = ?) " +
-          "AND ((concern_clusters.status = 'ready' AND concern_clusters.label IS NOT NULL) " +
-          "OR concerns.region_code IS NOT NULL) " +
-          "ORDER BY CASE WHEN concern_clusters.status = 'ready' " +
-          "AND concern_clusters.label IS NOT NULL THEN 0 ELSE 1 END ASC, " +
+          "AND ((concerns.processing_status = 'ready' " +
+          "AND concern_clusters.status = 'ready' " +
+          "AND concern_clusters.label IS NOT NULL " +
+          "AND viewed_themes.clusterId IS NULL) " +
+          "OR (concerns.region_code IS NOT NULL " +
+          "AND viewed_regions.regionCode IS NULL)) " +
+          "ORDER BY CASE WHEN concerns.processing_status = 'ready' " +
+          "AND concern_clusters.status = 'ready' " +
+          "AND concern_clusters.label IS NOT NULL " +
+          "AND viewed_themes.clusterId IS NULL THEN 0 ELSE 1 END ASC, " +
           "concerns.created_at DESC, concerns.id DESC LIMIT 1",
       )
-      .bind(userId, userId)
+      .bind(userId, userId, userId, userId)
       .first<NextSuggestionRow>();
 
     if (!row) return null;
