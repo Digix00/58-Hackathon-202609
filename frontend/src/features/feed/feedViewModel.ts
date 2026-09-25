@@ -38,7 +38,7 @@ export function toFeedConcern(item: FeedItem): FeedConcern {
     regionCode: item.attributes.regionCode as RegionCode | undefined,
     gender: genderLabel(item.attributes.gender),
     ageGroup: ageGroupLabel(item.attributes.ageGroup),
-    region: regionLabel(item.attributes.regionCode),
+    region: item.attributes.regionName ?? regionLabel(item.attributes.regionCode),
     createdLabel: createdLabel(item.createdAt),
     reason: RECOMMENDATION_REASON_LABELS[reasonCode],
     reactionCount: item.reactionCount,

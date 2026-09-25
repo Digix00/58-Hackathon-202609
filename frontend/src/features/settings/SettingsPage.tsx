@@ -1,12 +1,15 @@
+import { useState } from 'react'
+import { useAuth } from '../../auth/useAuth'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import { ProfileSettings } from '../profile/ProfileSettings'
 import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import sharedStyles from '../../shared/styles/Settings.module.css'
 import styles from './SettingsPage.module.css'
+import { updateUserDisplayLanguage } from '../profile/profileApi'
 
 const languageOptions = [
   { value: 'original', label: '原文' },
-  { value: 'hira', label: 'ひらがな' },
+  { value: 'jaHira', label: 'ひらがな' },
   { value: 'en', label: '英語' },
 ] as const
 
@@ -16,8 +19,33 @@ const fontSizeOptions = [
 ] as const
 
 export function SettingsPage() {
+  const { status: authStatus, refresh } = useAuth()
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
+  const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const [languageError, setLanguageError] = useState<string | null>(null)
+
+  const selectLanguage = async (value: (typeof languageOptions)[number]['value']) => {
+    if (authStatus !== 'authenticated' || value === language || languageStatus === 'saving') return
+
+    setLanguageStatus('saving')
+    setLanguageError(null)
+    try {
+      const result = await updateUserDisplayLanguage(value)
+      if (!result.ok) {
+        setLanguageStatus('failed')
+        setLanguageError(result.message)
+        return
+      }
+
+      setLanguage(value)
+      await refresh()
+      setLanguageStatus('saved')
+    } catch {
+      setLanguageStatus('failed')
+      setLanguageError('表示形式を保存できませんでした')
+    }
+  }
 
   return (
     <section className={styles.page} aria-labelledby="settings-title">
@@ -42,12 +70,18 @@ export function SettingsPage() {
         </div>
       </fieldset>
 
-      {/* TODO: 表示言語の変換を実装し、選択した言語を投稿本文へ反映できるようにする。 */}
-      <fieldset className={sharedStyles.group} disabled>
+      <fieldset
+        className={sharedStyles.group}
+        disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
+      >
         <legend>
-          表示することば <ComingSoonLabel ariaLabel="表示することばは準備中です" />
+          都道府県名の表記
         </legend>
-        <p>現在は原文でお読みください。</p>
+        {authStatus !== 'authenticated' ? (
+          <p>LINEでログインすると、選んだ表記をアカウントに保存できます。</p>
+        ) : (
+          <p>悩みの都道府県名を選んだ表記で表示します。</p>
+        )}
         <div className={sharedStyles.choiceRow}>
           {languageOptions.map((option) => (
             <label key={option.value} className={sharedStyles.choice}>
@@ -55,12 +89,15 @@ export function SettingsPage() {
                 type="radio"
                 name="display-language"
                 checked={language === option.value}
-                onChange={() => setLanguage(option.value)}
+                onChange={() => void selectLanguage(option.value)}
               />
               <span>{option.label}</span>
             </label>
           ))}
         </div>
+        {languageStatus === 'saving' ? <p role="status">保存しています…</p> : null}
+        {languageStatus === 'saved' ? <p role="status">表示形式を保存しました。</p> : null}
+        {languageError ? <p role="alert">{languageError}</p> : null}
       </fieldset>
 
       <ProfileSettings />

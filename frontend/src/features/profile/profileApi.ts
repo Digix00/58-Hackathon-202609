@@ -1,4 +1,5 @@
 import { apiClient } from '../../lib/api'
+import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
 
 export const GENDERS = [
   { value: 'female', label: '女性' },
@@ -73,6 +74,9 @@ type ProfileApiClient = typeof apiClient & {
       users: {
         me: {
           $put: (args: { json: UserProfileInput }) => Promise<Response>
+          'display-language': {
+            $put: (args: { json: { displayLanguage: DisplayLanguage } }) => Promise<Response>
+          }
         }
       }
     }
@@ -89,4 +93,16 @@ export async function updateUserProfile(
 
   const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
   return { ok: false, message: body?.error?.message ?? '設定を保存できませんでした' }
+}
+
+export async function updateUserDisplayLanguage(
+  displayLanguage: DisplayLanguage,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const response = await profileApiClient.api.v1.users.me['display-language'].$put({
+    json: { displayLanguage },
+  })
+  if (response.ok) return { ok: true }
+
+  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+  return { ok: false, message: body?.error?.message ?? '表示形式を保存できませんでした' }
 }

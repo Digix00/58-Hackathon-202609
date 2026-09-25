@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-export type DisplayLanguage = 'original' | 'hira' | 'en'
+export type DisplayLanguage = 'original' | 'jaHira' | 'en'
 export type FontSize = 'normal' | 'large'
 
 type DisplaySettingsContextValue = {
