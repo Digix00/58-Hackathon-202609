@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
-import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
@@ -260,14 +259,7 @@ function HistoryOverviewView({
 }
 
 export function HistoryPage() {
-  return (
-    <DemoBoundary
-      emptyTitle="最初の声を読んでみましょう"
-      emptyDescription="読んだ声が、ここに少しずつ残ります。"
-    >
-      <HistoryContent />
-    </DemoBoundary>
-  )
+  return <HistoryContent />
 }
 
 function HistoryContent() {
