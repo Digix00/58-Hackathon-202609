@@ -54,7 +54,14 @@ export class LineBroadcastApiSender implements LineBroadcastSender {
         }),
         signal: AbortSignal.timeout(10_000),
       });
-    } catch {
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          message: "line broadcast request failed",
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        }),
+      );
       return { status: "unknown" };
     }
 
