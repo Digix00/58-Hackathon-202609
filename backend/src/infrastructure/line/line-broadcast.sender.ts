@@ -37,7 +37,9 @@ export class LineBroadcastApiSender implements LineBroadcastSender {
 
     let response: Response;
     try {
-      response = await this.fetcher(BROADCAST_ENDPOINT, {
+      // globalThisをthisとして渡さないとネイティブfetchが
+      // Illegal invocationで例外を投げる(this.fetcher(...)はメソッド呼び出し扱いになるため)。
+      response = await this.fetcher.call(globalThis, BROADCAST_ENDPOINT, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
