@@ -5,19 +5,24 @@
   height: 100svh;
   margin: 0 auto;
   background-color: var(--color-paper);
+  font-weight: var(--font-weight-regular);
 }
 
 .large {
   --font-scale: 1.25;
+  --font-weight-regular: 700;
 }
 
 .content {
+  /* 本文の左右の余白。画面いっぱいに絵を広げたい画面が、この幅を打ち消して使う。 */
+  --screen-gutter: 18px;
+
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   /* ヘッダーを持たないので、上端は端末の安全領域から測る。 */
-  padding: calc(26px + env(safe-area-inset-top)) 18px 24px;
+  padding: calc(26px + env(safe-area-inset-top)) var(--screen-gutter) 24px;
 }
 
 /*
@@ -225,7 +230,7 @@
 
 @media (max-width: 359px) {
   .content {
-    padding-inline: 0.875rem;
+    --screen-gutter: 0.875rem;
   }
 
   .nav {

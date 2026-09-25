@@ -23,6 +23,7 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
 import { CoverArt } from './CoverArt'
+import { CoverStickers } from './CoverStickers'
 import { resolveFeedContext } from './feedContext'
 import {
   ALL,
@@ -265,6 +266,13 @@ function FeedStack({
       className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
     >
       <div className={styles.stack} style={notebookBindingStyle}>
+        {/*
+         * 本の下に敷いたシール。大きい1枚は紙の下へ潜り込み、はみ出した側だけが見える。
+         * 紙より先に置くのは、そうしないと紙の上に貼られて本文より前に出るため。
+         * 紙束の中に置くので、表紙が開くときは本と一緒に大きくなる。
+         * 表紙が開ききったら、散り終えたまま外す。
+         */}
+        {!coverOpened ? <CoverStickers scattering={coverOpening} /> : null}
         <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
         {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
