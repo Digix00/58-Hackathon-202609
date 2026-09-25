@@ -2,7 +2,10 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { listConcerns } from './feedApi'
 import type { FeedItem, FeedQuery, FeedStatus } from './feedTypes'
 
-export type UseFeedOptions = Omit<FeedQuery, 'cursor'> & { enabled?: boolean }
+export type UseFeedOptions = Omit<FeedQuery, 'cursor'> & {
+  enabled?: boolean
+  authUserId?: string
+}
 
 export interface UseFeedResult {
   status: FeedStatus
@@ -83,6 +86,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
   const regionCode = typeof options === 'number' ? undefined : options.regionCode
   const clusterId = typeof options === 'number' ? undefined : options.clusterId
   const enabled = typeof options === 'number' ? true : (options.enabled ?? true)
+  const authUserId = typeof options === 'number' ? undefined : options.authUserId
   const [state, dispatch] = useReducer(feedReducer, initialFeedState)
   const requestVersion = useRef(0)
   const isLoading = useRef(false)
@@ -155,7 +159,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       requestVersion.current += 1
       isLoading.current = false
     }
-  }, [enabled, refresh])
+  }, [authUserId, enabled, refresh])
 
   return {
     status: state.status,

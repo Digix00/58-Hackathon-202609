@@ -12,6 +12,8 @@ import {
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
+import { getRegionName } from "../application/entity/region-name";
+import type { DisplayLanguage } from "../application/entity/user";
 import {
   CONCERN_LANGUAGES,
   type ConcernLanguage,
@@ -103,7 +105,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
       });
 
-      return c.json(toResponse(concern), 201);
+      return c.json(toResponse(concern, auth.user.displayLanguage), 201);
     } catch (error) {
       if (error instanceof ConcernValidationError) {
         return c.json(
@@ -197,7 +199,12 @@ export class ConcernHandler {
 
       return c.json({
         items: result.items.map((item) =>
-          toFeedResponse(item, true, parsed.data.language),
+          toFeedResponse(
+            item,
+            true,
+            auth?.user?.displayLanguage ?? "original",
+            parsed.data.language,
+          ),
         ),
         nextCursor,
       });
@@ -214,7 +221,12 @@ export class ConcernHandler {
 
     return c.json({
       items: result.items.map((concern) =>
-        toFeedResponse(concern, true, parsed.data.language),
+        toFeedResponse(
+          concern,
+          true,
+          auth?.user?.displayLanguage ?? "original",
+          parsed.data.language,
+        ),
       ),
       nextCursor,
     });
@@ -262,11 +274,18 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(item, false, parsed.data.language));
+    return c.json(
+      toFeedResponse(
+        item,
+        false,
+        c.var.auth?.user?.displayLanguage ?? "original",
+        parsed.data.language,
+      ),
+    );
   });
 }
 
-function toResponse(concern: Concern) {
+function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
   return {
     id: concern.id,
     body: concern.body,
@@ -274,6 +293,7 @@ function toResponse(concern: Concern) {
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
@@ -287,6 +307,7 @@ function toResponse(concern: Concern) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
+  displayLanguage: DisplayLanguage,
   language: ConcernLanguage = "original",
 ) {
   const candidate = isFeedItem(source)
@@ -313,6 +334,7 @@ function toFeedResponse(
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     representations: {
       jaHira: getConcernRepresentationState(

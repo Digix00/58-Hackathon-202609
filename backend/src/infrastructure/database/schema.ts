@@ -23,6 +23,7 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    displayLanguage: text("display_language").notNull().default("original"),
     birthYear: integer("birth_year"),
     birthMonth: integer("birth_month"),
     genderCode: text("gender_code"),
@@ -32,6 +33,10 @@ export const users = sqliteTable(
   },
   (table) => ({
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
+    displayLanguageCheck: check(
+      "users_display_language_check",
+      sql`${table.displayLanguage} in ('original', 'jaHira', 'en')`,
+    ),
   }),
 );
 export const sessions = sqliteTable(
