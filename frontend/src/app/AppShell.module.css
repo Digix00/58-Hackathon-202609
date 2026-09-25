@@ -5,10 +5,12 @@
   height: 100svh;
   margin: 0 auto;
   background-color: var(--color-paper);
+  font-weight: var(--font-weight-regular);
 }
 
 .large {
   --font-scale: 1.25;
+  --font-weight-regular: 700;
 }
 
 .content {
