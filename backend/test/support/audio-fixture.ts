@@ -42,7 +42,11 @@ export function createMp3Audio(durationSeconds: number): Uint8Array {
   return audio;
 }
 
-export function createWebmAudio(durationSeconds: number): Uint8Array {
+export function createWebmAudio(
+  durationSeconds: number,
+  declaredDurationSeconds = durationSeconds,
+): Uint8Array {
+  const packetCount = Math.ceil(durationSeconds / 0.02);
   const ebmlHead = ebmlElement(
     [0x1a, 0x45, 0xdf, 0xa3],
     concat(
@@ -58,7 +62,10 @@ export function createWebmAudio(durationSeconds: number): Uint8Array {
     [0x15, 0x49, 0xa9, 0x66],
     concat(
       ebmlUint([0x2a, 0xd7, 0xb1], 1_000_000),
-      ebmlElement([0x44, 0x89], float64BigEndian(durationSeconds * 1_000)),
+      ebmlElement(
+        [0x44, 0x89],
+        float64BigEndian(declaredDurationSeconds * 1_000),
+      ),
     ),
   );
   const audioTrack = ebmlElement(
@@ -75,24 +82,65 @@ export function createWebmAudio(durationSeconds: number): Uint8Array {
           ebmlUint([0x9f], 1),
         ),
       ),
+      ebmlElement(
+        [0x63, 0xa2],
+        concat(
+          ascii("OpusHead"),
+          Uint8Array.of(1, 1, 0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0),
+        ),
+      ),
     ),
   );
   const tracks = ebmlElement([0x16, 0x54, 0xae, 0x6b], audioTrack);
-  const segment = concat(
-    Uint8Array.of(0x18, 0x53, 0x80, 0x67),
-    Uint8Array.of(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff),
-    info,
-    tracks,
+  const clusters: Uint8Array[] = [];
+  for (let firstPacket = 0; firstPacket < packetCount; firstPacket += 50) {
+    const clusterSecond = Math.floor(firstPacket / 50);
+    const blocks: Uint8Array[] = [];
+    for (
+      let packet = firstPacket;
+      packet < Math.min(firstPacket + 50, packetCount);
+      packet += 1
+    ) {
+      const blockTimecode = (packet - firstPacket) * 20;
+      blocks.push(
+        ebmlElement(
+          [0xa3],
+          concat(
+            Uint8Array.of(0x81),
+            u16be(blockTimecode),
+            Uint8Array.of(0x80),
+            Uint8Array.of(0xf8, 0xff),
+          ),
+        ),
+      );
+    }
+    clusters.push(
+      ebmlElement(
+        [0x1f, 0x43, 0xb6, 0x75],
+        concat(ebmlUint([0xe7], clusterSecond * 1_000), ...blocks),
+      ),
+    );
+  }
+  const segment = ebmlElement(
+    [0x18, 0x53, 0x80, 0x67],
+    concat(info, tracks, ...clusters),
   );
 
   return concat(ebmlHead, segment);
 }
 
-export function createMp4Audio(durationSeconds: number): Uint8Array {
+export function createMp4Audio(
+  durationSeconds: number,
+  declaredDurationSeconds = durationSeconds,
+): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
-  const movieDuration = Math.round(durationSeconds * movieTimescale);
-  const audioDuration = Math.round(durationSeconds * audioTimescale);
+  const sampleDuration = 1_024;
+  const sampleCount = Math.ceil(
+    (durationSeconds * audioTimescale) / sampleDuration,
+  );
+  const movieDuration = Math.round(declaredDurationSeconds * movieTimescale);
+  const audioDuration = Math.round(declaredDurationSeconds * audioTimescale);
   const movieHeader = concat(
     new Uint8Array(4),
     u32be(0),
@@ -139,6 +187,28 @@ export function createMp4Audio(durationSeconds: number): Uint8Array {
     new Uint8Array(12),
     Uint8Array.of(0),
   );
+  const decoderSpecificInfo = concat(Uint8Array.of(5, 2, 0x11, 0x88));
+  const decoderConfig = concat(
+    Uint8Array.of(0x40, 0x15, 0, 0, 0),
+    u32be(64_000),
+    u32be(64_000),
+    decoderSpecificInfo,
+  );
+  const decoderConfigDescriptor = concat(
+    Uint8Array.of(4, decoderConfig.length),
+    decoderConfig,
+  );
+  const esDescriptorBody = concat(
+    u16be(1),
+    Uint8Array.of(0),
+    decoderConfigDescriptor,
+    Uint8Array.of(6, 1, 2),
+  );
+  const esDescriptor = concat(
+    Uint8Array.of(3, esDescriptorBody.length),
+    esDescriptorBody,
+  );
+  const esds = atom("esds", concat(new Uint8Array(4), esDescriptor));
   const audioSampleEntry = atom(
     "mp4a",
     concat(
@@ -152,30 +222,81 @@ export function createMp4Audio(durationSeconds: number): Uint8Array {
       u16be(0),
       u16be(0),
       u32be(audioTimescale * 0x1_0000),
+      esds,
     ),
   );
   const sampleDescription = atom(
     "stsd",
     concat(new Uint8Array(4), u32be(1), audioSampleEntry),
   );
+  const timeToSample = atom(
+    "stts",
+    concat(
+      new Uint8Array(4),
+      u32be(1),
+      u32be(sampleCount),
+      u32be(sampleDuration),
+    ),
+  );
+  const sampleToChunk = atom(
+    "stsc",
+    concat(new Uint8Array(4), u32be(1), u32be(1), u32be(sampleCount), u32be(1)),
+  );
   const sampleSizes = atom(
     "stsz",
-    concat(new Uint8Array(4), u32be(0), u32be(0)),
+    concat(new Uint8Array(4), u32be(2), u32be(sampleCount)),
   );
-  const sampleTable = atom("stbl", concat(sampleDescription, sampleSizes));
-  const mediaInformation = atom("minf", sampleTable);
-  const media = atom(
-    "mdia",
-    concat(atom("mdhd", mediaHeader), atom("hdlr", handler), mediaInformation),
+  const chunkOffset = (offset: number) =>
+    atom("stco", concat(new Uint8Array(4), u32be(1), u32be(offset)));
+  const dataReference = atom(
+    "dref",
+    concat(
+      new Uint8Array(4),
+      u32be(1),
+      atom("url ", concat(Uint8Array.of(0, 0, 0, 1))),
+    ),
   );
-  const track = atom("trak", concat(atom("tkhd", trackHeader), media));
+  const sampleTable = (offset: number) =>
+    atom(
+      "stbl",
+      concat(
+        sampleDescription,
+        timeToSample,
+        sampleToChunk,
+        sampleSizes,
+        chunkOffset(offset),
+      ),
+    );
+  const makeMovie = (offset: number) => {
+    const mediaInformation = atom(
+      "minf",
+      concat(
+        atom("smhd", concat(new Uint8Array(4), new Uint8Array(4))),
+        atom("dinf", dataReference),
+        sampleTable(offset),
+      ),
+    );
+    const media = atom(
+      "mdia",
+      concat(
+        atom("mdhd", mediaHeader),
+        atom("hdlr", handler),
+        mediaInformation,
+      ),
+    );
+    const track = atom("trak", concat(atom("tkhd", trackHeader), media));
+    return atom("moov", concat(atom("mvhd", movieHeader), track));
+  };
   const fileType = atom(
     "ftyp",
     concat(ascii("M4A "), u32be(0), ascii("M4A isom")),
   );
-  const movie = atom("moov", concat(atom("mvhd", movieHeader), track));
+  const firstMovie = makeMovie(0);
+  const mediaDataOffset = fileType.length + firstMovie.length + 8;
+  const movie = makeMovie(mediaDataOffset);
+  const mediaData = atom("mdat", new Uint8Array(sampleCount * 2).fill(0xff));
 
-  return concat(fileType, movie);
+  return concat(fileType, movie, mediaData);
 }
 
 function writeAscii(view: DataView, offset: number, value: string): void {
@@ -231,11 +352,16 @@ function ebmlUint(id: number[], value: number): Uint8Array {
 }
 
 function ebmlSize(size: number): Uint8Array {
-  if (size < 127) {
-    return Uint8Array.of(0x80 | size);
-  }
-  if (size < 16_383) {
-    return Uint8Array.of(0x40 | (size >>> 8), size);
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    if (size < 2 ** (7 * byteLength) - 1) {
+      let value = BigInt(size) | (1n << BigInt(7 * byteLength));
+      const result = new Uint8Array(byteLength);
+      for (let index = byteLength - 1; index >= 0; index -= 1) {
+        result[index] = Number(value & 0xffn);
+        value >>= 8n;
+      }
+      return result;
+    }
   }
   throw new RangeError("EBML test element is too large");
 }

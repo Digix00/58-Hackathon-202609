@@ -1,7 +1,8 @@
 {
   // Excludes the remote Workers AI binding so `pnpm dev` runs fully locally
   // without Cloudflare authentication. See src/bootstrap/container.ts for the
-  // local adapters that stand in for it.
+  // local adapters that stand in for it. Speech transcription uses a clearly
+  // marked placeholder result when LOCAL_SPEECH_RECOGNIZER_ENABLED is true.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "58-hackathon-backend-dev",
   "main": "src/index.ts",
@@ -16,7 +17,8 @@
   "vars": {
     "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
     "CORS_ORIGIN": "http://localhost:5173",
-    "DEV_AUTH_ENABLED": "true"
+    "DEV_AUTH_ENABLED": "true",
+    "LOCAL_SPEECH_RECOGNIZER_ENABLED": "true"
   },
   "queues": {
     "producers": [

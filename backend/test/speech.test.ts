@@ -9,7 +9,8 @@ import type {
   SessionView,
 } from "../src/application/usecase/auth.usecase";
 import { SpeechUseCase } from "../src/application/usecase/speech.usecase";
-import { MusicMetadataSpeechAudioDurationReader } from "../src/infrastructure/ai/music-metadata-speech-audio-duration.reader";
+import { createApplication } from "../src/bootstrap/container";
+import { VerifiedSpeechAudioDurationReader } from "../src/infrastructure/ai/speech-audio-duration.reader";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { SpeechHandler } from "../src/presentation/speech.handler";
@@ -61,7 +62,7 @@ function createTestApp(
     speechHandler: new SpeechHandler(
       new SpeechUseCase(
         recognizer,
-        new MusicMetadataSpeechAudioDurationReader(),
+        new VerifiedSpeechAudioDurationReader(),
         rateLimiter,
       ),
     ),
@@ -104,6 +105,62 @@ async function postTranscription(
 }
 
 describe("POST /api/v1/speech/transcriptions", () => {
+  it("uses a deterministic recognizer only when the local development flag is enabled", async () => {
+    const localBindings = {
+      ...env,
+      DEV_AUTH_ENABLED: "true",
+      LOCAL_SPEECH_RECOGNIZER_ENABLED: "true",
+    };
+    const localApplication = createApplication(localBindings);
+    const session = await localApplication.app.request(
+      "/api/v1/auth/dev",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userKey: "demo-a" }),
+      },
+      localBindings,
+    );
+    expect(session.status).toBe(200);
+    const cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
+    expect(cookie).toBeTruthy();
+
+    const localForm = createAudioForm();
+    const localResponse = await localApplication.app.request(
+      "/api/v1/speech/transcriptions",
+      {
+        method: "POST",
+        headers: { Cookie: cookie! },
+        body: localForm,
+      },
+      localBindings,
+    );
+    expect(localResponse.status).toBe(200);
+    expect(await localResponse.json()).toEqual({
+      text: "[local-dev transcript]",
+      language: "ja",
+    });
+
+    const unconfiguredBindings = {
+      ...env,
+      DEV_AUTH_ENABLED: "true",
+    };
+    const unconfiguredApplication = createApplication(unconfiguredBindings);
+    const unavailableResponse = await unconfiguredApplication.app.request(
+      "/api/v1/speech/transcriptions",
+      {
+        method: "POST",
+        headers: { Cookie: cookie! },
+        body: createAudioForm(),
+      },
+      unconfiguredBindings,
+    );
+    expect(unavailableResponse.status).toBe(503);
+    expect(await unavailableResponse.json()).toMatchObject({
+      error: { code: "UPSTREAM_UNAVAILABLE" },
+    });
+  });
+
   it("returns Japanese transcription for an authenticated multipart audio upload", async () => {
     const transcribe = vi.fn(
       async (_audio: ArrayBuffer) => " 今日は疲れました ",

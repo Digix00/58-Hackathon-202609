@@ -12,9 +12,10 @@ import { QuizUseCase } from "../application/usecase/quiz.usecase";
 import { SpeechUseCase } from "../application/usecase/speech.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
+import { LocalSpeechRecognizer } from "../infrastructure/ai/local-speech.recognizer";
 import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
 import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
-import { MusicMetadataSpeechAudioDurationReader } from "../infrastructure/ai/music-metadata-speech-audio-duration.reader";
+import { VerifiedSpeechAudioDurationReader } from "../infrastructure/ai/speech-audio-duration.reader";
 import { WorkersAiConcernClusterSummaryGenerator } from "../infrastructure/ai/workers-ai-concern-cluster-summary.generator";
 import { WorkersAiSpeechRecognizer } from "../infrastructure/ai/workers-ai-speech.recognizer";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
@@ -133,11 +134,13 @@ export function createApplication(bindings: Bindings) {
   const quizHandler = new QuizHandler(quizUseCase);
   const speechRecognizer = bindings.AI
     ? new WorkersAiSpeechRecognizer(bindings.AI)
-    : null;
+    : bindings.LOCAL_SPEECH_RECOGNIZER_ENABLED === "true"
+      ? new LocalSpeechRecognizer()
+      : null;
   const speechHandler = new SpeechHandler(
     new SpeechUseCase(
       speechRecognizer,
-      new MusicMetadataSpeechAudioDurationReader(),
+      new VerifiedSpeechAudioDurationReader(),
       new D1SpeechRateLimiter(bindings.DB),
     ),
   );

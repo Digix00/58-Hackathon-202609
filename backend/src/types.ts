@@ -9,6 +9,7 @@ declare global {
       // ローカル開発では wrangler.dev.jsonc がこの binding を持たないため、
       // 未定義を許容してローカル用アダプタへフォールバックできるようにする。
       AI?: Ai;
+      LOCAL_SPEECH_RECOGNIZER_ENABLED?: string;
       CONCERN_PROCESSING_QUEUE?: Queue<ConcernProcessingMessage>;
       CONCERN_VECTOR_INDEX?: Vectorize;
       CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;
