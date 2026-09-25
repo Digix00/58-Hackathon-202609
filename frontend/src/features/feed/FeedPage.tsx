@@ -22,6 +22,7 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
 import { CoverArt } from './CoverArt'
+import { resolveFeedContext } from './feedContext'
 import {
   ALL,
   activeFeedFilterLabel,
@@ -541,8 +542,10 @@ export function FeedPage() {
   const { state: runtime } = useRuntime()
   const { status: authStatus } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
+  const feedContext = resolveFeedContext(runtime, authStatus)
   const feed = useFeed({
-    sort: 'newest',
+    enabled: feedContext.enabled,
+    sort: feedContext.sort,
     gender: reader.filter.gender || undefined,
     regionCode: reader.filter.region || undefined,
   })
@@ -573,7 +576,6 @@ export function FeedPage() {
     onFilterChange,
   } = readerView
   const { genderOptions, regionOptions } = buildFeedFilterOptions()
-  const isLiff = runtime.status === 'ready' && runtime.mode === 'liff'
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',
     initialReactionCount: concern?.reactionCount ?? 0,
@@ -608,7 +610,7 @@ export function FeedPage() {
   const actionsProps: FeedActionsProps = {
     showLogin,
     concern,
-    canReact: isLiff,
+    canReact: feedContext.isLiff,
     coverOpening,
     filtersOpen,
     activeFilter,
