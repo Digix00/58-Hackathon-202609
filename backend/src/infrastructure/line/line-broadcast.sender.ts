@@ -59,7 +59,10 @@ export class LineBroadcastApiSender implements LineBroadcastSender {
         JSON.stringify({
           severity: "ERROR",
           message: "line broadcast request failed",
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          error:
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error),
         }),
       );
       return { status: "unknown" };
