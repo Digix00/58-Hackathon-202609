@@ -158,6 +158,11 @@ LINE_CHANNEL_ID=<LINE LoginまたはLINE MINI AppのチャネルID>
 AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
 ```
 
+Workerは配信メッセージ内のクイズリンクを作るために`LINE_LIFF_ID`を使う。
+自動デプロイではフロントエンドと同じGitHub Actions Variable `VITE_LINE_LIFF_ID`をWorkerへ渡す。
+`CORS_ORIGIN`はブラウザーの許可Origin用であり、LIFFリンクの生成には使わない。
+手動でWorkerをデプロイする場合も、同じLIFF IDをWorkerの`LINE_LIFF_ID`変数へ設定する。
+
 フロントエンドから送られたIDトークンは、WorkerがLINEのVerify ID token APIへ送信して検証する。
 検証後はアプリ独自の`__Host-session` Cookieを発行し、以後のAPIではLINEトークンを再利用しない。
 
@@ -174,7 +179,7 @@ LINE_CHANNEL_ACCESS_TOKEN=<Messaging APIチャネルアクセストークン>
 INTERNAL_API_TOKEN=<内部配信API用の十分に長いランダム値>
 ```
 
-自動デプロイでは、これらを GitHub Secrets の `LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`INTERNAL_API_TOKEN` に設定する。`LINE_CHANNEL_ID` は既存の GitHub Secret を使う。GitHub Actions Variables には `CORS_ORIGIN`、`ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` を設定する。
+自動デプロイでは、これらを GitHub Secrets の `LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`INTERNAL_API_TOKEN` に設定する。`LINE_CHANNEL_ID` は既存の GitHub Secret を使う。GitHub Actions Variables には `VITE_LINE_LIFF_ID`、`CORS_ORIGIN`、`ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` を設定する。`VITE_LINE_LIFF_ID` はフロントエンドのLIFF初期化とWorkerの配信URL生成で共有する。
 
 管理画面 `/admin/line-broadcast` の API は Cloudflare Access で保護する。Cloudflare Access に管理画面と Worker API のアプリケーションを設定し、運用担当者だけを許可する。Workerの変数には次を設定する。
 

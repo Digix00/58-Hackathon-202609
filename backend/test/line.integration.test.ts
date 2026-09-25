@@ -45,7 +45,7 @@ function createTestApp() {
       },
     },
     { ensureDailyQuiz: async () => null },
-    "https://frontend.example",
+    "1234567890-AbcdEfgh",
     () => new Date(fixedNow),
   );
   const app = createApp({

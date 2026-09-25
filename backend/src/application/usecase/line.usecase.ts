@@ -7,6 +7,7 @@ import type { DailyQuizProvider } from "../port/daily-quiz-provider";
 import type { LineBroadcastSender } from "../port/line-broadcast-sender";
 import type { LineSignatureVerifier } from "../port/line-signature-verifier";
 import type { LineRepository } from "../repository/line.repository";
+import { createDailyQuizLiffUrl } from "../shared/daily-quiz-liff-url";
 import { generateId } from "../shared/id-generator";
 
 export class InvalidLineSignatureError extends Error {
@@ -47,7 +48,7 @@ export class LineUseCase {
   private readonly signatureVerifier: LineSignatureVerifier;
   private readonly broadcastSender: LineBroadcastSender;
   private readonly dailyQuizProvider: DailyQuizProvider;
-  private readonly frontendUrl: string | undefined;
+  private readonly liffId: string | undefined;
   private readonly now: () => Date;
   private readonly createId: () => string;
 
@@ -56,7 +57,7 @@ export class LineUseCase {
     signatureVerifier: LineSignatureVerifier,
     broadcastSender: LineBroadcastSender,
     dailyQuizProvider: DailyQuizProvider,
-    frontendUrl: string | undefined,
+    liffId: string | undefined,
     now: () => Date = () => new Date(),
     createId: () => string = generateId,
   ) {
@@ -64,7 +65,7 @@ export class LineUseCase {
     this.signatureVerifier = signatureVerifier;
     this.broadcastSender = broadcastSender;
     this.dailyQuizProvider = dailyQuizProvider;
-    this.frontendUrl = frontendUrl;
+    this.liffId = liffId;
     this.now = now;
     this.createId = createId;
   }
@@ -213,15 +214,11 @@ export class LineUseCase {
   };
 
   private getQuizUrl(): string {
-    if (!this.frontendUrl) {
+    const quizUrl = createDailyQuizLiffUrl(this.liffId);
+    if (!quizUrl) {
       throw new LineIntegrationConfigurationError();
     }
-
-    try {
-      return new URL("/quiz/today", this.frontendUrl).toString();
-    } catch {
-      throw new LineIntegrationConfigurationError();
-    }
+    return quizUrl;
   }
 }
 

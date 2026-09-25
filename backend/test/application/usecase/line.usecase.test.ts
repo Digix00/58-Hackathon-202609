@@ -63,7 +63,7 @@ describe("LineUseCase daily quiz runner", () => {
           return { id: "quiz-1", quizDate };
         },
       },
-      "https://frontend.example",
+      "1234567890-AbcdEfgh",
       () => new Date("2099-12-29T15:00:00.000Z"),
       (() => {
         let id = 0;
@@ -120,7 +120,7 @@ describe("LineUseCase daily quiz runner", () => {
           return null;
         },
       },
-      "https://frontend.example",
+      "1234567890-AbcdEfgh",
       () => new Date("2099-12-29T15:00:00.000Z"),
     );
 

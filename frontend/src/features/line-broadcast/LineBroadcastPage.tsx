@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getDailyBroadcastStatus,
   LineBroadcastApiError,
@@ -49,17 +49,27 @@ function useLineBroadcastPageState() {
   const [loading, setLoading] = useState(true)
   const [triggering, setTriggering] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pendingStatusRequest = useRef<Promise<DailyBroadcastStatus | null> | null>(null)
 
   const loadStatus = useCallback(async () => {
-    try {
-      const nextStatus = await getDailyBroadcastStatus()
-      setStatus(nextStatus)
-      setError(null)
-    } catch (cause) {
-      setError(toMessage(cause))
-    } finally {
-      setLoading(false)
-    }
+    if (pendingStatusRequest.current) return pendingStatusRequest.current
+
+    const request = (async () => {
+      try {
+        const nextStatus = await getDailyBroadcastStatus()
+        setStatus(nextStatus)
+        setError(null)
+        return nextStatus
+      } catch (cause) {
+        setError(toMessage(cause))
+        return null
+      } finally {
+        setLoading(false)
+        pendingStatusRequest.current = null
+      }
+    })()
+    pendingStatusRequest.current = request
+    return request
   }, [])
 
   useEffect(() => {
@@ -69,8 +79,24 @@ function useLineBroadcastPageState() {
 
   useEffect(() => {
     if (status?.broadcastStatus !== 'running') return
-    const timer = window.setTimeout(() => void loadStatus(), 5_000)
-    return () => window.clearTimeout(timer)
+
+    let active = true
+    let timer: number | undefined
+    const poll = async () => {
+      const nextStatus = await loadStatus()
+      if (!active) return
+
+      // APIエラー時は画面のrunning状態を保ち、次の周期で再取得する。
+      if (!nextStatus || nextStatus.broadcastStatus === 'running') {
+        timer = window.setTimeout(() => void poll(), 5_000)
+      }
+    }
+
+    timer = window.setTimeout(() => void poll(), 5_000)
+    return () => {
+      active = false
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
   }, [loadStatus, status?.broadcastStatus])
 
   const refresh = async () => {
@@ -82,14 +108,14 @@ function useLineBroadcastPageState() {
     setTriggering(true)
     setError(null)
     try {
-      setStatus(await triggerDailyBroadcast())
+      await triggerDailyBroadcast()
+      await loadStatus()
     } catch (cause) {
-      setError(toMessage(cause))
-      try {
-        setStatus(await getDailyBroadcastStatus())
-      } catch {
-        // Keep the original operation error; the refresh error adds no useful detail.
-      }
+      const triggerError = toMessage(cause)
+      setError(triggerError)
+      await loadStatus()
+      // Keep the trigger error if the status refresh also failed.
+      setError(triggerError)
     } finally {
       setTriggering(false)
     }

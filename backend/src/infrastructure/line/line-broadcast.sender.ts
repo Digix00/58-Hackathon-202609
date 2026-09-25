@@ -2,6 +2,7 @@ import type {
   LineBroadcastResult,
   LineBroadcastSender,
 } from "../../application/port/line-broadcast-sender";
+import { createDailyQuizLiffUrl } from "../../application/shared/daily-quiz-liff-url";
 
 const BROADCAST_ENDPOINT = "https://api.line.me/v2/bot/message/broadcast";
 
@@ -14,11 +15,11 @@ export class LineBroadcastApiSender implements LineBroadcastSender {
 
   constructor(
     accessToken: string | undefined,
-    frontendUrl: string | undefined,
+    liffId: string | undefined,
     fetcher: typeof fetch = fetch,
   ) {
     this.accessToken = accessToken;
-    this.quizUrl = frontendUrl ? makeQuizUrl(frontendUrl) : undefined;
+    this.quizUrl = createDailyQuizLiffUrl(liffId) ?? undefined;
     this.fetcher = fetcher;
   }
 
@@ -76,20 +77,5 @@ export class LineBroadcastApiSender implements LineBroadcastSender {
       requestId,
       acceptedRequestId,
     };
-  }
-}
-
-function makeQuizUrl(frontendUrl: string): string | undefined {
-  try {
-    const origin = new URL(frontendUrl);
-    if (origin.pathname !== "/" || origin.search || origin.hash) {
-      return undefined;
-    }
-    if (origin.protocol !== "https:" && origin.hostname !== "localhost") {
-      return undefined;
-    }
-    return new URL("/quiz/today", origin).toString();
-  } catch {
-    return undefined;
   }
 }

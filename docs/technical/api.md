@@ -21,7 +21,7 @@ WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の
 - LINE Webhook: POST /api/v1/webhooks/line
 - 内部配信 API: POST /api/v1/line/broadcasts/daily-quiz
 
-通常 API は Hono RPC の型共有対象とする。ヘルスチェック、LINE Webhook、内部配信 API は外部サービス・内部処理との境界が異なるため、通常の画面向け API と分けて扱う。
+通常 API、ヘルスチェック、管理画面向け配信 API は Hono RPC の型共有対象とする。管理画面向け API は Cloudflare Access と Origin 検証で保護する。LINE Webhook と内部配信 API は外部サービス・内部処理との境界が異なるため、画面向けの RPC 型から分けて扱う。
 
 ### 1.2 リクエストとレスポンス
 
@@ -961,7 +961,7 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 ### 9.3 管理画面向け配信 API
 
-通常の Hono RPC 型には含めない運用 API。管理画面 `/admin/line-broadcast` から使い、ブラウザーには `INTERNAL_API_TOKEN` を渡さない。
+管理画面 `/admin/line-broadcast` から使う運用 API。GET / POST は Hono RPC の `AppType` に含める。ブラウザーには `INTERNAL_API_TOKEN` を渡さない。
 
 #### 認証
 
@@ -1064,14 +1064,14 @@ PoCでは公開前の人手確認や自動判定を行わない。実在の個�
 - quizzes
 - history
 - speech transcriptions
+- GET /health
+- GET /api/v1/admin/line/broadcasts/daily-quiz
+- POST /api/v1/admin/line/broadcasts/daily-quiz
 
 次の endpoint は通常の画面向け RPC 型から分離する。
 
-- GET /health
 - POST /api/v1/webhooks/line
 - POST /api/v1/line/broadcasts/daily-quiz
-- GET /api/v1/admin/line/broadcasts/daily-quiz
-- POST /api/v1/admin/line/broadcasts/daily-quiz
 
 Hono の route chaining の型推論を維持するため、機能単位の route を createApp へ接続する。route の登録順は、固定パス /today をパラメータパス /:quizId より先に登録する。
 

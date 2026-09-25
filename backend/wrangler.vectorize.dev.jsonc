@@ -24,6 +24,7 @@
     "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
     "CONCERN_VECTOR_INDEX_VERSION": "development-v1",
     "CORS_ORIGIN": "http://localhost:5173",
+    "LINE_LIFF_ID": "local-development",
     "DEV_AUTH_ENABLED": "true",
     "DEV_ACCESS_BYPASS": "true",
     "DEV_LINE_BROADCAST_SIMULATION": "true"

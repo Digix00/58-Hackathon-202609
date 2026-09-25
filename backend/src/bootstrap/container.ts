@@ -139,7 +139,7 @@ export function createApplication(bindings: Bindings) {
     ? new LocalLineBroadcastSender()
     : new LineBroadcastApiSender(
         bindings.LINE_CHANNEL_ACCESS_TOKEN,
-        bindings.CORS_ORIGIN,
+        bindings.LINE_LIFF_ID,
       );
   const lineSignatureVerifier = new HmacLineSignatureVerifier(
     bindings.LINE_CHANNEL_SECRET,
@@ -149,7 +149,7 @@ export function createApplication(bindings: Bindings) {
     lineSignatureVerifier,
     lineBroadcastSender,
     quizUseCase,
-    bindings.CORS_ORIGIN,
+    bindings.LINE_LIFF_ID,
   );
   const lineHandler = new LineHandler(lineUseCase);
 

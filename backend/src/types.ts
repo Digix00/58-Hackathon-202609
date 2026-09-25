@@ -14,6 +14,7 @@ declare global {
       CONCERN_CLUSTER_SIMILARITY_THRESHOLD?: string;
       CONCERN_VECTOR_INDEX_VERSION?: string;
       LINE_CHANNEL_ID?: string;
+      LINE_LIFF_ID?: string;
       LINE_CHANNEL_SECRET?: string;
       LINE_CHANNEL_ACCESS_TOKEN?: string;
       INTERNAL_API_TOKEN?: string;

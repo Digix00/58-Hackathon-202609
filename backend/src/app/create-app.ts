@@ -29,24 +29,29 @@ export interface ApplicationDependencies {
   userHandler: UserHandler;
 }
 
-/** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
-export function createApp({
+type AppEnvironment = {
+  Bindings: Bindings;
+  Variables: {
+    auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
+  };
+};
+
+type DependenciesWithLineHandler = ApplicationDependencies & {
+  lineHandler: LineHandler;
+};
+
+/** DI済みの画面向けハンドラーをルートへ接続する。 */
+function createPublicApp({
   authHandler,
   authUseCase,
   concernHandler,
   concernReactionHandler,
   concernViewHandler,
   healthHandler,
-  lineHandler,
   quizHandler,
   userHandler,
 }: ApplicationDependencies) {
-  const app = new Hono<{
-    Bindings: Bindings;
-    Variables: {
-      auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
-    };
-  }>();
+  const app = new Hono<AppEnvironment>();
 
   app.use("*", requestLogger);
   app.use("*", (c, next) => {
@@ -79,34 +84,58 @@ export function createApp({
     .get("/api/v1/quizzes/:quizId", ...quizHandler.getById)
     .post("/api/v1/quizzes/:quizId/answers", ...quizHandler.answer);
 
-  // 運用 API は実行時 app にだけ登録し、Hono RPC の AppType には公開しない。
-  const runtimeApp = publicApp as Hono<{
-    Bindings: Bindings;
-    Variables: {
-      auth: Awaited<ReturnType<IAuthUseCase["getSession"]>>;
-    };
-  }>;
-  if (lineHandler) {
-    runtimeApp
-      .post("/api/v1/webhooks/line", ...lineHandler.webhook)
-      .post(
-        "/api/v1/line/broadcasts/daily-quiz",
-        ...lineHandler.internalBroadcast,
-      )
-      .get(
-        "/api/v1/admin/line/broadcasts/daily-quiz",
-        requireCloudflareAccess,
-        ...lineHandler.adminStatus,
-      )
-      .post(
-        "/api/v1/admin/line/broadcasts/daily-quiz",
-        requireCloudflareAccess,
-        requireAllowedAdminOrigin,
-        ...lineHandler.adminTrigger,
-      );
-  }
-
   return publicApp;
 }
 
-export type AppType = ReturnType<typeof createApp>;
+/**
+ * 管理画面用 API を RPC 型に含める。Webhook と内部配信 API は実行時だけ登録し、
+ * 画面向け AppType には含めない。
+ */
+function createAppWithLineHandler({
+  lineHandler,
+  ...dependencies
+}: DependenciesWithLineHandler) {
+  const app = createPublicApp(dependencies)
+    .get(
+      "/api/v1/admin/line/broadcasts/daily-quiz",
+      requireCloudflareAccess,
+      ...lineHandler.adminStatus,
+    )
+    .post(
+      "/api/v1/admin/line/broadcasts/daily-quiz",
+      requireCloudflareAccess,
+      requireAllowedAdminOrigin,
+      ...lineHandler.adminTrigger,
+    );
+
+  // Hono は同じインスタンスへルートを追加する。戻り値を app に代入しないことで、
+  // 外部・内部連携専用ルートを画面向け RPC 型から除外したまま登録する。
+  app
+    .post("/api/v1/webhooks/line", ...lineHandler.webhook)
+    .post(
+      "/api/v1/line/broadcasts/daily-quiz",
+      ...lineHandler.internalBroadcast,
+    );
+
+  return app;
+}
+
+export function createApp(
+  dependencies: DependenciesWithLineHandler,
+): ReturnType<typeof createAppWithLineHandler>;
+export function createApp(
+  dependencies: Omit<ApplicationDependencies, "lineHandler">,
+): ReturnType<typeof createPublicApp>;
+/** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
+export function createApp(dependencies: ApplicationDependencies) {
+  if (dependencies.lineHandler) {
+    return createAppWithLineHandler({
+      ...dependencies,
+      lineHandler: dependencies.lineHandler,
+    });
+  }
+
+  return createPublicApp(dependencies);
+}
+
+export type AppType = ReturnType<typeof createAppWithLineHandler>;

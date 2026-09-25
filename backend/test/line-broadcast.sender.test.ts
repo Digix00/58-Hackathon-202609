@@ -32,7 +32,10 @@ it("simulates local broadcast without calling LINE", async () => {
   expect(sender.deliveryMode).toBe("simulation");
   expect(sender.isConfigured()).toBe(true);
   await expect(
-    sender.sendDailyQuiz("https://frontend.example/quiz/today", "retry-key"),
+    sender.sendDailyQuiz(
+      "https://liff.line.me/1234567890-AbcdEfgh/quiz/today",
+      "retry-key",
+    ),
   ).resolves.toEqual({
     status: "accepted",
     httpStatus: 200,
@@ -46,7 +49,7 @@ describe("LineBroadcastApiSender", () => {
     let request: Request | undefined;
     const sender = new LineBroadcastApiSender(
       "test-access-token",
-      "https://frontend.example",
+      "1234567890-AbcdEfgh",
       async (input, init) => {
         request = new Request(input, init);
         return new Response(null, {
@@ -57,7 +60,7 @@ describe("LineBroadcastApiSender", () => {
     );
 
     const result = await sender.sendDailyQuiz(
-      "https://frontend.example/quiz/today",
+      "https://liff.line.me/1234567890-AbcdEfgh/quiz/today",
       "retry-key-1",
     );
 
@@ -76,16 +79,16 @@ describe("LineBroadcastApiSender", () => {
       messages: [
         {
           type: "text",
-          text: "今日のクイズが届きました。\nhttps://frontend.example/quiz/today",
+          text: "今日のクイズが届きました。\nhttps://liff.line.me/1234567890-AbcdEfgh/quiz/today",
         },
       ],
     });
   });
 
-  it("keeps browser URLs out of the message when the frontend origin is invalid", () => {
+  it("does not configure LINE broadcast when the LIFF ID is invalid", () => {
     const sender = new LineBroadcastApiSender(
       "test-access-token",
-      "https://bad-origin.example/path",
+      "invalid/liff-id",
     );
     expect(sender.isConfigured()).toBe(false);
   });
