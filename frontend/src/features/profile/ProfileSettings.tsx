@@ -1,5 +1,7 @@
 import { useCallback, useReducer } from 'react'
 import { useAuth } from '../../auth/useAuth'
+import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
+import { regionLabel } from '../../shared/concernPresentation'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import settingsStyles from '../../shared/styles/Settings.module.css'
 import actionStyles from '../../shared/styles/Actions.module.css'
@@ -128,6 +130,7 @@ function useProfileSettings() {
 }
 
 export function ProfileSettings() {
+  const { language } = useDisplaySettings()
   const {
     authStatus,
     effectiveProfile,
@@ -180,7 +183,10 @@ export function ProfileSettings() {
             <SelectField
               label="地域"
               value={effectiveProfile.regionCode}
-              options={REGION_OPTIONS.map(([value, label]) => ({ value, label }))}
+              options={REGION_OPTIONS.map(([value]) => ({
+                value,
+                label: regionLabel(value, language) ?? value,
+              }))}
               disabled={isSaving}
               onChange={(value) => updateField({ field: 'regionCode', value })}
             />

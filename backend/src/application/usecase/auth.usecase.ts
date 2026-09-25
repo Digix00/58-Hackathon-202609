@@ -1,6 +1,9 @@
 import type { Session } from "../entity/session";
 import type { User } from "../entity/user";
-import type { LineTokenVerifier } from "../port/line-token-verifier";
+import type {
+  LineIdentity,
+  LineTokenVerifier,
+} from "../port/line-token-verifier";
 import type {
   SessionRepository,
   UserRepository,
@@ -25,6 +28,10 @@ export interface SessionResult extends SessionView {
 export interface IAuthUseCase {
   authenticateWithLine(
     idToken: string,
+    currentToken?: string,
+  ): Promise<SessionResult>;
+  authenticateWithIdentity(
+    identity: LineIdentity,
     currentToken?: string,
   ): Promise<SessionResult>;
   getOrCreateSession(currentToken?: string): Promise<SessionResult>;
@@ -63,6 +70,13 @@ export class AuthUseCase implements IAuthUseCase {
     currentToken?: string,
   ): Promise<SessionResult> {
     const identity = await this.lineTokenVerifier.verify(idToken);
+    return this.authenticateWithIdentity(identity, currentToken);
+  }
+
+  async authenticateWithIdentity(
+    identity: LineIdentity,
+    currentToken?: string,
+  ): Promise<SessionResult> {
     const user = await this.users.selectOrCreateByLineUserId(
       identity.lineUserId,
       this.createId(),

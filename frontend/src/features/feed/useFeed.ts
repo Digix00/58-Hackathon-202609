@@ -2,7 +2,10 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { listConcerns } from './feedApi'
 import type { FeedItem, FeedQuery, FeedStatus } from './feedTypes'
 
-export type UseFeedOptions = Omit<FeedQuery, 'cursor'>
+export type UseFeedOptions = Omit<FeedQuery, 'cursor'> & {
+  enabled?: boolean
+  authUserId?: string
+}
 
 export interface UseFeedResult {
   status: FeedStatus
@@ -79,20 +82,25 @@ function feedReducer(state: FeedState, action: FeedAction): FeedState {
 export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
   const limit = typeof options === 'number' ? options : (options.limit ?? 20)
   const sort = typeof options === 'number' ? 'newest' : (options.sort ?? 'newest')
+  const gender = typeof options === 'number' ? undefined : options.gender
   const regionCode = typeof options === 'number' ? undefined : options.regionCode
   const clusterId = typeof options === 'number' ? undefined : options.clusterId
+  const enabled = typeof options === 'number' ? true : (options.enabled ?? true)
+  const authUserId = typeof options === 'number' ? undefined : options.authUserId
   const [state, dispatch] = useReducer(feedReducer, initialFeedState)
   const requestVersion = useRef(0)
   const isLoading = useRef(false)
   const cursorRef = useRef<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!enabled) return
+
     const version = ++requestVersion.current
     isLoading.current = true
     cursorRef.current = null
     dispatch({ type: 'loadStarted' })
 
-    const result = await listConcerns({ limit, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -107,9 +115,11 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, limit, regionCode, sort])
+  }, [clusterId, enabled, gender, limit, regionCode, sort])
 
   const loadMore = useCallback(async (): Promise<void> => {
+    if (!enabled) return
+
     const cursor = cursorRef.current
     if (isLoading.current || !cursor) return
 
@@ -117,7 +127,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     isLoading.current = true
     dispatch({ type: 'loadMoreStarted' })
 
-    const result = await listConcerns({ limit, cursor, sort, regionCode, clusterId })
+    const result = await listConcerns({ limit, cursor, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -132,11 +142,13 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, limit, regionCode, sort])
+  }, [clusterId, enabled, gender, limit, regionCode, sort])
 
   const retry = useCallback(() => refresh(), [refresh])
 
   useEffect(() => {
+    if (!enabled) return
+
     let active = true
     void Promise.resolve().then(() => {
       if (!active) return
@@ -147,7 +159,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       requestVersion.current += 1
       isLoading.current = false
     }
-  }, [refresh])
+  }, [authUserId, enabled, refresh])
 
   return {
     status: state.status,

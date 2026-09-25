@@ -66,7 +66,7 @@ Accept: application/json
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
 `POST /api/v1/auth/line` と `GET /api/v1/auth/session` の認証済みレスポンスには、
-ログインユーザー自身のプロフィール情報と `profileCompleted` を含める。プロフィール未入力の
+ログインユーザー自身のプロフィール情報、`displayLanguage`、`profileCompleted` を含める。プロフィール未入力の
 ユーザーは `profileCompleted=false` となり、`PUT /api/v1/users/me` で登録する。
 
 次の値は信頼しない。
@@ -208,7 +208,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 - limit の既定値は 20、指定可能な範囲は 1〜50
 - cursor はサーバーが発行する opaque string とする
 - クライアントは cursor をデコード・編集してはならない
-- cursor が不正、期限切れ、または Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
+- cursor が不正、期限切れ、または sort、clusterId、gender、regionCode の Query 条件と一致しない場合は 400 INVALID_CURSOR を返す
 - nextCursor が null の場合、次のページはない
 - newest の並びは createdAt DESC, id DESC とし、同時刻でも順序を安定させる
 - recommended の cursor は、そのフィードの条件と推薦アルゴリズムのバージョンに紐づける
@@ -228,9 +228,11 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | --- | --- | --- | --- | --- |
 | GET | /health | 実装済み | 不要 | Worker / D1 の疎通確認 |
 | POST | /api/v1/auth/line | 実装済み | LIFF ID token | LINE ID token を検証し、Cookie セッションを発行 |
+| POST | /api/v1/auth/dev | ローカル開発のみ | 開発用固定キー | 開発用ユーザーへCookieセッションを発行。本番設定では404 |
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | ログイン状態を復元し、Cookie がない場合は未認証セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
+| PUT | /api/v1/users/me/display-language | 実装済み | LINEログイン済みセッション | ログインユーザー自身の都道府県表示形式を更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -249,6 +251,10 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
+
+`POST /api/v1/auth/dev` はローカル開発専用であり、本番のAPI契約には含めない。`DEV_AUTH_ENABLED=true` のWorkerだけが、
+サーバー側で定義した `demo-a`、`demo-b`、`demo-c` を受け付ける。任意の `userId`、LINE user ID、アクセストークンは受け付けず、
+発行するCookieと以降の認証処理はLINEログインと同じ経路を利用する。
 
 ### 2.1 PUT /api/v1/users/me
 
@@ -279,6 +285,7 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
   "authenticated": true,
   "user": {
     "id": "opaque-user-id",
+    "displayLanguage": "original",
     "birthYear": 2002,
     "birthMonth": 9,
     "gender": "no_answer",
@@ -290,6 +297,23 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
 
 `id` は既存の認証レスポンスとの互換性のために返す内部 opaque IDであり、LINE user IDは返さない。
 未認証の場合は401 `AUTHENTICATION_REQUIRED`、入力値が不正な場合は400 `INVALID_REQUEST`を返す。
+
+### 2.2 PUT /api/v1/users/me/display-language
+
+LINEログイン済みユーザー自身の都道府県表示形式を更新する。表示形式は `original`、`jaHira`、`en` のいずれかとする。
+
+#### Request
+
+~~~json
+{
+  "displayLanguage": "jaHira"
+}
+~~~
+
+#### Response: 200 OK
+
+認証レスポンスと同じユーザー情報を返す。`displayLanguage` は更新後の値となる。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`を返す。
 
 ## 3. 悩み API
 
@@ -325,7 +349,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 3. concerns を visibilityStatus=published で保存する
 4. ja_hira、en_translation、clustering の非同期ジョブを登録する
 5. 投稿 ID と保存時点の状態を返す
-6. 各非同期処理の完了後に processingStatus と派生データを更新する
+6. Queue consumerがひらがな・英語表現とEmbeddingを生成し、Vectorizeで近傍照合する。D1へ表現とcluster IDを保存し、VectorizeへEmbeddingをupsertした後に processingStatus を更新する
 
 #### Response: 201 Created
 
@@ -336,7 +360,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
   "attributes": {
     "ageGroup": "20s",
     "gender": "no_answer",
-    "regionCode": "osaka"
+    "regionCode": "osaka",
+    "regionName": "大阪府"
   },
   "visibilityStatus": "published",
   "processingStatus": "pending",
@@ -352,6 +377,12 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - PoCで受け付けた新規投稿は visibilityStatus=published、processingStatus=pending で返す
 - 投稿本文の翻訳・ひらがな化・クラスタリングが未完了でも、published の原文投稿は一般フィードへ返す
+- Vectorizeは投稿処理内のクラスタリングに限って使い、利用者が任意の文章を送る検索APIやRAGは提供しない
+- 近傍上位10件を調べ、cosine scoreが既定値0.8以上の最上位clusterへ割り当てる。類似候補のない投稿は新しいclusterを作成する
+- Vectorizeへのupsertは検索可能になるまで遅延することがあり、短時間に連続した投稿を最初の処理で同じclusterへ割り当てられない場合がある
+- 近傍検索の設定はEmbedding modelとVectorize indexの組に固定する
+- 新しいクラスタではQueue処理中に表示用labelとsummaryを生成する。生成前はnullで、完了するとcluster一覧・フィードで表示される
+- 生成済みクラスタへ悩みが追加された後のlabel・summary再生成は後続処理で扱う
 - hidden または deleted の投稿は一般フィードへ返さない
 - 保存成功後の外部処理失敗では投稿を削除しない
 - 既存の入力制限に該当する場合は 400 または 422 を返し、保存しない
@@ -366,8 +397,9 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | --- | --- | --- | --- |
 | limit | 任意 | 20 | 1〜50 |
 | cursor | 任意 | — | 次ページの opaque cursor |
-| sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
+| sort | 任意 | newest | recommended または newest。未ログインでrecommendedを指定した場合はnewestとして扱う |
 | clusterId | 任意 | — | 指定クラスタに絞る |
+| gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | original | original、jaHira、en |
 
@@ -383,7 +415,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       "attributes": {
         "ageGroup": "20s",
         "gender": "no_answer",
-        "regionCode": "osaka"
+        "regionCode": "osaka",
+        "regionName": "大阪府"
       },
       "representations": {
         "jaHira": "ready",
@@ -391,8 +424,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       },
       "cluster": {
         "id": "cluster_01J...",
-        "label": "昼休み・食堂",
-        "summary": "昼休み中の食事や休憩に関する悩み"
+        "label": null,
+        "summary": null
       },
       "reactionCount": 12,
       "viewed": false,
@@ -410,11 +443,15 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 
 - visibilityStatus が published の投稿だけを返す
 - hidden、deleted の投稿は 404 と区別せず、一覧から除外する
+- gender を指定した場合は、投稿の gender コードが指定値と完全一致する投稿だけを返す
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
+- `attributes.regionName` はログイン済みユーザーの `displayLanguage` に合わせた都道府県名。未ログイン時は原文表記とする
+- `attributes.regionCode` は検索用コードとして常に維持し、表示には `regionName` を利用する
+- この対応では表示形式の切り替えを都道府県名に適用し、投稿本文の表示動作は変更しない
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
-- sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、都道府県の分散、新しさを使う
-- 未ログインの取得で sort=recommended を指定した場合は 400 AUTHENTICATION_REQUIRED を返す
+- sort=recommended はLINEログイン済みLIFFで、未読、クラスタの分散、都道府県の分散、新しさを使う
+- 未ログインの取得で sort=recommended を指定した場合は、公開閲覧を継続するため sort=newest と同じ結果を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す
 - 推薦理由の code は画面側で表示文言へ変換する。サーバーは内部のスコアや個人識別情報を返さない
 
@@ -431,6 +468,7 @@ reasonCode の初期値は次のとおり。
 公開済みの悩みを 1 件返す。
 
 - Response の item 形式は GET /api/v1/concerns の items と同じ。ただし詳細取得では recommendation を省略する
+- 都道府県名はログイン済みユーザーの `displayLanguage` に合わせ、未ログイン時は原文表記とする
 - 非公開または存在しない concernId は 404 NOT_FOUND
 - 詳細取得だけでは既読にしない。画面表示後に 3.5 の既読 API を呼び出す
 - 投稿者を特定できる users.id、LINE user ID、LINE profile 情報は返さない
@@ -515,7 +553,6 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- cluster の label、summary は AI 生成後に長さ、禁止語、個人情報を検査する
 - 公開済みの悩みが 0 件のクラスタは返さない
 - concernCount は published の悩みだけを数える
 
@@ -569,7 +606,7 @@ reasonCode の初期値は次のとおり。
       "attributes": {
         "ageGroup": "no_answer",
         "gender": "no_answer",
-        "regionCode": "osaka"
+        "regionCode": "hyogo"
       },
       "displayOrder": 3
     }
@@ -600,6 +637,7 @@ reasonCode の初期値は次のとおり。
 
 - participants と concerns はそれぞれ 3 件ちょうど返す
 - participants と concerns の配列順はそれぞれシャッフルする
+- 3 件の participants は、ageGroup、gender、regionCode の各属性がそれぞれ重複しない組み合わせにする。未入力値は `no_answer` として扱う
 - participantId は当該クイズ内だけで利用する opaque ID とし、users.id や LINE user ID を使わない
 - concernId は公開済みの元投稿を参照するが、参加者との正しい対応は返さない
 - 3 件の concern は実際の投稿であり、架空の選択肢は作らない
@@ -952,19 +990,19 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 concern の保存後に、次の処理を非同期で実行する。
 
-PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。個別ジョブの状態を持つ `concern_processing_jobs` テーブルと派生データの保存は、後続の実装で追加する。
+PoCでは `concern.process` メッセージをCloudflare Queueへ送信し、Queue consumerからUseCaseを起動する。生成したひらがな・英語表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。個別ジョブ単位の状態を持つ `concern_processing_jobs` テーブルはこの段階では追加しない。
 
 - ja_hira
 - en_translation
-- clustering
+- Embedding生成とクラスタ割当
 
-API が返す concerns.processingStatus は処理全体の概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。
+API が返す concerns.processingStatus は、表現生成・保存、Embedding生成、クラスタ割当、新規クラスタの表示ラベル・要約生成までの概要値とする。個別ジョブの内部状態や外部 AI の生レスポンスは画面向け API に返さない。失敗時は原文を表示し、クラスタをフィードに返さない。
 
 | processingStatus | 意味 |
 | --- | --- |
 | pending | ジョブ登録済みで未開始 |
 | processing | いずれかのジョブを実行中 |
-| ready | 画面表示に必要な派生データが生成済み |
+| ready | 表現の保存、Embeddingの近傍照合・クラスタ割当、および新規クラスタの表示ラベル・要約保存が完了 |
 | failed | 一部失敗。ただし原文は利用可能 |
 
 失敗時の共通ルール:

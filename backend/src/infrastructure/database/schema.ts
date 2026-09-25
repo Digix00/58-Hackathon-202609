@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   integer,
   primaryKey,
@@ -22,6 +23,7 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    displayLanguage: text("display_language").notNull().default("original"),
     birthYear: integer("birth_year"),
     birthMonth: integer("birth_month"),
     genderCode: text("gender_code"),
@@ -31,6 +33,10 @@ export const users = sqliteTable(
   },
   (table) => ({
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
+    displayLanguageCheck: check(
+      "users_display_language_check",
+      sql`${table.displayLanguage} in ('original', 'jaHira', 'en')`,
+    ),
   }),
 );
 export const sessions = sqliteTable(
@@ -53,8 +59,10 @@ export const concernClusters = sqliteTable(
   "concern_clusters",
   {
     id: text("id").primaryKey(),
-    label: text("label").notNull(),
-    summary: text("summary").notNull(),
+    legacyLabel: text("legacy_label").notNull(),
+    legacySummary: text("legacy_summary").notNull(),
+    label: text("label"),
+    summary: text("summary"),
     status: text("status").notNull().default("ready"),
     modelVersion: text("model_version"),
     createdAt: text("created_at").notNull(),
@@ -77,6 +85,7 @@ export const concerns = sqliteTable(
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
     clusterId: text("cluster_id").references(() => concernClusters.id),
+    embeddingVersion: text("embedding_version"),
     visibilityStatus: text("visibility_status").notNull().default("published"),
     processingStatus: text("processing_status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
@@ -116,6 +125,31 @@ export const concerns = sqliteTable(
     processingStatusCheck: check(
       "concerns_processing_status_check",
       sql`${table.processingStatus} in ('pending', 'processing', 'ready', 'failed')`,
+    ),
+  }),
+);
+
+export const concernRepresentations = sqliteTable(
+  "concern_representations",
+  {
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    locale: text("locale").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("ready"),
+    errorCode: text("error_code"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({ columns: [table.concernId, table.locale] }),
+    localeCheck: check(
+      "concern_representations_locale_check",
+      sql`${table.locale} in ('ja-Hira', 'en')`,
+    ),
+    statusCheck: check(
+      "concern_representations_status_check",
+      sql`${table.status} in ('ready', 'failed')`,
     ),
   }),
 );
@@ -188,6 +222,167 @@ export const feedImpressions = sqliteTable(
     userIndex: index("feed_impressions_user_idx").on(
       table.userId,
       table.exposedAt,
+    ),
+  }),
+);
+
+export const quizzes = sqliteTable(
+  "quizzes",
+  {
+    id: text("id").primaryKey(),
+    quizDate: text("quiz_date").notNull(),
+    status: text("status").notNull().default("draft"),
+    createdAt: text("created_at").notNull(),
+    publishedAt: text("published_at"),
+    hiddenAt: text("hidden_at"),
+  },
+  (table) => ({
+    quizDateIndex: uniqueIndex("quizzes_quiz_date_idx").on(table.quizDate),
+    statusDateIndex: index("quizzes_status_date_idx").on(
+      table.status,
+      table.quizDate,
+    ),
+    statusCheck: check(
+      "quizzes_status_check",
+      sql`${table.status} in ('draft', 'published', 'closed', 'hidden')`,
+    ),
+  }),
+);
+
+export const quizParticipants = sqliteTable(
+  "quiz_participants",
+  {
+    id: text("id").primaryKey(),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    displayOrder: integer("display_order").notNull(),
+    ageGroupSnapshot: text("age_group_snapshot"),
+    genderSnapshot: text("gender_snapshot"),
+    regionCodeSnapshot: text("region_code_snapshot"),
+    explanation: text("explanation").notNull(),
+  },
+  (table) => ({
+    quizUserIndex: uniqueIndex("quiz_participants_quiz_user_idx").on(
+      table.quizId,
+      table.userId,
+    ),
+    quizConcernIndex: uniqueIndex("quiz_participants_quiz_concern_idx").on(
+      table.quizId,
+      table.concernId,
+    ),
+    quizParticipantIndex: uniqueIndex("quiz_participants_quiz_id_idx").on(
+      table.id,
+      table.quizId,
+    ),
+    displayOrderCheck: check(
+      "quiz_participants_display_order_check",
+      sql`${table.displayOrder} between 1 and 3`,
+    ),
+    ageGroupCheck: check(
+      "quiz_participants_age_group_check",
+      sql`${table.ageGroupSnapshot} is null or ${table.ageGroupSnapshot} in ('10s', '20s', '30s', '40s', '50s', '60s', '70s', '80s', '90s_plus', 'no_answer')`,
+    ),
+    genderCheck: check(
+      "quiz_participants_gender_check",
+      sql`${table.genderSnapshot} is null or ${table.genderSnapshot} in ('male', 'female', 'non_binary', 'other', 'no_answer')`,
+    ),
+  }),
+);
+
+export const quizOptions = sqliteTable(
+  "quiz_options",
+  {
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    concernId: text("concern_id")
+      .notNull()
+      .references(() => concerns.id),
+    displayOrder: integer("display_order").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({ columns: [table.quizId, table.concernId] }),
+    participantForeignKey: foreignKey({
+      columns: [table.quizId, table.concernId],
+      foreignColumns: [quizParticipants.quizId, quizParticipants.concernId],
+      name: "quiz_options_participant_fk",
+    }),
+    displayOrderIndex: uniqueIndex("quiz_options_quiz_order_idx").on(
+      table.quizId,
+      table.displayOrder,
+    ),
+    displayOrderCheck: check(
+      "quiz_options_display_order_check",
+      sql`${table.displayOrder} between 1 and 3`,
+    ),
+  }),
+);
+
+export const quizAttempts = sqliteTable(
+  "quiz_attempts",
+  {
+    id: text("id").primaryKey(),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    score: integer("score").notNull(),
+    answeredAt: text("answered_at").notNull(),
+  },
+  (table) => ({
+    quizUserIndex: uniqueIndex("quiz_attempts_quiz_user_idx").on(
+      table.quizId,
+      table.userId,
+    ),
+    attemptQuizIndex: uniqueIndex("quiz_attempts_id_quiz_idx").on(
+      table.id,
+      table.quizId,
+    ),
+    scoreCheck: check(
+      "quiz_attempts_score_check",
+      sql`${table.score} between 0 and 3`,
+    ),
+  }),
+);
+
+export const quizAnswers = sqliteTable(
+  "quiz_answers",
+  {
+    attemptId: text("attempt_id").notNull(),
+    quizId: text("quiz_id").notNull(),
+    participantId: text("participant_id").notNull(),
+    selectedConcernId: text("selected_concern_id").notNull(),
+    isCorrect: integer("is_correct").notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({ columns: [table.attemptId, table.participantId] }),
+    attemptForeignKey: foreignKey({
+      columns: [table.attemptId, table.quizId],
+      foreignColumns: [quizAttempts.id, quizAttempts.quizId],
+      name: "quiz_answers_attempt_quiz_fk",
+    }),
+    participantForeignKey: foreignKey({
+      columns: [table.participantId, table.quizId],
+      foreignColumns: [quizParticipants.id, quizParticipants.quizId],
+      name: "quiz_answers_participant_quiz_fk",
+    }),
+    concernForeignKey: foreignKey({
+      columns: [table.quizId, table.selectedConcernId],
+      foreignColumns: [quizOptions.quizId, quizOptions.concernId],
+      name: "quiz_answers_option_fk",
+    }),
+    correctCheck: check(
+      "quiz_answers_is_correct_check",
+      sql`${table.isCorrect} in (0, 1)`,
     ),
   }),
 );

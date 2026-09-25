@@ -126,11 +126,10 @@ export class ConcernUseCase implements IConcernUseCase {
     this.repository.findPublishedById(id);
 
   readonly listFeed = async (input: ListFeedInput): Promise<ListFeedResult> => {
-    if (input.sort === "recommended" && !input.userId) {
-      throw new Error("recommended feed requires an authenticated user");
-    }
+    const sort =
+      input.sort === "recommended" && !input.userId ? "newest" : input.sort;
 
-    if (input.sort === "newest") {
+    if (sort === "newest") {
       const result = await this.listFeedCandidates(input);
       return {
         items: result.items.map((candidate) => ({
@@ -200,6 +199,7 @@ export class ConcernUseCase implements IConcernUseCase {
         const candidates = await this.listFeedCandidates({
           limit: candidateLimit,
           cursor: sourceCursor ?? undefined,
+          gender: input.gender,
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
@@ -247,6 +247,7 @@ export class ConcernUseCase implements IConcernUseCase {
         const fallback = await this.listFeedCandidates({
           limit: recommendationCursor ? candidateLimit : input.limit,
           cursor: candidateWindowCursor ?? undefined,
+          gender: input.gender,
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
@@ -305,6 +306,7 @@ export class ConcernUseCase implements IConcernUseCase {
 
     const candidates = await this.repository.listFeedByIds({
       ids,
+      gender: input.gender,
       regionCode: input.regionCode,
       clusterId: input.clusterId,
       userId: input.userId,

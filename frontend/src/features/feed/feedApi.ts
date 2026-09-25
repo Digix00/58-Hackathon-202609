@@ -14,6 +14,7 @@ export async function listConcerns(query: FeedQuery = {}): Promise<ListConcernsR
           limit: String(query.limit ?? 20),
           sort: query.sort ?? 'newest',
           ...(query.cursor ? { cursor: query.cursor } : {}),
+          ...(query.gender ? { gender: query.gender } : {}),
           ...(query.regionCode ? { regionCode: query.regionCode } : {}),
           ...(query.clusterId ? { clusterId: query.clusterId } : {}),
         },

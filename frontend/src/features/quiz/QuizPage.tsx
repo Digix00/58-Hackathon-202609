@@ -1,16 +1,19 @@
 import {
   useCallback,
+  useContext,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
+  createContext,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from 'react'
 import { Link } from 'react-router'
-import { DemoBoundary } from '../../shared/components/DemoBoundary'
+import { EmptyState, ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
@@ -24,13 +27,51 @@ import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
-import { answerDemoQuiz, demoQuiz, useDemoState, type DemoQuizResult } from '../demo/demoStore'
+import {
+  useDisplaySettings,
+  type DisplayLanguage,
+} from '../../app/providers/DisplaySettingsContext'
+import { ageGroupLabel, genderLabel, regionLabel } from '../../shared/concernPresentation'
+import type { QuizAnswerResponse, TodayQuizResponse } from '../../lib/api'
 import { CoverArt } from './CoverArt'
+import { answerQuiz, getQuizById, getTodayQuiz, type QuizMatch } from './quizApi'
 import styles from './QuizPage.module.css'
 
-type Letter = (typeof demoQuiz.letters)[number]
-type Person = (typeof demoQuiz.people)[number]
+type Letter = { id: string; body: string }
+type QuizParticipant = {
+  id: string
+  sourceAttributes: TodayQuizResponse['participants'][number]['attributes']
+  color: string
+}
+type Person = QuizParticipant & { attributes: string }
+type QuizPageModel = {
+  id: string
+  people: QuizParticipant[]
+  letters: Letter[]
+  answerResult?: QuizAnswerResponse
+}
 type Answers = Record<string, string>
+type QuizModelContext = Omit<QuizPageModel, 'people'> & { people: Person[] }
+
+const QuizContext = createContext<QuizPageModel | null>(null)
+
+function useQuizData(): QuizModelContext {
+  const value = useContext(QuizContext)
+  const { language } = useDisplaySettings()
+
+  return useMemo(() => {
+    if (!value) throw new Error('QuizContext is not available')
+
+    return {
+      ...value,
+      people: value.people.map((person) => ({
+        ...person,
+        attributes: formatAttributes(person.sourceAttributes, language),
+      })),
+    }
+  }, [language, value])
+}
+
 type DragState = {
   personId: string
   x: number
@@ -79,19 +120,16 @@ type QuizAction =
   | { type: 'fit'; letterId: string; personId: string }
   | { type: 'openLetter'; index: number }
   | { type: 'pull'; letterId: string }
-  | { type: 'go'; direction: 1 | -1 }
+  | { type: 'go'; direction: 1 | -1; count: number }
   | { type: 'submitStarted' }
+  | { type: 'submitFailed' }
   | { type: 'showResults' }
 
 /**
  * しおりの色。条件ごとに固定し、どの紙に挟んでも同じ選択肢だと分かるようにする。
  * 正誤を示す色ではないので、回答の前後で変えない。
  */
-const PIECE_COLORS: Record<string, string> = {
-  a: '#f9e7ac',
-  b: '#cde5dc',
-  c: '#e3dafa',
-}
+const PIECE_COLORS = ['#f9e7ac', '#cde5dc', '#e3dafa'] as const
 /** しおりと切り欠きの型紙。同じ形を使うことで、片方が片方に収まると分かる。 */
 const TAG_PATH = 'M3 3 L50 15 L97 3 V75 H3 Z'
 /** 切り欠きの外でも、これだけ近ければ差し込んだことにする。 */
@@ -120,8 +158,8 @@ function createInitialState(answered: boolean): QuizState {
   }
 }
 
-function personById(id: string | undefined) {
-  return demoQuiz.people.find((person) => person.id === id)
+function personById(id: string | undefined, people: Person[]) {
+  return people.find((person) => person.id === id)
 }
 
 /**
@@ -138,8 +176,8 @@ function placeAnswer(answers: Answers, letterId: string, personId: string): Answ
 }
 
 /** まだしおりが挟まっていない、いちばん手前の手紙。すべて埋まっていれば -1。 */
-function firstOpenIndex(answers: Answers) {
-  return demoQuiz.letters.findIndex((letter) => !answers[letter.id])
+function firstOpenIndex(answers: Answers, letters: Letter[]) {
+  return letters.findIndex((letter) => !answers[letter.id])
 }
 
 function quizReducer(state: QuizState, action: QuizAction): QuizState {
@@ -175,11 +213,13 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
     }
     case 'go': {
       const index = state.index + action.direction
-      if (index < 0 || index >= demoQuiz.letters.length) return state
+      if (index < 0 || index >= action.count) return state
       return { ...state, index }
     }
     case 'submitStarted':
       return { ...state, step: 'submitting' }
+    case 'submitFailed':
+      return { ...state, step: 'letters' }
     case 'showResults':
       // 結果は1通目から読む。閉じていたなら、ここで開いたままにする。
       return { ...state, step: 'results', index: 0, coverOpened: true, closed: false }
@@ -229,8 +269,8 @@ function TagFace({ label }: { label: string }) {
   )
 }
 
-function tagStyle(personId: string) {
-  return { '--piece': PIECE_COLORS[personId] } as CSSProperties
+function tagStyle(person: Person) {
+  return { '--piece': person.color } as CSSProperties
 }
 
 /**
@@ -240,11 +280,53 @@ function tagStyle(personId: string) {
  * どれがどの手紙の付箋なのかが分からなくなる。挟む場所そのものを
  * 「何通目か」にしておけば、閉じたあとも並びがそのまま目次になる。
  */
-function tabSlotStyle(slot: number) {
+function tabSlotStyle(slot: number, count: number) {
   return {
-    '--tab-count': demoQuiz.letters.length,
+    '--tab-count': count,
     '--tab-slot': slot + 1,
   } as CSSProperties
+}
+
+function formatAttributes(
+  attributes: TodayQuizResponse['participants'][number]['attributes'],
+  language: DisplayLanguage,
+) {
+  const { ageGroup, gender, regionCode } = attributes
+  const region = regionCode === 'no_answer' ? '回答しない' : regionLabel(regionCode, language)
+  return [ageGroupLabel(ageGroup), genderLabel(gender), region]
+    .filter((label): label is string => Boolean(label))
+    .join('・')
+}
+
+function toQuizPageModel(quiz: TodayQuizResponse): QuizPageModel {
+  const people = [...quiz.participants]
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((participant, index) => ({
+      id: participant.participantId,
+      sourceAttributes: participant.attributes,
+      color: PIECE_COLORS[index % PIECE_COLORS.length],
+    }))
+  const letters = [...quiz.concerns]
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((concern) => ({ id: concern.concernId, body: concern.body }))
+
+  return { id: quiz.id, people, letters, answerResult: quiz.answerResult }
+}
+
+function hasThreeUniqueQuizItems(quiz: TodayQuizResponse) {
+  return (
+    quiz.participants.length === 3 &&
+    quiz.concerns.length === 3 &&
+    new Set(quiz.participants.map((participant) => participant.participantId)).size === 3 &&
+    new Set(quiz.concerns.map((concern) => concern.concernId)).size === 3
+  )
+}
+
+function assignmentsFromResult(result: QuizAnswerResponse | undefined): Answers {
+  if (!result) return {}
+  return Object.fromEntries(
+    result.results.map((item) => [item.selectedConcernId, item.participantId]),
+  )
 }
 
 /**
@@ -332,49 +414,126 @@ function QuizPaperBody({
   dragOver: boolean
   onPull: (letterId: string) => void
 }) {
-  const writer = personById(target.correctPerson)
-  const fitted = personById(personId)
-  /** この手紙の付箋の持ち場。結果でも同じ場所に残す。 */
-  const slot = demoQuiz.letters.findIndex((letter) => letter.id === target.id)
+  const { people, letters, answerResult } = useQuizData()
+  const fitted = personById(personId, people)
+  const slot = letters.findIndex((letter) => letter.id === target.id)
 
-  if (showingResults && writer) {
-    const correct = personId === target.correctPerson
+  if (showingResults) {
     return (
-      <>
-        {/* 結果でも、書き手の条件を、この手紙の持ち場に残す。 */}
-        <div className={`${styles.tabRow} ${styles.paperTab}`} style={tabSlotStyle(slot)}>
-          <span className={styles.choice}>
-            <span className={styles.tag} style={tagStyle(writer.id)}>
-              <TagFace label={writer.attributes} />
-            </span>
-          </span>
-        </div>
-        {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
-        <p className={styles.ask}>この声の条件</p>
-        <div className={styles.letterSheet}>
-          <p className={styles.letter}>{body}</p>
-        </div>
-        <div className={styles.verdict} role="status">
-          <p className={styles.judge}>
-            {correct ? <CorrectRing /> : null}
-            {correct ? '合っていました' : 'ちがいました'}
-            {/*
-              書いた条件はすぐ上のしおりに出ているので、目では読み返せる。
-              読み上げでは紙の上端まで戻れないので、ここで言葉にして添える。
-            */}
-            {correct ? null : (
-              <span className={styles.srOnly}>。書いた条件は{writer.attributes}</span>
-            )}
-          </p>
-          <p className={styles.note}>{target.explanation}</p>
-        </div>
-      </>
+      <QuizResultPaperBody
+        target={target}
+        body={body}
+        slot={slot}
+        letterCount={letters.length}
+        people={people}
+        answerResult={answerResult}
+      />
     )
   }
 
   return (
+    <QuizSelectionPaperBody
+      target={target}
+      body={body}
+      slot={slot}
+      letterCount={letters.length}
+      fitted={fitted}
+      interactive={interactive}
+      slotRef={slotRef}
+      dragOver={dragOver}
+      onPull={onPull}
+    />
+  )
+}
+
+function QuizResultPaperBody({
+  target,
+  body,
+  slot,
+  letterCount,
+  people,
+  answerResult,
+}: {
+  target: Letter
+  body: string | undefined
+  slot: number
+  letterCount: number
+  people: Person[]
+  answerResult: QuizAnswerResponse | undefined
+}) {
+  const writerResult = answerResult?.results.find((result) => result.correctConcernId === target.id)
+  const selectedResult = answerResult?.results.find(
+    (result) => result.selectedConcernId === target.id,
+  )
+  const writer = personById(writerResult?.participantId, people)
+  if (!writer || !writerResult || !selectedResult) {
+    return <p role="alert">回答結果を表示できませんでした。</p>
+  }
+
+  const correct = selectedResult.correct
+  return (
     <>
-      <div className={`${styles.tabRow} ${styles.paperTab}`} style={tabSlotStyle(slot)}>
+      {/* 結果でも、書き手の条件を、この手紙の持ち場に残す。 */}
+      <div
+        className={`${styles.tabRow} ${styles.paperTab}`}
+        style={tabSlotStyle(slot, letterCount)}
+      >
+        <span className={styles.choice}>
+          <span className={styles.tag} style={tagStyle(writer)}>
+            <TagFace label={writer.attributes} />
+          </span>
+        </span>
+      </div>
+      {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
+      <p className={styles.ask}>この声の条件</p>
+      <div className={styles.letterSheet}>
+        <p className={styles.letter}>{body}</p>
+      </div>
+      <div className={styles.verdict} role="status">
+        <p className={styles.judge}>
+          {correct ? <CorrectRing /> : null}
+          {correct ? '合っていました' : 'ちがいました'}
+          {/*
+            書いた条件はすぐ上のしおりに出ているので、目では読み返せる。
+            読み上げでは紙の上端まで戻れないので、ここで言葉にして添える。
+          */}
+          {correct ? null : (
+            <span className={styles.srOnly}>。書いた条件は{writer.attributes}</span>
+          )}
+        </p>
+        <p className={styles.note}>{writerResult.explanation}</p>
+      </div>
+    </>
+  )
+}
+
+function QuizSelectionPaperBody({
+  target,
+  body,
+  slot,
+  letterCount,
+  fitted,
+  interactive,
+  slotRef,
+  dragOver,
+  onPull,
+}: {
+  target: Letter
+  body: string | undefined
+  slot: number
+  letterCount: number
+  fitted: Person | undefined
+  interactive: boolean
+  slotRef: React.RefObject<HTMLSpanElement | null>
+  dragOver: boolean
+  onPull: (letterId: string) => void
+}) {
+  return (
+    <>
+      <div
+        className={`${styles.tabRow} ${styles.paperTab}`}
+        style={tabSlotStyle(slot, letterCount)}
+      >
         {fitted ? (
           <button
             type="button"
@@ -382,7 +541,7 @@ function QuizPaperBody({
             onClick={() => interactive && onPull(target.id)}
             aria-label={`条件は${fitted.attributes}。この声から外す`}
           >
-            <span className={styles.tag} style={tagStyle(fitted.id)}>
+            <span className={styles.tag} style={tagStyle(fitted)}>
               <TagFace label={fitted.attributes} />
             </span>
           </button>
@@ -422,6 +581,7 @@ function QuizActions({
   complete,
   submitting,
   score,
+  submitError,
   onNext,
   onOpenCover,
   onSubmit,
@@ -436,6 +596,7 @@ function QuizActions({
   complete: boolean
   submitting: boolean
   score: number | undefined
+  submitError: string | null
   onNext: () => void
   onOpenCover: () => void
   onSubmit: () => void
@@ -498,6 +659,11 @@ function QuizActions({
           {submitting ? '出しています…' : 'これで出す'}
         </button>
       ) : null}
+      {submitError ? (
+        <p className={styles.submitError} role="alert">
+          {submitError}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -507,14 +673,17 @@ function QuizActions({
  * Boundary: 初期結果を受け取り、状態・表示用の値・reducer dispatchだけを返す。
  * State modeling: 依存する状態遷移をquizReducerに集約し、無効な組み合わせを画面側で作らない。
  */
-function useQuizState(quizResult: DemoQuizResult | null) {
+function useQuizState(
+  quizResult: QuizAnswerResponse | undefined,
+  people: Person[],
+  letters: Letter[],
+) {
   const [state, dispatch] = useReducer(quizReducer, Boolean(quizResult), createInitialState)
-  const letters = demoQuiz.letters
   const showingResults = Boolean(quizResult) || state.step === 'results'
   const letter = letters[state.index]
-  const answers = quizResult ? quizResult.answers : state.answers
+  const answers = quizResult ? assignmentsFromResult(quizResult) : state.answers
   const answeredPersonIds = new Set(Object.values(answers))
-  const remaining = demoQuiz.people.filter((person) => !answeredPersonIds.has(person.id))
+  const remaining = people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = remaining.length === 0
 
   return { state, dispatch, letters, letter, answers, remaining, complete, showingResults }
@@ -576,9 +745,12 @@ function useQuizAnimation(coverOpening: boolean, coverLifting: boolean, onCoverL
   }
 }
 
-function useQuizNavigation(quizResult: DemoQuizResult | null) {
+function useQuizNavigation(setAnswerResult: (result: QuizAnswerResponse) => void) {
+  const { id: quizId, people, letters: quizLetters, answerResult: quizResult } = useQuizData()
   const { state, dispatch, letters, letter, answers, remaining, complete, showingResults } =
-    useQuizState(quizResult)
+    useQuizState(quizResult, people, quizLetters)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
   /** 表紙を開きはじめたか。ここから先、ふもとに表紙を開く操作は置かない。 */
   const coverOpening = state.coverLifting || state.coverOpened
   const onCoverLifted = useCallback(() => dispatch({ type: 'coverTurned' }), [dispatch])
@@ -714,7 +886,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
       if (index < 0 || index >= letters.length) return
       if (prefersReducedMotion()) {
         clearTurning()
-        dispatch({ type: 'go', direction })
+        dispatch({ type: 'go', direction, count: letters.length })
         return
       }
 
@@ -727,7 +899,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
           startAngle,
           direction: 1,
         })
-        dispatch({ type: 'go', direction })
+        dispatch({ type: 'go', direction, count: letters.length })
       } else {
         // 戻るときは、伏せていた前の紙を同じ共有アニメーションで拾い上げる。
         const previous = letters[index]
@@ -761,7 +933,7 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     if (!state.coverOpened || showingResults || state.step === 'submitting') return
     if (turning || answers[letter.id]) return
     const next = placeAnswer(state.answers, letter.id, personId)
-    const open = firstOpenIndex(next)
+    const open = firstOpenIndex(next, letters)
     const placed = letter
     dispatch({ type: 'fit', letterId: letter.id, personId })
     if (open === state.index) return
@@ -790,35 +962,77 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
   }
 
   const submit = async () => {
+    if (!complete || state.step === 'submitting' || quizResult) return
     dispatch({ type: 'submitStarted' })
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    answerDemoQuiz(state.answers)
-    if (state.closed && !prefersReducedMotion()) {
-      beginTurn({ kind: 'cover', startAngle: 0, direction: 1 })
+    setSubmitError(null)
+
+    const matches: QuizMatch[] = letters.flatMap((item) => {
+      const participantId = state.answers[item.id]
+      return participantId ? [{ participantId, concernId: item.id }] : []
+    })
+    const result = await answerQuiz(quizId, matches)
+
+    const showResult = (answer: QuizAnswerResponse) => {
+      setAnswerResult(answer)
+      if (state.closed && !prefersReducedMotion()) {
+        beginTurn({ kind: 'cover', startAngle: 0, direction: 1 })
+      }
+      dispatch({ type: 'showResults' })
     }
-    dispatch({ type: 'showResults' })
+
+    if (result.ok) {
+      showResult(result.data)
+      return
+    }
+
+    if (result.code === 'QUIZ_NOT_AVAILABLE') {
+      setUnavailable(true)
+      dispatch({ type: 'submitFailed' })
+      return
+    }
+
+    // タイムアウト後に送信が完了していた場合も、結果の再取得で回答済み状態へ戻す。
+    const latest = await getQuizById(quizId)
+    if (latest.ok && latest.data.answered && latest.data.answerResult) {
+      showResult(latest.data.answerResult)
+      return
+    }
+    if (!latest.ok && latest.code === 'QUIZ_NOT_AVAILABLE') {
+      setUnavailable(true)
+      dispatch({ type: 'submitFailed' })
+      return
+    }
+
+    dispatch({ type: 'submitFailed' })
+    setSubmitError(
+      result.code === 'QUIZ_ALREADY_ANSWERED'
+        ? '回答済みか確認できませんでした。もう一度お試しください。'
+        : '回答を送信できませんでした。選んだ内容はそのままなので、もう一度お試しください。',
+    )
   }
 
   const finishTurn = useCallback(() => {
     if (turning?.kind === 'letter' && turning.direction === -1) {
       // 付箋から跳んだときは行き先が決まっている。前後の移動は1通ずつ戻る。
-      if (turning.toIndex === undefined) dispatch({ type: 'go', direction: -1 })
-      else dispatch({ type: 'openLetter', index: turning.toIndex })
+      if (turning.toIndex === undefined) {
+        dispatch({ type: 'go', direction: -1, count: letters.length })
+      } else dispatch({ type: 'openLetter', index: turning.toIndex })
     }
     // 表紙が戻りきってから閉じる。先に閉じると、めくる表紙が二重に見える。
     if (turning?.kind === 'cover' && turning.direction === -1) {
       dispatch({ type: 'close' })
     }
     clearTurning()
-  }, [clearTurning, dispatch, turning])
+  }, [clearTurning, dispatch, letters.length, turning])
 
   const pull = useCallback(
     (letterId: string) => {
       // 抜いたなら、めくるのはやめる。選び直す紙が目の前から消えてしまう。
+      if (state.step === 'submitting' || quizResult) return
       cancelSettle()
       dispatch({ type: 'pull', letterId })
     },
-    [cancelSettle, dispatch],
+    [cancelSettle, dispatch, quizResult, state.step],
   )
 
   return {
@@ -839,6 +1053,8 @@ function useQuizNavigation(quizResult: DemoQuizResult | null) {
     openTab,
     fit,
     submit,
+    submitError,
+    unavailable,
     finishTurn,
     pull,
   }
@@ -930,7 +1146,7 @@ function QuizTray({
           }}
           aria-label={`条件は${person.attributes}。この声のしおりにする`}
         >
-          <span className={styles.tag} style={tagStyle(person.id)}>
+          <span className={styles.tag} style={tagStyle(person)}>
             <TagFace label={person.attributes} />
           </span>
         </button>
@@ -978,10 +1194,12 @@ function QuizTabs({
   closed: boolean
   onSelect: (index: number) => void
 }) {
+  const { letters, people } = useQuizData()
+
   return (
-    <div className={`${styles.tabRow} ${styles.tabs}`} style={tabSlotStyle(0)}>
-      {demoQuiz.letters.map((target, index) => {
-        const fitted = personById(answers[target.id])
+    <div className={`${styles.tabRow} ${styles.tabs}`} style={tabSlotStyle(0, letters.length)}>
+      {letters.map((target, index) => {
+        const fitted = personById(answers[target.id], people)
         if (!fitted || index === activeIndex) return null
         return (
           <button
@@ -994,7 +1212,7 @@ function QuizTabs({
               closed ? '開いて見直す' : 'この手紙へ移る'
             }`}
           >
-            <span className={styles.tag} style={tagStyle(fitted.id)}>
+            <span className={styles.tag} style={tagStyle(fitted)}>
               <TagFace label={fitted.attributes} />
             </span>
           </button>
@@ -1271,7 +1489,7 @@ function QuizDragGhost({ drag, dragged }: { drag: DragState | null; dragged: Per
       aria-hidden="true"
       style={
         {
-          ...tagStyle(dragged.id),
+          ...tagStyle(dragged),
           width: `${drag.width}px`,
           height: `${drag.height}px`,
           transform: `translate(${drag.x}px, ${drag.y}px) rotate(-3deg)`,
@@ -1283,9 +1501,43 @@ function QuizDragGhost({ drag, dragged }: { drag: DragState | null; dragged: Per
   )
 }
 
-export function QuizPage() {
-  const { concerns, quizResult } = useDemoState()
-  const quiz = useQuizNavigation(quizResult)
+function QuizUnavailableState() {
+  return (
+    <div className={styles.page}>
+      <EmptyState
+        title="今日のクイズは利用できません"
+        description="クイズは現在利用できません。フィードでほかの悩みを読んでみてください。"
+      />
+      <div className={styles.actions}>
+        <Link className={actionStyles.primary} to="/">
+          フィードを見る
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function QuizExperience({
+  quiz,
+  setAnswerResult,
+}: {
+  quiz: QuizPageModel
+  setAnswerResult: (result: QuizAnswerResponse) => void
+}) {
+  return (
+    <QuizContext.Provider value={quiz}>
+      <QuizReader setAnswerResult={setAnswerResult} />
+    </QuizContext.Provider>
+  )
+}
+
+function QuizReader({
+  setAnswerResult,
+}: {
+  setAnswerResult: (result: QuizAnswerResponse) => void
+}) {
+  const { answerResult, people } = useQuizData()
+  const quiz = useQuizNavigation(setAnswerResult)
   const { drag, slotRef, startDrag } = useQuizDrag(quiz.fit)
   const swipe = useNotebookSwipe({
     // 表紙が残っているうちは、左へ払う先が手紙ではなく表紙になる。
@@ -1294,72 +1546,151 @@ export function QuizPage() {
     onNext: (startAngle) => quiz.go(1, startAngle),
     onPrevious: () => quiz.go(-1),
   })
-  const dragged = personById(drag?.personId)
-  const bodyOf = (target: Letter) => concerns.find((concern) => concern.id === target.id)?.body
+  const dragged = personById(drag?.personId, people)
+  const bodyOf = (target: Letter) => target.body
+  if (quiz.unavailable) return <QuizUnavailableState />
 
   return (
-    <DemoBoundary
-      emptyTitle="今日のクイズはまだありません"
-      emptyDescription="新しいクイズが届くまでお待ちください。"
-    >
-      <div className={styles.page}>
-        {/*
+    <div className={styles.page}>
+      {/*
           ぜんぶ挟んでも棚は残す。棚ごと消すと版面が跳ね上がり、
           いま差したばかりの紙から目が外れてしまう。空いた棚は「もう手元にない」
           ことをそのまま表す。
         */}
-        {!quiz.showingResults && (quiz.state.coverOpened || quiz.state.closed) ? (
-          <QuizTray
-            remaining={quiz.remaining}
-            drag={drag}
-            onStartDrag={startDrag}
-            onFit={quiz.fit}
-          />
-        ) : null}
-        <QuizStage
-          stateIndex={quiz.state.index}
-          letter={quiz.letter}
-          answers={quiz.answers}
-          turning={quiz.turning}
-          showingResults={quiz.showingResults}
-          coverOpened={quiz.state.coverOpened}
-          coverOpening={quiz.coverOpening}
-          closed={quiz.state.closed}
-          complete={quiz.complete}
-          stackRef={quiz.stackRef}
-          swipe={swipe}
-          dragOver={Boolean(drag?.over)}
-          slotRef={slotRef}
-          bodyOf={bodyOf}
-          onTurnFinish={quiz.finishTurn}
-          onPull={quiz.pull}
-          onSelect={quiz.openTab}
-        />
+      {!quiz.showingResults && (quiz.state.coverOpened || quiz.state.closed) ? (
+        <QuizTray remaining={quiz.remaining} drag={drag} onStartDrag={startDrag} onFit={quiz.fit} />
+      ) : null}
+      <QuizStage
+        stateIndex={quiz.state.index}
+        letter={quiz.letter}
+        answers={quiz.answers}
+        turning={quiz.turning}
+        showingResults={quiz.showingResults}
+        coverOpened={quiz.state.coverOpened}
+        coverOpening={quiz.coverOpening}
+        closed={quiz.state.closed}
+        complete={quiz.complete}
+        stackRef={quiz.stackRef}
+        swipe={swipe}
+        dragOver={Boolean(drag?.over)}
+        slotRef={slotRef}
+        bodyOf={bodyOf}
+        onTurnFinish={quiz.finishTurn}
+        onPull={quiz.pull}
+        onSelect={quiz.openTab}
+      />
 
-        <QuizActions
-          coverOpened={quiz.state.coverOpened}
-          closed={quiz.state.closed}
-          coverLifting={quiz.state.coverLifting}
-          showingResults={quiz.showingResults}
-          canGoNext={quiz.canGoNext}
-          complete={quiz.complete}
-          submitting={quiz.state.step === 'submitting'}
-          score={quizResult?.score}
-          onNext={() => quiz.go(1)}
-          onOpenCover={() => quiz.openCover()}
-          onSubmit={() => void quiz.submit()}
-        />
+      <QuizActions
+        coverOpened={quiz.state.coverOpened}
+        closed={quiz.state.closed}
+        coverLifting={quiz.state.coverLifting}
+        showingResults={quiz.showingResults}
+        canGoNext={quiz.canGoNext}
+        complete={quiz.complete}
+        submitting={quiz.state.step === 'submitting'}
+        score={answerResult?.score}
+        submitError={quiz.submitError}
+        onNext={() => quiz.go(1)}
+        onOpenCover={() => quiz.openCover()}
+        onSubmit={() => void quiz.submit()}
+      />
 
-        <QuizDragGhost drag={drag} dragged={dragged} />
+      <QuizDragGhost drag={drag} dragged={dragged} />
 
-        <p className={styles.srOnly} aria-live="polite">
-          {quiz.state.closed
-            ? '3通ぜんぶに、しおりを挟みました。ノートを閉じました。付箋を押すと、その手紙へ戻れます'
-            : quiz.state.coverOpened && (quiz.canGoPrev || quiz.canGoNext)
-              ? `${quiz.state.index + 1}通目の手紙`
-              : ''}
-        </p>
-      </div>
-    </DemoBoundary>
+      <p className={styles.srOnly} aria-live="polite">
+        {quiz.state.closed
+          ? '3通ぜんぶに、しおりを挟みました。ノートを閉じました。付箋を押すと、その手紙へ戻れます'
+          : quiz.state.coverOpened && (quiz.canGoPrev || quiz.canGoNext)
+            ? `${quiz.state.index + 1}通目の手紙`
+            : ''}
+      </p>
+    </div>
   )
+}
+
+type QuizLoadState =
+  | { status: 'loading' }
+  | { status: 'unavailable' }
+  | { status: 'error' }
+  | { status: 'ready'; quiz: QuizPageModel }
+
+type QuizLoadAction =
+  | { type: 'loading' }
+  | { type: 'unavailable' }
+  | { type: 'error' }
+  | { type: 'ready'; quiz: QuizPageModel }
+  | { type: 'answerReceived'; answerResult: QuizAnswerResponse }
+
+function quizLoadReducer(_state: QuizLoadState, action: QuizLoadAction): QuizLoadState {
+  switch (action.type) {
+    case 'loading':
+      return { status: 'loading' }
+    case 'unavailable':
+      return { status: 'unavailable' }
+    case 'error':
+      return { status: 'error' }
+    case 'ready':
+      return { status: 'ready', quiz: action.quiz }
+    case 'answerReceived':
+      return _state.status === 'ready'
+        ? { ..._state, quiz: { ..._state.quiz, answerResult: action.answerResult } }
+        : _state
+  }
+}
+
+export function QuizPage() {
+  const [loadState, dispatchLoad] = useReducer(quizLoadReducer, { status: 'loading' })
+
+  const setQuizAnswerResult = useCallback((answerResult: QuizAnswerResponse) => {
+    dispatchLoad({ type: 'answerReceived', answerResult })
+  }, [])
+
+  const loadQuiz = useCallback(async () => {
+    const result = await getTodayQuiz()
+    if (!result.ok) {
+      dispatchLoad({ type: result.code === 'QUIZ_NOT_AVAILABLE' ? 'unavailable' : 'error' })
+      return
+    }
+    if (!hasThreeUniqueQuizItems(result.data)) {
+      dispatchLoad({ type: 'unavailable' })
+      return
+    }
+    if (result.data.answered && !result.data.answerResult) {
+      dispatchLoad({ type: 'error' })
+      return
+    }
+
+    dispatchLoad({ type: 'ready', quiz: toQuizPageModel(result.data) })
+  }, [dispatchLoad])
+
+  const retryLoad = useCallback(() => {
+    dispatchLoad({ type: 'loading' })
+    void loadQuiz()
+  }, [dispatchLoad, loadQuiz])
+
+  useEffect(() => {
+    void loadQuiz()
+  }, [loadQuiz])
+
+  if (loadState.status === 'loading') {
+    return <LoadingState label="今日のクイズを読み込んでいます…" />
+  }
+  if (loadState.status === 'unavailable') return <QuizUnavailableState />
+  if (loadState.status === 'error') {
+    return (
+      <div className={styles.page}>
+        <ErrorState
+          description="今日のクイズを読み込めませんでした。時間をおいて再試行してください。"
+          onRetry={retryLoad}
+        />
+        <div className={styles.actions}>
+          <Link className={actionStyles.primary} to="/">
+            フィードを見る
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return <QuizExperience quiz={loadState.quiz} setAnswerResult={setQuizAnswerResult} />
 }

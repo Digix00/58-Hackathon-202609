@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { useAuth } from '../../auth/useAuth'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { recordConcernView } from './concernViewApi'
 
 export function useConcernViewOnDisplay(concernId: string | undefined): void {
   const { state } = useRuntime()
+  const { status: authStatus } = useAuth()
   const recordedConcernIds = useRef(new Set<string>())
 
   useEffect(() => {
@@ -11,6 +13,7 @@ export function useConcernViewOnDisplay(concernId: string | undefined): void {
       !concernId ||
       state.status !== 'ready' ||
       state.mode !== 'liff' ||
+      authStatus !== 'authenticated' ||
       recordedConcernIds.current.has(concernId)
     ) {
       return
@@ -18,5 +21,5 @@ export function useConcernViewOnDisplay(concernId: string | undefined): void {
 
     recordedConcernIds.current.add(concernId)
     void recordConcernView(concernId)
-  }, [concernId, state])
+  }, [authStatus, concernId, state])
 }

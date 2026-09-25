@@ -12,6 +12,8 @@ export const apiClient = hc<AppType>(baseUrl, {
 
 export type AuthResponse = InferResponseType<typeof apiClient.api.v1.auth.session.$get, 200>
 
+export type DevAuthResponse = InferResponseType<typeof apiClient.api.v1.auth.dev.$post, 200>
+
 export type CreateConcernResponse = InferResponseType<typeof apiClient.api.v1.concerns.$post, 201>
 
 export type ListConcernsResponse = InferResponseType<typeof apiClient.api.v1.concerns.$get, 200>
@@ -29,6 +31,18 @@ export type ConcernReactionResponse = Extract<
     reactionCount: number
     reacted: true
   }
+>
+
+export type TodayQuizResponse = InferResponseType<typeof apiClient.api.v1.quizzes.today.$get, 200>
+
+export type QuizByIdResponse = InferResponseType<
+  (typeof apiClient.api.v1.quizzes)[':quizId']['$get'],
+  200
+>
+
+export type QuizAnswerResponse = InferResponseType<
+  (typeof apiClient.api.v1.quizzes)[':quizId']['answers']['$post'],
+  201
 >
 
 export const API_REQUEST_TIMEOUT_MS = 10_000

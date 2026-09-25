@@ -6,18 +6,15 @@ import { ComingSoonLabel } from '../shared/components/ComingSoonLabel'
 import { SettingsRoute } from './SettingsRoute'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
 
-// TODO: 閲覧・クイズ・履歴の API が揃ったら、開発用モックルートを実データの画面に置き換える。
-const DevFeedPage = import.meta.env.DEV
-  ? lazy(async () => ({ default: (await import('../features/feed/FeedPage')).FeedPage }))
-  : null
-const DevConcernDetailPage = import.meta.env.DEV
-  ? lazy(async () => ({
-      default: (await import('../features/concern-detail/ConcernDetailPage')).ConcernDetailPage,
-    }))
-  : null
-const DevQuizPage = import.meta.env.DEV
-  ? lazy(async () => ({ default: (await import('../features/quiz/QuizPage')).QuizPage }))
-  : null
+const feedPage = lazy(async () => ({
+  default: (await import('../features/feed/FeedPage')).FeedPage,
+}))
+const concernDetailPage = lazy(async () => ({
+  default: (await import('../features/concern-detail/ConcernDetailPage')).ConcernDetailPage,
+}))
+const quizPage = lazy(async () => ({
+  default: (await import('../features/quiz/QuizPage')).QuizPage,
+}))
 const DevHistoryPage = import.meta.env.DEV
   ? lazy(async () => ({ default: (await import('../features/history/HistoryPage')).HistoryPage }))
   : null
@@ -38,14 +35,22 @@ function demoPage(Page: ComponentType | null) {
   )
 }
 
+function apiPage(Page: ComponentType) {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <Page />
+    </Suspense>
+  )
+}
+
 export const router = createBrowserRouter([
   {
     path: '/',
     Component: AppLayout,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, element: demoPage(DevFeedPage) },
-      { path: 'concerns/:id', element: demoPage(DevConcernDetailPage) },
+      { index: true, element: apiPage(feedPage) },
+      { path: 'concerns/:id', element: apiPage(concernDetailPage) },
       {
         path: 'post',
         element: (
@@ -56,7 +61,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'quiz/today',
-        element: <ProtectedRoute>{demoPage(DevQuizPage)}</ProtectedRoute>,
+        element: <ProtectedRoute>{apiPage(quizPage)}</ProtectedRoute>,
       },
       {
         path: 'history',

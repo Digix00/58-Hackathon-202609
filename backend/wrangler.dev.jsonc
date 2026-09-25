@@ -1,0 +1,45 @@
+{
+  // Excludes the remote Workers AI binding so `pnpm dev` runs fully locally
+  // without Cloudflare authentication. See src/bootstrap/container.ts for the
+  // local adapters that stand in for it.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "58-hackathon-backend-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "secrets": {
+    "required": ["LINE_CHANNEL_ID"]
+  },
+  "vars": {
+    "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
+    "CORS_ORIGIN": "http://localhost:5173",
+    "DEV_AUTH_ENABLED": "true"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "CONCERN_PROCESSING_QUEUE",
+        "queue": "58-hackathon-concern-processing"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "58-hackathon-concern-processing",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3
+      }
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "58-hackathon-db",
+      "database_id": "620550f8-c658-4edc-aad5-deb30382784f",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

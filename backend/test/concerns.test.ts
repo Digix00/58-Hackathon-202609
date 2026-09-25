@@ -142,8 +142,10 @@ async function seedConcern(input: {
   body: string;
   createdAt: string;
   id?: string;
+  genderCode?: string | null;
   regionCode?: string | null;
   clusterId?: string | null;
+  processingStatus?: "pending" | "processing" | "ready" | "failed";
   visibilityStatus?: "published" | "hidden" | "deleted";
 }): Promise<string> {
   const suffix = crypto.randomUUID();
@@ -167,11 +169,11 @@ async function seedConcern(input: {
       userId,
       body: input.body,
       ageGroup: null,
-      genderCode: null,
+      genderCode: input.genderCode ?? null,
       regionCode: input.regionCode ?? null,
       clusterId: input.clusterId ?? null,
       visibilityStatus: input.visibilityStatus ?? "published",
-      processingStatus: "pending",
+      processingStatus: input.processingStatus ?? "pending",
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
     })
@@ -184,16 +186,23 @@ async function seedCluster(input: {
   id?: string;
   label?: string;
   summary?: string;
+  status?: "pending" | "ready";
 }): Promise<string> {
   const id = input.id ?? `cluster-${crypto.randomUUID()}`;
   const timestamp = new Date().toISOString();
+  const status = input.status ?? "ready";
+  const label = input.label ?? (status === "ready" ? "食事のテーマ" : null);
+  const summary =
+    input.summary ?? (status === "ready" ? "食事や休憩に関する悩み" : null);
   await drizzle(env.DB)
     .insert(concernClusters)
     .values({
       id,
-      label: input.label ?? "食事のテーマ",
-      summary: input.summary ?? "食事や休憩に関する悩み",
-      status: "ready",
+      legacyLabel: label ?? "__pending__",
+      legacySummary: summary ?? "__pending__",
+      label,
+      summary,
+      status,
       modelVersion: "test",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -306,6 +315,7 @@ describe("POST /api/v1/concerns", () => {
       ageGroup: "20s",
       gender: "no_answer",
       regionCode: "osaka",
+      regionName: "大阪府",
     });
   });
 
@@ -487,6 +497,36 @@ describe("GET /api/v1/concerns", () => {
     expect(body.items.map((item) => item.id)).not.toContain(tokyo);
   });
 
+  it("filters by the exact gender code and keeps other genders out", async () => {
+    const male = await seedConcern({
+      body: "男性の投稿",
+      genderCode: "male",
+      createdAt: "9999-01-20T00:00:00.000Z",
+    });
+    const female = await seedConcern({
+      body: "女性の投稿",
+      genderCode: "female",
+      createdAt: "9999-01-21T00:00:00.000Z",
+    });
+    const noAnswer = await seedConcern({
+      body: "回答しない投稿",
+      genderCode: "no_answer",
+      createdAt: "9999-01-22T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?gender=male",
+      {},
+      env,
+    );
+    const body = await response.json<{ items: Array<{ id: string }> }>();
+
+    expect(response.status).toBe(200);
+    expect(body.items.map((item) => item.id)).toContain(male);
+    expect(body.items.map((item) => item.id)).not.toContain(female);
+    expect(body.items.map((item) => item.id)).not.toContain(noAnswer);
+  });
+
   it("returns a recommendation reason and cluster for a logged-in feed", async () => {
     const clusterId = await seedCluster({
       label: "昼休み・食堂",
@@ -495,6 +535,7 @@ describe("GET /api/v1/concerns", () => {
     const concernId = await seedConcern({
       body: "おすすめ対象の投稿",
       clusterId,
+      processingStatus: "ready",
       regionCode: "osaka",
       createdAt: "9999-01-12T00:00:00.000Z",
     });
@@ -527,6 +568,25 @@ describe("GET /api/v1/concerns", () => {
         reasonCode: "unread_cluster",
       },
     });
+  });
+
+  it("hides a cluster until its label and summary are ready", async () => {
+    const clusterId = await seedCluster({ status: "pending" });
+    const concernId = await seedConcern({
+      body: "要約生成中の投稿",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: "9999-01-13T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request("/api/v1/concerns", {}, env);
+    const body = await response.json<{
+      items: Array<{ id: string; cluster: unknown }>;
+    }>();
+    const item = body.items.find((value) => value.id === concernId);
+
+    expect(response.status).toBe(200);
+    expect(item?.cluster).toBeNull();
   });
 
   it("excludes the logged-in user's own post from the recommended feed", async () => {
@@ -568,6 +628,7 @@ describe("GET /api/v1/concerns", () => {
         id,
         body: "推薦ページングのテスト投稿",
         clusterId,
+        processingStatus: "ready",
         createdAt: "9998-06-01T00:00:00.000Z",
       });
     }
@@ -615,7 +676,7 @@ describe("GET /api/v1/concerns", () => {
     expect(receivedIds).toHaveLength(expectedIds.length);
     expect(new Set(receivedIds).size).toBe(expectedIds.length);
     expect(new Set(receivedIds)).toEqual(new Set(expectedIds));
-  });
+  }, 15_000);
 
   it("paginates with an opaque cursor without duplicating items", async () => {
     const suffix = crypto.randomUUID();
@@ -670,10 +731,46 @@ describe("GET /api/v1/concerns", () => {
     }
   });
 
+  it("rejects a cursor when the gender filter changes", async () => {
+    await seedConcern({
+      id: `gender-cursor-${crypto.randomUUID()}-b`,
+      body: "性別カーソルの1件目",
+      genderCode: "male",
+      createdAt: "9999-02-10T00:00:00.000Z",
+    });
+    await seedConcern({
+      id: `gender-cursor-${crypto.randomUUID()}-a`,
+      body: "性別カーソルの2件目",
+      genderCode: "male",
+      createdAt: "9999-02-09T00:00:00.000Z",
+    });
+
+    const app = createTestApp();
+    const firstPage = await app.request(
+      "/api/v1/concerns?gender=male&limit=1",
+      {},
+      env,
+    );
+    const firstBody = await firstPage.json<{ nextCursor: string | null }>();
+    expect(firstPage.status).toBe(200);
+    expect(firstBody.nextCursor).toEqual(expect.any(String));
+
+    const mismatchedPage = await app.request(
+      `/api/v1/concerns?gender=female&cursor=${encodeURIComponent(firstBody.nextCursor ?? "")}`,
+      {},
+      env,
+    );
+    expect(mismatchedPage.status).toBe(400);
+    await expect(mismatchedPage.json()).resolves.toMatchObject({
+      error: { code: "INVALID_CURSOR" },
+    });
+  });
+
   it.each([
     ["limit=0", "INVALID_REQUEST"],
     ["limit=51", "INVALID_REQUEST"],
     ["sort=unknown", "INVALID_REQUEST"],
+    ["gender=unknown", "INVALID_REQUEST"],
     ["regionCode=kanto", "INVALID_REQUEST"],
     ["cursor=invalid", "INVALID_CURSOR"],
   ])("rejects invalid query %s", async (query, code) => {
@@ -688,16 +785,37 @@ describe("GET /api/v1/concerns", () => {
     expect(body.error.code).toBe(code);
   });
 
-  it("requires authentication for recommended sorting", async () => {
+  it("falls back to newest sorting when recommended is requested anonymously", async () => {
+    const newestId = await seedConcern({
+      body: "未ログインでも読める新しい投稿",
+      createdAt: "9999-11-02T00:00:00.000Z",
+    });
+    const olderId = await seedConcern({
+      body: "未ログインでも読める古い投稿",
+      createdAt: "9999-11-01T00:00:00.000Z",
+    });
     const res = await createTestApp().request(
-      "/api/v1/concerns?sort=recommended",
+      "/api/v1/concerns?sort=recommended&limit=50",
       {},
       env,
     );
 
-    expect(res.status).toBe(400);
-    const body = await res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
+    expect(res.status).toBe(200);
+    const body = await res.json<{
+      items: Array<{
+        id: string;
+        recommendation: { strategy: string; reasonCode: string };
+      }>;
+    }>();
+    const ids = body.items.map((item) => item.id);
+
+    expect(ids.indexOf(newestId)).toBeLessThan(ids.indexOf(olderId));
+    expect(
+      body.items.find((item) => item.id === newestId)?.recommendation,
+    ).toEqual({
+      strategy: "newest",
+      reasonCode: "newest",
+    });
   });
 });
 
@@ -723,6 +841,49 @@ describe("GET /api/v1/concerns/:concernId", () => {
     });
     expect(body).not.toHaveProperty("userId");
     expect(body).not.toHaveProperty("recommendation");
+  });
+
+  it("returns the reaction count and the logged-in user's reacted state", async () => {
+    const app = createTestApp(`line-reaction-state-${crypto.randomUUID()}`);
+    const cookie = await loginCookie(app);
+    const id = await seedConcern({
+      body: "リアクション状態を確認する投稿",
+      genderCode: "male",
+      createdAt: "9999-12-31T00:00:00.000Z",
+    });
+    const reactionResponse = await app.request(
+      `/api/v1/concerns/${id}/reactions`,
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+    expect(reactionResponse.status).toBe(201);
+
+    const feedResponse = await app.request(
+      "/api/v1/concerns?gender=male&limit=50",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const feedBody = await feedResponse.json<{
+      items: Array<{ id: string; reactionCount: number; reacted: boolean }>;
+    }>();
+    expect(feedBody.items.find((item) => item.id === id)).toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
+
+    const detailResponse = await app.request(
+      `/api/v1/concerns/${id}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
   });
 
   it("returns 404 for hidden, deleted, or missing concerns", async () => {

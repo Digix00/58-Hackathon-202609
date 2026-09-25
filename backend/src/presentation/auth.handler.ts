@@ -15,6 +15,9 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
   idToken: z.string().min(1).max(4096),
 });
+const devLoginRequest = z.object({
+  userKey: z.enum(["demo-a", "demo-b", "demo-c"]),
+});
 
 const factory = createFactory<{ Bindings: Bindings }>();
 
@@ -88,6 +91,46 @@ export class AuthHandler {
     }
   });
 
+  readonly dev = factory.createHandlers(async (c) => {
+    const requestId = setRequestId(c);
+    if (c.env.DEV_AUTH_ENABLED !== "true") {
+      return c.json(
+        {
+          error: {
+            code: "NOT_FOUND",
+            message: "Not found",
+            requestId,
+          },
+        },
+        404,
+      );
+    }
+
+    const parsed = devLoginRequest.safeParse(await readJson(c.req.raw));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "開発用ユーザーを指定してください",
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await this.authUseCase.authenticateWithIdentity(
+      { lineUserId: `dev:${parsed.data.userKey}` },
+      getCookie(c, SESSION_COOKIE_NAME),
+    );
+    if (result.token) {
+      setSessionCookie(c, result.token, this.sessionMaxAgeSeconds);
+    }
+
+    return c.json(toResponse(result));
+  });
+
   readonly session = factory.createHandlers(async (c) => {
     setRequestId(c);
     const result = await this.authUseCase.getOrCreateSession(
@@ -141,6 +184,7 @@ function toResponse(result: { user: User | null }) {
 function toUserResponse(user: User) {
   return {
     id: user.id,
+    displayLanguage: user.displayLanguage,
     birthYear: user.birthYear,
     birthMonth: user.birthMonth,
     gender: user.gender,

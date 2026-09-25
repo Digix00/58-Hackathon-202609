@@ -5,7 +5,8 @@
   "type": "module",
   "types": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --config wrangler.dev.jsonc",
+    "dev:vectorize": "wrangler dev --config wrangler.vectorize.dev.jsonc",
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy --minify",
     "lint": "oxlint",
@@ -14,7 +15,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:seed:local": "wrangler d1 execute DB --local --config wrangler.dev.jsonc --file ./scripts/dev-seed.sql --yes && wrangler d1 execute DB --local --config wrangler.dev.jsonc --file ./scripts/seed-local-posts.sql --yes",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "vectorize:backfill": "node ./scripts/backfill-vectorize.mjs",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {

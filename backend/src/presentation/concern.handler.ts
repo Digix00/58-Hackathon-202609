@@ -7,10 +7,13 @@ import {
   type AgeGroup,
   type Concern,
   ConcernValidationError,
+  GENDERS,
   type Gender,
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
+import { getRegionName } from "../application/entity/region-name";
+import type { DisplayLanguage } from "../application/entity/user";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -33,6 +36,7 @@ const listConcernQuery = z
     cursor: z.string().min(1).optional(),
     sort: z.enum(CONCERN_SORT_OPTIONS).default("newest"),
     clusterId: z.string().min(1).optional(),
+    gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
     language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
   })
@@ -93,7 +97,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
       });
 
-      return c.json(toResponse(concern), 201);
+      return c.json(toResponse(concern, auth.user.displayLanguage), 201);
     } catch (error) {
       if (error instanceof ConcernValidationError) {
         return c.json(
@@ -133,23 +137,18 @@ export class ConcernHandler {
     }
 
     const auth = c.var.auth;
-    if (parsed.data.sort === "recommended" && !auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "おすすめフィードにはLINEログインが必要です",
-            requestId,
-          },
-        },
-        400,
-      );
-    }
+    // 公開フィードは未ログインでも読める。認証状態とCookieが一時的に
+    // 食い違って recommended が指定されても、新着順へ落として閲覧を継続する。
+    const sort =
+      parsed.data.sort === "recommended" && !auth?.user
+        ? "newest"
+        : parsed.data.sort;
 
     const cursorContext = {
-      sort: parsed.data.sort,
+      sort,
       regionCode: parsed.data.regionCode,
       clusterId: parsed.data.clusterId,
+      gender: parsed.data.gender,
     } as const;
     const decodedCursor = parsed.data.cursor
       ? decodeConcernCursor(parsed.data.cursor, cursorContext)
@@ -173,7 +172,8 @@ export class ConcernHandler {
       const result = await this.concernUsecase.listFeed({
         limit: parsed.data.limit,
         cursor,
-        sort: parsed.data.sort,
+        sort,
+        gender: parsed.data.gender,
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
         userId: auth?.user?.id,
@@ -184,7 +184,9 @@ export class ConcernHandler {
         : null;
 
       return c.json({
-        items: result.items.map((item) => toFeedResponse(item, true)),
+        items: result.items.map((item) =>
+          toFeedResponse(item, true, auth?.user?.displayLanguage ?? "original"),
+        ),
         nextCursor,
       });
     }
@@ -192,13 +194,20 @@ export class ConcernHandler {
     const result = await this.concernUsecase.listPublished({
       limit: parsed.data.limit,
       cursor,
+      gender: parsed.data.gender,
     });
     const nextCursor = result.nextCursor
       ? encodeConcernCursor(result.nextCursor, cursorContext)
       : null;
 
     return c.json({
-      items: result.items.map((concern) => toFeedResponse(concern, true)),
+      items: result.items.map((concern) =>
+        toFeedResponse(
+          concern,
+          true,
+          auth?.user?.displayLanguage ?? "original",
+        ),
+      ),
       nextCursor,
     });
   });
@@ -227,11 +236,17 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(item, false));
+    return c.json(
+      toFeedResponse(
+        item,
+        false,
+        c.var.auth?.user?.displayLanguage ?? "original",
+      ),
+    );
   });
 }
 
-function toResponse(concern: Concern) {
+function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
   return {
     id: concern.id,
     body: concern.body,
@@ -239,6 +254,7 @@ function toResponse(concern: Concern) {
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
@@ -252,10 +268,17 @@ function toResponse(concern: Concern) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
+  displayLanguage: DisplayLanguage,
 ) {
   const candidate = isFeedItem(source)
     ? source
-    : { concern: source, cluster: null, viewed: false };
+    : {
+        concern: source,
+        cluster: null,
+        viewed: false,
+        reactionCount: 0,
+        reacted: false,
+      };
   const concern = candidate.concern;
 
   return {
@@ -266,6 +289,7 @@ function toFeedResponse(
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     representations: {
       jaHira: toRepresentationStatus(concern),
@@ -278,9 +302,9 @@ function toFeedResponse(
           summary: candidate.cluster.summary,
         }
       : null,
-    reactionCount: 0,
+    reactionCount: candidate.reactionCount ?? 0,
     viewed: candidate.viewed,
-    reacted: false,
+    reacted: candidate.reacted ?? false,
     ...(includeRecommendation
       ? {
           recommendation: isFeedItem(source)
