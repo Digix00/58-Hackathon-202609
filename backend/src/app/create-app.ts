@@ -12,6 +12,7 @@ import type { QuizHandler } from "../presentation/quiz.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
+import { requireAllowedAdminOrigin } from "./middleware/admin-origin";
 import { createAuthMiddleware } from "./middleware/auth";
 import { requireCloudflareAccess } from "./middleware/cloudflare-access";
 import { requestLogger } from "./middleware/request-logger";
@@ -100,6 +101,7 @@ export function createApp({
       .post(
         "/api/v1/admin/line/broadcasts/daily-quiz",
         requireCloudflareAccess,
+        requireAllowedAdminOrigin,
         ...lineHandler.adminTrigger,
       );
   }

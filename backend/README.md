@@ -178,6 +178,8 @@ ACCESS_AUD=<Worker API用 Access application の AUD tag>
 CORS_ORIGIN=<管理画面を配信するフロントエンドのorigin>
 ```
 
+管理画面から配信を起動する POST は、Cloudflare Access に加えて `Origin` が `CORS_ORIGIN` と一致することをサーバー側で確認する。`Origin` がない、`null`、形式不正、または別 Origin の場合は拒否する。管理画面用の `CORS_ORIGIN` はワイルドカードではなく、フロントエンドの単一 Origin を設定する。
+
 Workerは `Cf-Access-Jwt-Assertion` の署名、issuer、audienceを検証する。Cloudflare Accessのポリシーでも担当者を制限し、API側のJWT検証を無効にしない。管理画面はAccess認証CookieでAPIを呼び出すため、`INTERNAL_API_TOKEN` はブラウザーに渡らない。
 
 ローカルの `wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では、`DEV_AUTH_ENABLED=true`、`DEV_ACCESS_BYPASS=true`、`DEV_LINE_BROADCAST_SIMULATION=true` が設定されるため、Cloudflare Accessなしで管理画面から生成・配信フローを確認できる。最初の2つが揃うと管理 API のAccess検証を省略し、3つすべてが揃うとLINE APIへ送信せず、受付状態を模擬する。画面も「開発用シミュレーション」と表示する。これらのフラグはローカル開発設定だけに置き、本番設定には追加しない。
@@ -205,6 +207,7 @@ pnpm --filter backend db:seed:local
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
 Cookie セッションを使う認証 API では、環境ごとにフロントエンドの origin を必ず設定する。
 未設定時の `*` は認証情報を送らないローカル確認用のフォールバックとして扱う。
+管理配信 POST は CSRF 対策として同じ `CORS_ORIGIN` をサーバー側でも照合し、未設定時や Origin 欠落時は拒否する。
 
 - 本番: `wrangler.jsonc` の `vars.CORS_ORIGIN` にデプロイ済みフロントエンドの origin を設定する。
 - ローカル: `.dev.vars`（`.dev.vars.example` をコピーして作成、git管理外）に

@@ -967,6 +967,8 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 - 本番の GET / POST は Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
 - `ACCESS_TEAM_DOMAIN` から issuer と JWKS URL を決め、`ACCESS_AUD` を audience として署名・issuer・audience を検証する
 - Cloudflare Access 側のアプリケーションポリシーで、運用担当者だけを許可する
+- POST は `Origin` を `CORS_ORIGIN` と照合し、両方を URL の Origin に正規化した値が完全一致する場合だけ受け付ける。`Origin` の欠落、`null`、形式不正、不一致、および未設定・不正な `CORS_ORIGIN` は 403 とする。GET の状態取得にはこの Origin 制限を適用しない
+- この Origin 検証は CORS とは別にサーバー側で実行する。CORS の許可設定だけでは管理操作 POST の CSRF 対策にならない
 - ローカルの Wrangler 開発設定では `DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方がある場合にAccess検証を省略する。さらに `DEV_LINE_BROADCAST_SIMULATION=true` が揃う場合はLINE APIを呼ばず、配信状態を模擬する。本番設定にはこれらのフラグを置かない
 - `deliveryMode` は `line_api` または `simulation`。`succeeded` は `line_api` のときLINE APIが受理した状態、`simulation` のときはLINEへ送信しないローカル模擬実行の完了を示す
 
