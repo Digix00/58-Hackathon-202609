@@ -85,6 +85,13 @@
       "when": 1790311667130,
       "tag": "0011_steep_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790328775329,
+      "tag": "0012_flippant_gorgon",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,109 @@
+.page {
+  box-sizing: border-box;
+  display: grid;
+  gap: 1.25rem;
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  color: #302b3b;
+}
+
+.heading {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #68557f;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
+  line-height: 1.25;
+}
+
+.description,
+.note,
+.timestamp,
+.error {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #d8d0e3;
+  border-radius: 1rem;
+  background: #fffdf8;
+  box-shadow: 0 0.35rem 1rem rgb(48 43 59 / 8%);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.status {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.timestamp {
+  color: #625d6c;
+  font-size: 0.9rem;
+}
+
+.error {
+  color: #8b2438;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+  border: 2px solid #4d3f6e;
+  border-radius: 999px;
+  background: #4d3f6e;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: 3px solid #dfad54;
+  outline-offset: 3px;
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.secondary {
+  background: transparent;
+  color: #4d3f6e;
+}
+
+@media (max-width: 30rem) {
+  .page {
+    padding-inline: 1rem;
+  }
+
+  .button {
+    width: 100%;
+  }
+}

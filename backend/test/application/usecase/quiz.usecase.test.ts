@@ -70,6 +70,7 @@ function createRepository(
 ): QuizRepository {
   return {
     findPublishedByDate: async () => null,
+    findAvailableByDate: async () => null,
     findPublishedById: async () => null,
     listCandidates: async () => [],
     insert: async () => true,
@@ -131,6 +132,34 @@ describe("QuizUseCase", () => {
     });
     expect(generated?.participants).toHaveLength(3);
     expect(generated?.options).toHaveLength(3);
+  });
+
+  it("reuses today's published quiz or creates it before returning its id", async () => {
+    let existing: Quiz | null = null;
+    let generatedCount = 0;
+    const useCase = new QuizUseCase(
+      createRepository({
+        findAvailableByDate: async () => existing,
+        listCandidates: async () => candidates,
+        insert: async (quiz) => {
+          existing = quiz;
+          generatedCount += 1;
+          return true;
+        },
+      }),
+      () => new Date("2026-09-25T00:00:00.000Z"),
+      (() => {
+        let index = 0;
+        return () => `daily-${(index += 1)}`;
+      })(),
+    );
+
+    const first = await useCase.ensureDailyQuiz("2026-09-25");
+    const second = await useCase.ensureDailyQuiz("2026-09-25");
+
+    expect(first).toMatchObject({ id: "daily-4", quizDate: "2026-09-25" });
+    expect(second).toEqual(first);
+    expect(generatedCount).toBe(1);
   });
 
   it("returns 404-ready null when no published quiz exists for today", async () => {
