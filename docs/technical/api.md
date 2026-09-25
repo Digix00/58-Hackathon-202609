@@ -397,7 +397,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | --- | --- | --- | --- |
 | limit | 任意 | 20 | 1〜50 |
 | cursor | 任意 | — | 次ページの opaque cursor |
-| sort | 任意 | newest | recommended または newest。recommended はLINEログイン済みLIFFのみ |
+| sort | 任意 | newest | recommended または newest。未ログインでrecommendedを指定した場合はnewestとして扱う |
 | clusterId | 任意 | — | 指定クラスタに絞る |
 | gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
@@ -450,8 +450,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - この対応では表示形式の切り替えを都道府県名に適用し、投稿本文の表示動作は変更しない
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
-- sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、都道府県の分散、新しさを使う
-- 未ログインの取得で sort=recommended を指定した場合は 400 AUTHENTICATION_REQUIRED を返す
+- sort=recommended はLINEログイン済みLIFFで、未読、クラスタの分散、都道府県の分散、新しさを使う
+- 未ログインの取得で sort=recommended を指定した場合は、公開閲覧を継続するため sort=newest と同じ結果を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す
 - 推薦理由の code は画面側で表示文言へ変換する。サーバーは内部のスコアや個人識別情報を返さない
 
