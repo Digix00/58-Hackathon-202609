@@ -1,4 +1,5 @@
 import { GENDERS, REGION_CODES, type Gender, type RegionCode } from '../post/postTypes'
+import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
 import {
   ageGroupLabel,
   createdLabel,
@@ -38,7 +39,7 @@ export function toFeedConcern(item: FeedItem): FeedConcern {
     regionCode: item.attributes.regionCode as RegionCode | undefined,
     gender: genderLabel(item.attributes.gender),
     ageGroup: ageGroupLabel(item.attributes.ageGroup),
-    region: regionLabel(item.attributes.regionCode),
+    region: item.attributes.regionName ?? regionLabel(item.attributes.regionCode),
     createdLabel: createdLabel(item.createdAt),
     reason: RECOMMENDATION_REASON_LABELS[reasonCode],
     reactionCount: item.reactionCount,
@@ -46,7 +47,7 @@ export function toFeedConcern(item: FeedItem): FeedConcern {
   }
 }
 
-export function buildFeedFilterOptions(): {
+export function buildFeedFilterOptions(language: DisplayLanguage = 'original'): {
   genderOptions: FeedFilterOption[]
   regionOptions: FeedFilterOption[]
 } {
@@ -57,11 +58,19 @@ export function buildFeedFilterOptions(): {
     ],
     regionOptions: [
       { value: ALL, label: 'すべて' },
-      ...REGION_CODES.map((region) => ({ value: region, label: regionLabel(region) ?? region })),
+      ...REGION_CODES.map((region) => ({
+        value: region,
+        label: regionLabel(region, language) ?? region,
+      })),
     ],
   }
 }
 
-export function activeFeedFilterLabel(filter: FeedFilter): string {
-  return [genderLabel(filter.gender), regionLabel(filter.region)].filter(Boolean).join(' · ')
+export function activeFeedFilterLabel(
+  filter: FeedFilter,
+  language: DisplayLanguage = 'original',
+): string {
+  return [genderLabel(filter.gender), regionLabel(filter.region, language)]
+    .filter(Boolean)
+    .join(' · ')
 }

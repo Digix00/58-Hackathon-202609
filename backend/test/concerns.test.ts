@@ -319,6 +319,7 @@ describe("POST /api/v1/concerns", () => {
       ageGroup: "20s",
       gender: "no_answer",
       regionCode: "osaka",
+      regionName: "大阪府",
     });
   });
 

@@ -19,7 +19,7 @@
 | `quiz_options` | quiz_id、concern_id、表示順 | 順番を混ぜて表示する3件の実投稿 |
 | `quiz_attempts` | id、quiz_id、user_id、score、answered_at | ユーザーごとの回答試行 |
 | `quiz_answers` | attempt_id、quiz_id、participant_id、selected_concern_id、is_correct | 対応付け回答の明細 |
-| `users` | id、LINE user ID、生年月（年・月）、性別、都道府県、日時 | LINE配信とユーザー単位の履歴 |
+| `users` | id、LINE user ID、表示形式、生年月（年・月）、性別、都道府県、日時 | LINE配信、表示形式の保存、ユーザー単位の履歴。表示形式は original、jaHira、en |
 | `learning_events` | id、user_id、concern_id、cluster_id、quiz_id、event_type、occurred_at | 閲覧・リアクション・クイズの履歴 |
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
@@ -42,6 +42,8 @@
 - ユーザープロフィールの性別は `male`、`female`、`non_binary`、`other`、`no_answer` のいずれかで保存する
 - ユーザープロフィールの都道府県は47都道府県コードから選択して保存する
 - 都道府県コードはアプリケーションコードで定義し、`regions` のようなマスタテーブルは持たない
+- 都道府県の表示名はコードと表示形式からアプリケーションコードで決定し、投稿データに翻訳名を複製しない
+- 認証済みユーザーの表示形式は `users.display_language` に保存し、初期値は `original` とする
 - 初回ログイン直後のプロフィールは未入力を許容し、性別の `no_answer` は入力済みとして扱う
 - クイズの3ユーザーは異なる `user_id` から選び、表示時には属性だけを利用する
 - クイズの3件は、年代・性別・都道府県コードの各属性がすべて重複しない組み合わせにする。未入力の属性は `no_answer` として扱い、ヒントとして機能するようにする

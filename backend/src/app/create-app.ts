@@ -65,6 +65,10 @@ export function createApp({
     .get("/api/v1/auth/session", ...authHandler.session)
     .post("/api/v1/auth/logout", ...authHandler.logout)
     .put("/api/v1/users/me", ...userHandler.updateProfile)
+    .put(
+      "/api/v1/users/me/display-language",
+      ...userHandler.updateDisplayLanguage,
+    )
     .get("/api/v1/history/summary", ...historyHandler.getSummary)
     .get("/api/v1/history/quiz-answers", ...historyHandler.getQuizAnswers)
     .get("/api/v1/concerns", ...concernHandler.list)

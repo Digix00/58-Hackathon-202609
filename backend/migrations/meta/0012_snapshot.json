@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2dd5866c-1859-43b6-a758-a0dd98ca697b",
-  "prevId": "a867b31b-19f5-4103-b100-7e4a7c55f2f9",
+  "id": "6edec403-16ad-4c19-9388-e24f2fa9f3d7",
+  "prevId": "2dd5866c-1859-43b6-a758-a0dd98ca697b",
   "tables": {
     "concern_clusters": {
       "name": "concern_clusters",
@@ -643,6 +643,132 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "learning_events": {
+      "name": "learning_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "concern_id": {
+          "name": "concern_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cluster_id": {
+          "name": "cluster_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "learning_events_user_idx": {
+          "name": "learning_events_user_idx",
+          "columns": [
+            "user_id",
+            "\"occurred_at\" DESC"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "learning_events_user_id_users_id_fk": {
+          "name": "learning_events_user_id_users_id_fk",
+          "tableFrom": "learning_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "learning_events_concern_id_concerns_id_fk": {
+          "name": "learning_events_concern_id_concerns_id_fk",
+          "tableFrom": "learning_events",
+          "tableTo": "concerns",
+          "columnsFrom": [
+            "concern_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "learning_events_cluster_id_concern_clusters_id_fk": {
+          "name": "learning_events_cluster_id_concern_clusters_id_fk",
+          "tableFrom": "learning_events",
+          "tableTo": "concern_clusters",
+          "columnsFrom": [
+            "cluster_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "learning_events_quiz_id_quizzes_id_fk": {
+          "name": "learning_events_quiz_id_quizzes_id_fk",
+          "tableFrom": "learning_events",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "learning_events_event_type_check": {
+          "name": "learning_events_event_type_check",
+          "value": "event_type in ('view', 'reaction', 'quiz_answer')"
+        }
+      }
     },
     "quiz_answers": {
       "name": "quiz_answers",
@@ -1309,6 +1435,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -1339,6 +1472,14 @@
     "columns": {}
   },
   "internal": {
-    "indexes": {}
+    "indexes": {
+      "learning_events_user_idx": {
+        "columns": {
+          "\"occurred_at\" DESC": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }
