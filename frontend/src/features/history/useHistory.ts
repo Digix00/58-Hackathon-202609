@@ -2,24 +2,48 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { appendQuizAnswers, toHistoryViewModel, type HistoryViewModel } from './historyViewModel'
 import { getHistorySummary, getQuizAnswerHistory } from './historyApi'
 
-export type HistoryStatus = 'loading' | 'success' | 'error'
+export type HistoryStatus = 'loading' | 'success' | 'error' | 'unavailable'
+
+export interface HistoryError {
+  status: number
+  code: string
+  message: string
+}
 
 export interface UseHistoryResult {
   status: HistoryStatus
   data: HistoryViewModel | null
-  error: string | null
+  error: HistoryError | null
   isLoadingMore: boolean
   refresh: () => Promise<void>
   loadMoreQuizAnswers: () => Promise<void>
 }
 
-type HistoryFetchResult = { data: HistoryViewModel } | { error: string }
+type HistoryFetchResult = { data: HistoryViewModel } | { error: HistoryError }
 
 async function fetchHistoryData(): Promise<HistoryFetchResult> {
   const [summary, quizAnswers] = await Promise.all([getHistorySummary(), getQuizAnswerHistory()])
 
-  if (!summary.ok) return { error: summary.message }
-  if (!quizAnswers.ok) return { error: quizAnswers.message }
+  if (!summary.ok && summary.code === 'USER_DELETED') {
+    return {
+      error: { status: summary.status, code: summary.code, message: summary.message },
+    }
+  }
+  if (!quizAnswers.ok && quizAnswers.code === 'USER_DELETED') {
+    return {
+      error: { status: quizAnswers.status, code: quizAnswers.code, message: quizAnswers.message },
+    }
+  }
+  if (!summary.ok) {
+    return {
+      error: { status: summary.status, code: summary.code, message: summary.message },
+    }
+  }
+  if (!quizAnswers.ok) {
+    return {
+      error: { status: quizAnswers.status, code: quizAnswers.code, message: quizAnswers.message },
+    }
+  }
 
   return { data: toHistoryViewModel(summary.data, quizAnswers.data) }
 }
@@ -27,13 +51,14 @@ async function fetchHistoryData(): Promise<HistoryFetchResult> {
 export function useHistory(): UseHistoryResult {
   const [status, setStatus] = useState<HistoryStatus>('loading')
   const [data, setData] = useState<HistoryViewModel | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<HistoryError | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const requestVersion = useRef(0)
 
   const applyHistoryResult = useCallback((result: HistoryFetchResult) => {
     if ('error' in result) {
-      setStatus('error')
+      setData(null)
+      setStatus(result.error.code === 'USER_DELETED' ? 'unavailable' : 'error')
       setError(result.error)
       return
     }
@@ -66,7 +91,16 @@ export function useHistory(): UseHistoryResult {
     setIsLoadingMore(false)
 
     if (!result.ok) {
-      setError(result.message)
+      const historyError = {
+        status: result.status,
+        code: result.code,
+        message: result.message,
+      }
+      if (historyError.code === 'USER_DELETED') {
+        setData(null)
+        setStatus('unavailable')
+      }
+      setError(historyError)
       return
     }
 

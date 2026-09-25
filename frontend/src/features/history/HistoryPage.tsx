@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { useRuntime } from '../../app/providers/RuntimeContext'
+import { closeLineWindow } from '../../infrastructure/liff/client'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -7,7 +9,17 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useHistory } from './useHistory'
 import type { HistoryViewModel } from './historyViewModel'
 
-type Detail = 'regions' | 'quiz' | null
+type AggregateDetail = 'regions' | 'clusters' | 'ageGroups' | 'genders' | 'viewedCount'
+type Detail = AggregateDetail | 'quiz' | null
+
+const detailTitles: Record<Exclude<Detail, null>, string> = {
+  regions: '都道府県の傾向',
+  clusters: 'テーマの傾向',
+  ageGroups: '投稿者の年代',
+  genders: '投稿者の性別',
+  viewedCount: '読んだ声の数',
+  quiz: 'クイズの履歴',
+}
 
 function HistoryHeading() {
   return (
@@ -25,35 +37,31 @@ function HistoryDetailView({
   onBack,
   onLoadMore,
   isLoadingMore,
-  error,
+  errorMessage,
 }: {
   detail: Exclude<Detail, null>
   model: HistoryViewModel
   onBack: () => void
   onLoadMore: () => void
   isLoadingMore: boolean
-  error: string | null
+  errorMessage: string | null
 }) {
-  const title = detail === 'regions' ? '出会った地域' : 'クイズの履歴'
   return (
     <section className={`${screen.paper} ${crayonStyles.edge}`}>
       <button type="button" className={actionStyles.text} onClick={onBack}>
         ← 振り返りに戻る
       </button>
-      <h2>{title}</h2>
+      <h2>{detailTitles[detail]}</h2>
       {detail === 'quiz' ? (
         <QuizHistoryDetail
           model={model}
           onLoadMore={onLoadMore}
           isLoadingMore={isLoadingMore}
-          error={error}
+          error={errorMessage}
         />
       ) : (
-        <RegionHistoryDetail model={model} />
+        <HistoryAggregateDetail detail={detail} model={model} />
       )}
-      {detail === 'regions' ? (
-        <p className={screen.muted}>読んだ声: {model.viewedCount}件</p>
-      ) : null}
     </section>
   )
 }
@@ -101,52 +109,83 @@ function QuizHistoryDetail({
   )
 }
 
-function RegionHistoryDetail({ model }: { model: HistoryViewModel }) {
-  return (
-    <div className={screen.stack}>
-      <HistoryCountList
-        title="地域"
-        items={model.regions.map((item) => ({
-          key: item.code,
-          label: item.label,
-          count: item.count,
-        }))}
-      />
-      <HistoryCountList
-        title="声のまとまり"
-        items={model.clusters.map((item) => ({
-          key: item.id,
-          label: item.label,
-          count: item.count,
-        }))}
-      />
-      <HistoryCountList title="投稿者の年代" items={model.ageGroups} />
-      <HistoryCountList title="投稿者の性別" items={model.genders} />
-    </div>
-  )
+function HistoryAggregateDetail({
+  detail,
+  model,
+}: {
+  detail: AggregateDetail
+  model: HistoryViewModel
+}) {
+  switch (detail) {
+    case 'regions':
+      return (
+        <HistoryCountList
+          items={model.regions.map((item) => ({
+            key: item.code,
+            label: item.label,
+            count: item.count,
+          }))}
+        />
+      )
+    case 'clusters':
+      return (
+        <HistoryCountList
+          items={model.clusters.map((item) => ({
+            key: item.id,
+            label: item.label,
+            count: item.count,
+          }))}
+        />
+      )
+    case 'ageGroups':
+      return <HistoryCountList items={model.ageGroups} />
+    case 'genders':
+      return <HistoryCountList items={model.genders} />
+    case 'viewedCount':
+      return <p className={screen.muted}>読んだ声: {model.viewedCount}件</p>
+  }
 }
 
 function HistoryCountList({
-  title,
   items,
 }: {
-  title: string
   items: Array<{ key?: string; label: string; count: number }>
 }) {
   return (
-    <section>
-      <h3>{title}</h3>
-      <ul className={screen.list}>
-        {items.length ? (
-          items.map((item) => (
-            <li className={screen.listItem} key={item.key ?? item.label}>
-              {item.label} · {item.count}件
-            </li>
-          ))
-        ) : (
-          <li>まだ記録がありません。</li>
-        )}
-      </ul>
+    <ul className={screen.list}>
+      {items.length ? (
+        items.map((item) => (
+          <li className={screen.listItem} key={item.key ?? item.label}>
+            {item.label} · {item.count}件
+          </li>
+        ))
+      ) : (
+        <li>まだ記録がありません。</li>
+      )}
+    </ul>
+  )
+}
+
+function HistoryUnavailableView() {
+  const { liffUrl } = useRuntime()
+  const returnUrl = liffUrl('/') ?? '/'
+
+  const handleReturnToLine = () => {
+    try {
+      if (closeLineWindow()) return
+    } catch {
+      // Use the LIFF URL as a fallback when the client cannot close the app.
+    }
+    window.location.assign(returnUrl)
+  }
+
+  return (
+    <section className={`${screen.paper} ${crayonStyles.edge}`}>
+      <h2>学習履歴を利用できません</h2>
+      <p className={screen.muted}>このアカウントでは学習履歴を確認できません。</p>
+      <button type="button" className={actionStyles.primary} onClick={handleReturnToLine}>
+        LINEへ戻る
+      </button>
     </section>
   )
 }
@@ -243,7 +282,35 @@ function HistoryOverviewView({
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('regions')}
           >
-            地域の傾向
+            都道府県の傾向
+          </button>
+          <button
+            type="button"
+            className={actionStyles.secondary}
+            onClick={() => onOpenDetail('clusters')}
+          >
+            テーマの傾向
+          </button>
+          <button
+            type="button"
+            className={actionStyles.secondary}
+            onClick={() => onOpenDetail('ageGroups')}
+          >
+            投稿者の年代
+          </button>
+          <button
+            type="button"
+            className={actionStyles.secondary}
+            onClick={() => onOpenDetail('genders')}
+          >
+            投稿者の性別
+          </button>
+          <button
+            type="button"
+            className={actionStyles.secondary}
+            onClick={() => onOpenDetail('viewedCount')}
+          >
+            読んだ声の数
           </button>
           <button
             type="button"
@@ -273,10 +340,11 @@ function HistoryContent() {
       {status === 'loading' ? <LoadingState label="履歴を読み込んでいます…" /> : null}
       {status === 'error' ? (
         <ErrorState
-          description={error ?? '履歴を読み込めませんでした。'}
+          description={error?.message ?? '履歴を読み込めませんでした。'}
           onRetry={() => void refresh()}
         />
       ) : null}
+      {status === 'unavailable' ? <HistoryUnavailableView /> : null}
       {status === 'success' && data ? (
         detail ? (
           <HistoryDetailView
@@ -285,7 +353,7 @@ function HistoryContent() {
             onBack={() => setDetail(null)}
             onLoadMore={() => void loadMoreQuizAnswers()}
             isLoadingMore={isLoadingMore}
-            error={error}
+            errorMessage={error?.message ?? null}
           />
         ) : data.viewedCount === 0 && data.quiz.answeredCount === 0 ? (
           <HistoryEmptyView feedPath="/" />
