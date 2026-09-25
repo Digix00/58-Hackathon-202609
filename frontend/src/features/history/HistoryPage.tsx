@@ -1,36 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { DemoBoundary } from '../../shared/components/DemoBoundary'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import { useDemoState, type DemoConcern, type DemoQuizResult } from '../demo/demoStore'
+import { useHistory } from './useHistory'
+import type { HistoryViewModel } from './historyViewModel'
 
 type Detail = 'regions' | 'quiz' | null
-type HistoryModel = {
-  viewedCount: number
-  regions: string[]
-  hasNext: boolean
-  quizResult: DemoQuizResult | null
-}
-
-function buildHistoryModel(
-  concerns: DemoConcern[],
-  viewedIds: ReadonlySet<string>,
-  quizResult: DemoQuizResult | null,
-): HistoryModel {
-  const viewed = concerns.filter((concern) => viewedIds.has(concern.id))
-  return {
-    viewedCount: viewed.length,
-    regions: [
-      ...new Set(
-        viewed.map((concern) => concern.region).filter((value): value is string => Boolean(value)),
-      ),
-    ],
-    hasNext: concerns.some((concern) => !viewedIds.has(concern.id)),
-    quizResult,
-  }
-}
 
 function HistoryHeading() {
   return (
@@ -46,10 +24,16 @@ function HistoryDetailView({
   detail,
   model,
   onBack,
+  onLoadMore,
+  isLoadingMore,
+  error,
 }: {
   detail: Exclude<Detail, null>
-  model: HistoryModel
+  model: HistoryViewModel
   onBack: () => void
+  onLoadMore: () => void
+  isLoadingMore: boolean
+  error: string | null
 }) {
   const title = detail === 'regions' ? '出会った地域' : 'クイズの履歴'
   return (
@@ -59,27 +43,111 @@ function HistoryDetailView({
       </button>
       <h2>{title}</h2>
       {detail === 'quiz' ? (
-        <p>
-          {model.quizResult
-            ? `今日のクイズ: ${model.quizResult.score} / 3組`
-            : 'まだクイズに回答していません。'}
-        </p>
+        <QuizHistoryDetail
+          model={model}
+          onLoadMore={onLoadMore}
+          isLoadingMore={isLoadingMore}
+          error={error}
+        />
       ) : (
-        <ul className={screen.list}>
-          {model.regions.length ? (
-            model.regions.map((value) => (
-              <li className={screen.listItem} key={value}>
-                {value}
-              </li>
-            ))
-          ) : (
-            <li>まだ記録がありません。</li>
-          )}
-        </ul>
+        <RegionHistoryDetail model={model} />
       )}
       {detail === 'regions' ? (
         <p className={screen.muted}>読んだ声: {model.viewedCount}件</p>
       ) : null}
+    </section>
+  )
+}
+
+function QuizHistoryDetail({
+  model,
+  onLoadMore,
+  isLoadingMore,
+  error,
+}: {
+  model: HistoryViewModel
+  onLoadMore: () => void
+  isLoadingMore: boolean
+  error: string | null
+}) {
+  return (
+    <div className={screen.stack}>
+      <p>
+        回答 {model.quiz.answeredCount}回・正答 {model.quiz.correctCount} /{' '}
+        {model.quiz.totalQuestions}問（正答率 {Math.round(model.quiz.accuracy * 100)}%）
+      </p>
+      {model.quizAnswers.length ? (
+        <ul className={screen.list}>
+          {model.quizAnswers.map((answer) => (
+            <li className={screen.listItem} key={answer.quizId}>
+              {answer.quizDate}: {answer.score} / {answer.total}問
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={screen.muted}>まだクイズに回答していません。</p>
+      )}
+      {error ? <p role="alert">{error}</p> : null}
+      {model.quizAnswersNextCursor ? (
+        <button
+          type="button"
+          className={actionStyles.secondary}
+          onClick={onLoadMore}
+          disabled={isLoadingMore}
+        >
+          {isLoadingMore ? '読み込んでいます…' : '過去の履歴を読み込む'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function RegionHistoryDetail({ model }: { model: HistoryViewModel }) {
+  return (
+    <div className={screen.stack}>
+      <HistoryCountList
+        title="地域"
+        items={model.regions.map((item) => ({
+          key: item.code,
+          label: item.label,
+          count: item.count,
+        }))}
+      />
+      <HistoryCountList
+        title="声のまとまり"
+        items={model.clusters.map((item) => ({
+          key: item.id,
+          label: item.label,
+          count: item.count,
+        }))}
+      />
+      <HistoryCountList title="投稿者の年代" items={model.ageGroups} />
+      <HistoryCountList title="投稿者の性別" items={model.genders} />
+    </div>
+  )
+}
+
+function HistoryCountList({
+  title,
+  items,
+}: {
+  title: string
+  items: Array<{ key?: string; label: string; count: number }>
+}) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      <ul className={screen.list}>
+        {items.length ? (
+          items.map((item) => (
+            <li className={screen.listItem} key={item.key ?? item.label}>
+              {item.label} · {item.count}件
+            </li>
+          ))
+        ) : (
+          <li>まだ記録がありません。</li>
+        )}
+      </ul>
     </section>
   )
 }
@@ -101,31 +169,33 @@ function RegionShelf({
   selectedRegion,
   onSelect,
 }: {
-  regions: string[]
+  regions: HistoryViewModel['regions']
   selectedRegion: string | null
   onSelect: (region: string) => void
 }) {
-  const visibleRegions = regions.length ? regions : ['クイズ']
+  const visibleRegions = regions.length ? regions : [{ code: 'quiz', label: 'クイズ', count: 0 }]
   const activeRegion =
-    selectedRegion && visibleRegions.includes(selectedRegion) ? selectedRegion : visibleRegions[0]
+    selectedRegion && visibleRegions.some(({ code }) => code === selectedRegion)
+      ? selectedRegion
+      : visibleRegions[0].code
   return (
     <section className={screen.stack} aria-label="出会った地域">
       <div className={screen.shelf} role="group" aria-label="出会った地域のしおり">
         {visibleRegions.slice(0, 4).map((region) => (
           <button
-            key={region}
+            key={region.code}
             type="button"
             className={screen.shelfMark}
-            aria-pressed={region === activeRegion}
-            onClick={() => onSelect(region)}
+            aria-pressed={region.code === activeRegion}
+            onClick={() => onSelect(region.code)}
           >
-            {region}
+            {region.label}
           </button>
         ))}
       </div>
       <p className={screen.muted} aria-live="polite">
         {regions.length
-          ? `「${activeRegion}」の声に出会いました。`
+          ? `「${visibleRegions.find(({ code }) => code === activeRegion)?.label}」の声に出会いました。`
           : '今日のクイズで、違う立場の声を読みました。'}
       </p>
     </section>
@@ -140,7 +210,7 @@ function HistoryOverviewView({
   feedPath,
   quizPath,
 }: {
-  model: HistoryModel
+  model: HistoryViewModel
   selectedRegion: string | null
   onSelectRegion: (region: string) => void
   onOpenDetail: (detail: Exclude<Detail, null>) => void
@@ -158,7 +228,7 @@ function HistoryOverviewView({
         className={`${screen.paper} ${screen.taped} ${screen.tapeRight} ${crayonStyles.edge}`}
       >
         <p className={screen.eyebrow}>つぎに、ひらくなら</p>
-        <h2>{model.hasNext ? 'まだ会っていない声' : 'すべての声に出会いました'}</h2>
+        <h2>まだ読んでいない声を探してみましょう</h2>
         <Link className={actionStyles.text} to={feedPath}>
           読んでみる →
         </Link>
@@ -190,33 +260,54 @@ function HistoryOverviewView({
 }
 
 export function HistoryPage() {
-  const { concerns, viewedIds, quizResult } = useDemoState()
-  const [detail, setDetail] = useState<Detail>(null)
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
-  const model = buildHistoryModel(concerns, viewedIds, quizResult)
-
   return (
     <DemoBoundary
       emptyTitle="最初の声を読んでみましょう"
       emptyDescription="読んだ声が、ここに少しずつ残ります。"
     >
-      <div className={screen.page}>
-        <HistoryHeading />
-        {detail ? (
-          <HistoryDetailView detail={detail} model={model} onBack={() => setDetail(null)} />
-        ) : model.viewedCount === 0 && !model.quizResult ? (
+      <HistoryContent />
+    </DemoBoundary>
+  )
+}
+
+function HistoryContent() {
+  const { status, data, error, isLoadingMore, refresh, loadMoreQuizAnswers } = useHistory()
+  const [detail, setDetail] = useState<Detail>(null)
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
+
+  return (
+    <div className={screen.page}>
+      <HistoryHeading />
+      {status === 'loading' ? <LoadingState label="履歴を読み込んでいます…" /> : null}
+      {status === 'error' ? (
+        <ErrorState
+          description={error ?? '履歴を読み込めませんでした。'}
+          onRetry={() => void refresh()}
+        />
+      ) : null}
+      {status === 'success' && data ? (
+        detail ? (
+          <HistoryDetailView
+            detail={detail}
+            model={data}
+            onBack={() => setDetail(null)}
+            onLoadMore={() => void loadMoreQuizAnswers()}
+            isLoadingMore={isLoadingMore}
+            error={error}
+          />
+        ) : data.viewedCount === 0 && data.quiz.answeredCount === 0 ? (
           <HistoryEmptyView feedPath="/" />
         ) : (
           <HistoryOverviewView
-            model={model}
+            model={data}
             selectedRegion={selectedRegion}
             onSelectRegion={setSelectedRegion}
             onOpenDetail={setDetail}
             feedPath="/"
             quizPath="/quiz/today"
           />
-        )}
-      </div>
-    </DemoBoundary>
+        )
+      ) : null}
+    </div>
   )
 }

@@ -7,6 +7,7 @@ import type { ConcernHandler } from "../presentation/concern.handler";
 import type { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import type { ConcernViewHandler } from "../presentation/concern-view.handler";
 import type { HealthHandler } from "../presentation/health.handler";
+import type { HistoryHandler } from "../presentation/history.handler";
 import type { QuizHandler } from "../presentation/quiz.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -21,6 +22,7 @@ export interface ApplicationDependencies {
   concernReactionHandler: ConcernReactionHandler;
   concernViewHandler: ConcernViewHandler;
   healthHandler: HealthHandler;
+  historyHandler: HistoryHandler;
   quizHandler: QuizHandler;
   userHandler: UserHandler;
 }
@@ -33,6 +35,7 @@ export function createApp({
   concernReactionHandler,
   concernViewHandler,
   healthHandler,
+  historyHandler,
   quizHandler,
   userHandler,
 }: ApplicationDependencies) {
@@ -62,6 +65,8 @@ export function createApp({
     .get("/api/v1/auth/session", ...authHandler.session)
     .post("/api/v1/auth/logout", ...authHandler.logout)
     .put("/api/v1/users/me", ...userHandler.updateProfile)
+    .get("/api/v1/history/summary", ...historyHandler.getSummary)
+    .get("/api/v1/history/quiz-answers", ...historyHandler.getQuizAnswers)
     .get("/api/v1/concerns", ...concernHandler.list)
     .post("/api/v1/concerns", ...concernHandler.create)
     .get("/api/v1/concerns/:concernId", ...concernHandler.detail)

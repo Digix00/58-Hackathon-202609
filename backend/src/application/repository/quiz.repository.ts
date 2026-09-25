@@ -1,3 +1,4 @@
+import type { LearningEvent } from "../entity/learning-event";
 import type { Quiz, QuizAnswerMatch, QuizCandidate } from "../entity/quiz";
 
 export interface RecordQuizAnswerInput {
@@ -28,5 +29,8 @@ export interface QuizRepository {
   findPublishedById(quizId: string, userId: string): Promise<Quiz | null>;
   listCandidates(): Promise<QuizCandidate[]>;
   insert(quiz: Quiz): Promise<boolean>;
-  recordAnswer(input: RecordQuizAnswerInput): Promise<RecordQuizAnswerResult>;
+  recordAnswer(
+    input: RecordQuizAnswerInput,
+    event: LearningEvent,
+  ): Promise<RecordQuizAnswerResult>;
 }

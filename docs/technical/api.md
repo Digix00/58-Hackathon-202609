@@ -478,6 +478,7 @@ reasonCode の初期値は次のとおり。
 - reactionType が欠落または未対応の場合は 400 INVALID_REQUEST を返す
 - 存在しない、hidden、deleted の concernId は 404 NOT_FOUND とする
 - concernId と解決済みの認証主体と reactionType の組を一意にする
+- 新しいリアクションと同じトランザクションで learning_events に reaction を1件記録し、再送では重複記録しない
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
@@ -496,6 +497,7 @@ reasonCode の初期値は次のとおり。
 ~~~
 
 - 同じ concernId と actor_key の組は一行に集約し、再送時も最初の viewedAt を返す
+- 新しい既読と同じトランザクションで learning_events に view を1件記録し、再送では重複記録しない
 - actor_key は認証セッションから解決した内部 users.id とし、LINE user ID は保存・返却しない
 - 未ログイン時は 401 AUTHENTICATION_REQUIRED
 - hidden、deleted、存在しない concernId は 404 NOT_FOUND とする
