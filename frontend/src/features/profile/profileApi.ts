@@ -1,5 +1,8 @@
 import { apiClient } from '../../lib/api'
+import type { AuthResponse } from '../../lib/api'
 import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
+
+type AuthenticatedUser = NonNullable<AuthResponse['user']>
 
 export const GENDERS = [
   { value: 'female', label: '女性' },
@@ -97,11 +100,15 @@ export async function updateUserProfile(
 
 export async function updateUserDisplayLanguage(
   displayLanguage: DisplayLanguage,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
   const response = await profileApiClient.api.v1.users.me['display-language'].$put({
     json: { displayLanguage },
   })
-  if (response.ok) return { ok: true }
+  if (response.ok) {
+    const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
+    if (body?.user) return { ok: true, user: body.user }
+    return { ok: false, message: '表示形式を保存できませんでした' }
+  }
 
   const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
   return { ok: false, message: body?.error?.message ?? '表示形式を保存できませんでした' }

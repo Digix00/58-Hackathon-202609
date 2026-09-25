@@ -19,7 +19,7 @@ const fontSizeOptions = [
 ] as const
 
 export function SettingsPage() {
-  const { status: authStatus, refresh } = useAuth()
+  const { status: authStatus, updateUser } = useAuth()
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
   const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>(
@@ -40,8 +40,8 @@ export function SettingsPage() {
         return
       }
 
-      setLanguage(value)
-      await refresh()
+      updateUser(result.user)
+      setLanguage(result.user.displayLanguage)
       setLanguageStatus('saved')
     } catch {
       setLanguageStatus('failed')
