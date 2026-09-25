@@ -8,6 +8,7 @@ export function createHistoryDependencies() {
         clusters: [],
         regions: [],
         attributes: { ageGroups: [], genders: [] },
+        nextSuggestion: null,
         quiz: {
           answeredCount: 0,
           correctCount: 0,

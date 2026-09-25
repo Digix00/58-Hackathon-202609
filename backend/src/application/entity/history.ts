@@ -24,7 +24,12 @@ export interface HistorySummaryStats {
   };
 }
 
+export type HistoryNextSuggestion =
+  | { kind: "theme"; label: string }
+  | { kind: "region"; regionCode: string };
+
 export interface HistorySummary extends HistorySummaryStats {
+  nextSuggestion: HistoryNextSuggestion | null;
   quiz: HistorySummaryStats["quiz"] & { accuracy: number };
 }
 

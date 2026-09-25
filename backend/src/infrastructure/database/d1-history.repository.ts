@@ -1,5 +1,6 @@
 import type {
   HistoryCount,
+  HistoryNextSuggestion,
   HistorySummaryStats,
   QuizAnswerHistoryCursor,
   QuizAnswerHistoryItem,
@@ -27,6 +28,12 @@ interface QuizSummaryRow {
 }
 
 interface QuizAnswerRow extends QuizAnswerHistoryItem {}
+
+interface NextSuggestionRow {
+  kind: "theme" | "region";
+  themeLabel: string | null;
+  regionCode: string | null;
+}
 
 /** D1上の既読・クイズ結果を使って学習履歴を集計するAdapter。 */
 export class D1HistoryRepository implements HistoryRepository {
@@ -106,6 +113,38 @@ export class D1HistoryRepository implements HistoryRepository {
         totalQuestions: quiz?.totalQuestions ?? 0,
       },
     };
+  }
+
+  async getNextSuggestion(
+    userId: string,
+  ): Promise<HistoryNextSuggestion | null> {
+    const row = await this.database
+      .prepare(
+        "SELECT CASE WHEN concern_clusters.status = 'ready' " +
+          "AND concern_clusters.label IS NOT NULL THEN 'theme' ELSE 'region' END AS kind, " +
+          "concern_clusters.label AS themeLabel, concerns.region_code AS regionCode " +
+          "FROM concerns " +
+          "LEFT JOIN concern_clusters ON concern_clusters.id = concerns.cluster_id " +
+          "WHERE concerns.visibility_status = 'published' " +
+          "AND concerns.user_id <> ? " +
+          "AND NOT EXISTS (SELECT 1 FROM concern_views " +
+          "WHERE concern_views.concern_id = concerns.id AND concern_views.actor_key = ?) " +
+          "AND ((concern_clusters.status = 'ready' AND concern_clusters.label IS NOT NULL) " +
+          "OR concerns.region_code IS NOT NULL) " +
+          "ORDER BY CASE WHEN concern_clusters.status = 'ready' " +
+          "AND concern_clusters.label IS NOT NULL THEN 0 ELSE 1 END ASC, " +
+          "concerns.created_at DESC, concerns.id DESC LIMIT 1",
+      )
+      .bind(userId, userId)
+      .first<NextSuggestionRow>();
+
+    if (!row) return null;
+    if (row.kind === "theme" && row.themeLabel) {
+      return { kind: "theme", label: row.themeLabel };
+    }
+    return row.regionCode
+      ? { kind: "region", regionCode: row.regionCode }
+      : null;
   }
 
   async listQuizAnswers(

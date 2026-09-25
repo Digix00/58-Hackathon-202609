@@ -31,7 +31,10 @@ export class HistoryUseCase implements IHistoryUseCase {
 
   readonly getSummary = async (userId: string): Promise<HistorySummary> => {
     await this.assertUserCanRead(userId);
-    const stats = await this.repository.getSummaryStats(userId);
+    const [stats, nextSuggestion] = await Promise.all([
+      this.repository.getSummaryStats(userId),
+      this.repository.getNextSuggestion(userId),
+    ]);
     const accuracy =
       stats.quiz.totalQuestions === 0
         ? 0
@@ -39,7 +42,7 @@ export class HistoryUseCase implements IHistoryUseCase {
             (stats.quiz.correctCount / stats.quiz.totalQuestions) * 10_000,
           ) / 10_000;
 
-    return { ...stats, quiz: { ...stats.quiz, accuracy } };
+    return { ...stats, nextSuggestion, quiz: { ...stats.quiz, accuracy } };
   };
 
   readonly listQuizAnswers = async (

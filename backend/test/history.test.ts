@@ -120,7 +120,9 @@ async function seedHistory(userId: string) {
     updatedAt: createdAt,
   });
 
-  const concernIds = [1, 2, 3].map((number) => `${suffix}-concern-${number}`);
+  const concernIds = [1, 2, 3, 4, 5, 6].map(
+    (number) => `${suffix}-concern-${number}`,
+  );
   await db.insert(concerns).values([
     {
       id: concernIds[0],
@@ -160,6 +162,45 @@ async function seedHistory(userId: string) {
       processingStatus: "ready",
       createdAt,
       updatedAt: createdAt,
+    },
+    {
+      id: concernIds[3],
+      userId: authorId,
+      body: "未読テーマの投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "kyoto",
+      clusterId,
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt: "2098-01-08T00:00:00.000Z",
+      updatedAt: "2098-01-08T00:00:00.000Z",
+    },
+    {
+      id: concernIds[4],
+      userId: authorId,
+      body: "未読地域の投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "hyogo",
+      clusterId: null,
+      visibilityStatus: "published",
+      processingStatus: "pending",
+      createdAt: "2098-01-07T00:00:00.000Z",
+      updatedAt: "2098-01-07T00:00:00.000Z",
+    },
+    {
+      id: concernIds[5],
+      userId,
+      body: "本人の未読投稿",
+      ageGroup: null,
+      genderCode: null,
+      regionCode: "aichi",
+      clusterId: null,
+      visibilityStatus: "published",
+      processingStatus: "pending",
+      createdAt: "2098-01-09T00:00:00.000Z",
+      updatedAt: "2098-01-09T00:00:00.000Z",
     },
   ]);
   await db.insert(concernViews).values([
@@ -225,7 +266,13 @@ async function seedHistory(userId: string) {
     },
   ]);
 
-  return { concernIds, otherUserId, quizIds };
+  return {
+    concernIds,
+    otherUserId,
+    quizIds,
+    unreadThemeConcernId: concernIds[3],
+    unreadRegionConcernId: concernIds[4],
+  };
 }
 
 describe("learning history routes", () => {
@@ -249,6 +296,10 @@ describe("learning history routes", () => {
     expect(summaryResponse.status).toBe(200);
     const summary = await summaryResponse.json<{
       viewedConcernCount: number;
+      nextSuggestion:
+        | { kind: "theme"; label: string }
+        | { kind: "region"; regionCode: string }
+        | null;
       clusters: Array<{ clusterId: string; label: string; count: number }>;
       regions: Array<{ regionCode: string; count: number }>;
       attributes: {
@@ -264,6 +315,7 @@ describe("learning history routes", () => {
     }>();
     expect(summary).toMatchObject({
       viewedConcernCount: 2,
+      nextSuggestion: { kind: "theme", label: "仕事と生活" },
       clusters: [{ label: "仕事と生活", count: 2 }],
       regions: [
         { regionCode: "osaka", count: 1 },
@@ -280,6 +332,50 @@ describe("learning history routes", () => {
         accuracy: 0.6667,
       },
     });
+
+    await db.insert(concernViews).values({
+      concernId: seeded.unreadThemeConcernId,
+      actorKey: user.id,
+      viewedAt: "2098-01-12T00:00:00.000Z",
+    });
+    const regionSuggestionResponse = await app.request(
+      "/api/v1/history/summary",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const regionSuggestion = await regionSuggestionResponse.json<{
+      nextSuggestion:
+        | { kind: "theme"; label: string }
+        | { kind: "region"; regionCode: string }
+        | null;
+    }>();
+    expect(regionSuggestion.nextSuggestion).toEqual({
+      kind: "region",
+      regionCode: "hyogo",
+    });
+
+    await db.insert(concernViews).values({
+      concernId: seeded.unreadRegionConcernId,
+      actorKey: user.id,
+      viewedAt: "2098-01-13T00:00:00.000Z",
+    });
+    await env.DB.prepare(
+      "INSERT INTO concern_views (concern_id, actor_key, viewed_at) " +
+        "SELECT id, ?, '2098-01-14T00:00:00.000Z' FROM concerns " +
+        "WHERE visibility_status = 'published' AND user_id <> ? " +
+        "ON CONFLICT DO NOTHING",
+    )
+      .bind(user.id, user.id)
+      .run();
+    const completeSummaryResponse = await app.request(
+      "/api/v1/history/summary",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const completeSummary = await completeSummaryResponse.json<{
+      nextSuggestion: unknown;
+    }>();
+    expect(completeSummary.nextSuggestion).toBeNull();
 
     const firstPageResponse = await app.request(
       "/api/v1/history/quiz-answers?limit=2",

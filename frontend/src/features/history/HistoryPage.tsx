@@ -266,10 +266,23 @@ function HistoryOverviewView({
         className={`${screen.paper} ${screen.taped} ${screen.tapeRight} ${crayonStyles.edge}`}
       >
         <p className={screen.eyebrow}>つぎに、ひらくなら</p>
-        <h2>まだ読んでいない声を探してみましょう</h2>
-        <Link className={actionStyles.text} to={feedPath}>
-          読んでみる →
-        </Link>
+        {model.nextSuggestion ? (
+          <>
+            <h2>未読の{model.nextSuggestion.kind === 'theme' ? 'テーマ' : '都道府県'}</h2>
+            <p className={screen.muted}>{model.nextSuggestion.label}</p>
+            <Link className={actionStyles.text} to={feedPath}>
+              声を読む →
+            </Link>
+          </>
+        ) : (
+          <>
+            <h2>今読める未読の声はありません</h2>
+            <p className={screen.muted}>新しい声が届いたら、ここに表示します。</p>
+            <Link className={actionStyles.text} to={feedPath}>
+              フィードを見る →
+            </Link>
+          </>
+        )}
       </section>
       <Link className={actionStyles.text} to={quizPath}>
         きょうの手紙をひらく

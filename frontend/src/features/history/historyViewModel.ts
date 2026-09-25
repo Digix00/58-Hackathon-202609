@@ -7,6 +7,7 @@ export interface HistoryViewModel {
   regions: Array<{ code: string; label: string; count: number }>
   ageGroups: Array<{ label: string; count: number }>
   genders: Array<{ label: string; count: number }>
+  nextSuggestion: { kind: 'theme'; label: string } | { kind: 'region'; label: string } | null
   quiz: HistorySummaryResponse['quiz']
   quizAnswers: QuizAnswerHistoryResponse['items']
   quizAnswersNextCursor: string | null
@@ -36,6 +37,15 @@ export function toHistoryViewModel(
       label: genderLabel(item.gender) ?? item.gender,
       count: item.count,
     })),
+    nextSuggestion: summary.nextSuggestion
+      ? summary.nextSuggestion.kind === 'theme'
+        ? summary.nextSuggestion
+        : {
+            kind: 'region',
+            label:
+              regionLabel(summary.nextSuggestion.regionCode) ?? summary.nextSuggestion.regionCode,
+          }
+      : null,
     quiz: summary.quiz,
     quizAnswers: quizAnswers.items,
     quizAnswersNextCursor: quizAnswers.nextCursor,

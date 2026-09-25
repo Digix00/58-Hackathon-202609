@@ -726,6 +726,10 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~json
 {
   "viewedConcernCount": 24,
+  "nextSuggestion": {
+    "kind": "theme",
+    "label": "昼休み・食堂"
+  },
   "clusters": [
     {
       "clusterId": "cluster_01J...",
@@ -763,6 +767,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
+- nextSuggestion は本人以外の公開投稿のうち、未読候補から選んだテーマまたは都道府県を1件返す。ready なテーマを優先し、テーマが利用できない場合は都道府県コードを返す。該当する候補がない場合は null
 - clusters と `regions` は、既読履歴に現れた公開投稿を集計する。`regions` は都道府県コード別の集計結果であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
 - 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
