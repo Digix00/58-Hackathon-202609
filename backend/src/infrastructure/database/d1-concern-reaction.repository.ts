@@ -65,7 +65,8 @@ export class D1ConcernReactionRepository implements ConcernReactionRepository {
             "AND EXISTS (SELECT 1 FROM concern_reactions " +
             "WHERE concern_id = concerns.id AND user_id = ? AND reaction_type = ?) " +
             "AND NOT EXISTS (SELECT 1 FROM learning_events " +
-            "WHERE user_id = ? AND event_type = ? AND concern_id = concerns.id)",
+            "WHERE user_id = ? AND event_type = ? AND concern_id = concerns.id) " +
+            "AND changes() > 0",
         )
         .bind(
           event.id,
