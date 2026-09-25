@@ -220,6 +220,16 @@ function readEbmlVint(
     throw new TypeError("Invalid EBML variable integer length");
   }
 
+  let unknownSize = isSize && (first & (marker - 1)) === marker - 1;
+  for (let index = 1; index < length; index += 1) {
+    if (audio[offset + index] !== 0xff) {
+      unknownSize = false;
+    }
+  }
+  if (unknownSize) {
+    return { value: 0, length, unknownSize: true };
+  }
+
   let value = isSize ? first & (marker - 1) : first;
   for (let index = 1; index < length; index += 1) {
     value = value * 256 + audio[offset + index]!;
@@ -227,8 +237,7 @@ function readEbmlVint(
   if (!Number.isSafeInteger(value)) {
     throw new TypeError("EBML value is too large");
   }
-  const unknownSize = isSize && value === 2 ** (7 * length) - 1;
-  return { value, length, unknownSize };
+  return { value, length, unknownSize: false };
 }
 
 function* iterateEbmlChildren(

@@ -71,6 +71,10 @@ export function createWebmAudio(
   declaredDurationSeconds = durationSeconds,
   voidElementCount = 0,
   opusPacket: Uint8Array<ArrayBufferLike> = Uint8Array.of(0xf8, 0xff),
+  options: {
+    segmentSize?: "known" | "unknown" | "oversized";
+    clusterSize?: "known" | "unknown";
+  } = {},
 ): Uint8Array {
   const packetCount = Math.ceil(durationSeconds / 0.02);
   const ebmlHead = ebmlElement(
@@ -140,11 +144,14 @@ export function createWebmAudio(
         ),
       );
     }
+    const clusterBody = concat(
+      ebmlUint([0xe7], clusterSecond * 1_000),
+      ...blocks,
+    );
     clusters.push(
-      ebmlElement(
-        [0x1f, 0x43, 0xb6, 0x75],
-        concat(ebmlUint([0xe7], clusterSecond * 1_000), ...blocks),
-      ),
+      options.clusterSize === "unknown"
+        ? ebmlElementWithUnknownSize([0x1f, 0x43, 0xb6, 0x75], clusterBody)
+        : ebmlElement([0x1f, 0x43, 0xb6, 0x75], clusterBody),
     );
   }
   const voidElements = new Uint8Array(voidElementCount * 2);
@@ -152,10 +159,17 @@ export function createWebmAudio(
     voidElements[offset] = 0xec;
     voidElements[offset + 1] = 0x80;
   }
-  const segment = ebmlElement(
-    [0x18, 0x53, 0x80, 0x67],
-    concat(info, voidElements, tracks, ...clusters),
-  );
+  const segmentBody = concat(info, voidElements, tracks, ...clusters);
+  const segment =
+    options.segmentSize === "unknown"
+      ? ebmlElementWithUnknownSize([0x18, 0x53, 0x80, 0x67], segmentBody)
+      : options.segmentSize === "oversized"
+        ? ebmlElementWithSize(
+            [0x18, 0x53, 0x80, 0x67],
+            Uint8Array.of(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe),
+            segmentBody,
+          )
+        : ebmlElement([0x18, 0x53, 0x80, 0x67], segmentBody);
 
   return concat(ebmlHead, segment);
 }
@@ -164,6 +178,7 @@ export function createMp4Audio(
   durationSeconds: number,
   declaredDurationSeconds = durationSeconds,
   stszSampleCountOverride?: number,
+  tableEntryCountOverrides: Record<string, number> = {},
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -259,20 +274,39 @@ export function createMp4Audio(
   );
   const sampleDescription = atom(
     "stsd",
-    concat(new Uint8Array(4), u32be(1), audioSampleEntry),
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.stsd ?? 1),
+      audioSampleEntry,
+    ),
   );
   const timeToSample = atom(
     "stts",
     concat(
       new Uint8Array(4),
-      u32be(1),
+      u32be(tableEntryCountOverrides.stts ?? 1),
       u32be(sampleCount),
       u32be(sampleDuration),
     ),
   );
   const sampleToChunk = atom(
     "stsc",
-    concat(new Uint8Array(4), u32be(1), u32be(1), u32be(sampleCount), u32be(1)),
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.stsc ?? 1),
+      u32be(1),
+      u32be(sampleCount),
+      u32be(1),
+    ),
+  );
+  const compositionOffsets = atom(
+    "ctts",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.ctts ?? 1),
+      u32be(sampleCount),
+      u32be(0),
+    ),
   );
   const sampleSizes = atom(
     "stsz",
@@ -282,13 +316,149 @@ export function createMp4Audio(
       u32be(stszSampleCountOverride ?? sampleCount),
     ),
   );
-  const chunkOffset = (offset: number) =>
-    atom("stco", concat(new Uint8Array(4), u32be(1), u32be(offset)));
+  const chunkOffset = (offset: number) => {
+    const stco = atom(
+      "stco",
+      concat(
+        new Uint8Array(4),
+        u32be(tableEntryCountOverrides.stco ?? 1),
+        u32be(offset),
+      ),
+    );
+    if (!("co64" in tableEntryCountOverrides)) {
+      return stco;
+    }
+    const co64 = atom(
+      "co64",
+      concat(
+        new Uint8Array(4),
+        u32be(tableEntryCountOverrides.co64!),
+        u32be(0),
+        u32be(offset),
+      ),
+    );
+    return concat(stco, co64);
+  };
+  const optionalSampleTables = ["stss", "stps", "stsh"].flatMap((type) => {
+    if (!(type in tableEntryCountOverrides)) {
+      return [];
+    }
+    const entryCount = tableEntryCountOverrides[type]!;
+    const record = type === "stsh" ? concat(u32be(1), u32be(1)) : u32be(1);
+    return [atom(type, concat(new Uint8Array(4), u32be(entryCount), record))];
+  });
+  const auxiliarySampleTables: Uint8Array[] = [];
+  if ("elst" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "elst",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.elst!),
+          new Uint8Array(12),
+        ),
+      ),
+    );
+  }
+  if ("sbgp" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sbgp",
+        concat(
+          new Uint8Array(4),
+          ascii("roll"),
+          u32be(tableEntryCountOverrides.sbgp!),
+          new Uint8Array(8),
+        ),
+      ),
+    );
+  }
+  if ("sgpd" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sgpd",
+        concat(
+          new Uint8Array(4),
+          ascii("roll"),
+          u32be(tableEntryCountOverrides.sgpd!),
+        ),
+      ),
+    );
+  }
+  if ("subs" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "subs",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.subs!),
+          u32be(1),
+          u16be(0),
+        ),
+      ),
+    );
+  }
+  if ("saio" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "saio",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.saio!),
+          u32be(0),
+        ),
+      ),
+    );
+  }
+  if ("saiz" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "saiz",
+        concat(
+          new Uint8Array(4),
+          Uint8Array.of(0),
+          u32be(tableEntryCountOverrides.saiz!),
+          Uint8Array.of(1),
+        ),
+      ),
+    );
+  }
+  if ("tfra" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "tfra",
+        concat(
+          new Uint8Array(4),
+          u32be(1),
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.tfra!),
+          new Uint8Array(11),
+        ),
+      ),
+    );
+  }
+  if ("sidx" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sidx",
+        concat(
+          new Uint8Array(4),
+          u32be(1),
+          u32be(audioTimescale),
+          u32be(audioDuration),
+          u32be(0),
+          u16be(0),
+          u16be(tableEntryCountOverrides.sidx!),
+          new Uint8Array(12),
+        ),
+      ),
+    );
+  }
   const dataReference = atom(
     "dref",
     concat(
       new Uint8Array(4),
-      u32be(1),
+      u32be(tableEntryCountOverrides.dref ?? 1),
       atom("url ", concat(Uint8Array.of(0, 0, 0, 1))),
     ),
   );
@@ -298,8 +468,11 @@ export function createMp4Audio(
       concat(
         sampleDescription,
         timeToSample,
+        compositionOffsets,
         sampleToChunk,
         sampleSizes,
+        ...optionalSampleTables,
+        ...auxiliarySampleTables,
         chunkOffset(offset),
       ),
     );
@@ -380,6 +553,25 @@ function atom(type: string, body: Uint8Array): Uint8Array {
 
 function ebmlElement(id: number[], body: Uint8Array): Uint8Array {
   return concat(Uint8Array.from(id), ebmlSize(body.length), body);
+}
+
+function ebmlElementWithUnknownSize(
+  id: number[],
+  body: Uint8Array,
+): Uint8Array {
+  return ebmlElementWithSize(
+    id,
+    Uint8Array.of(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff),
+    body,
+  );
+}
+
+function ebmlElementWithSize(
+  id: number[],
+  size: Uint8Array,
+  body: Uint8Array,
+): Uint8Array {
+  return concat(Uint8Array.from(id), size, body);
 }
 
 function ebmlUint(id: number[], value: number): Uint8Array {

@@ -6,6 +6,7 @@ const MAX_AAC_SAMPLE_RATE = 96_000;
 // A supported AAC-LC track needs at most 6,000 access units for 60 seconds.
 export const MAX_MP4_SAMPLE_ENTRIES = 10_000;
 const MAX_MP4_BOX_VISITS = 100_000;
+const MAX_MP4_TABLE_ENTRIES = 100_000;
 const MAX_MP4_BOX_DEPTH = 16;
 const MP4_CONTAINER_BOXES = new Set([
   "dinf",
@@ -13,6 +14,7 @@ const MP4_CONTAINER_BOXES = new Set([
   "mdia",
   "meta",
   "minf",
+  "mfra",
   "moof",
   "moov",
   "mvex",
@@ -261,10 +263,15 @@ function readAacConfig(description: object): {
 type Mp4ParseBudget = {
   boxVisits: number;
   sampleEntries: number;
+  tableEntries: number;
 };
 
 function enforceMp4SampleEntryBudget(audio: Uint8Array): void {
-  const budget: Mp4ParseBudget = { boxVisits: 0, sampleEntries: 0 };
+  const budget: Mp4ParseBudget = {
+    boxVisits: 0,
+    sampleEntries: 0,
+    tableEntries: 0,
+  };
   visitMp4Boxes(audio, 0, audio.byteLength, 0, budget);
 }
 
@@ -320,6 +327,74 @@ function visitMp4Boxes(
       visitCompactSampleSizeBox(audio, payloadStart, boxEnd, budget);
     } else if (type === "trun") {
       visitTrackRunBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "subs") {
+      visitSubsampleBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "sgpd") {
+      visitSampleGroupDescriptionBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "sbgp") {
+      visitSampleGroupBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "saio") {
+      visitSampleAuxiliaryOffsetsBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "saiz") {
+      visitSampleAuxiliarySizesBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "tfra") {
+      visitTrackFragmentRandomAccessBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "sidx") {
+      visitSegmentIndexBox(audio, payloadStart, boxEnd, budget);
+    } else if (type === "stsd" || type === "dref") {
+      visitBoxEntryTable(audio, payloadStart, boxEnd, budget, type);
+    } else if (type === "elst") {
+      const version = audio[payloadStart];
+      visitCountedTable(
+        audio,
+        payloadStart,
+        boxEnd,
+        budget,
+        type,
+        4,
+        version === 1 ? 20 : 12,
+      );
+    } else if (
+      type === "stts" ||
+      type === "ctts" ||
+      type === "stsc" ||
+      type === "stco" ||
+      type === "co64" ||
+      type === "stss" ||
+      type === "stps" ||
+      type === "stsh"
+    ) {
+      const recordSize = {
+        stts: 8,
+        ctts: 8,
+        stsc: 12,
+        stco: 4,
+        co64: 8,
+        stss: 4,
+        stps: 4,
+        stsh: 8,
+      }[type];
+      visitCountedTable(
+        audio,
+        payloadStart,
+        boxEnd,
+        budget,
+        type,
+        4,
+        recordSize,
+      );
+    } else if (type === "sdtp") {
+      const entries = boxEnd - payloadStart - 4;
+      if (entries < 0) {
+        throw new TypeError("Invalid MP4 sdtp table");
+      }
+      addMp4TableEntries(entries, budget, type);
+    } else if (type === "stdp") {
+      const payloadBytes = boxEnd - payloadStart - 4;
+      if (payloadBytes < 0 || payloadBytes % 2 !== 0) {
+        throw new TypeError("Invalid MP4 stdp table");
+      }
+      addMp4TableEntries(payloadBytes / 2, budget, type);
     }
 
     if (MP4_CONTAINER_BOXES.has(type)) {
@@ -389,17 +464,294 @@ function visitTrackRunBox(
   if (payloadStart + 8 > boxEnd) {
     throw new TypeError("Invalid MP4 track run box");
   }
-  addMp4SampleEntries(readUint32Be(audio, payloadStart + 4), budget);
+  const flags =
+    (audio[payloadStart + 1]! << 16) |
+    (audio[payloadStart + 2]! << 8) |
+    audio[payloadStart + 3]!;
+  const sampleCount = readUint32Be(audio, payloadStart + 4);
+  addMp4SampleEntries(sampleCount, budget);
+  let sampleRecordsStart = payloadStart + 8;
+  if (flags & 1) {
+    sampleRecordsStart += 4;
+  }
+  if (flags & 4) {
+    sampleRecordsStart += 4;
+  }
+  if (sampleRecordsStart > boxEnd) {
+    throw new TypeError("Invalid MP4 track run box");
+  }
+  const recordSize =
+    4 *
+    (Number(Boolean(flags & 0x100)) +
+      Number(Boolean(flags & 0x200)) +
+      Number(Boolean(flags & 0x400)) +
+      Number(Boolean(flags & 0x800)));
+  if (
+    recordSize > 0 &&
+    sampleCount > Math.floor((boxEnd - sampleRecordsStart) / recordSize)
+  ) {
+    throw new TypeError("Invalid MP4 track run table");
+  }
 }
 
 function addMp4SampleEntries(
   sampleCount: number,
   budget: Mp4ParseBudget,
 ): void {
+  addMp4TableEntries(sampleCount, budget, "sample");
   if (sampleCount > MAX_MP4_SAMPLE_ENTRIES - budget.sampleEntries) {
     throw new TypeError("MP4 sample count exceeds parser budget");
   }
   budget.sampleEntries += sampleCount;
+}
+
+function visitCountedTable(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+  type: string,
+  countOffset: number,
+  recordSize: number,
+): void {
+  const countPosition = payloadStart + countOffset;
+  if (countPosition + 4 > boxEnd) {
+    throw new TypeError(`Invalid MP4 ${type} table`);
+  }
+  const entryCount = readUint32Be(audio, countPosition);
+  addMp4TableEntries(entryCount, budget, type);
+  const recordsStart = countPosition + 4;
+  if (entryCount > Math.floor((boxEnd - recordsStart) / recordSize)) {
+    throw new TypeError(`Invalid MP4 ${type} table`);
+  }
+}
+
+function visitBoxEntryTable(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+  type: string,
+): void {
+  const countPosition = payloadStart + 4;
+  if (countPosition + 4 > boxEnd) {
+    throw new TypeError(`Invalid MP4 ${type} table`);
+  }
+  const entryCount = readUint32Be(audio, countPosition);
+  addMp4TableEntries(entryCount, budget, type);
+
+  let offset = countPosition + 4;
+  for (let entry = 0; entry < entryCount; entry += 1) {
+    if (offset + 8 > boxEnd) {
+      throw new TypeError(`Invalid MP4 ${type} table`);
+    }
+    const size32 = readUint32Be(audio, offset);
+    let headerSize = 8;
+    let boxSize: number;
+    if (size32 === 1) {
+      if (offset + 16 > boxEnd || readUint32Be(audio, offset + 8) !== 0) {
+        throw new TypeError(`Invalid MP4 ${type} entry size`);
+      }
+      boxSize = readUint32Be(audio, offset + 12);
+      headerSize = 16;
+    } else if (size32 === 0) {
+      boxSize = boxEnd - offset;
+    } else {
+      boxSize = size32;
+    }
+    if (boxSize < headerSize || boxSize > boxEnd - offset) {
+      throw new TypeError(`Invalid MP4 ${type} entry size`);
+    }
+    offset += boxSize;
+  }
+}
+
+function visitSampleGroupBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 8 > boxEnd) {
+    throw new TypeError("Invalid MP4 sbgp table");
+  }
+  const version = audio[payloadStart]!;
+  visitCountedTable(
+    audio,
+    payloadStart,
+    boxEnd,
+    budget,
+    "sbgp",
+    version === 1 ? 12 : 8,
+    8,
+  );
+}
+
+function visitSampleGroupDescriptionBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 8 > boxEnd) {
+    throw new TypeError("Invalid MP4 sgpd table");
+  }
+  const version = audio[payloadStart]!;
+  const countOffset = version === 0 ? 8 : 12;
+  const countPosition = payloadStart + countOffset;
+  if (countPosition + 4 > boxEnd) {
+    throw new TypeError("Invalid MP4 sgpd table");
+  }
+  const entryCount = readUint32Be(audio, countPosition);
+  addMp4TableEntries(entryCount, budget, "sgpd");
+  if (version === 1) {
+    const defaultLength = readUint32Be(audio, payloadStart + 8);
+    const minimumRecordSize = defaultLength === 0 ? 4 : defaultLength;
+    if (
+      entryCount >
+      Math.floor((boxEnd - (countPosition + 4)) / minimumRecordSize)
+    ) {
+      throw new TypeError("Invalid MP4 sgpd table");
+    }
+  }
+}
+
+function visitSubsampleBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 8 > boxEnd) {
+    throw new TypeError("Invalid MP4 subs table");
+  }
+  const version = audio[payloadStart]!;
+  const entryCount = readUint32Be(audio, payloadStart + 4);
+  addMp4TableEntries(entryCount, budget, "subs");
+  const subsampleRecordSize = version === 1 ? 10 : 8;
+  let offset = payloadStart + 8;
+  for (let entry = 0; entry < entryCount; entry += 1) {
+    if (offset + 6 > boxEnd) {
+      throw new TypeError("Invalid MP4 subs table");
+    }
+    const subsampleCount = (audio[offset + 4]! << 8) | audio[offset + 5]!;
+    offset += 6;
+    addMp4TableEntries(subsampleCount, budget, "subs");
+    if (subsampleCount > Math.floor((boxEnd - offset) / subsampleRecordSize)) {
+      throw new TypeError("Invalid MP4 subsample table");
+    }
+    offset += subsampleCount * subsampleRecordSize;
+  }
+}
+
+function visitSampleAuxiliaryOffsetsBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 4 > boxEnd) {
+    throw new TypeError("Invalid MP4 saio table");
+  }
+  const flags =
+    (audio[payloadStart + 1]! << 16) |
+    (audio[payloadStart + 2]! << 8) |
+    audio[payloadStart + 3]!;
+  const version = audio[payloadStart]!;
+  const countOffset = flags & 1 ? 12 : 4;
+  visitCountedTable(
+    audio,
+    payloadStart,
+    boxEnd,
+    budget,
+    "saio",
+    countOffset,
+    version === 0 ? 4 : 8,
+  );
+}
+
+function visitSampleAuxiliarySizesBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 9 > boxEnd) {
+    throw new TypeError("Invalid MP4 saiz table");
+  }
+  const flags =
+    (audio[payloadStart + 1]! << 16) |
+    (audio[payloadStart + 2]! << 8) |
+    audio[payloadStart + 3]!;
+  const countOffset = flags & 1 ? 13 : 5;
+  const countPosition = payloadStart + countOffset;
+  if (countPosition + 4 > boxEnd) {
+    throw new TypeError("Invalid MP4 saiz table");
+  }
+  const entryCount = readUint32Be(audio, countPosition);
+  const defaultSampleInfoSize = audio[payloadStart + (flags & 1 ? 12 : 4)]!;
+  if (defaultSampleInfoSize === 0) {
+    addMp4TableEntries(entryCount, budget, "saiz");
+    if (entryCount > boxEnd - (countPosition + 4)) {
+      throw new TypeError("Invalid MP4 saiz table");
+    }
+  }
+}
+
+function visitTrackFragmentRandomAccessBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 16 > boxEnd) {
+    throw new TypeError("Invalid MP4 tfra table");
+  }
+  const version = audio[payloadStart]!;
+  const lengthSizes = audio[payloadStart + 7]!;
+  const entryCount = readUint32Be(audio, payloadStart + 12);
+  const recordSize =
+    (version === 1 ? 16 : 8) +
+    ((lengthSizes >> 4) & 3) +
+    ((lengthSizes >> 2) & 3) +
+    (lengthSizes & 3) +
+    3;
+  addMp4TableEntries(entryCount, budget, "tfra");
+  if (entryCount > Math.floor((boxEnd - (payloadStart + 16)) / recordSize)) {
+    throw new TypeError("Invalid MP4 tfra table");
+  }
+}
+
+function visitSegmentIndexBox(
+  audio: Uint8Array,
+  payloadStart: number,
+  boxEnd: number,
+  budget: Mp4ParseBudget,
+): void {
+  if (payloadStart + 24 > boxEnd) {
+    throw new TypeError("Invalid MP4 sidx table");
+  }
+  const version = audio[payloadStart]!;
+  const countPosition = payloadStart + (version === 0 ? 22 : 30);
+  if (countPosition + 2 > boxEnd) {
+    throw new TypeError("Invalid MP4 sidx table");
+  }
+  const entryCount = (audio[countPosition]! << 8) | audio[countPosition + 1]!;
+  addMp4TableEntries(entryCount, budget, "sidx");
+  if (entryCount > Math.floor((boxEnd - countPosition - 2) / 12)) {
+    throw new TypeError("Invalid MP4 sidx table");
+  }
+}
+
+function addMp4TableEntries(
+  entryCount: number,
+  budget: Mp4ParseBudget,
+  type: string,
+): void {
+  if (entryCount > MAX_MP4_TABLE_ENTRIES - budget.tableEntries) {
+    throw new TypeError(`MP4 ${type} table exceeds parser budget`);
+  }
+  budget.tableEntries += entryCount;
 }
 
 function readUint32Be(audio: Uint8Array, offset: number): number {

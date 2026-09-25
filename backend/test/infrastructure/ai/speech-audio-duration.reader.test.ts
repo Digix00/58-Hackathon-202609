@@ -61,6 +61,36 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     ).rejects.toThrow("Too many WebM EBML elements");
   });
 
+  it.each([
+    [
+      "unknown-size Segment",
+      createWebmAudio(1, 1, 0, undefined, { segmentSize: "unknown" }),
+      1,
+    ],
+    [
+      "unknown-size Cluster",
+      createWebmAudio(0.02, 0.02, 0, undefined, { clusterSize: "unknown" }),
+      0.02,
+    ],
+  ])(
+    "accepts an eight-byte unknown-size %s",
+    async (_name, audio, expected) => {
+      await expect(
+        reader.getDurationSeconds(audio as Uint8Array, "audio/webm"),
+      ).resolves.toBeCloseTo(expected as number, 2);
+    },
+  );
+
+  it("still rejects an eight-byte EBML size above the safe integer range", async () => {
+    const audio = createWebmAudio(1, 1, 0, undefined, {
+      segmentSize: "oversized",
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow("EBML value is too large");
+  });
+
   it("rejects MP4 sample tables over budget before handing the file to MP4Box", async () => {
     const audio = createMp4Audio(1, 1, MAX_MP4_SAMPLE_ENTRIES + 1);
     expect(audio.byteLength).toBeLessThan(10_000);
@@ -69,6 +99,66 @@ describe("VerifiedSpeechAudioDurationReader", () => {
       "MP4 sample count exceeds parser budget",
     );
   });
+
+  it.each([
+    "stts",
+    "ctts",
+    "stsc",
+    "stco",
+    "co64",
+    "stss",
+    "stps",
+    "stsh",
+    "stsd",
+    "dref",
+    "elst",
+    "sbgp",
+    "sgpd",
+    "subs",
+    "saio",
+    "saiz",
+    "tfra",
+  ])(
+    "rejects oversized MP4 %s entry counts before handing the file to MP4Box",
+    async (table) => {
+      const audio = createMp4Audio(1, 1, undefined, { [table]: 0xffff_ffff });
+      expect(audio.byteLength).toBeLessThan(10_000);
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/mp4"),
+      ).rejects.toThrow(`MP4 ${table} table exceeds parser budget`);
+    },
+  );
+
+  it.each([
+    "stts",
+    "ctts",
+    "stsc",
+    "stco",
+    "co64",
+    "stss",
+    "stps",
+    "stsh",
+    "stsd",
+    "dref",
+    "elst",
+    "sbgp",
+    "subs",
+    "saio",
+    "saiz",
+    "tfra",
+    "sidx",
+  ])(
+    "rejects a truncated MP4 %s table before handing the file to MP4Box",
+    async (table) => {
+      const audio = createMp4Audio(1, 1, undefined, { [table]: 2 });
+      expect(audio.byteLength).toBeLessThan(10_000);
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/mp4"),
+      ).rejects.toThrow(`Invalid MP4 ${table} table`);
+    },
+  );
 
   it("limits WAV chunk visits and accepts a file at the parser budget", async () => {
     const atBudget = createWavAudio(1, MAX_WAV_CHUNK_VISITS - 2);
