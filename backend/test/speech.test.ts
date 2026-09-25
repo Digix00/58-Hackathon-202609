@@ -23,6 +23,7 @@ import { createConcernDependencies } from "./support/concern-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const MAX_MULTIPART_BODY_BYTES = MAX_AUDIO_BYTES + 16 * 1024;
 const authenticatedSession: SessionView = {
   session: {
     id: "speech-test-session",
@@ -221,6 +222,36 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).not.toHaveBeenCalled();
   });
 
+  it("applies the per-user limit before parsing an authenticated multipart body", async () => {
+    const consume = vi.fn(async () => ({
+      allowed: false as const,
+      retryAfterSeconds: 23,
+    }));
+    const app = createTestApp(
+      { transcribe: async () => "recognized" },
+      { consume },
+    );
+    const response = await app.request(
+      "/api/v1/speech/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=speech-test-token`,
+          "Content-Type": "multipart/form-data; boundary=not-present",
+        },
+        body: "malformed multipart body",
+      },
+      env,
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("23");
+    expect(await response.json()).toMatchObject({
+      error: { code: "RATE_LIMITED" },
+    });
+    expect(consume).toHaveBeenCalledOnce();
+  });
+
   it("rejects non-multipart requests, missing audio, unsupported MIME, and language", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
@@ -269,6 +300,46 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(unsupportedLanguage.status).toBe(400);
     expect(await unsupportedLanguage.json()).toMatchObject({
       error: { code: "INVALID_REQUEST" },
+    });
+
+    const unexpectedFieldForm = createAudioForm();
+    unexpectedFieldForm.append("unused", "extra field");
+    const unexpectedField = await postTranscription(app, unexpectedFieldForm);
+    expect(unexpectedField.status).toBe(400);
+    expect(await unexpectedField.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("enforces the streamed multipart body limit when Content-Length is too small", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+    const form = createAudioForm();
+    form.append("unused", "x".repeat(MAX_MULTIPART_BODY_BYTES));
+    const encodedRequest = new Request(
+      "http://localhost/api/v1/speech/transcriptions",
+      { method: "POST", body: form },
+    );
+    const body = await encodedRequest.arrayBuffer();
+
+    const response = await app.request(
+      "/api/v1/speech/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=speech-test-token`,
+          "Content-Type": encodedRequest.headers.get("content-type")!,
+          "Content-Length": "1",
+        },
+        body,
+      },
+      env,
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: "PAYLOAD_TOO_LARGE" },
     });
     expect(transcribe).not.toHaveBeenCalled();
   });

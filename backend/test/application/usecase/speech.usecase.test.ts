@@ -52,14 +52,15 @@ function createUseCase(
 }
 
 describe("SpeechUseCase", () => {
-  it("validates duration and rate limit before transcribing", async () => {
+  it("admits a request before validating its audio and transcribing", async () => {
     const { useCase, transcribe, durationReader, rateLimiter } = createUseCase({
       durationSeconds: 60,
     });
 
-    await expect(
-      useCase.transcribe("user-1", audio, "audio/webm"),
-    ).resolves.toBe("文字起こし結果");
+    await expect(useCase.admitRequest("user-1")).resolves.toBeUndefined();
+    await expect(useCase.transcribe(audio, "audio/webm")).resolves.toBe(
+      "文字起こし結果",
+    );
     expect(durationReader.getDurationSeconds).toHaveBeenCalledWith(
       new Uint8Array(audio),
       "audio/webm",
@@ -68,21 +69,23 @@ describe("SpeechUseCase", () => {
     expect(transcribe).toHaveBeenCalledWith(audio);
   });
 
-  it("rejects malformed or overlong audio before consuming a rate limit slot", async () => {
+  it("rejects malformed or overlong audio after the request was admitted", async () => {
     const malformed = createUseCase({
       durationReadError: new Error("malformed audio"),
     });
+    await malformed.useCase.admitRequest("user-1");
     await expect(
-      malformed.useCase.transcribe("user-1", audio, "audio/wav"),
+      malformed.useCase.transcribe(audio, "audio/wav"),
     ).rejects.toBeInstanceOf(InvalidSpeechAudioError);
-    expect(malformed.rateLimiter.consume).not.toHaveBeenCalled();
+    expect(malformed.rateLimiter.consume).toHaveBeenCalledWith("user-1");
     expect(malformed.transcribe).not.toHaveBeenCalled();
 
     const overlong = createUseCase({ durationSeconds: 60.001 });
+    await overlong.useCase.admitRequest("user-1");
     await expect(
-      overlong.useCase.transcribe("user-1", audio, "audio/wav"),
+      overlong.useCase.transcribe(audio, "audio/wav"),
     ).rejects.toBeInstanceOf(SpeechAudioTooLongError);
-    expect(overlong.rateLimiter.consume).not.toHaveBeenCalled();
+    expect(overlong.rateLimiter.consume).toHaveBeenCalledWith("user-1");
     expect(overlong.transcribe).not.toHaveBeenCalled();
   });
 
@@ -92,9 +95,7 @@ describe("SpeechUseCase", () => {
       rateLimitRetryAfterSeconds: 17,
     });
 
-    await expect(
-      useCase.transcribe("user-1", audio, "audio/wav"),
-    ).rejects.toMatchObject({
+    await expect(useCase.admitRequest("user-1")).rejects.toMatchObject({
       retryAfterSeconds: 17,
     });
     expect(rateLimiter.consume).toHaveBeenCalledWith("user-1");
@@ -103,19 +104,21 @@ describe("SpeechUseCase", () => {
 
   it("fails when recognition is unavailable or returns no text", async () => {
     const unavailable = createUseCase({ recognizer: null });
+    await unavailable.useCase.admitRequest("user-1");
     await expect(
-      unavailable.useCase.transcribe("user-1", audio, "audio/wav"),
+      unavailable.useCase.transcribe(audio, "audio/wav"),
     ).rejects.toBeInstanceOf(SpeechRecognitionUnavailableError);
     expect(
       unavailable.durationReader.getDurationSeconds,
     ).not.toHaveBeenCalled();
-    expect(unavailable.rateLimiter.consume).not.toHaveBeenCalled();
+    expect(unavailable.rateLimiter.consume).toHaveBeenCalledWith("user-1");
 
     const emptyResult = createUseCase({
       recognizer: { transcribe: async () => "  " },
     });
+    await emptyResult.useCase.admitRequest("user-1");
     await expect(
-      emptyResult.useCase.transcribe("user-1", audio, "audio/wav"),
+      emptyResult.useCase.transcribe(audio, "audio/wav"),
     ).rejects.toBeInstanceOf(SpeechRecognitionUnavailableError);
   });
 });

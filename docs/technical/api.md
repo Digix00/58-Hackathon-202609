@@ -814,13 +814,15 @@ Content-Type は multipart/form-data とする。
 | language | 任意 | 既定値 ja。MVP では ja のみ |
 
 - 音声の最大長は 60 秒。コンテナ全体の申告 duration ではなく、サーバーが音声サンプル・MPEGフレーム・MP4の音声サンプル・WebM Opusパケットから再生時間を算出する
+- multipart/form-data の本文全体は音声ファイル上限に 16 KiB の multipart overhead を加えたサイズまでとし、Content-Length の有無にかかわらず読み取り中に上限を適用する。audio と language 以外の field は受け付けない
 - WAV は PCM / IEEE float、MP4 は AAC-LC、WebM は Opus を受け付ける。実データの音声サンプルやパケットを検証できないファイルは受け付けない
 - 生音声は D1、R2、ログへ保存しない
 - 文字起こし結果をユーザーが編集してから、編集後の本文で concerns API を呼ぶ
 - 音声ファイルが 10 MiB を超える場合、または長さが 60 秒を超える場合は 413 PAYLOAD_TOO_LARGE
 - 音声データが不正、音声サンプルが空、または対応形式の実データから再生時間を取得できない場合は 400 INVALID_REQUEST
+- WebM の解析中に EBML 要素の訪問回数が 100,000 回を超えた場合も 400 INVALID_REQUEST
 - MIME type が未対応の場合は 415 UNSUPPORTED_MEDIA_TYPE
-- 1ユーザーあたり直近60秒で10回、直近24時間で200回まで。超過時は 429 RATE_LIMITED と Retry-After を返す
+- 1ユーザーあたり直近60秒で10回、直近24時間で200回まで。上限は認証後、multipart の解析前に適用し、不正・形式違い・サイズ超過のリクエストも1回として数える。超過時は 429 RATE_LIMITED と Retry-After を返す
 - 音声認識サービスが失敗した場合は 503 UPSTREAM_UNAVAILABLE
 
 #### Response: 200 OK

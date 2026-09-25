@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { SpeechAudioDurationLimitExceededError } from "../../../src/application/port/speech-audio-duration-reader";
 import { VerifiedSpeechAudioDurationReader } from "../../../src/infrastructure/ai/speech-audio-duration.reader";
+import { MAX_WEBM_EBML_ELEMENT_VISITS } from "../../../src/infrastructure/ai/webm-opus-speech-audio-duration";
 import {
   createMp3Audio,
   createMp4Audio,
@@ -28,6 +29,14 @@ describe("VerifiedSpeechAudioDurationReader", () => {
       expect(duration).toBeCloseTo(expected as number, 2);
     },
   );
+
+  it("rejects WebM with more EBML elements than the parser budget", async () => {
+    const audio = createWebmAudio(1, 1, MAX_WEBM_EBML_ELEMENT_VISITS + 1);
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow("Too many WebM EBML elements");
+  });
 
   it("rejects a WAV blockAlign that disagrees with its PCM sample format", async () => {
     const audio = createWavAudio(61);

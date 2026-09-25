@@ -12,6 +12,8 @@ import {
 import type { Bindings } from "../types";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const MAX_MULTIPART_OVERHEAD_BYTES = 16 * 1024;
+const MAX_MULTIPART_BODY_BYTES = MAX_AUDIO_BYTES + MAX_MULTIPART_OVERHEAD_BYTES;
 const SUPPORTED_AUDIO_TYPES = new Set([
   "audio/webm",
   "audio/mp4",
@@ -46,18 +48,39 @@ export class SpeechHandler {
         401,
       );
     }
-    const userId = c.var.auth.user.id;
+
+    try {
+      await this.speechUseCase.admitRequest(c.var.auth.user.id);
+    } catch (error) {
+      return speechErrorResponse(error, requestId, c);
+    }
 
     const contentType = c.req.header("content-type") ?? "";
     if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
       return unsupportedMediaType(requestId, c);
     }
 
+    if (hasOversizedContentLength(c.req.raw, MAX_MULTIPART_BODY_BYTES)) {
+      return payloadTooLarge(requestId, c);
+    }
+
+    const limitedBody = limitRequestBody(c.req.raw, MAX_MULTIPART_BODY_BYTES);
+    c.req.raw = limitedBody.request;
+
     let formData: FormData;
     try {
       formData = await c.req.raw.formData();
     } catch {
+      if (limitedBody.exceeded()) {
+        return payloadTooLarge(requestId, c);
+      }
       return invalidRequest(requestId, c);
+    }
+
+    for (const fieldName of formData.keys()) {
+      if (fieldName !== "audio" && fieldName !== "language") {
+        return invalidRequest(requestId, c);
+      }
     }
 
     const audioFields = formData.getAll("audio");
@@ -70,16 +93,7 @@ export class SpeechHandler {
       return invalidRequest(requestId, c);
     }
     if (audio.size > MAX_AUDIO_BYTES) {
-      return c.json(
-        {
-          error: {
-            code: "PAYLOAD_TOO_LARGE",
-            message: "音声ファイルは10 MiB以下にしてください",
-            requestId,
-          },
-        },
-        413,
-      );
+      return payloadTooLarge(requestId, c);
     }
     const audioType = audio.type.split(";", 1)[0].trim().toLowerCase();
     if (!SUPPORTED_AUDIO_TYPES.has(audioType)) {
@@ -101,66 +115,146 @@ export class SpeechHandler {
 
     try {
       const text = await this.speechUseCase.transcribe(
-        userId,
         await audio.arrayBuffer(),
         audioType,
       );
       return c.json({ text, language: "ja" as const }, 200);
     } catch (error) {
-      if (error instanceof SpeechRateLimitExceededError) {
-        c.header("Retry-After", String(error.retryAfterSeconds));
-        return c.json(
-          {
-            error: {
-              code: "RATE_LIMITED",
-              message:
-                "音声入力の利用上限に達しました。時間をおいて再度お試しください",
-              requestId,
-            },
-          },
-          429,
-        );
-      }
-
-      if (error instanceof SpeechAudioTooLongError) {
-        return c.json(
-          {
-            error: {
-              code: "PAYLOAD_TOO_LARGE",
-              message: "音声の長さは60秒以下にしてください",
-              requestId,
-            },
-          },
-          413,
-        );
-      }
-
-      if (error instanceof InvalidSpeechAudioError) {
-        return invalidRequest(requestId, c);
-      }
-
-      // Upstream errors may contain request details. Keep them out of logs and
-      // return only the shared public error shape. Limiter storage failures also
-      // fail closed here, before the recognizer is called.
-      return c.json(
-        {
-          error: {
-            code: "UPSTREAM_UNAVAILABLE",
-            message:
-              "音声認識サービスを利用できません。時間をおいて再度お試しください",
-            requestId,
-          },
-        },
-        503,
-      );
+      return speechErrorResponse(error, requestId, c);
     }
   });
+}
+
+function hasOversizedContentLength(
+  request: Request,
+  maxBytes: number,
+): boolean {
+  const value = request.headers.get("content-length");
+  if (value === null || !/^\d+$/.test(value)) {
+    return false;
+  }
+  return Number(value) > maxBytes;
+}
+
+function limitRequestBody(request: Request, maxBytes: number) {
+  const sourceBody = request.body;
+  if (!sourceBody) {
+    return { request, exceeded: () => false };
+  }
+
+  const reader = sourceBody.getReader();
+  let bytesRead = 0;
+  let bodyExceededLimit = false;
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          controller.close();
+          return;
+        }
+
+        bytesRead += chunk.value.byteLength;
+        if (bytesRead > maxBytes) {
+          bodyExceededLimit = true;
+          controller.error(
+            new TypeError("Multipart request body is too large"),
+          );
+          void reader.cancel().catch(() => undefined);
+          return;
+        }
+        controller.enqueue(chunk.value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason);
+    },
+  });
+
+  const headers = new Headers(request.headers);
+  headers.delete("content-length");
+  const requestInit = {
+    body,
+    headers,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" };
+  return {
+    request: new Request(request, requestInit),
+    exceeded: () => bodyExceededLimit,
+  };
 }
 
 function setRequestId(c: SpeechContext): string {
   const requestId = getRequestId(c.req.raw);
   c.header("X-Request-Id", requestId);
   return requestId;
+}
+
+function speechErrorResponse(
+  error: unknown,
+  requestId: string,
+  c: SpeechContext,
+) {
+  if (error instanceof SpeechRateLimitExceededError) {
+    c.header("Retry-After", String(error.retryAfterSeconds));
+    return c.json(
+      {
+        error: {
+          code: "RATE_LIMITED",
+          message:
+            "音声入力の利用上限に達しました。時間をおいて再度お試しください",
+          requestId,
+        },
+      },
+      429,
+    );
+  }
+
+  if (error instanceof SpeechAudioTooLongError) {
+    return c.json(
+      {
+        error: {
+          code: "PAYLOAD_TOO_LARGE",
+          message: "音声の長さは60秒以下にしてください",
+          requestId,
+        },
+      },
+      413,
+    );
+  }
+
+  if (error instanceof InvalidSpeechAudioError) {
+    return invalidRequest(requestId, c);
+  }
+
+  // Upstream errors may contain request details. Keep them out of logs and
+  // return only the shared public error shape. Limiter failures also fail closed.
+  return c.json(
+    {
+      error: {
+        code: "UPSTREAM_UNAVAILABLE",
+        message:
+          "音声認識サービスを利用できません。時間をおいて再度お試しください",
+        requestId,
+      },
+    },
+    503,
+  );
+}
+
+function payloadTooLarge(requestId: string, c: SpeechContext) {
+  return c.json(
+    {
+      error: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "音声ファイルは10 MiB以下にしてください",
+        requestId,
+      },
+    },
+    413,
+  );
 }
 
 function invalidRequest(requestId: string, c: SpeechContext) {

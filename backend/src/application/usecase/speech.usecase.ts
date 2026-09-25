@@ -37,11 +37,8 @@ export class SpeechRateLimitExceededError extends Error {
 }
 
 export interface ISpeechUseCase {
-  transcribe(
-    userId: string,
-    audio: ArrayBuffer,
-    mimeType: string,
-  ): Promise<string>;
+  admitRequest(userId: string): Promise<void>;
+  transcribe(audio: ArrayBuffer, mimeType: string): Promise<string>;
 }
 
 export class SpeechUseCase implements ISpeechUseCase {
@@ -59,11 +56,14 @@ export class SpeechUseCase implements ISpeechUseCase {
     this.rateLimiter = rateLimiter;
   }
 
-  async transcribe(
-    userId: string,
-    audio: ArrayBuffer,
-    mimeType: string,
-  ): Promise<string> {
+  async admitRequest(userId: string): Promise<void> {
+    const rateLimit = await this.rateLimiter.consume(userId);
+    if (!rateLimit.allowed) {
+      throw new SpeechRateLimitExceededError(rateLimit.retryAfterSeconds);
+    }
+  }
+
+  async transcribe(audio: ArrayBuffer, mimeType: string): Promise<string> {
     if (!this.recognizer) {
       throw new SpeechRecognitionUnavailableError();
     }
@@ -85,11 +85,6 @@ export class SpeechUseCase implements ISpeechUseCase {
     }
     if (duration > MAX_AUDIO_DURATION_SECONDS) {
       throw new SpeechAudioTooLongError();
-    }
-
-    const rateLimit = await this.rateLimiter.consume(userId);
-    if (!rateLimit.allowed) {
-      throw new SpeechRateLimitExceededError(rateLimit.retryAfterSeconds);
     }
 
     const text = (await this.recognizer.transcribe(audio)).trim();

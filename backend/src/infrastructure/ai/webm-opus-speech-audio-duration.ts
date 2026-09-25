@@ -1,11 +1,14 @@
 import { readAscii } from "./audio-binary";
 
+export const MAX_WEBM_EBML_ELEMENT_VISITS = 100_000;
+
 export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
-  const topLevel = readEbmlElement(audio, 0, audio.byteLength);
+  const budget: ParseBudget = { elementsVisited: 0 };
+  const topLevel = readEbmlElement(audio, 0, audio.byteLength, budget);
   if (topLevel.id !== 0x1a45dfa3) {
     throw new TypeError("Invalid WebM header");
   }
-  const docType = findEbmlChild(audio, topLevel, 0x4282);
+  const docType = findEbmlChild(audio, topLevel, 0x4282, budget);
   if (
     !docType ||
     readAscii(audio, docType.dataStart, docType.dataEnd - docType.dataStart) !==
@@ -14,57 +17,45 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
     throw new TypeError("Unsupported EBML container");
   }
 
-  const segment = readEbmlElement(audio, topLevel.dataEnd, audio.byteLength);
+  const segment = readEbmlElement(
+    audio,
+    topLevel.dataEnd,
+    audio.byteLength,
+    budget,
+  );
   if (segment.id !== 0x18538067) {
     throw new TypeError("Invalid WebM segment");
   }
   const segmentEnd = segment.unknownSize ? audio.byteLength : segment.dataEnd;
-  const segmentChildren: EbmlElement[] = [];
-  for (let offset = segment.dataStart; offset < segmentEnd; ) {
-    const child = readEbmlElement(audio, offset, segmentEnd);
-    if (child.unknownSize) {
-      if (child.id !== 0x1f43b675) {
-        throw new TypeError("Unexpected unknown-size WebM element");
-      }
-      const clusterEnd = findUnknownClusterEnd(
-        audio,
-        child.dataStart,
-        segmentEnd,
-      );
-      segmentChildren.push({
-        ...child,
-        dataEnd: clusterEnd,
-        unknownSize: false,
-      });
-      offset = clusterEnd;
-    } else {
-      segmentChildren.push(child);
-      offset = child.dataEnd;
-    }
-  }
-
   let timestampScaleNs = 1_000_000;
-  const audioTracks = new Map<number, string>();
-  const clusters: EbmlElement[] = [];
+  let audioTrackCount = 0;
+  let audioTrackNumber = 0;
+  let audioTrackCodec: string | null = null;
 
-  for (const element of segmentChildren) {
+  for (const element of iterateSegmentChildren(
+    audio,
+    segment.dataStart,
+    segmentEnd,
+    budget,
+  )) {
     if (element.id === 0x1549a966) {
-      const scale = findEbmlChild(audio, element, 0x2ad7b1);
+      const scale = findEbmlChild(audio, element, 0x2ad7b1, budget);
       if (scale) {
         timestampScaleNs = readEbmlUnsigned(audio, scale);
       }
     } else if (element.id === 0x1654ae6b) {
-      for (const trackEntry of readEbmlChildren(
+      for (const trackEntry of iterateEbmlChildren(
         audio,
         element.dataStart,
         element.dataEnd,
+        budget,
       )) {
         if (trackEntry.id !== 0xae) {
           continue;
         }
-        const trackNumber = findEbmlChild(audio, trackEntry, 0xd7);
-        const trackType = findEbmlChild(audio, trackEntry, 0x83);
-        const codecId = findEbmlChild(audio, trackEntry, 0x86);
+        const trackNumber = findEbmlChild(audio, trackEntry, 0xd7, budget);
+        const trackType = findEbmlChild(audio, trackEntry, 0x83, budget);
+        const codecId = findEbmlChild(audio, trackEntry, 0x86, budget);
         if (!trackNumber || !trackType || !codecId) {
           throw new TypeError("Incomplete WebM track metadata");
         }
@@ -75,11 +66,11 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
             codecId.dataStart,
             codecId.dataEnd - codecId.dataStart,
           );
-          if (number < 1 || audioTracks.has(number)) {
+          if (number < 1) {
             throw new TypeError("Invalid WebM audio track number");
           }
           if (codec === "A_OPUS") {
-            const opusHead = findEbmlChild(audio, trackEntry, 0x63a2);
+            const opusHead = findEbmlChild(audio, trackEntry, 0x63a2, budget);
             if (
               !opusHead ||
               opusHead.dataEnd - opusHead.dataStart < 19 ||
@@ -90,83 +81,78 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
               throw new TypeError("Invalid WebM Opus track configuration");
             }
           }
-          audioTracks.set(number, codec);
+          audioTrackCount += 1;
+          if (audioTrackCount > 1) {
+            throw new TypeError("WebM must contain one Opus audio track");
+          }
+          audioTrackNumber = number;
+          audioTrackCodec = codec;
         }
       }
-    } else if (element.id === 0x1f43b675) {
-      clusters.push(element);
     }
   }
 
   if (
-    audioTracks.size !== 1 ||
-    [...audioTracks.values()][0] !== "A_OPUS" ||
+    audioTrackCount !== 1 ||
+    audioTrackCodec !== "A_OPUS" ||
     timestampScaleNs <= 0
   ) {
     throw new TypeError("WebM must contain one Opus audio track");
   }
 
-  const audioTrackNumber = [...audioTracks.keys()][0]!;
   const secondsPerTimecode = timestampScaleNs / 1_000_000_000;
   let packetDurationSeconds = 0;
   let firstTimeSeconds = Number.POSITIVE_INFINITY;
   let lastTimeSeconds = Number.NEGATIVE_INFINITY;
   let packetCount = 0;
 
-  for (const cluster of clusters) {
-    const children = readEbmlChildren(
-      audio,
-      cluster.dataStart,
-      cluster.dataEnd,
-    );
-    const clusterTimecodeElement = children.find((child) => child.id === 0xe7);
+  const recordBlock = (element: EbmlElement, clusterTimecode: number) => {
+    const block = readWebmBlock(audio, element);
+    if (block.trackNumber !== audioTrackNumber) {
+      return;
+    }
+    const blockTimecode = clusterTimecode + block.relativeTimecode;
+    const blockStartSeconds = blockTimecode * secondsPerTimecode;
+    let packetOffsetSeconds = 0;
+    for (const packet of block.packets) {
+      const packetDuration = readOpusPacketDuration(packet);
+      const packetStart = blockStartSeconds + packetOffsetSeconds;
+      const packetEnd = packetStart + packetDuration;
+      firstTimeSeconds = Math.min(firstTimeSeconds, packetStart);
+      lastTimeSeconds = Math.max(lastTimeSeconds, packetEnd);
+      packetDurationSeconds += packetDuration;
+      packetOffsetSeconds += packetDuration;
+      packetCount += 1;
+    }
+  };
+
+  for (const cluster of iterateSegmentChildren(
+    audio,
+    segment.dataStart,
+    segmentEnd,
+    budget,
+  )) {
+    if (cluster.id !== 0x1f43b675) {
+      continue;
+    }
+    const clusterTimecodeElement = findEbmlChild(audio, cluster, 0xe7, budget);
     if (!clusterTimecodeElement) {
       throw new TypeError("WebM cluster has no timecode");
     }
     const clusterTimecode = readEbmlUnsigned(audio, clusterTimecodeElement);
 
-    for (const child of children) {
+    for (const child of iterateEbmlChildren(
+      audio,
+      cluster.dataStart,
+      cluster.dataEnd,
+      budget,
+    )) {
       if (child.id === 0xa3) {
-        const block = readWebmBlock(audio, child);
-        if (block.trackNumber === audioTrackNumber) {
-          const blockTimecode = clusterTimecode + block.relativeTimecode;
-          const blockStartSeconds = blockTimecode * secondsPerTimecode;
-          let packetOffsetSeconds = 0;
-          for (const packet of block.packets) {
-            const packetDuration = readOpusPacketDuration(packet);
-            const packetStart = blockStartSeconds + packetOffsetSeconds;
-            const packetEnd = packetStart + packetDuration;
-            firstTimeSeconds = Math.min(firstTimeSeconds, packetStart);
-            lastTimeSeconds = Math.max(lastTimeSeconds, packetEnd);
-            packetDurationSeconds += packetDuration;
-            packetOffsetSeconds += packetDuration;
-            packetCount += 1;
-          }
-        }
+        recordBlock(child, clusterTimecode);
       } else if (child.id === 0xa0) {
-        const groupChildren = readEbmlChildren(
-          audio,
-          child.dataStart,
-          child.dataEnd,
-        );
-        const blockElement = groupChildren.find((item) => item.id === 0xa1);
+        const blockElement = findEbmlChild(audio, child, 0xa1, budget);
         if (blockElement) {
-          const block = readWebmBlock(audio, blockElement);
-          if (block.trackNumber === audioTrackNumber) {
-            const blockTimecode = clusterTimecode + block.relativeTimecode;
-            const blockStartSeconds = blockTimecode * secondsPerTimecode;
-            let packetOffsetSeconds = 0;
-            for (const packet of block.packets) {
-              const packetDuration = readOpusPacketDuration(packet);
-              const packetStart = blockStartSeconds + packetOffsetSeconds;
-              const packetEnd = packetStart + packetDuration;
-              firstTimeSeconds = Math.min(firstTimeSeconds, packetStart);
-              lastTimeSeconds = Math.max(lastTimeSeconds, packetEnd);
-              packetDurationSeconds += packetDuration;
-              packetOffsetSeconds += packetDuration;
-              packetCount += 1;
-            }
-          }
+          recordBlock(blockElement, clusterTimecode);
         }
       }
     }
@@ -187,13 +173,19 @@ type EbmlElement = {
   unknownSize: boolean;
 };
 
+type ParseBudget = { elementsVisited: number };
 type EbmlVint = { value: number; length: number; unknownSize: boolean };
 
 function readEbmlElement(
   audio: Uint8Array,
   offset: number,
   limit: number,
+  budget: ParseBudget,
 ): EbmlElement {
+  budget.elementsVisited += 1;
+  if (budget.elementsVisited > MAX_WEBM_EBML_ELEMENT_VISITS) {
+    throw new TypeError("Too many WebM EBML elements");
+  }
   const id = readEbmlVint(audio, offset, false);
   const size = readEbmlVint(audio, offset + id.length, true);
   const dataStart = offset + id.length + size.length;
@@ -239,27 +231,54 @@ function readEbmlVint(
   return { value, length, unknownSize };
 }
 
-function readEbmlChildren(
+function* iterateEbmlChildren(
   audio: Uint8Array,
   start: number,
   end: number,
-): EbmlElement[] {
-  const children: EbmlElement[] = [];
+  budget: ParseBudget,
+): Generator<EbmlElement> {
   for (let offset = start; offset < end; ) {
-    const child = readEbmlElement(audio, offset, end);
+    const child = readEbmlElement(audio, offset, end, budget);
     if (child.unknownSize) {
       throw new TypeError("Unexpected unknown-size EBML child");
     }
-    children.push(child);
+    yield child;
     offset = child.dataEnd;
   }
-  return children;
+}
+
+function* iterateSegmentChildren(
+  audio: Uint8Array,
+  start: number,
+  segmentEnd: number,
+  budget: ParseBudget,
+): Generator<EbmlElement> {
+  for (let offset = start; offset < segmentEnd; ) {
+    const child = readEbmlElement(audio, offset, segmentEnd, budget);
+    if (child.unknownSize) {
+      if (child.id !== 0x1f43b675) {
+        throw new TypeError("Unexpected unknown-size WebM element");
+      }
+      const clusterEnd = findUnknownClusterEnd(
+        audio,
+        child.dataStart,
+        segmentEnd,
+        budget,
+      );
+      yield { ...child, dataEnd: clusterEnd, unknownSize: false };
+      offset = clusterEnd;
+    } else {
+      yield child;
+      offset = child.dataEnd;
+    }
+  }
 }
 
 function findUnknownClusterEnd(
   audio: Uint8Array,
   start: number,
   segmentEnd: number,
+  budget: ParseBudget,
 ): number {
   const levelOneIds = new Set([
     0x114d9b74, // SeekHead
@@ -272,7 +291,7 @@ function findUnknownClusterEnd(
     0x1254c367, // Tags
   ]);
   for (let offset = start; offset < segmentEnd; ) {
-    const child = readEbmlElement(audio, offset, segmentEnd);
+    const child = readEbmlElement(audio, offset, segmentEnd, budget);
     if (levelOneIds.has(child.id)) {
       return offset;
     }
@@ -288,10 +307,20 @@ function findEbmlChild(
   audio: Uint8Array,
   parent: EbmlElement,
   id: number,
+  budget: ParseBudget,
 ): EbmlElement | undefined {
-  return readEbmlChildren(audio, parent.dataStart, parent.dataEnd).find(
-    (child) => child.id === id,
-  );
+  let match: EbmlElement | undefined;
+  for (const child of iterateEbmlChildren(
+    audio,
+    parent.dataStart,
+    parent.dataEnd,
+    budget,
+  )) {
+    if (match === undefined && child.id === id) {
+      match = child;
+    }
+  }
+  return match;
 }
 
 function readEbmlUnsigned(audio: Uint8Array, element: EbmlElement): number {

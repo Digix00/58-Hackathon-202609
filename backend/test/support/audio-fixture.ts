@@ -45,6 +45,7 @@ export function createMp3Audio(durationSeconds: number): Uint8Array {
 export function createWebmAudio(
   durationSeconds: number,
   declaredDurationSeconds = durationSeconds,
+  voidElementCount = 0,
 ): Uint8Array {
   const packetCount = Math.ceil(durationSeconds / 0.02);
   const ebmlHead = ebmlElement(
@@ -121,9 +122,14 @@ export function createWebmAudio(
       ),
     );
   }
+  const voidElements = new Uint8Array(voidElementCount * 2);
+  for (let offset = 0; offset < voidElements.length; offset += 2) {
+    voidElements[offset] = 0xec;
+    voidElements[offset + 1] = 0x80;
+  }
   const segment = ebmlElement(
     [0x18, 0x53, 0x80, 0x67],
-    concat(info, tracks, ...clusters),
+    concat(info, voidElements, tracks, ...clusters),
   );
 
   return concat(ebmlHead, segment);
