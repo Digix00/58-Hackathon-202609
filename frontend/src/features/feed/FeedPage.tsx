@@ -539,12 +539,13 @@ function FeedPageView({
 
 export function FeedPage() {
   const { state: runtime } = useRuntime()
-  const { status: authStatus } = useAuth()
+  const { status: authStatus, user } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
   const feed = useFeed({
     sort: 'newest',
     gender: reader.filter.gender || undefined,
     regionCode: reader.filter.region || undefined,
+    authUserId: user?.id,
   })
   const concerns = feed.items.map(toFeedConcern)
   const readerView = useFeedReaderNavigation({
