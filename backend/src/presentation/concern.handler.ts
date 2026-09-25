@@ -12,6 +12,8 @@ import {
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
+import { getRegionName } from "../application/entity/region-name";
+import type { DisplayLanguage } from "../application/entity/user";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -95,7 +97,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
       });
 
-      return c.json(toResponse(concern), 201);
+      return c.json(toResponse(concern, auth.user.displayLanguage), 201);
     } catch (error) {
       if (error instanceof ConcernValidationError) {
         return c.json(
@@ -188,7 +190,9 @@ export class ConcernHandler {
         : null;
 
       return c.json({
-        items: result.items.map((item) => toFeedResponse(item, true)),
+        items: result.items.map((item) =>
+          toFeedResponse(item, true, auth?.user?.displayLanguage ?? "original"),
+        ),
         nextCursor,
       });
     }
@@ -203,7 +207,13 @@ export class ConcernHandler {
       : null;
 
     return c.json({
-      items: result.items.map((concern) => toFeedResponse(concern, true)),
+      items: result.items.map((concern) =>
+        toFeedResponse(
+          concern,
+          true,
+          auth?.user?.displayLanguage ?? "original",
+        ),
+      ),
       nextCursor,
     });
   });
@@ -232,11 +242,17 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(item, false));
+    return c.json(
+      toFeedResponse(
+        item,
+        false,
+        c.var.auth?.user?.displayLanguage ?? "original",
+      ),
+    );
   });
 }
 
-function toResponse(concern: Concern) {
+function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
   return {
     id: concern.id,
     body: concern.body,
@@ -244,6 +260,7 @@ function toResponse(concern: Concern) {
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
@@ -257,6 +274,7 @@ function toResponse(concern: Concern) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
+  displayLanguage: DisplayLanguage,
 ) {
   const candidate = isFeedItem(source)
     ? source
@@ -277,6 +295,7 @@ function toFeedResponse(
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     representations: {
       jaHira: toRepresentationStatus(concern),

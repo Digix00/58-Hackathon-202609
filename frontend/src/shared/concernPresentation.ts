@@ -1,4 +1,5 @@
 import type { AgeGroup, Gender, RegionCode } from '../features/post/postTypes'
+import type { DisplayLanguage } from '../app/providers/DisplaySettingsContext'
 
 export const GENDER_LABELS: Record<Gender, string> = {
   male: '男性',
@@ -58,6 +59,106 @@ export const REGION_LABELS: Record<RegionCode, string> = {
   okinawa: '沖縄県',
 }
 
+const REGION_HIRAGANA_LABELS: Record<RegionCode, string> = {
+  hokkaido: 'ほっかいどう',
+  aomori: 'あおもりけん',
+  iwate: 'いわてけん',
+  miyagi: 'みやぎけん',
+  akita: 'あきたけん',
+  yamagata: 'やまがたけん',
+  fukushima: 'ふくしまけん',
+  ibaraki: 'いばらきけん',
+  tochigi: 'とちぎけん',
+  gunma: 'ぐんまけん',
+  saitama: 'さいたまけん',
+  chiba: 'ちばけん',
+  tokyo: 'とうきょうと',
+  kanagawa: 'かながわけん',
+  niigata: 'にいがたけん',
+  toyama: 'とやまけん',
+  ishikawa: 'いしかわけん',
+  fukui: 'ふくいけん',
+  yamanashi: 'やまなしけん',
+  nagano: 'ながのけん',
+  gifu: 'ぎふけん',
+  shizuoka: 'しずおかけん',
+  aichi: 'あいちけん',
+  mie: 'みえけん',
+  shiga: 'しがけん',
+  kyoto: 'きょうとふ',
+  osaka: 'おおさかふ',
+  hyogo: 'ひょうごけん',
+  nara: 'ならけん',
+  wakayama: 'わかやまけん',
+  tottori: 'とっとりけん',
+  shimane: 'しまねけん',
+  okayama: 'おかやまけん',
+  hiroshima: 'ひろしまけん',
+  yamaguchi: 'やまぐちけん',
+  tokushima: 'とくしまけん',
+  kagawa: 'かがわけん',
+  ehime: 'えひめけん',
+  kochi: 'こうちけん',
+  fukuoka: 'ふくおかけん',
+  saga: 'さがけん',
+  nagasaki: 'ながさきけん',
+  kumamoto: 'くまもとけん',
+  oita: 'おおいたけん',
+  miyazaki: 'みやざきけん',
+  kagoshima: 'かごしまけん',
+  okinawa: 'おきなわけん',
+}
+
+const REGION_ENGLISH_LABELS: Record<RegionCode, string> = {
+  hokkaido: 'Hokkaido',
+  aomori: 'Aomori',
+  iwate: 'Iwate',
+  miyagi: 'Miyagi',
+  akita: 'Akita',
+  yamagata: 'Yamagata',
+  fukushima: 'Fukushima',
+  ibaraki: 'Ibaraki',
+  tochigi: 'Tochigi',
+  gunma: 'Gunma',
+  saitama: 'Saitama',
+  chiba: 'Chiba',
+  tokyo: 'Tokyo',
+  kanagawa: 'Kanagawa',
+  niigata: 'Niigata',
+  toyama: 'Toyama',
+  ishikawa: 'Ishikawa',
+  fukui: 'Fukui',
+  yamanashi: 'Yamanashi',
+  nagano: 'Nagano',
+  gifu: 'Gifu',
+  shizuoka: 'Shizuoka',
+  aichi: 'Aichi',
+  mie: 'Mie',
+  shiga: 'Shiga',
+  kyoto: 'Kyoto',
+  osaka: 'Osaka',
+  hyogo: 'Hyogo',
+  nara: 'Nara',
+  wakayama: 'Wakayama',
+  tottori: 'Tottori',
+  shimane: 'Shimane',
+  okayama: 'Okayama',
+  hiroshima: 'Hiroshima',
+  yamaguchi: 'Yamaguchi',
+  tokushima: 'Tokushima',
+  kagawa: 'Kagawa',
+  ehime: 'Ehime',
+  kochi: 'Kochi',
+  fukuoka: 'Fukuoka',
+  saga: 'Saga',
+  nagasaki: 'Nagasaki',
+  kumamoto: 'Kumamoto',
+  oita: 'Oita',
+  miyazaki: 'Miyazaki',
+  kagoshima: 'Kagoshima',
+  okinawa: 'Okinawa',
+}
+
 export const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
   '10s': '10代',
   '20s': '20代',
@@ -75,8 +176,16 @@ export function genderLabel(code: string | undefined): string | undefined {
   return code ? (GENDER_LABELS[code as Gender] ?? code) : undefined
 }
 
-export function regionLabel(code: string | undefined): string | undefined {
-  return code ? (REGION_LABELS[code as RegionCode] ?? code) : undefined
+export function regionLabel(
+  code: string | undefined,
+  language: DisplayLanguage = 'original',
+): string | undefined {
+  if (!code) return undefined
+
+  const regionCode = code as RegionCode
+  if (language === 'jaHira') return REGION_HIRAGANA_LABELS[regionCode] ?? code
+  if (language === 'en') return REGION_ENGLISH_LABELS[regionCode] ?? code
+  return REGION_LABELS[regionCode] ?? code
 }
 
 export function ageGroupLabel(code: string | undefined): string | undefined {

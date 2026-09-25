@@ -12,8 +12,8 @@ import { useConcernDetail } from './useConcernDetail'
 export function ConcernDetailPage() {
   const { id } = useParams()
   const { state: runtime } = useRuntime()
-  const { status: authStatus } = useAuth()
-  const { status, concern, error, retry } = useConcernDetail(id)
+  const { status: authStatus, user } = useAuth()
+  const { status, concern, error, retry } = useConcernDetail(id, { authUserId: user?.id })
   const [showLogin, setShowLogin] = useState(false)
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',

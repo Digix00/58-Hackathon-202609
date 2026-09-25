@@ -8,6 +8,7 @@ import { UserUseCase } from "../../../src/application/usecase/user.usecase";
 const existingUser: User = {
   id: "user_1",
   lineUserId: "line_user_1",
+  displayLanguage: "original",
   birthYear: null,
   birthMonth: null,
   gender: null,
@@ -28,6 +29,10 @@ function createRepository() {
         gender: profile.gender,
         regionCode: profile.regionCode,
       };
+      return updated;
+    },
+    updateDisplayLanguage: async (userId, displayLanguage) => {
+      updated = { ...existingUser, id: userId, displayLanguage };
       return updated;
     },
   };

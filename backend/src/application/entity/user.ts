@@ -9,6 +9,24 @@ export const GENDERS = [
 ] as const;
 export type Gender = (typeof GENDERS)[number];
 
+export const DISPLAY_LANGUAGES = ["original", "jaHira", "en"] as const;
+export type DisplayLanguage = (typeof DISPLAY_LANGUAGES)[number];
+
+export class DisplayLanguageValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DisplayLanguageValidationError";
+  }
+}
+
+export function validateDisplayLanguage(value: string): DisplayLanguage {
+  if (!DISPLAY_LANGUAGES.includes(value as DisplayLanguage)) {
+    throw new DisplayLanguageValidationError("displayLanguage is invalid");
+  }
+
+  return value as DisplayLanguage;
+}
+
 export interface UserProfile {
   birthYear: number;
   birthMonth: number;
@@ -92,6 +110,7 @@ export function validateUserProfile(
 export interface User {
   id: string;
   lineUserId: string;
+  displayLanguage: DisplayLanguage;
   birthYear: number | null;
   birthMonth: number | null;
   gender: Gender | null;

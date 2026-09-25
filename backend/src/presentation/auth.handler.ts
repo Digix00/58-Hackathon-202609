@@ -184,6 +184,7 @@ function toResponse(result: { user: User | null }) {
 function toUserResponse(user: User) {
   return {
     id: user.id,
+    displayLanguage: user.displayLanguage,
     birthYear: user.birthYear,
     birthMonth: user.birthMonth,
     gender: user.gender,

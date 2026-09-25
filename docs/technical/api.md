@@ -66,7 +66,7 @@ Accept: application/json
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
 `POST /api/v1/auth/line` と `GET /api/v1/auth/session` の認証済みレスポンスには、
-ログインユーザー自身のプロフィール情報と `profileCompleted` を含める。プロフィール未入力の
+ログインユーザー自身のプロフィール情報、`displayLanguage`、`profileCompleted` を含める。プロフィール未入力の
 ユーザーは `profileCompleted=false` となり、`PUT /api/v1/users/me` で登録する。
 
 次の値は信頼しない。
@@ -232,6 +232,7 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | ログイン状態を復元し、Cookie がない場合は未認証セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
+| PUT | /api/v1/users/me/display-language | 実装済み | LINEログイン済みセッション | ログインユーザー自身の都道府県表示形式を更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -286,6 +287,7 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
   "authenticated": true,
   "user": {
     "id": "opaque-user-id",
+    "displayLanguage": "original",
     "birthYear": 2002,
     "birthMonth": 9,
     "gender": "no_answer",
@@ -297,6 +299,23 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
 
 `id` は既存の認証レスポンスとの互換性のために返す内部 opaque IDであり、LINE user IDは返さない。
 未認証の場合は401 `AUTHENTICATION_REQUIRED`、入力値が不正な場合は400 `INVALID_REQUEST`を返す。
+
+### 2.2 PUT /api/v1/users/me/display-language
+
+LINEログイン済みユーザー自身の都道府県表示形式を更新する。表示形式は `original`、`jaHira`、`en` のいずれかとする。
+
+#### Request
+
+~~~json
+{
+  "displayLanguage": "jaHira"
+}
+~~~
+
+#### Response: 200 OK
+
+認証レスポンスと同じユーザー情報を返す。`displayLanguage` は更新後の値となる。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`を返す。
 
 ## 3. 悩み API
 
@@ -343,7 +362,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
   "attributes": {
     "ageGroup": "20s",
     "gender": "no_answer",
-    "regionCode": "osaka"
+    "regionCode": "osaka",
+    "regionName": "大阪府"
   },
   "visibilityStatus": "published",
   "processingStatus": "pending",
@@ -397,7 +417,8 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       "attributes": {
         "ageGroup": "20s",
         "gender": "no_answer",
-        "regionCode": "osaka"
+        "regionCode": "osaka",
+        "regionName": "大阪府"
       },
       "representations": {
         "jaHira": "ready",
@@ -426,6 +447,9 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - hidden、deleted の投稿は 404 と区別せず、一覧から除外する
 - gender を指定した場合は、投稿の gender コードが指定値と完全一致する投稿だけを返す
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
+- `attributes.regionName` はログイン済みユーザーの `displayLanguage` に合わせた都道府県名。未ログイン時は原文表記とする
+- `attributes.regionCode` は検索用コードとして常に維持し、表示には `regionName` を利用する
+- この対応では表示形式の切り替えを都道府県名に適用し、投稿本文の表示動作は変更しない
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
 - sort=recommended はLINEログイン済みLIFFだけが指定でき、未読、クラスタの分散、都道府県の分散、新しさを使う
@@ -446,6 +470,7 @@ reasonCode の初期値は次のとおり。
 公開済みの悩みを 1 件返す。
 
 - Response の item 形式は GET /api/v1/concerns の items と同じ。ただし詳細取得では recommendation を省略する
+- 都道府県名はログイン済みユーザーの `displayLanguage` に合わせ、未ログイン時は原文表記とする
 - 非公開または存在しない concernId は 404 NOT_FOUND
 - 詳細取得だけでは既読にしない。画面表示後に 3.5 の既読 API を呼び出す
 - 投稿者を特定できる users.id、LINE user ID、LINE profile 情報は返さない
