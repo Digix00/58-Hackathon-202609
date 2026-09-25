@@ -130,9 +130,12 @@ export function createApplication(bindings: Bindings) {
         bindings.LINE_CHANNEL_ACCESS_TOKEN,
         bindings.CORS_ORIGIN,
       );
+  const lineSignatureVerifier = new HmacLineSignatureVerifier(
+    bindings.LINE_CHANNEL_SECRET,
+  );
   const lineUseCase = new LineUseCase(
     lineRepository,
-    new HmacLineSignatureVerifier(bindings.LINE_CHANNEL_SECRET),
+    lineSignatureVerifier,
     lineBroadcastSender,
     quizUseCase,
     bindings.CORS_ORIGIN,
