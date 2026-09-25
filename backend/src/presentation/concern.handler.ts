@@ -135,21 +135,15 @@ export class ConcernHandler {
     }
 
     const auth = c.var.auth;
-    if (parsed.data.sort === "recommended" && !auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "おすすめフィードにはLINEログインが必要です",
-            requestId,
-          },
-        },
-        400,
-      );
-    }
+    // 公開フィードは未ログインでも読める。認証状態とCookieが一時的に
+    // 食い違って recommended が指定されても、新着順へ落として閲覧を継続する。
+    const sort =
+      parsed.data.sort === "recommended" && !auth?.user
+        ? "newest"
+        : parsed.data.sort;
 
     const cursorContext = {
-      sort: parsed.data.sort,
+      sort,
       regionCode: parsed.data.regionCode,
       clusterId: parsed.data.clusterId,
       gender: parsed.data.gender,
@@ -176,7 +170,7 @@ export class ConcernHandler {
       const result = await this.concernUsecase.listFeed({
         limit: parsed.data.limit,
         cursor,
-        sort: parsed.data.sort,
+        sort,
         gender: parsed.data.gender,
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
