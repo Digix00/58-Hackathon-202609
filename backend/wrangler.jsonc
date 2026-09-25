@@ -4,11 +4,19 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  },
   "observability": {
     "enabled": true
   },
   "secrets": {
-    "required": ["LINE_CHANNEL_ID"]
+    "required": [
+      "LINE_CHANNEL_ID",
+      "LINE_CHANNEL_SECRET",
+      "LINE_CHANNEL_ACCESS_TOKEN",
+      "INTERNAL_API_TOKEN"
+    ]
   },
   "ai": {
     "binding": "AI"
@@ -16,7 +24,7 @@
   "vectorize": [
     {
       "binding": "CONCERN_VECTOR_INDEX",
-      "index_name": "58-hackathon-concern-vectors"
+      "index_name": "concern-vectors"
     }
   ],
   "vars": {

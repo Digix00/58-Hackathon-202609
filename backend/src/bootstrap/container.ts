@@ -9,6 +9,7 @@ import {
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { HistoryUseCase } from "../application/usecase/history.usecase";
+import { LineUseCase } from "../application/usecase/line.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
@@ -28,8 +29,12 @@ import { D1ConcernReactionRepository } from "../infrastructure/database/d1-conce
 import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { D1HistoryRepository } from "../infrastructure/database/d1-history.repository";
+import { D1LineRepository } from "../infrastructure/database/d1-line.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
+import { HmacLineSignatureVerifier } from "../infrastructure/line/hmac-line-signature.verifier";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
+import { LineBroadcastApiSender } from "../infrastructure/line/line-broadcast.sender";
+import { LocalLineBroadcastSender } from "../infrastructure/line/local-line-broadcast.sender";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
 import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
@@ -39,6 +44,7 @@ import { ConcernReactionHandler } from "../presentation/concern-reaction.handler
 import { ConcernViewHandler } from "../presentation/concern-view.handler";
 import { HealthHandler } from "../presentation/health.handler";
 import { HistoryHandler } from "../presentation/history.handler";
+import { LineHandler } from "../presentation/line.handler";
 import { QuizHandler } from "../presentation/quiz.handler";
 import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -132,6 +138,26 @@ export function createApplication(bindings: Bindings) {
   const historyRepository = new D1HistoryRepository(bindings.DB);
   const historyUseCase = new HistoryUseCase(historyRepository);
   const historyHandler = new HistoryHandler(historyUseCase);
+  const lineRepository = new D1LineRepository(bindings.DB);
+  const useLocalLineBroadcastSimulation =
+    isLocalLineBroadcastSimulationEnabled(bindings);
+  const lineBroadcastSender = useLocalLineBroadcastSimulation
+    ? new LocalLineBroadcastSender()
+    : new LineBroadcastApiSender(
+        bindings.LINE_CHANNEL_ACCESS_TOKEN,
+        bindings.LINE_LIFF_ID,
+      );
+  const lineSignatureVerifier = new HmacLineSignatureVerifier(
+    bindings.LINE_CHANNEL_SECRET,
+  );
+  const lineUseCase = new LineUseCase(
+    lineRepository,
+    lineSignatureVerifier,
+    lineBroadcastSender,
+    quizUseCase,
+    bindings.LINE_LIFF_ID,
+  );
+  const lineHandler = new LineHandler(lineUseCase);
 
   return {
     app: createApp({
@@ -142,11 +168,26 @@ export function createApplication(bindings: Bindings) {
       concernViewHandler,
       healthHandler,
       historyHandler,
+      lineHandler,
       quizHandler,
       userHandler,
     }),
     queue: concernProcessingConsumer.handle,
+    scheduled: lineUseCase.triggerDailyRun,
   };
+}
+
+export function isLocalLineBroadcastSimulationEnabled(
+  bindings: Pick<
+    Bindings,
+    "DEV_AUTH_ENABLED" | "DEV_ACCESS_BYPASS" | "DEV_LINE_BROADCAST_SIMULATION"
+  >,
+): boolean {
+  return (
+    bindings.DEV_AUTH_ENABLED === "true" &&
+    bindings.DEV_ACCESS_BYPASS === "true" &&
+    bindings.DEV_LINE_BROADCAST_SIMULATION === "true"
+  );
 }
 
 function parseSessionTtl(value: string | undefined): number | undefined {

@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { PostPage } from '../features/post/PostPage'
+import { LineBroadcastPage } from '../features/line-broadcast/LineBroadcastPage'
 import { LoadingState } from '../shared/components/AsyncStates'
 import { SettingsRoute } from './SettingsRoute'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
@@ -27,6 +28,11 @@ function apiPage(Page: ComponentType) {
 }
 
 export const router = createBrowserRouter([
+  {
+    path: '/admin/line-broadcast',
+    Component: LineBroadcastPage,
+    errorElement: <RouteErrorBoundary />,
+  },
   {
     path: '/',
     Component: AppLayout,

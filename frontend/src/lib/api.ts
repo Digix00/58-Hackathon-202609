@@ -64,10 +64,13 @@ export class ApiTimeoutError extends Error {
   }
 }
 
-export async function withApiTimeout<T>(request: () => Promise<T>): Promise<T> {
+export async function withApiTimeout<T>(
+  request: () => Promise<T>,
+  timeoutMs = API_REQUEST_TIMEOUT_MS,
+): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new ApiTimeoutError()), API_REQUEST_TIMEOUT_MS)
+    timeoutId = setTimeout(() => reject(new ApiTimeoutError()), timeoutMs)
   })
 
   try {

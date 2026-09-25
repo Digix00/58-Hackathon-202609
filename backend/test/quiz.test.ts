@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +12,7 @@ import {
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1QuizRepository } from "../src/infrastructure/database/d1-quiz.repository";
 import {
+  concernRepresentations,
   concerns,
   learningEvents,
   quizAttempts,
@@ -226,6 +227,110 @@ describe("quiz routes", () => {
     expect(
       body.participants.every((participant) => !("concernId" in participant)),
     ).toBe(true);
+  });
+
+  it("uses ready quiz representations and falls back for failed or missing ones", async () => {
+    const prefix = `quiz-language-${crypto.randomUUID()}`;
+    await seedCandidates(prefix, false, "2099-01-11T00:00:00.000Z");
+    const db = drizzle(env.DB);
+    const updatedAt = "2099-01-02T00:00:00.000Z";
+    await db
+      .insert(concernRepresentations)
+      .values([
+        {
+          concernId: `${prefix}-concern-a`,
+          locale: "ja-Hira",
+          body: `${prefix}のaさんのひらがな`,
+          status: "ready",
+          updatedAt,
+        },
+        {
+          concernId: `${prefix}-concern-b`,
+          locale: "ja-Hira",
+          body: `${prefix}のbさんのひらがな`,
+          status: "failed",
+          errorCode: "translation_failed",
+          updatedAt,
+        },
+        {
+          concernId: `${prefix}-concern-a`,
+          locale: "en",
+          body: `${prefix} English text`,
+          status: "ready",
+          updatedAt,
+        },
+      ])
+      .run();
+
+    const { app, quizUseCase } = createTestApp("2099-01-12T00:20:00.000Z");
+    const generated = await quizUseCase.generate("2099-01-12");
+    expect(generated).not.toBeNull();
+
+    const cookie = await loginCookie(app);
+    const response = await app.request(
+      "/api/v1/quizzes/today?language=jaHira",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json<QuizResponse>();
+    const concernsById = new Map(
+      body.concerns.map((concern) => [concern.concernId, concern]),
+    );
+
+    expect(concernsById.get(`${prefix}-concern-a`)).toMatchObject({
+      body: `${prefix}のaさんのひらがな`,
+      language: "jaHira",
+    });
+    expect(concernsById.get(`${prefix}-concern-b`)).toMatchObject({
+      body: `${prefix}のbさんの投稿`,
+      language: "original",
+    });
+    expect(concernsById.get(`${prefix}-concern-c`)).toMatchObject({
+      body: `${prefix}のcさんの投稿`,
+      language: "original",
+    });
+
+    const englishResponse = await app.request(
+      "/api/v1/quizzes/today?language=en",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(englishResponse.status).toBe(200);
+    const englishBody = await englishResponse.json<QuizResponse>();
+    const englishByConcernId = new Map(
+      englishBody.concerns.map((concern) => [concern.concernId, concern]),
+    );
+    expect(englishByConcernId.get(`${prefix}-concern-a`)).toMatchObject({
+      body: `${prefix} English text`,
+      language: "en",
+    });
+    expect(englishByConcernId.get(`${prefix}-concern-b`)).toMatchObject({
+      body: `${prefix}のbさんの投稿`,
+      language: "original",
+    });
+
+    const invalidResponse = await app.request(
+      "/api/v1/quizzes/today?language=fr",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(invalidResponse.status).toBe(400);
+    await expect(invalidResponse.json()).resolves.toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+
+    await db
+      .update(concerns)
+      .set({ visibilityStatus: "hidden" })
+      .where(
+        inArray(concerns.id, [
+          `${prefix}-concern-a`,
+          `${prefix}-concern-b`,
+          `${prefix}-concern-c`,
+        ]),
+      )
+      .run();
   });
 
   it("normalizes missing participant attributes to no_answer", async () => {

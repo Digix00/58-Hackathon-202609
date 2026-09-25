@@ -50,6 +50,21 @@ export class QuizUseCase implements IQuizUseCase {
   readonly getById = (quizId: string, userId: string): Promise<Quiz | null> =>
     this.repository.findPublishedById(quizId, userId);
 
+  readonly ensureDailyQuiz = async (
+    quizDate: string,
+  ): Promise<{ id: string; quizDate: string } | null> => {
+    const existing = await this.repository.findAvailableByDate(quizDate);
+    if (existing) {
+      return { id: existing.id, quizDate: existing.quizDate };
+    }
+
+    await this.generate(quizDate);
+    const published = await this.repository.findAvailableByDate(quizDate);
+    return published
+      ? { id: published.id, quizDate: published.quizDate }
+      : null;
+  };
+
   /**
    * 当日取得とは分離したクイズ生成処理。
    * 候補不足、属性重複、同日クイズの既存をいずれも生成なしとして扱う。

@@ -14,6 +14,12 @@ import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
 import { getRegionName } from "../application/entity/region-name";
 import type { DisplayLanguage } from "../application/entity/user";
+import {
+  CONCERN_LANGUAGES,
+  type ConcernLanguage,
+  getConcernRepresentationState,
+  selectConcernText,
+} from "../application/shared/concern-representation";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -28,7 +34,6 @@ const createConcernRequest = z.object({
 });
 
 const CONCERN_SORT_OPTIONS = ["newest", "recommended"] as const;
-const CONCERN_LANGUAGE_OPTIONS = ["original", "jaHira", "en"] as const;
 
 const listConcernQuery = z
   .object({
@@ -38,8 +43,11 @@ const listConcernQuery = z
     clusterId: z.string().min(1).optional(),
     gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
-    language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
+    language: z.enum(CONCERN_LANGUAGES).default("original"),
   })
+  .strict();
+const concernLanguageQuery = z
+  .object({ language: z.enum(CONCERN_LANGUAGES).default("original") })
   .strict();
 
 const factory = createFactory<{
@@ -137,21 +145,15 @@ export class ConcernHandler {
     }
 
     const auth = c.var.auth;
-    if (parsed.data.sort === "recommended" && !auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "おすすめフィードにはLINEログインが必要です",
-            requestId,
-          },
-        },
-        400,
-      );
-    }
+    // 公開フィードは未ログインでも読める。認証状態とCookieが一時的に
+    // 食い違って recommended が指定されても、新着順へ落として閲覧を継続する。
+    const sort =
+      parsed.data.sort === "recommended" && !auth?.user
+        ? "newest"
+        : parsed.data.sort;
 
     const cursorContext = {
-      sort: parsed.data.sort,
+      sort,
       regionCode: parsed.data.regionCode,
       clusterId: parsed.data.clusterId,
       gender: parsed.data.gender,
@@ -178,7 +180,7 @@ export class ConcernHandler {
       const result = await this.concernUsecase.listFeed({
         limit: parsed.data.limit,
         cursor,
-        sort: parsed.data.sort,
+        sort,
         gender: parsed.data.gender,
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
@@ -191,7 +193,12 @@ export class ConcernHandler {
 
       return c.json({
         items: result.items.map((item) =>
-          toFeedResponse(item, true, auth?.user?.displayLanguage ?? "original"),
+          toFeedResponse(
+            item,
+            true,
+            auth?.user?.displayLanguage ?? "original",
+            parsed.data.language,
+          ),
         ),
         nextCursor,
       });
@@ -212,6 +219,7 @@ export class ConcernHandler {
           concern,
           true,
           auth?.user?.displayLanguage ?? "original",
+          parsed.data.language,
         ),
       ),
       nextCursor,
@@ -220,6 +228,24 @@ export class ConcernHandler {
 
   readonly detail = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
+    const parsed = concernLanguageQuery.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "取得条件を確認してください",
+            details: parsed.error.issues.map((issue) => ({
+              field: issue.path.join(".") || "query",
+              reason: issue.code,
+            })),
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
     const userId = c.var.auth?.user?.id;
     const item = this.concernUsecase.findPublishedFeedItem
       ? await this.concernUsecase.findPublishedFeedItem(
@@ -247,6 +273,7 @@ export class ConcernHandler {
         item,
         false,
         c.var.auth?.user?.displayLanguage ?? "original",
+        parsed.data.language,
       ),
     );
   });
@@ -275,6 +302,7 @@ function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
   displayLanguage: DisplayLanguage,
+  language: ConcernLanguage = "original",
 ) {
   const candidate = isFeedItem(source)
     ? source
@@ -286,11 +314,16 @@ function toFeedResponse(
         reacted: false,
       };
   const concern = candidate.concern;
+  const selectedText = selectConcernText(
+    concern.body,
+    concern.representations,
+    language,
+  );
 
   return {
     id: concern.id,
-    body: concern.body,
-    language: "original" as const,
+    body: selectedText.body,
+    language: selectedText.language,
     attributes: {
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
@@ -298,8 +331,16 @@ function toFeedResponse(
       regionName: getRegionName(concern.regionCode, displayLanguage),
     },
     representations: {
-      jaHira: toRepresentationStatus(concern),
-      en: toRepresentationStatus(concern),
+      jaHira: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "ja-Hira",
+      ),
+      en: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "en",
+      ),
     },
     cluster: candidate.cluster
       ? {
@@ -329,14 +370,6 @@ function isFeedItem(
   source: Concern | RankedConcernFeedItem,
 ): source is RankedConcernFeedItem {
   return "concern" in source;
-}
-
-function toRepresentationStatus(concern: Concern) {
-  return concern.processingStatus === "ready"
-    ? "ready"
-    : concern.processingStatus === "failed"
-      ? "failed"
-      : "pending";
 }
 
 function setRequestId(c: {

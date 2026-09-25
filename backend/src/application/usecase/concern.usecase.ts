@@ -126,11 +126,10 @@ export class ConcernUseCase implements IConcernUseCase {
     this.repository.findPublishedById(id);
 
   readonly listFeed = async (input: ListFeedInput): Promise<ListFeedResult> => {
-    if (input.sort === "recommended" && !input.userId) {
-      throw new Error("recommended feed requires an authenticated user");
-    }
+    const sort =
+      input.sort === "recommended" && !input.userId ? "newest" : input.sort;
 
-    if (input.sort === "newest") {
+    if (sort === "newest") {
       const result = await this.listFeedCandidates(input);
       return {
         items: result.items.map((candidate) => ({

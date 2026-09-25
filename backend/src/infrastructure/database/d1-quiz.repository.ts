@@ -1,7 +1,11 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
-import type { AgeGroup, Gender } from "../../application/entity/concern";
+import type {
+  AgeGroup,
+  ConcernProcessingStatus,
+  Gender,
+} from "../../application/entity/concern";
 import type { LearningEvent } from "../../application/entity/learning-event";
 import {
   Quiz,
@@ -15,6 +19,7 @@ import type {
   RecordQuizAnswerInput,
   RecordQuizAnswerResult,
 } from "../../application/repository/quiz.repository";
+import { loadConcernRepresentations } from "./concern-representation.reader";
 import {
   concerns,
   quizAnswers,
@@ -47,6 +52,18 @@ export class D1QuizRepository implements QuizRepository {
       .get();
 
     return row ? this.findAvailableById(row.id, userId) : null;
+  }
+
+  async findAvailableByDate(quizDate: string): Promise<Quiz | null> {
+    const row = await this.db
+      .select({ id: quizzes.id })
+      .from(quizzes)
+      .where(
+        and(eq(quizzes.quizDate, quizDate), eq(quizzes.status, "published")),
+      )
+      .get();
+
+    return row ? this.findAvailableById(row.id, null) : null;
   }
 
   findPublishedById(quizId: string, userId: string): Promise<Quiz | null> {
@@ -279,7 +296,7 @@ export class D1QuizRepository implements QuizRepository {
 
   private async findAvailableById(
     quizId: string,
-    userId: string,
+    userId: string | null,
   ): Promise<Quiz | null> {
     const quizRow = await this.db
       .select()
@@ -312,6 +329,7 @@ export class D1QuizRepository implements QuizRepository {
         concernId: quizOptions.concernId,
         displayOrder: quizOptions.displayOrder,
         body: concerns.body,
+        processingStatus: concerns.processingStatus,
         visibilityStatus: concerns.visibilityStatus,
       })
       .from(quizOptions)
@@ -319,6 +337,10 @@ export class D1QuizRepository implements QuizRepository {
       .where(eq(quizOptions.quizId, quizId))
       .orderBy(asc(quizOptions.displayOrder))
       .all();
+    const representations = await loadConcernRepresentations(
+      this.db,
+      optionRows.map((row) => row.concernId),
+    );
 
     if (
       participantRows.length !== 3 ||
@@ -340,11 +362,9 @@ export class D1QuizRepository implements QuizRepository {
       regionCode: row.regionCode,
       explanation: row.explanation,
     }));
-    const answerResult = await this.findAnswerResult(
-      quizId,
-      userId,
-      participants,
-    );
+    const answerResult = userId
+      ? await this.findAnswerResult(quizId, userId, participants)
+      : null;
 
     return new Quiz({
       id: quizRow.id,
@@ -358,6 +378,8 @@ export class D1QuizRepository implements QuizRepository {
         concernId: row.concernId,
         body: row.body,
         displayOrder: row.displayOrder,
+        processingStatus: row.processingStatus as ConcernProcessingStatus,
+        representations: representations.get(row.concernId) ?? [],
       })),
       ...(answerResult ? { answerResult } : {}),
     });

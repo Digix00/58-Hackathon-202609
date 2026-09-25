@@ -158,11 +158,46 @@ LINE_CHANNEL_ID=<LINE LoginまたはLINE MINI AppのチャネルID>
 AUTH_SESSION_TTL_SECONDS=2592000  # 任意。既定は30日
 ```
 
+Workerは配信メッセージ内のクイズリンクを作るために`LINE_LIFF_ID`を使う。
+自動デプロイではフロントエンドと同じGitHub Actions Variable `VITE_LINE_LIFF_ID`をWorkerへ渡す。
+`CORS_ORIGIN`はブラウザーの許可Origin用であり、LIFFリンクの生成には使わない。
+手動でWorkerをデプロイする場合も、同じLIFF IDをWorkerの`LINE_LIFF_ID`変数へ設定する。
+
 フロントエンドから送られたIDトークンは、WorkerがLINEのVerify ID token APIへ送信して検証する。
 検証後はアプリ独自の`__Host-session` Cookieを発行し、以後のAPIではLINEトークンを再利用しない。
 
 LIFFアプリには`openid`スコープを設定する。プロフィール情報が必要になった場合でも、認証の根拠として
 フロントエンドからuserIdやプロフィール情報を送信せず、LINEから検証されたトークンを基準に扱う。
+
+### LINE Webhook とデイリークイズ配信
+
+Webhook署名と配信には、Worker側だけに次のSecretを設定する。これらをフロントエンドの環境変数へ置かない。
+
+```text
+LINE_CHANNEL_SECRET=<Messaging APIチャネルのシークレット>
+LINE_CHANNEL_ACCESS_TOKEN=<Messaging APIチャネルアクセストークン>
+INTERNAL_API_TOKEN=<内部配信API用の十分に長いランダム値>
+```
+
+自動デプロイでは、これらを GitHub Secrets の `LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`INTERNAL_API_TOKEN` に設定する。`LINE_CHANNEL_ID` は既存の GitHub Secret を使う。GitHub Actions Variables には `VITE_LINE_LIFF_ID`、`CORS_ORIGIN`、`ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` を設定する。`VITE_LINE_LIFF_ID` はフロントエンドのLIFF初期化とWorkerの配信URL生成で共有する。
+
+管理画面 `/admin/line-broadcast` の API は Cloudflare Access で保護する。Cloudflare Access に管理画面と Worker API のアプリケーションを設定し、運用担当者だけを許可する。Workerの変数には次を設定する。
+
+```text
+ACCESS_TEAM_DOMAIN=<team-name>.cloudflareaccess.com
+ACCESS_AUD=<Worker API用 Access application の AUD tag>
+CORS_ORIGIN=<管理画面を配信するフロントエンドのorigin>
+```
+
+管理画面から配信を起動する POST は、Cloudflare Access に加えて `Origin` が `CORS_ORIGIN` と一致することをサーバー側で確認する。`Origin` がない、`null`、形式不正、または別 Origin の場合は拒否する。管理画面用の `CORS_ORIGIN` はワイルドカードではなく、フロントエンドの単一 Origin を設定する。
+
+Workerは `Cf-Access-Jwt-Assertion` の署名、issuer、audienceを検証する。Cloudflare Accessのポリシーでも担当者を制限し、API側のJWT検証を無効にしない。管理画面はAccess認証CookieでAPIを呼び出すため、`INTERNAL_API_TOKEN` はブラウザーに渡らない。
+
+ローカルの `wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では、`DEV_AUTH_ENABLED=true`、`DEV_ACCESS_BYPASS=true`、`DEV_LINE_BROADCAST_SIMULATION=true` が設定されるため、Cloudflare Accessなしで管理画面から生成・配信フローを確認できる。最初の2つが揃うと管理 API のAccess検証を省略し、3つすべてが揃うとLINE APIへ送信せず、受付状態を模擬する。画面も「開発用シミュレーション」と表示する。これらのフラグはローカル開発設定だけに置き、本番設定には追加しない。
+
+WranglerのCron Triggerは毎日 `0 0 * * *` UTC（09:00 JST）に起動する。当日公開クイズがなければ候補から生成を試み、公開クイズができた場合だけ配信処理を実行する。本番はLINE Broadcast APIへ送信し、ローカル開発は模擬受付を記録する。`deliveryMode` は `line_api` または `simulation` を示す。本番の `succeeded` はLINE APIがリクエストを受け付けたことを示し、各友だちへの到達状況を表さない。
+
+内部連携から既存の公開クイズだけを再試行する場合は `POST /api/v1/line/broadcasts/daily-quiz` を使い、`INTERNAL_API_TOKEN` をBearer認証で渡す。このトークンをブラウザーから送信しない。
 
 ### ローカル開発用認証
 
@@ -183,6 +218,7 @@ pnpm --filter backend db:seed:local
 許可するオリジンは Cloudflare Worker の `CORS_ORIGIN` 環境変数から取得する。
 Cookie セッションを使う認証 API では、環境ごとにフロントエンドの origin を必ず設定する。
 未設定時の `*` は認証情報を送らないローカル確認用のフォールバックとして扱う。
+管理配信 POST は CSRF 対策として同じ `CORS_ORIGIN` をサーバー側でも照合し、未設定時や Origin 欠落時は拒否する。
 
 - 本番: `wrangler.jsonc` の `vars.CORS_ORIGIN` にデプロイ済みフロントエンドの origin を設定する。
 - ローカル: `.dev.vars`（`.dev.vars.example` をコピーして作成、git管理外）に

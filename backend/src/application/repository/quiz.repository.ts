@@ -26,6 +26,7 @@ export interface RecordQuizAnswerResult {
 /** クイズ機能が必要とする永続化処理のPort。D1/Drizzleの詳細を含めない。 */
 export interface QuizRepository {
   findPublishedByDate(quizDate: string, userId: string): Promise<Quiz | null>;
+  findAvailableByDate(quizDate: string): Promise<Quiz | null>;
   findPublishedById(quizId: string, userId: string): Promise<Quiz | null>;
   listCandidates(): Promise<QuizCandidate[]>;
   insert(quiz: Quiz): Promise<boolean>;
