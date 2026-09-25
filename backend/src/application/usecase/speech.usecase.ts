@@ -1,4 +1,5 @@
 import type { SpeechAudioDurationReader } from "../port/speech-audio-duration-reader";
+import { SpeechAudioDurationLimitExceededError } from "../port/speech-audio-duration-reader";
 import type { SpeechRateLimiter } from "../port/speech-rate-limiter";
 import type { SpeechRecognizer } from "../port/speech-recognizer";
 
@@ -73,7 +74,10 @@ export class SpeechUseCase implements ISpeechUseCase {
         new Uint8Array(audio),
         mimeType,
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof SpeechAudioDurationLimitExceededError) {
+        throw new SpeechAudioTooLongError();
+      }
       throw new InvalidSpeechAudioError();
     }
     if (!Number.isFinite(duration) || duration <= 0) {

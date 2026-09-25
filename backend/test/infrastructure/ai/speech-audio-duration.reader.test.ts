@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SpeechAudioDurationLimitExceededError } from "../../../src/application/port/speech-audio-duration-reader";
 import { VerifiedSpeechAudioDurationReader } from "../../../src/infrastructure/ai/speech-audio-duration.reader";
 import {
   createMp3Audio,
@@ -28,10 +29,34 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     },
   );
 
-  it.each([
-    ["WebM", "audio/webm", createWebmAudio(61, 1)],
-    ["MP4", "audio/mp4", createMp4Audio(61, 1)],
-  ])(
+  it("rejects a WAV blockAlign that disagrees with its PCM sample format", async () => {
+    const audio = createWavAudio(61);
+    const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength);
+    view.setUint16(32, 4, true);
+    view.setUint32(28, 32_000, true);
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/wav"),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a WAV byteRate that disagrees with its sample rate and blockAlign", async () => {
+    const audio = createWavAudio(1);
+    const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength);
+    view.setUint32(28, 16_001, true);
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/wav"),
+    ).rejects.toThrow();
+  });
+
+  it("reports verified MP4 samples over 60 seconds as a duration limit error", async () => {
+    await expect(
+      reader.getDurationSeconds(createMp4Audio(65, 1), "audio/mp4"),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
+  it.each([["WebM", "audio/webm", createWebmAudio(61, 1)]])(
     "ignores a shortened container duration when %s sample data exceeds 60 seconds",
     async (_name, mimeType, audio) => {
       const duration = await reader.getDurationSeconds(

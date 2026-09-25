@@ -1,7 +1,7 @@
 import * as MP4Box from "mp4box";
+import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
 
 const MAX_AUDIO_DURATION_SECONDS = 60;
-const MIN_AAC_SAMPLES_PER_ACCESS_UNIT = 960;
 const MAX_AAC_SAMPLE_RATE = 96_000;
 
 export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
@@ -13,29 +13,46 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     let lastPresentationTime = Number.NEGATIVE_INFINITY;
     let samplesPerAccessUnit: number | undefined;
     let sampleRate: number | undefined;
-    let maximumSampleCount = 0;
     let fragmented = false;
     let settled = false;
 
-    const fail = (message: string) => {
+    const fail = (error: Error) => {
       if (!settled) {
         settled = true;
-        reject(new TypeError(message));
+        reject(error);
       }
     };
 
-    file.onError = () => fail("Invalid MP4 audio");
+    const failInvalid = (message: string) => fail(new TypeError(message));
+
+    const failTooLong = (stopExtraction: boolean) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (stopExtraction) {
+        try {
+          file.stop();
+        } finally {
+          reject(new SpeechAudioDurationLimitExceededError());
+        }
+      } else {
+        reject(new SpeechAudioDurationLimitExceededError());
+      }
+    };
+
+    file.onError = () => failInvalid("Invalid MP4 audio");
     file.onReady = (info) => {
       ready = true;
       if (info.audioTracks.length !== 1) {
-        fail("MP4 must contain exactly one audio track");
+        failInvalid("MP4 must contain exactly one audio track");
         return;
       }
 
       const audioTrack = info.audioTracks[0]!;
       fragmented = info.isFragmented;
       if (audioTrack.codec !== "mp4a.40.2" || !audioTrack.audio) {
-        fail("MP4 must use AAC-LC audio");
+        failInvalid("MP4 must use AAC-LC audio");
         return;
       }
       sampleRate = audioTrack.audio.sample_rate;
@@ -44,23 +61,17 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
         sampleRate <= 0 ||
         sampleRate > MAX_AAC_SAMPLE_RATE
       ) {
-        fail("MP4 audio sample rate is invalid");
+        failInvalid("MP4 audio sample rate is invalid");
         return;
       }
-      maximumSampleCount = Math.ceil(
-        (MAX_AUDIO_DURATION_SECONDS * sampleRate) /
-          MIN_AAC_SAMPLES_PER_ACCESS_UNIT,
-      );
       if (
         !fragmented &&
         (!Number.isSafeInteger(audioTrack.nb_samples) ||
-          audioTrack.nb_samples < 1 ||
-          audioTrack.nb_samples > maximumSampleCount)
+          audioTrack.nb_samples < 1)
       ) {
-        fail("MP4 audio sample count exceeds the supported duration");
+        failInvalid("MP4 audio sample count is invalid");
         return;
       }
-
       file.onSamples = (trackId, _user, samples) => {
         if (trackId !== audioTrack.id || settled) {
           return;
@@ -73,30 +84,42 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             sample.data.byteLength !== sample.size ||
             sample.timescale <= 0
           ) {
-            fail("MP4 audio sample is incomplete");
+            failInvalid("MP4 audio sample is incomplete");
             return;
           }
 
           if (samplesPerAccessUnit === undefined) {
             const aacConfig = readAacConfig(sample.description);
             if (aacConfig.sampleRate !== sampleRate) {
-              fail("MP4 AAC sample rate does not match its decoder config");
+              failInvalid(
+                "MP4 AAC sample rate does not match its decoder config",
+              );
               return;
             }
             samplesPerAccessUnit = aacConfig.samplesPerAccessUnit;
+          }
+          if (samplesPerAccessUnit === undefined || sampleRate === undefined) {
+            failInvalid("MP4 AAC configuration is unavailable");
+            return;
           }
           const startSeconds = sample.dts / sample.timescale;
           const endSeconds =
             (sample.dts + Math.max(0, sample.duration)) / sample.timescale;
           if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)) {
-            fail("MP4 audio sample timing is invalid");
+            failInvalid("MP4 audio sample timing is invalid");
             return;
           }
           firstPresentationTime = Math.min(firstPresentationTime, startSeconds);
           lastPresentationTime = Math.max(lastPresentationTime, endSeconds);
           sampleCount += 1;
-          if (sampleCount > maximumSampleCount) {
-            fail("MP4 audio sample count exceeds the supported duration");
+          const sampleCountDuration =
+            (sampleCount * samplesPerAccessUnit) / sampleRate;
+          const timelineDuration = lastPresentationTime - firstPresentationTime;
+          if (
+            sampleCountDuration > MAX_AUDIO_DURATION_SECONDS ||
+            timelineDuration > MAX_AUDIO_DURATION_SECONDS
+          ) {
+            failTooLong(true);
             return;
           }
         }
@@ -114,7 +137,7 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
       file.appendBuffer(MP4Box.MP4BoxBuffer.fromArrayBuffer(data, 0), true);
       file.flush();
     } catch {
-      fail("Invalid MP4 audio");
+      failInvalid("Invalid MP4 audio");
       return;
     }
 
@@ -126,12 +149,12 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
       sampleCount === 0 ||
       (!fragmented && sampleCount !== file.getInfo().audioTracks[0]?.nb_samples)
     ) {
-      fail("MP4 contains no complete audio samples");
+      failInvalid("MP4 contains no complete audio samples");
       return;
     }
 
     if (samplesPerAccessUnit === undefined || sampleRate === undefined) {
-      fail("MP4 AAC configuration is unavailable");
+      failInvalid("MP4 AAC configuration is unavailable");
       return;
     }
     const sampleCountDuration =
@@ -139,7 +162,7 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     const timelineDuration = lastPresentationTime - firstPresentationTime;
     const duration = Math.max(sampleCountDuration, timelineDuration);
     if (!Number.isFinite(duration) || duration <= 0) {
-      fail("MP4 audio duration is invalid");
+      failInvalid("MP4 audio duration is invalid");
       return;
     }
 

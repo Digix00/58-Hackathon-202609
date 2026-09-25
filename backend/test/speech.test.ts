@@ -14,7 +14,11 @@ import { VerifiedSpeechAudioDurationReader } from "../src/infrastructure/ai/spee
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { SpeechHandler } from "../src/presentation/speech.handler";
-import { createWavAudio, createWebmAudio } from "./support/audio-fixture";
+import {
+  createMp4Audio,
+  createWavAudio,
+  createWebmAudio,
+} from "./support/audio-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
@@ -313,6 +317,48 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(response.status).toBe(413);
     expect(await response.json()).toMatchObject({
       error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("returns 413 for a long AAC-LC MP4 and does not call the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createMp4Audio(65, 1)], "long.mp4", {
+          type: "audio/mp4",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("rejects WAV with inconsistent PCM header fields before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+    const audio = createWavAudio(61);
+    const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength);
+    view.setUint16(32, 4, true);
+    view.setUint32(28, 32_000, true);
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([audio], "forged.wav", { type: "audio/wav" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
     });
     expect(transcribe).not.toHaveBeenCalled();
   });
