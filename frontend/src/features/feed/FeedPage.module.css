@@ -2,9 +2,16 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: clamp(1.15em, 3.5vh, 1.8em);
-  width: 100%;
   min-width: 0;
   min-height: 100%;
+  /*
+   * 本の下のシールは本文の余白をはみ出して置く。左右の余白をいったん打ち消し、
+   * 同じ幅を内側へ戻して、断ち落とす線を本文の余白ではなく画面の端に置く。
+   * 本文の組みはそのままに、絵だけが画面のふちまで届く。
+   */
+  margin-inline: calc(-1 * var(--screen-gutter, 0px));
+  padding-inline: var(--screen-gutter, 0px);
+  overflow-x: clip;
 }
 
 /*
