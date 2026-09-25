@@ -76,11 +76,11 @@ export function SettingsPage() {
         className={sharedStyles.group}
         disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
       >
-        <legend>都道府県名の表記</legend>
+        <legend>表示することば</legend>
         {authStatus !== 'authenticated' ? (
           <p>LINEでログインすると、選んだ表記をアカウントに保存できます。</p>
         ) : (
-          <p>悩みの都道府県名を選んだ表記で表示します。</p>
+          <p>選んだ表記で表示します。</p>
         )}
         <div className={sharedStyles.choiceRow}>
           {languageOptions.map((option) => (
