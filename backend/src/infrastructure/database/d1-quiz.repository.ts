@@ -1,7 +1,11 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
-import type { AgeGroup, Gender } from "../../application/entity/concern";
+import type {
+  AgeGroup,
+  ConcernProcessingStatus,
+  Gender,
+} from "../../application/entity/concern";
 import {
   Quiz,
   type QuizAnswerResult,
@@ -14,6 +18,7 @@ import type {
   RecordQuizAnswerInput,
   RecordQuizAnswerResult,
 } from "../../application/repository/quiz.repository";
+import { loadConcernRepresentations } from "./concern-representation.reader";
 import {
   concerns,
   quizAnswers,
@@ -290,6 +295,7 @@ export class D1QuizRepository implements QuizRepository {
         concernId: quizOptions.concernId,
         displayOrder: quizOptions.displayOrder,
         body: concerns.body,
+        processingStatus: concerns.processingStatus,
         visibilityStatus: concerns.visibilityStatus,
       })
       .from(quizOptions)
@@ -297,6 +303,10 @@ export class D1QuizRepository implements QuizRepository {
       .where(eq(quizOptions.quizId, quizId))
       .orderBy(asc(quizOptions.displayOrder))
       .all();
+    const representations = await loadConcernRepresentations(
+      this.db,
+      optionRows.map((row) => row.concernId),
+    );
 
     if (
       participantRows.length !== 3 ||
@@ -336,6 +346,8 @@ export class D1QuizRepository implements QuizRepository {
         concernId: row.concernId,
         body: row.body,
         displayOrder: row.displayOrder,
+        processingStatus: row.processingStatus as ConcernProcessingStatus,
+        representations: representations.get(row.concernId) ?? [],
       })),
       ...(answerResult ? { answerResult } : {}),
     });

@@ -10,12 +10,17 @@ import {
   QuizNotAvailableError,
   QuizValidationError,
 } from "../application/entity/quiz";
+import {
+  CONCERN_LANGUAGES,
+  type ConcernLanguage,
+  selectConcernText,
+} from "../application/shared/concern-representation";
 import type { IQuizUseCase } from "../application/usecase/quiz.usecase";
 import type { Bindings } from "../types";
 
 const quizQuery = z
   .object({
-    language: z.enum(["original", "jaHira", "en"]).default("original"),
+    language: z.enum(CONCERN_LANGUAGES).default("original"),
   })
   .strict();
 
@@ -67,7 +72,7 @@ export class QuizHandler {
       return quizNotAvailable(c, requestId);
     }
 
-    return c.json(toResponse(quiz));
+    return c.json(toResponse(quiz, parsed.data.language));
   });
 
   readonly getById = factory.createHandlers(async (c) => {
@@ -92,7 +97,7 @@ export class QuizHandler {
       return quizNotAvailable(c, requestId);
     }
 
-    return c.json(toResponse(quiz));
+    return c.json(toResponse(quiz, parsed.data.language));
   });
 
   readonly answer = factory.createHandlers(async (c) => {
@@ -153,7 +158,7 @@ export class QuizHandler {
   });
 }
 
-function toResponse(quiz: Quiz) {
+function toResponse(quiz: Quiz, language: ConcernLanguage) {
   const participants = shuffle(quiz.participants).map((participant, index) => ({
     participantId: participant.id,
     attributes: {
@@ -164,9 +169,8 @@ function toResponse(quiz: Quiz) {
     displayOrder: index + 1,
   }));
   const concerns = shuffle(quiz.options).map((option, index) => ({
+    ...selectConcernText(option.body, option.representations ?? [], language),
     concernId: option.concernId,
-    body: option.body,
-    language: "original" as const,
     displayOrder: index + 1,
   }));
 

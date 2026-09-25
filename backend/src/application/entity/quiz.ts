@@ -1,4 +1,9 @@
-import type { AgeGroup, Gender } from "./concern";
+import type {
+  AgeGroup,
+  ConcernProcessingStatus,
+  ConcernTextRepresentation,
+  Gender,
+} from "./concern";
 
 export const QUIZ_STATUSES = [
   "draft",
@@ -32,6 +37,8 @@ export interface QuizOption {
   concernId: string;
   body: string;
   displayOrder: number;
+  processingStatus?: ConcernProcessingStatus;
+  representations?: readonly ConcernTextRepresentation[];
 }
 
 export interface QuizAnswerMatch {
