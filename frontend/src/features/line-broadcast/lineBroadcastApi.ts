@@ -48,9 +48,9 @@ export async function triggerDailyBroadcast(): Promise<void> {
   }
 }
 
-async function readStatus(
-  response: { json(): Promise<DailyBroadcastStatus> },
-): Promise<DailyBroadcastStatus> {
+async function readStatus(response: {
+  json(): Promise<DailyBroadcastStatus>
+}): Promise<DailyBroadcastStatus> {
   try {
     return await response.json()
   } catch {
