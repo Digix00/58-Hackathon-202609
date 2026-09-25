@@ -118,13 +118,13 @@ pnpm dev                # http://localhost:8787、wrangler.dev.jsonc を使用
 
 `pnpm dev` は `wrangler.dev.jsonc` を使い、Workers AI / Vectorizeのremote bindingなしでローカルD1・Queueを起動する。Workers AIの処理はローカル用アダプタの決定的なダミー結果になるため、`wrangler login` は不要。
 
-Vectorizeとの連携を開発環境で確認するときは `pnpm dev:vectorize` を使う。この設定もWorkers AI bindingは使わず、ローカル用Embeddingを開発用のremote Vectorize index (`58-hackathon-concern-vectors-dev`) へ登録する。このモードではVectorizeへの接続にCloudflareログインが必要。本番indexとは分離され、開発中のupsertが本番の検索データを変更しない。
+Vectorizeとの連携を開発環境で確認するときは `pnpm dev:vectorize` を使う。この設定もWorkers AI bindingは使わず、ローカル用Embeddingを開発用のremote Vectorize index (`concern-vectors-dev`) へ登録する。このモードではVectorizeへの接続にCloudflareログインが必要。本番indexとは分離され、開発中のupsertが本番の検索データを変更しない。
 
 PLaMo-Embedding-1Bは2048次元ですが、Cloudflare Vectorizeの現行上限1536次元を超えるため使いません。Qwen3-Embedding-0.6Bは1024次元でVectorizeに対応します（[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Workers AI Qwen3 Embedding](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/)）。初回のみ次を開発・本番環境で個別に実行します。
 
 ```bash
-pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors-dev --dimensions=1024 --metric=cosine
-pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create concern-vectors-dev --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create concern-vectors --dimensions=1024 --metric=cosine
 ```
 
 Vectorize indexを再作成した場合は、`CONCERN_VECTOR_INDEX_VERSION` を環境ごとに更新してください。登録済み投稿のEmbedding versionと一致しなくなるため、次にQueueで再処理された投稿は現在のindexへupsertされます。本番の類似度閾値はGitHub Actions Variable `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` から渡し、未設定時は `0.8` を使います。ローカル開発の閾値は `wrangler.dev.jsonc` で設定します。

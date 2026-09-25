@@ -72,12 +72,12 @@ Cloudflareアカウントに以下のindexを事前に作成する。dimensions�
 
 | 環境 | Vectorize index |
 | --- | --- |
-| 開発 | `58-hackathon-concern-vectors-dev` |
-| 本番 | `58-hackathon-concern-vectors` |
+| 開発 | `concern-vectors-dev` |
+| 本番 | `concern-vectors` |
 
 ```bash
-pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors-dev --dimensions=1024 --metric=cosine
-pnpm --filter backend exec wrangler vectorize create 58-hackathon-concern-vectors --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create concern-vectors-dev --dimensions=1024 --metric=cosine
+pnpm --filter backend exec wrangler vectorize create concern-vectors --dimensions=1024 --metric=cosine
 ```
 
 `pnpm --filter backend dev:vectorize` はremote Vectorizeへの接続にCloudflareログインを使い、Workers AI推論には接続せず1024次元の決定的なローカルEmbeddingを使う。実際のWorkers AI推論も確認する場合は `wrangler login` 後に `pnpm --filter backend exec wrangler dev`（本番用 `wrangler.jsonc`）を使う。この設定は本番indexを参照するため、通常の開発には使わない。Workers AIの利用量とVectorizeの使用量が発生する環境では、モデル呼び出しとテスト投稿を必要な回数に制限し、Cloudflareダッシュボードで使用量を確認する。Vitestは `wrangler.test.jsonc` を使い、実AIおよびVectorize bindingなしのローカル環境でFakeを使う。LINE配信の宛先と回数もデモ用に制限する。

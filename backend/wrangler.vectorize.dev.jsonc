@@ -13,7 +13,7 @@
   "vectorize": [
     {
       "binding": "CONCERN_VECTOR_INDEX",
-      "index_name": "58-hackathon-concern-vectors-dev",
+      "index_name": "concern-vectors-dev",
       "remote": true
     }
   ],
