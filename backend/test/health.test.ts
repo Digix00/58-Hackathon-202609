@@ -7,6 +7,7 @@ import { D1HealthRepository } from "../src/infrastructure/database/d1-health.rep
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 describe("GET /health", () => {
@@ -16,6 +17,7 @@ describe("GET /health", () => {
     const app = createApp({
       ...createAuthDependencies(),
       ...createConcernDependencies(),
+      ...createSpeechDependencies(),
       ...createUserDependencies(),
       healthHandler: new HealthHandler(useCase),
     });
@@ -54,6 +56,7 @@ describe("GET /health", () => {
       const app = createApp({
         ...createAuthDependencies(),
         ...createConcernDependencies(),
+        ...createSpeechDependencies(),
         ...createUserDependencies(),
         healthHandler,
       });
@@ -97,6 +100,7 @@ describe("GET /health", () => {
       const app = createApp({
         ...createAuthDependencies(),
         ...createConcernDependencies(),
+        ...createSpeechDependencies(),
         ...createUserDependencies(),
         healthHandler,
       });

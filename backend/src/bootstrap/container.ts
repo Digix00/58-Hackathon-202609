@@ -9,11 +9,13 @@ import {
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
+import { SpeechUseCase } from "../application/usecase/speech.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
 import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
 import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
 import { WorkersAiConcernClusterSummaryGenerator } from "../infrastructure/ai/workers-ai-concern-cluster-summary.generator";
+import { WorkersAiSpeechRecognizer } from "../infrastructure/ai/workers-ai-speech.recognizer";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -37,6 +39,7 @@ import { ConcernReactionHandler } from "../presentation/concern-reaction.handler
 import { ConcernViewHandler } from "../presentation/concern-view.handler";
 import { HealthHandler } from "../presentation/health.handler";
 import { QuizHandler } from "../presentation/quiz.handler";
+import { SpeechHandler } from "../presentation/speech.handler";
 import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 
@@ -126,6 +129,10 @@ export function createApplication(bindings: Bindings) {
   const quizRepository = new D1QuizRepository(bindings.DB);
   const quizUseCase = new QuizUseCase(quizRepository);
   const quizHandler = new QuizHandler(quizUseCase);
+  const speechRecognizer = bindings.AI
+    ? new WorkersAiSpeechRecognizer(bindings.AI)
+    : null;
+  const speechHandler = new SpeechHandler(new SpeechUseCase(speechRecognizer));
 
   return {
     app: createApp({
@@ -136,6 +143,7 @@ export function createApplication(bindings: Bindings) {
       concernViewHandler,
       healthHandler,
       quizHandler,
+      speechHandler,
       userHandler,
     }),
     queue: concernProcessingConsumer.handle,
