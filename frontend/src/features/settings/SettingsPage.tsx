@@ -22,7 +22,9 @@ export function SettingsPage() {
   const { status: authStatus, refresh } = useAuth()
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
-  const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>(
+    'idle',
+  )
   const [languageError, setLanguageError] = useState<string | null>(null)
 
   const selectLanguage = async (value: (typeof languageOptions)[number]['value']) => {
@@ -74,9 +76,7 @@ export function SettingsPage() {
         className={sharedStyles.group}
         disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
       >
-        <legend>
-          都道府県名の表記
-        </legend>
+        <legend>都道府県名の表記</legend>
         {authStatus !== 'authenticated' ? (
           <p>LINEでログインすると、選んだ表記をアカウントに保存できます。</p>
         ) : (
