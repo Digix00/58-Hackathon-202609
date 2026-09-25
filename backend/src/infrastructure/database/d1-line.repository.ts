@@ -1,3 +1,7 @@
+import { and, desc, eq, inArray, lte, ne, or, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
+import { drizzle } from "drizzle-orm/d1";
+
 import type {
   ClaimDailyBroadcastResult,
   DailyBroadcastView,
@@ -9,13 +13,24 @@ import type {
   FinishDailyBroadcastInput,
   LineRepository,
 } from "../../application/repository/line.repository";
+import {
+  concerns,
+  lineBroadcastAttempts,
+  lineBroadcasts,
+  lineWebhookEvents,
+  quizParticipants,
+  quizzes,
+  users,
+} from "./schema";
+
+type NonEmptySqliteBatch = [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
 
 /** LINE のイベント冪等性と一斉配信状態を D1 へ保存する Adapter。 */
 export class D1LineRepository implements LineRepository {
-  private readonly database: D1Database;
+  private readonly db: ReturnType<typeof drizzle>;
 
   constructor(database: D1Database) {
-    this.database = database;
+    this.db = drizzle(database);
   }
 
   async recordWebhookEvent(
@@ -28,124 +43,144 @@ export class D1LineRepository implements LineRepository {
     const hasUser = event.sourceType === "user" && Boolean(event.lineUserId);
     const canProcess = hasUser && (isFollow || isUnfollow);
 
-    const statements = [
-      this.database
-        .prepare(
-          `INSERT OR IGNORE INTO line_webhook_events
-             (webhook_event_id, event_type, status, received_at)
-           VALUES (?, ?, 'received', ?)`,
-        )
-        .bind(event.webhookEventId, event.eventType, receivedAt),
+    const statements: BatchItem<"sqlite">[] = [
+      this.db
+        .insert(lineWebhookEvents)
+        .values({
+          webhookEventId: event.webhookEventId,
+          eventType: event.eventType,
+          status: "received",
+          receivedAt,
+        })
+        .onConflictDoNothing({ target: lineWebhookEvents.webhookEventId })
+        .returning({ webhookEventId: lineWebhookEvents.webhookEventId }),
     ];
 
     if (canProcess && isFollow && event.lineUserId) {
-      statements.push(
-        this.database
-          .prepare(
-            `INSERT INTO users
-               (id, line_user_id, friend_status, joined_at, last_seen_at, created_at, updated_at)
-             SELECT ?, ?, 'active', ?, ?, ?, ?
-             WHERE EXISTS (
-               SELECT 1 FROM line_webhook_events
-               WHERE webhook_event_id = ? AND status = 'received'
-             )
-             ON CONFLICT (line_user_id) DO UPDATE SET
-               friend_status = 'active',
-               joined_at = COALESCE(users.joined_at, excluded.joined_at),
-               unfollowed_at = NULL,
-               last_seen_at = excluded.last_seen_at,
-               updated_at = excluded.updated_at`,
-          )
-          .bind(
-            userId,
-            event.lineUserId,
-            receivedAt,
-            receivedAt,
-            receivedAt,
-            receivedAt,
-            event.webhookEventId,
+      const activeUser = this.db
+        .select({
+          id: sql<string>`${userId}`.as("id"),
+          lineUserId: sql<string>`${event.lineUserId}`.as("lineUserId"),
+          birthYear: sql<number | null>`null`.as("birthYear"),
+          birthMonth: sql<number | null>`null`.as("birthMonth"),
+          genderCode: sql<string | null>`null`.as("genderCode"),
+          regionCode: sql<string | null>`null`.as("regionCode"),
+          friendStatus: sql<string>`'active'`.as("friendStatus"),
+          joinedAt: sql<string>`${receivedAt}`.as("joinedAt"),
+          unfollowedAt: sql<string | null>`null`.as("unfollowedAt"),
+          lastSeenAt: sql<string>`${receivedAt}`.as("lastSeenAt"),
+          createdAt: sql<string>`${receivedAt}`.as("createdAt"),
+          updatedAt: sql<string>`${receivedAt}`.as("updatedAt"),
+        })
+        .from(lineWebhookEvents)
+        .where(
+          and(
+            eq(lineWebhookEvents.webhookEventId, event.webhookEventId),
+            eq(lineWebhookEvents.status, "received"),
           ),
+        );
+
+      statements.push(
+        this.db
+          .insert(users)
+          .select(activeUser)
+          .onConflictDoUpdate({
+            target: users.lineUserId,
+            set: {
+              friendStatus: "active",
+              joinedAt: sql`coalesce(${users.joinedAt}, excluded.joined_at)`,
+              unfollowedAt: null,
+              lastSeenAt: sql`excluded.last_seen_at`,
+              updatedAt: sql`excluded.updated_at`,
+            },
+          }),
       );
     }
 
     if (canProcess && isUnfollow && event.lineUserId) {
       statements.push(
-        this.database
-          .prepare(
-            `UPDATE users
-             SET friend_status = 'unfollowed', unfollowed_at = ?, updated_at = ?
-             WHERE line_user_id = ?
-               AND EXISTS (
-                 SELECT 1 FROM line_webhook_events
-                 WHERE webhook_event_id = ? AND status = 'received'
-               )`,
-          )
-          .bind(receivedAt, receivedAt, event.lineUserId, event.webhookEventId),
+        this.db
+          .update(users)
+          .set({
+            friendStatus: "unfollowed",
+            unfollowedAt: receivedAt,
+            updatedAt: receivedAt,
+          })
+          .where(
+            and(
+              eq(users.lineUserId, event.lineUserId),
+              sql`exists (
+                select 1 from ${lineWebhookEvents}
+                where ${lineWebhookEvents.webhookEventId} = ${event.webhookEventId}
+                  and ${lineWebhookEvents.status} = 'received'
+              )`,
+            ),
+          ),
       );
     }
 
     statements.push(
-      this.database
-        .prepare(
-          `UPDATE line_webhook_events
-           SET user_id = CASE
-                 WHEN ? = 1 THEN (SELECT id FROM users WHERE line_user_id = ?)
-                 ELSE NULL
-               END,
-               status = CASE
-                 WHEN ? = 1 AND EXISTS (
-                   SELECT 1 FROM users WHERE line_user_id = ?
-                 ) THEN 'processed'
-                 ELSE 'ignored'
-               END,
-               processed_at = ?
-           WHERE webhook_event_id = ? AND status = 'received'`,
-        )
-        .bind(
-          canProcess ? 1 : 0,
-          event.lineUserId ?? "",
-          canProcess ? 1 : 0,
-          event.lineUserId ?? "",
-          receivedAt,
-          event.webhookEventId,
+      this.db
+        .update(lineWebhookEvents)
+        .set({
+          userId:
+            canProcess && event.lineUserId
+              ? sql<string | null>`(
+                select ${users.id}
+                from ${users}
+                where ${users.lineUserId} = ${event.lineUserId}
+                limit 1
+              )`
+              : null,
+          status:
+            canProcess && event.lineUserId
+              ? sql<string>`case when exists (
+                select 1 from ${users}
+                where ${users.lineUserId} = ${event.lineUserId}
+              ) then 'processed' else 'ignored' end`
+              : "ignored",
+          processedAt: receivedAt,
+        })
+        .where(
+          and(
+            eq(lineWebhookEvents.webhookEventId, event.webhookEventId),
+            eq(lineWebhookEvents.status, "received"),
+          ),
         ),
     );
 
-    const results = await this.database.batch(statements);
-    if (results[0]?.meta.changes === 0) {
+    const results = await this.db.batch(asNonEmptyBatch(statements));
+    const insertedEvents = results[0] as
+      | { webhookEventId: string }[]
+      | undefined;
+    if (!insertedEvents?.length) {
       return "duplicate";
     }
 
-    const row = await this.database
-      .prepare(
-        `SELECT status FROM line_webhook_events WHERE webhook_event_id = ?`,
-      )
-      .bind(event.webhookEventId)
-      .first<{ status: string }>();
+    const row = await this.db
+      .select({ status: lineWebhookEvents.status })
+      .from(lineWebhookEvents)
+      .where(eq(lineWebhookEvents.webhookEventId, event.webhookEventId))
+      .get();
     return row?.status === "processed" ? "processed" : "ignored";
   }
 
   async findDailyBroadcast(quizDate: string): Promise<DailyBroadcastView> {
-    const row = await this.database
-      .prepare(
-        `SELECT quizzes.id AS quiz_id,
-                line_broadcasts.status AS broadcast_status,
-                line_broadcasts.requested_at AS requested_at,
-                line_broadcasts.sent_at AS sent_at,
-                line_broadcasts.finished_at AS finished_at
-         FROM quizzes
-         LEFT JOIN line_broadcasts ON line_broadcasts.quiz_id = quizzes.id
-         WHERE quizzes.quiz_date = ? AND quizzes.status = 'published'
-         LIMIT 1`,
+    const row = await this.db
+      .select({
+        quizId: quizzes.id,
+        broadcastStatus: lineBroadcasts.status,
+        requestedAt: lineBroadcasts.requestedAt,
+        sentAt: lineBroadcasts.sentAt,
+        finishedAt: lineBroadcasts.finishedAt,
+      })
+      .from(quizzes)
+      .leftJoin(lineBroadcasts, eq(lineBroadcasts.quizId, quizzes.id))
+      .where(
+        and(eq(quizzes.quizDate, quizDate), eq(quizzes.status, "published")),
       )
-      .bind(quizDate)
-      .first<{
-        quiz_id: string;
-        broadcast_status: string | null;
-        requested_at: string | null;
-        sent_at: string | null;
-        finished_at: string | null;
-      }>();
+      .limit(1)
+      .get();
 
     if (!row) {
       return {
@@ -161,87 +196,95 @@ export class D1LineRepository implements LineRepository {
 
     return {
       quizDate,
-      quizId: row.quiz_id,
+      quizId: row.quizId,
       quizStatus: "published",
-      broadcastStatus: isBroadcastStatus(row.broadcast_status)
-        ? row.broadcast_status
+      broadcastStatus: isBroadcastStatus(row.broadcastStatus)
+        ? row.broadcastStatus
         : "not_started",
-      requestedAt: row.requested_at,
-      sentAt: row.sent_at,
-      finishedAt: row.finished_at,
+      requestedAt: row.requestedAt,
+      sentAt: row.sentAt,
+      finishedAt: row.finishedAt,
     };
   }
 
   async claimDailyBroadcast(
     input: ClaimDailyBroadcastInput,
   ): Promise<ClaimDailyBroadcastResult> {
-    const quiz = await this.database
-      .prepare(
-        `SELECT quizzes.id
-         FROM quizzes
-         WHERE quizzes.id = ?
-           AND quizzes.quiz_date = ?
-           AND quizzes.status = 'published'
-           AND (SELECT COUNT(*) FROM quiz_participants WHERE quiz_id = quizzes.id) = 3
-           AND NOT EXISTS (
-             SELECT 1
-             FROM quiz_participants
-             INNER JOIN concerns ON concerns.id = quiz_participants.concern_id
-             WHERE quiz_participants.quiz_id = quizzes.id
-               AND concerns.visibility_status <> 'published'
-           )`,
+    const quiz = await this.db
+      .select({ id: quizzes.id })
+      .from(quizzes)
+      .where(
+        and(
+          eq(quizzes.id, input.quizId),
+          eq(quizzes.quizDate, input.quizDate),
+          eq(quizzes.status, "published"),
+          sql`(
+            select count(*) from ${quizParticipants}
+            where ${quizParticipants.quizId} = ${quizzes.id}
+          ) = 3`,
+          sql`not exists (
+            select 1
+            from ${quizParticipants}
+            inner join ${concerns}
+              on ${concerns.id} = ${quizParticipants.concernId}
+            where ${quizParticipants.quizId} = ${quizzes.id}
+              and ${concerns.visibilityStatus} <> 'published'
+          )`,
+        ),
       )
-      .bind(input.quizId, input.quizDate)
-      .first<{ id: string }>();
+      .get();
 
     if (!quiz) {
       return { status: "not_available" };
     }
 
-    await this.database
-      .prepare(
-        `INSERT INTO line_broadcasts
-           (id, quiz_id, idempotency_key, status, requested_at)
-         VALUES (?, ?, ?, 'pending', ?)
-         ON CONFLICT (quiz_id) DO NOTHING`,
-      )
-      .bind(
-        input.broadcastId,
-        input.quizId,
-        `daily-quiz:${input.quizDate}`,
-        input.now,
+    await this.db
+      .insert(lineBroadcasts)
+      .values({
+        id: input.broadcastId,
+        quizId: input.quizId,
+        idempotencyKey: `daily-quiz:${input.quizDate}`,
+        status: "pending",
+        requestedAt: input.now,
+      })
+      .onConflictDoNothing({ target: lineBroadcasts.quizId })
+      .run();
+
+    await this.db
+      .update(lineBroadcasts)
+      .set({
+        status: "running",
+        claimToken: input.claimToken,
+        leaseExpiresAt: input.leaseExpiresAt,
+        lastError: null,
+      })
+      .where(
+        and(
+          eq(lineBroadcasts.quizId, input.quizId),
+          ne(lineBroadcasts.status, "succeeded"),
+          or(
+            inArray(lineBroadcasts.status, ["pending", "failed"]),
+            and(
+              eq(lineBroadcasts.status, "running"),
+              lte(lineBroadcasts.leaseExpiresAt, input.now),
+            ),
+          ),
+        ),
       )
       .run();
 
-    await this.database
-      .prepare(
-        `UPDATE line_broadcasts
-         SET status = 'running', claim_token = ?, lease_expires_at = ?, last_error = NULL
-         WHERE quiz_id = ?
-           AND status <> 'succeeded'
-           AND (
-             status IN ('pending', 'failed')
-             OR (status = 'running' AND lease_expires_at <= ?)
-           )`,
-      )
-      .bind(input.claimToken, input.leaseExpiresAt, input.quizId, input.now)
-      .run();
-
-    const broadcast = await this.database
-      .prepare(
-        `SELECT id, status, claim_token, lease_expires_at, requested_at, sent_at, finished_at
-         FROM line_broadcasts WHERE quiz_id = ?`,
-      )
-      .bind(input.quizId)
-      .first<{
-        id: string;
-        status: string;
-        claim_token: string | null;
-        lease_expires_at: string | null;
-        requested_at: string;
-        sent_at: string | null;
-        finished_at: string | null;
-      }>();
+    const broadcast = await this.db
+      .select({
+        id: lineBroadcasts.id,
+        status: lineBroadcasts.status,
+        claimToken: lineBroadcasts.claimToken,
+        requestedAt: lineBroadcasts.requestedAt,
+        sentAt: lineBroadcasts.sentAt,
+        finishedAt: lineBroadcasts.finishedAt,
+      })
+      .from(lineBroadcasts)
+      .where(eq(lineBroadcasts.quizId, input.quizId))
+      .get();
 
     if (!broadcast) {
       return { status: "not_available" };
@@ -254,33 +297,30 @@ export class D1LineRepository implements LineRepository {
       broadcastStatus: isBroadcastStatus(broadcast.status)
         ? broadcast.status
         : "not_started",
-      requestedAt: broadcast.requested_at,
-      sentAt: broadcast.sent_at,
-      finishedAt: broadcast.finished_at,
+      requestedAt: broadcast.requestedAt,
+      sentAt: broadcast.sentAt,
+      finishedAt: broadcast.finishedAt,
     };
 
     if (broadcast.status === "succeeded") {
       return { status: "succeeded", broadcastId: broadcast.id, view };
     }
-    if (broadcast.claim_token !== input.claimToken) {
+    if (broadcast.claimToken !== input.claimToken) {
       return { status: "in_progress", broadcastId: broadcast.id, view };
     }
 
-    const previousAttempt = await this.database
-      .prepare(
-        `SELECT id, attempt_number, status, line_retry_key
-         FROM line_broadcast_attempts
-         WHERE broadcast_id = ?
-         ORDER BY attempt_number DESC
-         LIMIT 1`,
-      )
-      .bind(broadcast.id)
-      .first<{
-        id: string;
-        attempt_number: number;
-        status: string;
-        line_retry_key: string;
-      }>();
+    const previousAttempt = await this.db
+      .select({
+        id: lineBroadcastAttempts.id,
+        attemptNumber: lineBroadcastAttempts.attemptNumber,
+        status: lineBroadcastAttempts.status,
+        retryKey: lineBroadcastAttempts.lineRetryKey,
+      })
+      .from(lineBroadcastAttempts)
+      .where(eq(lineBroadcastAttempts.broadcastId, broadcast.id))
+      .orderBy(desc(lineBroadcastAttempts.attemptNumber))
+      .limit(1)
+      .get();
 
     if (previousAttempt?.status === "started") {
       return {
@@ -289,33 +329,38 @@ export class D1LineRepository implements LineRepository {
         claimToken: input.claimToken,
         attempt: {
           id: previousAttempt.id,
-          attemptNumber: previousAttempt.attempt_number,
-          retryKey: previousAttempt.line_retry_key,
+          attemptNumber: previousAttempt.attemptNumber,
+          retryKey: previousAttempt.retryKey,
         },
       };
     }
 
-    const attemptNumber = (previousAttempt?.attempt_number ?? 0) + 1;
-    await this.database
-      .prepare(
-        `INSERT INTO line_broadcast_attempts
-           (id, broadcast_id, attempt_number, status, line_retry_key, attempted_at)
-         SELECT ?, ?, ?, 'started', ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM line_broadcasts
-           WHERE id = ? AND claim_token = ? AND status = 'running'
-         )`,
-      )
-      .bind(
-        input.attemptId,
-        broadcast.id,
-        attemptNumber,
-        input.retryKey,
-        input.now,
-        broadcast.id,
-        input.claimToken,
-      )
-      .run();
+    const attemptNumber = (previousAttempt?.attemptNumber ?? 0) + 1;
+    const newAttempt = this.db
+      .select({
+        id: sql<string>`${input.attemptId}`.as("id"),
+        broadcastId: lineBroadcasts.id,
+        attemptNumber: sql<number>`${attemptNumber}`.as("attemptNumber"),
+        status: sql<string>`'started'`.as("status"),
+        httpStatus: sql<number | null>`null`.as("httpStatus"),
+        lineRequestId: sql<string | null>`null`.as("lineRequestId"),
+        lineAcceptedRequestId: sql<string | null>`null`.as(
+          "lineAcceptedRequestId",
+        ),
+        lineRetryKey: sql<string>`${input.retryKey}`.as("lineRetryKey"),
+        attemptedAt: sql<string>`${input.now}`.as("attemptedAt"),
+        errorMessage: sql<string | null>`null`.as("errorMessage"),
+      })
+      .from(lineBroadcasts)
+      .where(
+        and(
+          eq(lineBroadcasts.id, broadcast.id),
+          eq(lineBroadcasts.claimToken, input.claimToken),
+          eq(lineBroadcasts.status, "running"),
+        ),
+      );
+
+    await this.db.insert(lineBroadcastAttempts).select(newAttempt).run();
 
     return {
       status: "claimed",
@@ -332,78 +377,90 @@ export class D1LineRepository implements LineRepository {
   async completeDailyBroadcast(
     input: FinishDailyBroadcastInput,
   ): Promise<void> {
-    await this.database.batch([
-      this.database
-        .prepare(
-          `UPDATE line_broadcast_attempts
-           SET status = 'succeeded', http_status = ?, line_request_id = ?,
-               line_accepted_request_id = ?, error_message = NULL
-           WHERE id = ? AND broadcast_id = ?
-             AND EXISTS (
-               SELECT 1 FROM line_broadcasts
-               WHERE id = ? AND claim_token = ? AND status = 'running'
-             )`,
-        )
-        .bind(
-          input.httpStatus,
-          input.requestId,
-          input.acceptedRequestId,
-          input.attemptId,
-          input.broadcastId,
-          input.broadcastId,
-          input.claimToken,
+    const hasCurrentClaim = sql`exists (
+      select 1 from ${lineBroadcasts}
+      where ${lineBroadcasts.id} = ${input.broadcastId}
+        and ${lineBroadcasts.claimToken} = ${input.claimToken}
+        and ${lineBroadcasts.status} = 'running'
+    )`;
+
+    await this.db.batch([
+      this.db
+        .update(lineBroadcastAttempts)
+        .set({
+          status: "succeeded",
+          httpStatus: input.httpStatus,
+          lineRequestId: input.requestId,
+          lineAcceptedRequestId: input.acceptedRequestId,
+          errorMessage: null,
+        })
+        .where(
+          and(
+            eq(lineBroadcastAttempts.id, input.attemptId),
+            eq(lineBroadcastAttempts.broadcastId, input.broadcastId),
+            hasCurrentClaim,
+          ),
         ),
-      this.database
-        .prepare(
-          `UPDATE line_broadcasts
-           SET status = 'succeeded', claim_token = NULL, lease_expires_at = NULL,
-               sent_at = ?, finished_at = ?, last_error = NULL
-           WHERE id = ? AND claim_token = ? AND status = 'running'`,
-        )
-        .bind(
-          input.finishedAt,
-          input.finishedAt,
-          input.broadcastId,
-          input.claimToken,
+      this.db
+        .update(lineBroadcasts)
+        .set({
+          status: "succeeded",
+          claimToken: null,
+          leaseExpiresAt: null,
+          sentAt: input.finishedAt,
+          finishedAt: input.finishedAt,
+          lastError: null,
+        })
+        .where(
+          and(
+            eq(lineBroadcasts.id, input.broadcastId),
+            eq(lineBroadcasts.claimToken, input.claimToken),
+            eq(lineBroadcasts.status, "running"),
+          ),
         ),
     ]);
   }
 
   async failDailyBroadcast(input: FailDailyBroadcastInput): Promise<void> {
-    await this.database.batch([
-      this.database
-        .prepare(
-          `UPDATE line_broadcast_attempts
-           SET status = 'failed', http_status = ?, line_request_id = ?,
-               line_accepted_request_id = ?, error_message = ?
-           WHERE id = ? AND broadcast_id = ?
-             AND EXISTS (
-               SELECT 1 FROM line_broadcasts
-               WHERE id = ? AND claim_token = ? AND status = 'running'
-             )`,
-        )
-        .bind(
-          input.httpStatus,
-          input.requestId,
-          input.acceptedRequestId,
-          input.errorCode,
-          input.attemptId,
-          input.broadcastId,
-          input.broadcastId,
-          input.claimToken,
+    const hasCurrentClaim = sql`exists (
+      select 1 from ${lineBroadcasts}
+      where ${lineBroadcasts.id} = ${input.broadcastId}
+        and ${lineBroadcasts.claimToken} = ${input.claimToken}
+        and ${lineBroadcasts.status} = 'running'
+    )`;
+
+    await this.db.batch([
+      this.db
+        .update(lineBroadcastAttempts)
+        .set({
+          status: "failed",
+          httpStatus: input.httpStatus,
+          lineRequestId: input.requestId,
+          lineAcceptedRequestId: input.acceptedRequestId,
+          errorMessage: input.errorCode,
+        })
+        .where(
+          and(
+            eq(lineBroadcastAttempts.id, input.attemptId),
+            eq(lineBroadcastAttempts.broadcastId, input.broadcastId),
+            hasCurrentClaim,
+          ),
         ),
-      this.database
-        .prepare(
-          `UPDATE line_broadcasts
-           SET status = 'failed', claim_token = NULL, lease_expires_at = NULL,
-               finished_at = ?, last_error = ?
-           WHERE id = ? AND claim_token = ? AND status = 'running'`,
-        )
-        .bind(
-          input.finishedAt,
-          input.errorCode,
-          input.broadcastId,
-          input.claimToken,
+      this.db
+        .update(lineBroadcasts)
+        .set({
+          status: "failed",
+          claimToken: null,
+          leaseExpiresAt: null,
+          finishedAt: input.finishedAt,
+          lastError: input.errorCode,
+        })
+        .where(
+          and(
+            eq(lineBroadcasts.id, input.broadcastId),
+            eq(lineBroadcasts.claimToken, input.claimToken),
+            eq(lineBroadcasts.status, "running"),
+          ),
         ),
     ]);
   }
@@ -414,24 +471,30 @@ export class D1LineRepository implements LineRepository {
       "broadcastId" | "claimToken" | "attemptId"
     >,
   ): Promise<void> {
-    await this.database
-      .prepare(
-        `UPDATE line_broadcasts
-         SET last_error = 'upstream_result_unknown'
-         WHERE id = ? AND claim_token = ? AND status = 'running'
-           AND EXISTS (
-             SELECT 1 FROM line_broadcast_attempts
-             WHERE id = ? AND broadcast_id = ? AND status = 'started'
-           )`,
-      )
-      .bind(
-        input.broadcastId,
-        input.claimToken,
-        input.attemptId,
-        input.broadcastId,
+    await this.db
+      .update(lineBroadcasts)
+      .set({ lastError: "upstream_result_unknown" })
+      .where(
+        and(
+          eq(lineBroadcasts.id, input.broadcastId),
+          eq(lineBroadcasts.claimToken, input.claimToken),
+          eq(lineBroadcasts.status, "running"),
+          sql`exists (
+            select 1 from ${lineBroadcastAttempts}
+            where ${lineBroadcastAttempts.id} = ${input.attemptId}
+              and ${lineBroadcastAttempts.broadcastId} = ${input.broadcastId}
+              and ${lineBroadcastAttempts.status} = 'started'
+          )`,
+        ),
       )
       .run();
   }
+}
+
+function asNonEmptyBatch(
+  statements: BatchItem<"sqlite">[],
+): NonEmptySqliteBatch {
+  return statements as NonEmptySqliteBatch;
 }
 
 function isBroadcastStatus(
