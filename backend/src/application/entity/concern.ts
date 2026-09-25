@@ -1,3 +1,4 @@
+import type { ConcernRepresentation } from "./concern-processing";
 import { REGION_CODES } from "./region-code";
 import { GENDERS, type Gender } from "./user";
 
@@ -36,6 +37,12 @@ export const CONCERN_PROCESSING_STATUSES = [
 export type ConcernProcessingStatus =
   (typeof CONCERN_PROCESSING_STATUSES)[number];
 
+/** 読み出しAPIが利用する生成済みのひらがな・英語表現。 */
+export type ConcernTextRepresentation = Pick<
+  ConcernRepresentation,
+  "locale" | "body" | "status"
+>;
+
 export const CONCERN_BODY_MAX_LENGTH = 1000;
 
 /** Concernの不変条件（本文長さ・属性値の妥当性）に違反した場合に投げるドメインエラー。 */
@@ -59,6 +66,7 @@ export interface ConcernProps {
   clusterId?: string | null;
   visibilityStatus?: ConcernVisibilityStatus;
   processingStatus?: ConcernProcessingStatus;
+  representations?: readonly ConcernTextRepresentation[];
   createdAt: string;
 }
 
@@ -77,6 +85,7 @@ export class Concern {
   readonly clusterId: string | null;
   readonly visibilityStatus: ConcernVisibilityStatus;
   readonly processingStatus: ConcernProcessingStatus;
+  readonly representations: readonly ConcernTextRepresentation[];
   readonly createdAt: string;
 
   constructor(props: ConcernProps) {
@@ -114,6 +123,7 @@ export class Concern {
     this.clusterId = props.clusterId?.trim() ?? null;
     this.visibilityStatus = props.visibilityStatus ?? "published";
     this.processingStatus = props.processingStatus ?? "pending";
+    this.representations = props.representations ?? [];
     this.createdAt = props.createdAt;
   }
 }

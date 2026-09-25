@@ -5,6 +5,7 @@ import {
   type AgeGroup,
   Concern,
   type ConcernProcessingStatus,
+  type ConcernTextRepresentation,
   type ConcernVisibilityStatus,
   type Gender,
 } from "../../application/entity/concern";
@@ -17,6 +18,7 @@ import type {
   ListPublishedConcernsInput,
   ListPublishedConcernsResult,
 } from "../../application/repository/concern.repository";
+import { loadConcernRepresentations } from "./concern-representation.reader";
 import {
   concernClusters,
   concernReactions,
@@ -84,9 +86,16 @@ export class D1ConcernRepository implements ConcernRepository {
       .limit(input.limit + 1)
       .all();
     const hasMore = rows.length > input.limit;
+    const selectedRows = rows.slice(0, input.limit);
+    const representations = await loadConcernRepresentations(
+      this.db,
+      selectedRows.map((row) => row.id),
+    );
 
     return {
-      items: rows.slice(0, input.limit).map(toConcern),
+      items: selectedRows.map((row) =>
+        toConcern(row, representations.get(row.id)),
+      ),
       hasMore,
     };
   }
@@ -100,7 +109,12 @@ export class D1ConcernRepository implements ConcernRepository {
       )
       .get();
 
-    return row ? toConcern(row) : null;
+    if (!row) {
+      return null;
+    }
+    const representations = await loadConcernRepresentations(this.db, [row.id]);
+
+    return toConcern(row, representations.get(row.id));
   }
 
   async listFeed(input: ListConcernFeedInput): Promise<ListConcernFeedResult> {
@@ -166,9 +180,16 @@ export class D1ConcernRepository implements ConcernRepository {
       .limit(input.limit + 1)
       .all();
     const hasMore = rows.length > input.limit;
+    const selectedRows = rows.slice(0, input.limit);
+    const representations = await loadConcernRepresentations(
+      this.db,
+      selectedRows.map((row) => row.concern.id),
+    );
 
     return {
-      items: rows.slice(0, input.limit).map(toFeedCandidate),
+      items: selectedRows.map((row) =>
+        toFeedCandidate(row, representations.get(row.concern.id)),
+      ),
       hasMore,
     };
   }
@@ -231,7 +252,14 @@ export class D1ConcernRepository implements ConcernRepository {
       .where(and(...conditions))
       .all();
 
-    return rows.map(toFeedCandidate);
+    const representations = await loadConcernRepresentations(
+      this.db,
+      rows.map((row) => row.concern.id),
+    );
+
+    return rows.map((row) =>
+      toFeedCandidate(row, representations.get(row.concern.id)),
+    );
   }
 
   async findPublishedFeedCandidate(id: string, userId?: string) {
@@ -270,7 +298,14 @@ export class D1ConcernRepository implements ConcernRepository {
       )
       .get();
 
-    return row ? toFeedCandidate(row) : null;
+    if (!row) {
+      return null;
+    }
+    const representations = await loadConcernRepresentations(this.db, [
+      row.concern.id,
+    ]);
+
+    return toFeedCandidate(row, representations.get(row.concern.id));
   }
 
   async listRecommendationHistory(userId: string, limit: number) {
@@ -323,7 +358,10 @@ export class D1ConcernRepository implements ConcernRepository {
   }
 }
 
-function toConcern(row: typeof concerns.$inferSelect): Concern {
+function toConcern(
+  row: typeof concerns.$inferSelect,
+  representations: readonly ConcernTextRepresentation[] = [],
+): Concern {
   return new Concern({
     id: row.id,
     userId: row.userId,
@@ -334,6 +372,7 @@ function toConcern(row: typeof concerns.$inferSelect): Concern {
     clusterId: row.clusterId,
     visibilityStatus: row.visibilityStatus as ConcernVisibilityStatus,
     processingStatus: row.processingStatus as ConcernProcessingStatus,
+    representations,
     createdAt: row.createdAt,
   });
 }
@@ -354,15 +393,18 @@ function toConcernCluster(
     : null;
 }
 
-function toFeedCandidate(row: {
-  concern: typeof concerns.$inferSelect;
-  cluster: typeof concernClusters.$inferSelect | null;
-  view: typeof concernViews.$inferSelect | null;
-  reactionCount?: number | null;
-  reacted?: number | boolean | null;
-}) {
+function toFeedCandidate(
+  row: {
+    concern: typeof concerns.$inferSelect;
+    cluster: typeof concernClusters.$inferSelect | null;
+    view: typeof concernViews.$inferSelect | null;
+    reactionCount?: number | null;
+    reacted?: number | boolean | null;
+  },
+  representations: readonly ConcernTextRepresentation[] = [],
+) {
   return {
-    concern: toConcern(row.concern),
+    concern: toConcern(row.concern, representations),
     cluster:
       row.concern.processingStatus === "ready" &&
       row.cluster?.status === "ready"

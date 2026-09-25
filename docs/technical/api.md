@@ -199,7 +199,7 @@ API は表示用の日本語文字列ではなく、次のコード値を利用�
 - ready: 必要な派生データの生成が完了
 - failed: 一部処理に失敗したが原文は利用可能
 
-representations.jaHira と representations.en は、作成 API では未生成時に null、一覧・詳細 API では pending、ready、failed の状態値を返す。ready の本文は language の選択対象となり、pending または failed の場合は原文へフォールバックする。
+representations.jaHira と representations.en は、作成 API では未生成時に null、一覧・詳細 API では言語ごとの pending、ready、failed の状態値を返す。生成済みの表現行の状態を優先し、行がない場合は投稿の処理状態が failed なら failed、それ以外は pending とする。ready の本文だけを language の選択対象とし、pending または failed の場合は原文へフォールバックする。
 
 ### 1.7 ページネーション
 
@@ -443,7 +443,15 @@ reasonCode の初期値は次のとおり。
 
 公開済みの悩みを 1 件返す。
 
+#### Query
+
+| Param | 必須 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| language | 任意 | original | original、jaHira、en |
+
 - Response の item 形式は GET /api/v1/concerns の items と同じ。ただし詳細取得では recommendation を省略する
+- language で指定した表現が ready の場合はその本文と language を返し、pending、failed、未生成の場合は原文の本文と language=original にフォールバックする
+- language が不正な場合は 400 INVALID_REQUEST とする
 - 非公開または存在しない concernId は 404 NOT_FOUND
 - 詳細取得だけでは既読にしない。画面表示後に 3.5 の既読 API を呼び出す
 - 投稿者を特定できる users.id、LINE user ID、LINE profile 情報は返さない

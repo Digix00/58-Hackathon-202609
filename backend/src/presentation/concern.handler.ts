@@ -12,6 +12,12 @@ import {
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
+import {
+  CONCERN_LANGUAGES,
+  type ConcernLanguage,
+  getConcernRepresentationState,
+  selectConcernText,
+} from "../application/shared/concern-representation";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
@@ -26,7 +32,6 @@ const createConcernRequest = z.object({
 });
 
 const CONCERN_SORT_OPTIONS = ["newest", "recommended"] as const;
-const CONCERN_LANGUAGE_OPTIONS = ["original", "jaHira", "en"] as const;
 
 const listConcernQuery = z
   .object({
@@ -36,8 +41,11 @@ const listConcernQuery = z
     clusterId: z.string().min(1).optional(),
     gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
-    language: z.enum(CONCERN_LANGUAGE_OPTIONS).default("original"),
+    language: z.enum(CONCERN_LANGUAGES).default("original"),
   })
+  .strict();
+const concernLanguageQuery = z
+  .object({ language: z.enum(CONCERN_LANGUAGES).default("original") })
   .strict();
 
 const factory = createFactory<{
@@ -188,7 +196,9 @@ export class ConcernHandler {
         : null;
 
       return c.json({
-        items: result.items.map((item) => toFeedResponse(item, true)),
+        items: result.items.map((item) =>
+          toFeedResponse(item, true, parsed.data.language),
+        ),
         nextCursor,
       });
     }
@@ -203,13 +213,33 @@ export class ConcernHandler {
       : null;
 
     return c.json({
-      items: result.items.map((concern) => toFeedResponse(concern, true)),
+      items: result.items.map((concern) =>
+        toFeedResponse(concern, true, parsed.data.language),
+      ),
       nextCursor,
     });
   });
 
   readonly detail = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
+    const parsed = concernLanguageQuery.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "取得条件を確認してください",
+            details: parsed.error.issues.map((issue) => ({
+              field: issue.path.join(".") || "query",
+              reason: issue.code,
+            })),
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
     const userId = c.var.auth?.user?.id;
     const item = this.concernUsecase.findPublishedFeedItem
       ? await this.concernUsecase.findPublishedFeedItem(
@@ -232,7 +262,7 @@ export class ConcernHandler {
       );
     }
 
-    return c.json(toFeedResponse(item, false));
+    return c.json(toFeedResponse(item, false, parsed.data.language));
   });
 }
 
@@ -257,6 +287,7 @@ function toResponse(concern: Concern) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
+  language: ConcernLanguage = "original",
 ) {
   const candidate = isFeedItem(source)
     ? source
@@ -268,19 +299,32 @@ function toFeedResponse(
         reacted: false,
       };
   const concern = candidate.concern;
+  const selectedText = selectConcernText(
+    concern.body,
+    concern.representations,
+    language,
+  );
 
   return {
     id: concern.id,
-    body: concern.body,
-    language: "original" as const,
+    body: selectedText.body,
+    language: selectedText.language,
     attributes: {
       ageGroup: concern.ageGroup ?? undefined,
       gender: concern.gender ?? undefined,
       regionCode: concern.regionCode ?? undefined,
     },
     representations: {
-      jaHira: toRepresentationStatus(concern),
-      en: toRepresentationStatus(concern),
+      jaHira: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "ja-Hira",
+      ),
+      en: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "en",
+      ),
     },
     cluster: candidate.cluster
       ? {
@@ -310,14 +354,6 @@ function isFeedItem(
   source: Concern | RankedConcernFeedItem,
 ): source is RankedConcernFeedItem {
   return "concern" in source;
-}
-
-function toRepresentationStatus(concern: Concern) {
-  return concern.processingStatus === "ready"
-    ? "ready"
-    : concern.processingStatus === "failed"
-      ? "failed"
-      : "pending";
 }
 
 function setRequestId(c: {

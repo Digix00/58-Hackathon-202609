@@ -16,6 +16,7 @@ import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-c
 import {
   concernClusters,
   concernReactions,
+  concernRepresentations,
   concerns,
   users,
 } from "../src/infrastructure/database/schema";
@@ -180,6 +181,26 @@ async function seedConcern(input: {
     .run();
 
   return concernId;
+}
+
+async function seedRepresentation(input: {
+  concernId: string;
+  locale: "ja-Hira" | "en";
+  body: string;
+  status?: "ready" | "failed";
+}): Promise<void> {
+  const status = input.status ?? "ready";
+  await drizzle(env.DB)
+    .insert(concernRepresentations)
+    .values({
+      concernId: input.concernId,
+      locale: input.locale,
+      body: input.body,
+      status,
+      errorCode: status === "failed" ? "translation_failed" : null,
+      updatedAt: new Date().toISOString(),
+    })
+    .run();
 }
 
 async function seedCluster(input: {
@@ -430,6 +451,88 @@ describe("GET /api/v1/concerns", () => {
       viewed: false,
       reacted: false,
       recommendation: { strategy: "newest", reasonCode: "newest" },
+    });
+  });
+
+  it("selects a ready requested representation and reports each state", async () => {
+    const id = await seedConcern({
+      body: "日本語の原文",
+      processingStatus: "ready",
+      createdAt: "9999-01-02T00:00:00.000Z",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "ja-Hira",
+      body: "にほんごのげんぶん",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "en",
+      body: "Japanese original",
+      status: "failed",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?language=jaHira",
+      {},
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{
+        id: string;
+        body: string;
+        language: string;
+        representations: { jaHira: string; en: string };
+      }>;
+    }>();
+    const item = body.items.find((candidate) => candidate.id === id);
+
+    expect(response.status).toBe(200);
+    expect(item).toMatchObject({
+      body: "にほんごのげんぶん",
+      language: "jaHira",
+      representations: { jaHira: "ready", en: "failed" },
+    });
+  });
+
+  it("falls back to original and distinguishes pending from failed states", async () => {
+    const pendingId = await seedConcern({
+      body: "生成待ちの原文",
+      processingStatus: "pending",
+      createdAt: "9999-01-02T00:00:00.000Z",
+    });
+    const failedId = await seedConcern({
+      body: "生成失敗時の原文",
+      processingStatus: "failed",
+      createdAt: "9999-01-01T00:00:00.000Z",
+    });
+
+    const response = await createTestApp().request(
+      "/api/v1/concerns?language=en",
+      {},
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{
+        id: string;
+        body: string;
+        language: string;
+        representations: { jaHira: string; en: string };
+      }>;
+    }>();
+    const pending = body.items.find((item) => item.id === pendingId);
+    const failed = body.items.find((item) => item.id === failedId);
+
+    expect(response.status).toBe(200);
+    expect(pending).toMatchObject({
+      body: "生成待ちの原文",
+      language: "original",
+      representations: { jaHira: "pending", en: "pending" },
+    });
+    expect(failed).toMatchObject({
+      body: "生成失敗時の原文",
+      language: "original",
+      representations: { jaHira: "failed", en: "failed" },
     });
   });
 
@@ -771,6 +874,7 @@ describe("GET /api/v1/concerns", () => {
     ["sort=unknown", "INVALID_REQUEST"],
     ["gender=unknown", "INVALID_REQUEST"],
     ["regionCode=kanto", "INVALID_REQUEST"],
+    ["language=unknown", "INVALID_REQUEST"],
     ["cursor=invalid", "INVALID_CURSOR"],
   ])("rejects invalid query %s", async (query, code) => {
     const res = await createTestApp().request(
@@ -819,6 +923,74 @@ describe("GET /api/v1/concerns/:concernId", () => {
     });
     expect(body).not.toHaveProperty("userId");
     expect(body).not.toHaveProperty("recommendation");
+  });
+
+  it("selects the requested ready representation for detail", async () => {
+    const id = await seedConcern({
+      body: "詳細の原文",
+      processingStatus: "ready",
+      createdAt: "9999-03-02T00:00:00.000Z",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "ja-Hira",
+      body: "しょうさいのげんぶん",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "en",
+      body: "Detail original in English",
+    });
+    const app = createTestApp();
+
+    const hiraganaResponse = await app.request(
+      `/api/v1/concerns/${id}?language=jaHira`,
+      {},
+      env,
+    );
+    const hiragana = await hiraganaResponse.json<{
+      body: string;
+      language: string;
+      representations: { jaHira: string; en: string };
+    }>();
+    expect(hiraganaResponse.status).toBe(200);
+    expect(hiragana).toMatchObject({
+      body: "しょうさいのげんぶん",
+      language: "jaHira",
+      representations: { jaHira: "ready", en: "ready" },
+    });
+
+    const englishResponse = await app.request(
+      `/api/v1/concerns/${id}?language=en`,
+      {},
+      env,
+    );
+    const english = await englishResponse.json<{
+      body: string;
+      language: string;
+    }>();
+    expect(englishResponse.status).toBe(200);
+    expect(english).toMatchObject({
+      body: "Detail original in English",
+      language: "en",
+    });
+  });
+
+  it("rejects an unsupported language query", async () => {
+    const id = await seedConcern({
+      body: "言語指定の検証",
+      createdAt: "9999-03-03T00:00:00.000Z",
+    });
+    const response = await createTestApp().request(
+      `/api/v1/concerns/${id}?language=fr`,
+      {},
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
   });
 
   it("returns the reaction count and the logged-in user's reacted state", async () => {
