@@ -43,14 +43,26 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+          LINE_LIFF_ID: ${{ vars.VITE_LINE_LIFF_ID }}
           CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
+          ACCESS_TEAM_DOMAIN: ${{ vars.ACCESS_TEAM_DOMAIN }}
+          ACCESS_AUD: ${{ vars.ACCESS_AUD }}
           AUTH_SESSION_TTL_SECONDS: ${{ vars.AUTH_SESSION_TTL_SECONDS }}
           CONCERN_CLUSTER_SIMILARITY_THRESHOLD: ${{ vars.CONCERN_CLUSTER_SIMILARITY_THRESHOLD }}
         run: |
           set -euo pipefail
 
           : "${LINE_CHANNEL_ID:?GitHub Secret LINE_CHANNEL_ID is required}"
+          : "${LINE_CHANNEL_SECRET:?GitHub Secret LINE_CHANNEL_SECRET is required}"
+          : "${LINE_CHANNEL_ACCESS_TOKEN:?GitHub Secret LINE_CHANNEL_ACCESS_TOKEN is required}"
+          : "${INTERNAL_API_TOKEN:?GitHub Secret INTERNAL_API_TOKEN is required}"
+          : "${LINE_LIFF_ID:?GitHub Actions Variable VITE_LINE_LIFF_ID is required}"
           : "${CORS_ORIGIN:?GitHub Actions Variable CORS_ORIGIN is required}"
+          : "${ACCESS_TEAM_DOMAIN:?GitHub Actions Variable ACCESS_TEAM_DOMAIN is required}"
+          : "${ACCESS_AUD:?GitHub Actions Variable ACCESS_AUD is required}"
           AUTH_SESSION_TTL_SECONDS="${AUTH_SESSION_TTL_SECONDS:-2592000}"
           CONCERN_CLUSTER_SIMILARITY_THRESHOLD="${CONCERN_CLUSTER_SIMILARITY_THRESHOLD:-0.8}"
 
@@ -59,9 +71,15 @@ jobs:
 
           umask 077
           printf 'LINE_CHANNEL_ID=%s\n' "$LINE_CHANNEL_ID" > "$secret_file"
+          printf 'LINE_CHANNEL_SECRET=%s\n' "$LINE_CHANNEL_SECRET" >> "$secret_file"
+          printf 'LINE_CHANNEL_ACCESS_TOKEN=%s\n' "$LINE_CHANNEL_ACCESS_TOKEN" >> "$secret_file"
+          printf 'INTERNAL_API_TOKEN=%s\n' "$INTERNAL_API_TOKEN" >> "$secret_file"
 
           pnpm exec wrangler deploy --minify \
             --secrets-file "$secret_file" \
             --var "CORS_ORIGIN:$CORS_ORIGIN" \
+            --var "LINE_LIFF_ID:$LINE_LIFF_ID" \
+            --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" \
+            --var "ACCESS_AUD:$ACCESS_AUD" \
             --var "AUTH_SESSION_TTL_SECONDS:$AUTH_SESSION_TTL_SECONDS" \
             --var "CONCERN_CLUSTER_SIMILARITY_THRESHOLD:$CONCERN_CLUSTER_SIMILARITY_THRESHOLD"

@@ -23,15 +23,24 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
+    displayLanguage: text("display_language").notNull().default("original"),
     birthYear: integer("birth_year"),
     birthMonth: integer("birth_month"),
     genderCode: text("gender_code"),
     regionCode: text("region_code"),
+    friendStatus: text("friend_status"),
+    joinedAt: text("joined_at"),
+    unfollowedAt: text("unfollowed_at"),
+    lastSeenAt: text("last_seen_at"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => ({
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
+    displayLanguageCheck: check(
+      "users_display_language_check",
+      sql`${table.displayLanguage} in ('original', 'jaHira', 'en')`,
+    ),
   }),
 );
 export const sessions = sqliteTable(
@@ -378,6 +387,103 @@ export const quizAnswers = sqliteTable(
     correctCheck: check(
       "quiz_answers_is_correct_check",
       sql`${table.isCorrect} in (0, 1)`,
+    ),
+  }),
+);
+
+export const lineWebhookEvents = sqliteTable(
+  "line_webhook_events",
+  {
+    webhookEventId: text("webhook_event_id").primaryKey(),
+    userId: text("user_id").references(() => users.id),
+    eventType: text("event_type").notNull(),
+    status: text("status").notNull(),
+    receivedAt: text("received_at").notNull(),
+    processedAt: text("processed_at"),
+    errorCode: text("error_code"),
+  },
+  (table) => ({
+    userReceivedIndex: index("line_webhook_events_user_received_idx").on(
+      table.userId,
+      table.receivedAt,
+    ),
+    statusCheck: check(
+      "line_webhook_events_status_check",
+      sql`${table.status} in ('received', 'processed', 'ignored', 'failed')`,
+    ),
+  }),
+);
+
+export const lineBroadcasts = sqliteTable(
+  "line_broadcasts",
+  {
+    id: text("id").primaryKey(),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull().default("pending"),
+    claimToken: text("claim_token"),
+    leaseExpiresAt: text("lease_expires_at"),
+    requestedAt: text("requested_at").notNull(),
+    sentAt: text("sent_at"),
+    finishedAt: text("finished_at"),
+    lastError: text("last_error"),
+  },
+  (table) => ({
+    quizIndex: uniqueIndex("line_broadcasts_quiz_idx").on(table.quizId),
+    idempotencyIndex: uniqueIndex("line_broadcasts_idempotency_idx").on(
+      table.idempotencyKey,
+    ),
+    statusRequestedIndex: index("line_broadcasts_status_requested_idx").on(
+      table.status,
+      table.requestedAt,
+    ),
+    statusCheck: check(
+      "line_broadcasts_status_check",
+      sql`${table.status} in ('pending', 'running', 'succeeded', 'failed')`,
+    ),
+    leaseCheck: check(
+      "line_broadcasts_lease_check",
+      sql`(${table.status} = 'running' and ${table.claimToken} is not null and ${table.leaseExpiresAt} is not null) or (${table.status} <> 'running' and ${table.claimToken} is null and ${table.leaseExpiresAt} is null)`,
+    ),
+  }),
+);
+
+export const lineBroadcastAttempts = sqliteTable(
+  "line_broadcast_attempts",
+  {
+    id: text("id").primaryKey(),
+    broadcastId: text("broadcast_id")
+      .notNull()
+      .references(() => lineBroadcasts.id),
+    attemptNumber: integer("attempt_number").notNull(),
+    status: text("status").notNull(),
+    httpStatus: integer("http_status"),
+    lineRequestId: text("line_request_id"),
+    lineAcceptedRequestId: text("line_accepted_request_id"),
+    lineRetryKey: text("line_retry_key").notNull(),
+    attemptedAt: text("attempted_at").notNull(),
+    errorMessage: text("error_message"),
+  },
+  (table) => ({
+    numberIndex: uniqueIndex("line_broadcast_attempts_number_idx").on(
+      table.broadcastId,
+      table.attemptNumber,
+    ),
+    retryKeyIndex: uniqueIndex("line_broadcast_attempts_retry_key_idx").on(
+      table.lineRetryKey,
+    ),
+    statusAttemptedIndex: index(
+      "line_broadcast_attempts_status_attempted_idx",
+    ).on(table.status, table.attemptedAt),
+    statusCheck: check(
+      "line_broadcast_attempts_status_check",
+      sql`${table.status} in ('started', 'succeeded', 'failed')`,
+    ),
+    attemptNumberCheck: check(
+      "line_broadcast_attempts_number_check",
+      sql`${table.attemptNumber} > 0`,
     ),
   }),
 );

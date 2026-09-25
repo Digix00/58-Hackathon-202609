@@ -13,6 +13,7 @@ export interface UseConcernDetailResult {
 export interface UseConcernDetailOptions {
   enabled?: boolean
   trackView?: boolean
+  authUserId?: string
 }
 
 type ConcernDetailState = {
@@ -61,6 +62,7 @@ export function useConcernDetail(
 ): UseConcernDetailResult {
   const enabled = options.enabled ?? true
   const trackView = options.trackView ?? true
+  const authUserId = options.authUserId
   const [state, dispatch] = useReducer(concernDetailReducer, initialConcernDetailState)
   const requestVersion = useRef(0)
 
@@ -103,7 +105,7 @@ export function useConcernDetail(
       requestVersion.current += 1
       active = false
     }
-  }, [enabled, load])
+  }, [authUserId, enabled, load])
 
   return { status: state.status, concern: state.concern, error: state.error, retry: load }
 }

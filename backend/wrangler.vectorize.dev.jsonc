@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  },
   "observability": {
     "enabled": true
   },
@@ -21,7 +24,10 @@
     "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
     "CONCERN_VECTOR_INDEX_VERSION": "development-v1",
     "CORS_ORIGIN": "http://localhost:5173",
-    "DEV_AUTH_ENABLED": "true"
+    "LINE_LIFF_ID": "local-development",
+    "DEV_AUTH_ENABLED": "true",
+    "DEV_ACCESS_BYPASS": "true",
+    "DEV_LINE_BROADCAST_SIMULATION": "true"
   },
   "queues": {
     "producers": [

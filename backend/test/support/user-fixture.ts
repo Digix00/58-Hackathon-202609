@@ -6,6 +6,9 @@ export function createUserDependencies() {
       updateProfile: async () => {
         throw new Error("user fixture is not used by this test");
       },
+      updateDisplayLanguage: async () => {
+        throw new Error("user fixture is not used by this test");
+      },
     }),
   };
 }

@@ -10,6 +10,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
+import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
@@ -548,7 +549,8 @@ function FeedPageView({
 
 export function FeedPage() {
   const { state: runtime } = useRuntime()
-  const { status: authStatus } = useAuth()
+  const { language } = useDisplaySettings()
+  const { status: authStatus, user } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
   const feedContext = resolveFeedContext(runtime, authStatus)
   const feed = useFeed({
@@ -556,6 +558,7 @@ export function FeedPage() {
     sort: feedContext.sort,
     gender: reader.filter.gender || undefined,
     regionCode: reader.filter.region || undefined,
+    authUserId: user?.id,
   })
   const concerns = feed.items.map(toFeedConcern)
   const readerView = useFeedReaderNavigation({
@@ -583,14 +586,14 @@ export function FeedPage() {
     onFiltersToggle,
     onFilterChange,
   } = readerView
-  const { genderOptions, regionOptions } = buildFeedFilterOptions()
+  const { genderOptions, regionOptions } = buildFeedFilterOptions(language)
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',
     initialReactionCount: concern?.reactionCount ?? 0,
     initialReacted: concern?.reacted ?? false,
   })
   useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
-  const activeFilter = activeFeedFilterLabel(filter)
+  const activeFilter = activeFeedFilterLabel(filter, language)
 
   const showInitialLoading =
     feed.status === 'idle' || (feed.status === 'loading' && concerns.length === 0)

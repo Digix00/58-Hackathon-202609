@@ -11,6 +11,7 @@ export type AuthContextValue = {
   user: AuthResponse['user']
   error: string | null
   refresh: () => Promise<void>
+  updateUser: (user: NonNullable<AuthResponse['user']>) => void
   login: () => Promise<void>
   logout: () => Promise<void>
 }

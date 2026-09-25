@@ -2,6 +2,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -26,6 +27,10 @@ import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
+import {
+  useDisplaySettings,
+  type DisplayLanguage,
+} from '../../app/providers/DisplaySettingsContext'
 import { ageGroupLabel, genderLabel, regionLabel } from '../../shared/concernPresentation'
 import type { QuizAnswerResponse, TodayQuizResponse } from '../../lib/api'
 import { CoverArt } from './CoverArt'
@@ -33,22 +38,38 @@ import { answerQuiz, getQuizById, getTodayQuiz, type QuizMatch } from './quizApi
 import styles from './QuizPage.module.css'
 
 type Letter = { id: string; body: string }
-type Person = { id: string; attributes: string; color: string }
+type QuizParticipant = {
+  id: string
+  sourceAttributes: TodayQuizResponse['participants'][number]['attributes']
+  color: string
+}
+type Person = QuizParticipant & { attributes: string }
 type QuizPageModel = {
   id: string
-  people: Person[]
+  people: QuizParticipant[]
   letters: Letter[]
   answerResult?: QuizAnswerResponse
 }
 type Answers = Record<string, string>
-type QuizModelContext = QuizPageModel
+type QuizModelContext = Omit<QuizPageModel, 'people'> & { people: Person[] }
 
-const QuizContext = createContext<QuizModelContext | null>(null)
+const QuizContext = createContext<QuizPageModel | null>(null)
 
-function useQuizData() {
+function useQuizData(): QuizModelContext {
   const value = useContext(QuizContext)
-  if (!value) throw new Error('QuizContext is not available')
-  return value
+  const { language } = useDisplaySettings()
+
+  return useMemo(() => {
+    if (!value) throw new Error('QuizContext is not available')
+
+    return {
+      ...value,
+      people: value.people.map((person) => ({
+        ...person,
+        attributes: formatAttributes(person.sourceAttributes, language),
+      })),
+    }
+  }, [language, value])
 }
 
 type DragState = {
@@ -266,9 +287,12 @@ function tabSlotStyle(slot: number, count: number) {
   } as CSSProperties
 }
 
-function formatAttributes(participant: TodayQuizResponse['participants'][number]) {
-  const { ageGroup, gender, regionCode } = participant.attributes
-  const region = regionCode === 'no_answer' ? '回答しない' : regionLabel(regionCode)
+function formatAttributes(
+  attributes: TodayQuizResponse['participants'][number]['attributes'],
+  language: DisplayLanguage,
+) {
+  const { ageGroup, gender, regionCode } = attributes
+  const region = regionCode === 'no_answer' ? '回答しない' : regionLabel(regionCode, language)
   return [ageGroupLabel(ageGroup), genderLabel(gender), region]
     .filter((label): label is string => Boolean(label))
     .join('・')
@@ -279,7 +303,7 @@ function toQuizPageModel(quiz: TodayQuizResponse): QuizPageModel {
     .sort((left, right) => left.displayOrder - right.displayOrder)
     .map((participant, index) => ({
       id: participant.participantId,
-      attributes: formatAttributes(participant),
+      sourceAttributes: participant.attributes,
       color: PIECE_COLORS[index % PIECE_COLORS.length],
     }))
   const letters = [...quiz.concerns]
