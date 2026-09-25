@@ -36,7 +36,9 @@ export function RuntimeProvider({ children }: { children: React.ReactNode }) {
         const session = await initializeLiff()
         if (isCurrent) setState(getRuntimeStateFromSession(session))
       } catch {
-        if (isCurrent) setState({ status: 'failed' })
+        if (isCurrent) {
+          setState({ status: 'ready', mode: 'browser', liffInitializationFailed: true })
+        }
       }
     }
 
