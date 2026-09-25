@@ -186,6 +186,63 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     },
   );
 
+  it.each([
+    ["code 0 DTX", Uint8Array.of(0xf8), 0.02],
+    ["code 1 equal frames", opusPacket([0xf9], 2), 0.04],
+    ["code 1 maximum-size frames", opusPacket([0xf9], 2_550), 0.04],
+    ["code 2 variable frames", Uint8Array.of(0xfa, 1, 0, 0), 0.04],
+    ["code 2 extended frame length", opusPacket([0xfa, 0xfc, 0], 254), 0.04],
+    ["code 3 CBR frames", Uint8Array.of(0xfb, 8, 0, 0), 0.04],
+    ["code 3 VBR frames", Uint8Array.of(0xfb, 9, 1, 0, 0), 0.04],
+    ["code 3 CBR with padding", Uint8Array.of(0xfb, 6, 1, 0, 0xff), 0.02],
+    ["code 3 VBR with padding", Uint8Array.of(0xfb, 11, 1, 1, 0, 0, 0), 0.04],
+    [
+      "code 3 continued padding length",
+      opusPacket([0xfb, 6, 0xff, 0], 255),
+      0.02,
+    ],
+    ["code 3 maximum-size frame", opusPacket([0xfb, 4], 1_275), 0.02],
+  ])(
+    "accepts a well-formed %s Opus packet",
+    async (_name, packet, expected) => {
+      const audio = createWebmAudio(0.02, 0.02, 0, packet as Uint8Array);
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/webm"),
+      ).resolves.toBeCloseTo(expected as number, 2);
+    },
+  );
+
+  it.each([
+    ["code 0 frame over 1,275 bytes", opusPacket([0xf8], 1_276)],
+    ["code 1 odd payload", opusPacket([0xf9], 1)],
+    ["code 1 frames over 1,275 bytes", opusPacket([0xf9], 2_552)],
+    ["code 2 frame length beyond payload", Uint8Array.of(0xfa, 2, 0)],
+    ["code 2 second frame over 1,275 bytes", opusPacket([0xfa, 0], 1_276)],
+    ["truncated code 2 extended length", Uint8Array.of(0xfa, 0xfc)],
+    ["code 3 with no frames", Uint8Array.of(0xfb, 0)],
+    ["code 3 with more than 48 frames", Uint8Array.of(0xfb, 196)],
+    ["code 3 over 120 ms", opusPacket([0xfb, 28], 7)],
+    [
+      "code 3 CBR payload not divisible by frame count",
+      opusPacket([0xfb, 8], 1),
+    ],
+    ["code 3 CBR frame over 1,275 bytes", opusPacket([0xfb, 4], 1_276)],
+    ["code 3 VBR length beyond payload", Uint8Array.of(0xfb, 9, 2, 0)],
+    [
+      "code 3 final VBR frame over 1,275 bytes",
+      opusPacket([0xfb, 9, 0], 1_276),
+    ],
+    ["code 3 padding beyond packet", Uint8Array.of(0xfb, 6, 3)],
+    ["code 3 unterminated padding length", Uint8Array.of(0xfb, 6, 0xff)],
+  ])("rejects a malformed %s Opus packet", async (_name, packet) => {
+    const audio = createWebmAudio(0.02, 0.02, 0, packet as Uint8Array);
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow();
+  });
+
   it.each([0xfa, 0xfb])(
     "rejects a one-byte Opus packet when frame code %s needs a second byte",
     async (toc) => {
@@ -250,3 +307,9 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     },
   );
 });
+
+function opusPacket(header: number[], payloadLength: number): Uint8Array {
+  const packet = new Uint8Array(header.length + payloadLength);
+  packet.set(header);
+  return packet;
+}

@@ -1,6 +1,8 @@
 import { readAscii } from "./audio-binary";
 
 export const MAX_WEBM_EBML_ELEMENT_VISITS = 100_000;
+// RFC 6716に従い、各Opus圧縮フレームを1,275バイト以下とする。
+const MAX_OPUS_FRAME_BYTES = 1_275;
 
 export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
   const budget: ParseBudget = { elementsVisited: 0 };
@@ -467,8 +469,7 @@ function readOpusPacketDuration(packet: Uint8Array): number {
   if (packet.byteLength < 2 && frameCode >= 2) {
     throw new TypeError("Truncated Opus packet");
   }
-  const frameCount =
-    frameCode === 0 ? 1 : frameCode < 3 ? 2 : packet[1]! & 0x3f;
+  const frameCount = frameCode === 0 ? 1 : frameCode < 3 ? 2 : packet[1]! >> 2;
   if (frameCount < 1 || frameCount > 48) {
     throw new TypeError("Invalid Opus frame count");
   }
@@ -485,5 +486,118 @@ function readOpusPacketDuration(packet: Uint8Array): number {
   if (durationSeconds > 0.12) {
     throw new TypeError("Opus packet duration exceeds 120 ms");
   }
+  validateOpusPacketFraming(packet, frameCode, frameCount);
   return durationSeconds;
+}
+
+function validateOpusPacketFraming(
+  packet: Uint8Array,
+  frameCode: number,
+  frameCount: number,
+): void {
+  if (frameCode === 0) {
+    validateOpusFrameLength(packet.byteLength - 1);
+    return;
+  }
+
+  if (frameCode === 1) {
+    const payloadLength = packet.byteLength - 1;
+    if (payloadLength % 2 !== 0) {
+      throw new TypeError("Invalid Opus packet framing");
+    }
+    validateOpusFrameLength(payloadLength / 2);
+    return;
+  }
+
+  if (frameCode === 2) {
+    const firstFrame = readOpusFrameLength(packet, 1, packet.byteLength);
+    const remainingLength = packet.byteLength - firstFrame.nextOffset;
+    if (firstFrame.length > remainingLength) {
+      throw new TypeError("Invalid Opus packet framing");
+    }
+    validateOpusFrameLength(firstFrame.length);
+    validateOpusFrameLength(remainingLength - firstFrame.length);
+    return;
+  }
+
+  validateOpusCode3Framing(packet, frameCount);
+}
+
+function validateOpusCode3Framing(
+  packet: Uint8Array,
+  frameCount: number,
+): void {
+  const control = packet[1]!;
+  let frameDataStart = 2;
+  let paddingLength = 0;
+
+  if ((control & 0x02) !== 0) {
+    let paddingSize: number;
+    do {
+      if (frameDataStart >= packet.byteLength) {
+        throw new TypeError("Truncated Opus padding length");
+      }
+      paddingSize = packet[frameDataStart++]!;
+      paddingLength += paddingSize === 255 ? 254 : paddingSize;
+      if (paddingLength > packet.byteLength - frameDataStart) {
+        throw new TypeError("Invalid Opus packet padding");
+      }
+    } while (paddingSize === 255);
+  }
+
+  const frameDataEnd = packet.byteLength - paddingLength;
+  if (frameDataStart > frameDataEnd) {
+    throw new TypeError("Invalid Opus packet padding");
+  }
+
+  if ((control & 0x01) === 0) {
+    const frameDataLength = frameDataEnd - frameDataStart;
+    if (frameDataLength % frameCount !== 0) {
+      throw new TypeError("Invalid Opus CBR frame lengths");
+    }
+    validateOpusFrameLength(frameDataLength / frameCount);
+    return;
+  }
+
+  let offset = frameDataStart;
+  let describedFrameBytes = 0;
+  for (let frame = 0; frame < frameCount - 1; frame += 1) {
+    const frameLength = readOpusFrameLength(packet, offset, frameDataEnd);
+    validateOpusFrameLength(frameLength.length);
+    describedFrameBytes += frameLength.length;
+    offset = frameLength.nextOffset;
+  }
+
+  const remainingFrameBytes = frameDataEnd - offset;
+  if (describedFrameBytes > remainingFrameBytes) {
+    throw new TypeError("Invalid Opus VBR frame lengths");
+  }
+  validateOpusFrameLength(remainingFrameBytes - describedFrameBytes);
+}
+
+function readOpusFrameLength(
+  packet: Uint8Array,
+  offset: number,
+  limit: number,
+): { length: number; nextOffset: number } {
+  if (offset >= limit) {
+    throw new TypeError("Truncated Opus packet");
+  }
+  const firstByte = packet[offset]!;
+  if (firstByte < 252) {
+    return { length: firstByte, nextOffset: offset + 1 };
+  }
+  if (offset + 1 >= limit) {
+    throw new TypeError("Truncated Opus packet");
+  }
+  return {
+    length: firstByte + 4 * packet[offset + 1]!,
+    nextOffset: offset + 2,
+  };
+}
+
+function validateOpusFrameLength(length: number): void {
+  if (length < 0 || length > MAX_OPUS_FRAME_BYTES) {
+    throw new TypeError("Invalid Opus frame length");
+  }
 }

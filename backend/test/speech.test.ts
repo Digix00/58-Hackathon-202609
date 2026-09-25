@@ -254,6 +254,30 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).toHaveBeenCalledOnce();
   });
 
+  it("rejects an oversized Opus frame before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+    const opusPacket = new Uint8Array(1 + 1_276);
+    opusPacket[0] = 0xf8;
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [createWebmAudio(0.02, 0.02, 0, opusPacket)],
+          "oversized-frame.webm",
+          { type: "audio/webm" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
   it("requires an authenticated user before reading audio", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
