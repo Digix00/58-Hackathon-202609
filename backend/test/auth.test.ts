@@ -91,6 +91,7 @@ describe("authentication routes", () => {
       authenticated: true,
       user: {
         id: expect.any(String),
+        displayLanguage: "original",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -163,6 +164,7 @@ describe("authentication routes", () => {
       authenticated: true,
       user: {
         id: expect.any(String),
+        displayLanguage: "original",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -183,6 +185,7 @@ describe("authentication routes", () => {
       authenticated: true,
       user: {
         id: expect.any(String),
+        displayLanguage: "original",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -249,6 +252,7 @@ describe("authentication routes", () => {
       authenticated: true,
       user: {
         id: expect.any(String),
+        displayLanguage: "original",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
@@ -266,6 +270,7 @@ describe("authentication routes", () => {
       authenticated: true,
       user: {
         id: expect.any(String),
+        displayLanguage: "original",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",

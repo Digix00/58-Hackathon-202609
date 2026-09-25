@@ -32,7 +32,7 @@ export function ConcernDetailView({
   const attributes = [
     ageGroupLabel(concern.attributes.ageGroup),
     genderLabel(concern.attributes.gender),
-    regionLabel(concern.attributes.regionCode),
+    concern.attributes.regionName ?? regionLabel(concern.attributes.regionCode),
     createdLabel(concern.createdAt),
   ].filter(Boolean)
 

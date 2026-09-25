@@ -2,7 +2,12 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { RegionCode } from "../../application/entity/region-code";
 import type { Session } from "../../application/entity/session";
-import type { Gender, User, UserProfile } from "../../application/entity/user";
+import type {
+  DisplayLanguage,
+  Gender,
+  User,
+  UserProfile,
+} from "../../application/entity/user";
 import type {
   SessionRepository,
   UserRepository,
@@ -12,6 +17,7 @@ import { sessions, users } from "./schema";
 const userColumns = {
   id: users.id,
   lineUserId: users.lineUserId,
+  displayLanguage: users.displayLanguage,
   birthYear: users.birthYear,
   birthMonth: users.birthMonth,
   gender: users.genderCode,
@@ -87,6 +93,24 @@ export class D1UserRepository implements UserRepository {
     return updated;
   }
 
+  async updateDisplayLanguage(
+    userId: string,
+    displayLanguage: DisplayLanguage,
+  ): Promise<User> {
+    await this.db
+      .update(users)
+      .set({ displayLanguage, updatedAt: new Date().toISOString() })
+      .where(eq(users.id, userId))
+      .run();
+
+    const updated = await this.selectById(userId);
+    if (!updated) {
+      throw new Error("failed to update user display language");
+    }
+
+    return updated;
+  }
+
   private async selectByLineUserId(lineUserId: string): Promise<User | null> {
     const user = await this.db
       .select(userColumns)
@@ -101,6 +125,7 @@ export class D1UserRepository implements UserRepository {
 function toUser(user: {
   id: string;
   lineUserId: string;
+  displayLanguage: string;
   birthYear: number | null;
   birthMonth: number | null;
   gender: string | null;
@@ -108,6 +133,7 @@ function toUser(user: {
 }): User {
   return {
     ...user,
+    displayLanguage: user.displayLanguage as DisplayLanguage,
     gender: user.gender as Gender | null,
     regionCode: user.regionCode as RegionCode | null,
   };

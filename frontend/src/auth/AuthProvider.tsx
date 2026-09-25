@@ -17,6 +17,7 @@ type AuthAction =
   | { type: 'refreshStarted' }
   | { type: 'loginStarted' }
   | { type: 'sessionApplied'; session: AuthResponse }
+  | { type: 'userUpdated'; user: NonNullable<AuthResponse['user']> }
   | { type: 'sessionFailed'; message: string }
   | { type: 'errorCleared' }
   | { type: 'operationFailed'; message: string }
@@ -38,6 +39,9 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         user: action.session.user,
         error: null,
       }
+    case 'userUpdated':
+      if (state.status !== 'authenticated' || !state.user) return state
+      return { ...state, user: action.user, error: null }
     case 'sessionFailed':
       return { status: 'anonymous', user: null, error: action.message }
     case 'errorCleared':
@@ -51,7 +55,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
  * Intent: LINE セッションの復元・ログイン・ログアウトと、その状態遷移を局所化する。
  * Boundary: 認証状態と、認証操作の完了を待てる最小限の関数だけを AuthContext へ公開する。
  * State modeling: status、user、error の同時更新を reducer に集約し、セッション状態の不整合を防ぐ。
- * Update surface: refresh、login、logout。認証情報や SDK の詳細は外へ漏らさない。
+ * Update surface: refresh、認証済みユーザーの反映、login、logout。認証情報や SDK の詳細は外へ漏らさない。
  * Hidden complexity: 初期化の重複排除、LIFF ログインへのフォールバック、通信失敗時の匿名状態への遷移。
  */
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -60,6 +64,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const applySession = useCallback((session: AuthResponse) => {
     dispatch({ type: 'sessionApplied', session })
+  }, [])
+
+  const updateUser = useCallback((user: NonNullable<AuthResponse['user']>) => {
+    dispatch({ type: 'userUpdated', user })
   }, [])
 
   const requestSession = useCallback(async (): Promise<AuthResponse> => {
@@ -186,8 +194,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [refresh])
 
   const contextValue = useMemo(
-    () => ({ ...state, refresh, login, logout }),
-    [login, logout, refresh, state],
+    () => ({ ...state, refresh, updateUser, login, logout }),
+    [login, logout, refresh, state, updateUser],
   )
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>

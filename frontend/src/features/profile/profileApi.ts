@@ -1,4 +1,8 @@
 import { apiClient } from '../../lib/api'
+import type { AuthResponse } from '../../lib/api'
+import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
+
+type AuthenticatedUser = NonNullable<AuthResponse['user']>
 
 export const GENDERS = [
   { value: 'female', label: '女性' },
@@ -73,6 +77,9 @@ type ProfileApiClient = typeof apiClient & {
       users: {
         me: {
           $put: (args: { json: UserProfileInput }) => Promise<Response>
+          'display-language': {
+            $put: (args: { json: { displayLanguage: DisplayLanguage } }) => Promise<Response>
+          }
         }
       }
     }
@@ -89,4 +96,20 @@ export async function updateUserProfile(
 
   const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
   return { ok: false, message: body?.error?.message ?? '設定を保存できませんでした' }
+}
+
+export async function updateUserDisplayLanguage(
+  displayLanguage: DisplayLanguage,
+): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
+  const response = await profileApiClient.api.v1.users.me['display-language'].$put({
+    json: { displayLanguage },
+  })
+  if (response.ok) {
+    const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
+    if (body?.user) return { ok: true, user: body.user }
+    return { ok: false, message: '表示形式を保存できませんでした' }
+  }
+
+  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+  return { ok: false, message: body?.error?.message ?? '表示形式を保存できませんでした' }
 }
