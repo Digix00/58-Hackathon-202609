@@ -2,15 +2,18 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE_NAME } from "../src/app/auth-cookie";
 import { createApp } from "../src/app/create-app";
+import type { SpeechRateLimiter } from "../src/application/port/speech-rate-limiter";
 import type { SpeechRecognizer } from "../src/application/port/speech-recognizer";
 import type {
   IAuthUseCase,
   SessionView,
 } from "../src/application/usecase/auth.usecase";
 import { SpeechUseCase } from "../src/application/usecase/speech.usecase";
+import { MusicMetadataSpeechAudioDurationReader } from "../src/infrastructure/ai/music-metadata-speech-audio-duration.reader";
 import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { SpeechHandler } from "../src/presentation/speech.handler";
+import { createWavAudio, createWebmAudio } from "./support/audio-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
@@ -31,7 +34,12 @@ const authenticatedSession: SessionView = {
   },
 };
 
-function createTestApp(recognizer: SpeechRecognizer | null) {
+function createTestApp(
+  recognizer: SpeechRecognizer | null,
+  rateLimiter: SpeechRateLimiter = {
+    consume: async () => ({ allowed: true }),
+  },
+) {
   const authUseCase = {
     getSession: async (token?: string) =>
       token === "speech-test-token" ? authenticatedSession : null,
@@ -50,7 +58,13 @@ function createTestApp(recognizer: SpeechRecognizer | null) {
         version: "0.1.0",
       }),
     }),
-    speechHandler: new SpeechHandler(new SpeechUseCase(recognizer)),
+    speechHandler: new SpeechHandler(
+      new SpeechUseCase(
+        recognizer,
+        new MusicMetadataSpeechAudioDurationReader(),
+        rateLimiter,
+      ),
+    ),
   });
 }
 
@@ -61,8 +75,8 @@ function createAudioForm(
   form.append(
     "audio",
     options.audio ??
-      new File([new Uint8Array([1, 2, 3])], "voice.webm", {
-        type: "audio/webm;codecs=opus",
+      new File([createWavAudio(1)], "voice.wav", {
+        type: "audio/wav",
       }),
   );
   if (options.language !== undefined) {
@@ -105,6 +119,32 @@ describe("POST /api/v1/speech/transcriptions", () => {
     });
     expect(transcribe).toHaveBeenCalledOnce();
     expect(transcribe.mock.calls[0]?.[0]).toBeInstanceOf(ArrayBuffer);
+  });
+
+  it("accepts WebM with codec parameters and audio at the 60-second boundary", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const webmResponse = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createWebmAudio(1)], "voice.webm", {
+          type: "audio/webm;codecs=opus",
+        }),
+      }),
+    );
+    expect(webmResponse.status).toBe(200);
+
+    const sixtySecondResponse = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createWavAudio(60)], "voice.wav", {
+          type: "audio/wav",
+        }),
+      }),
+    );
+    expect(sixtySecondResponse.status).toBe(200);
+    expect(transcribe).toHaveBeenCalledTimes(2);
   });
 
   it("requires an authenticated user before reading audio", async () => {
@@ -198,6 +238,65 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(await oversizedAudio.json()).toMatchObject({
       error: { code: "PAYLOAD_TOO_LARGE" },
     });
+  });
+
+  it("rejects audio longer than 60 seconds before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createWavAudio(60.01)], "long.wav", {
+          type: "audio/wav",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed audio before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([Uint8Array.of(1, 2, 3)], "invalid.wav", {
+          type: "audio/wav",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 and Retry-After without calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const consume = vi.fn(async () => ({
+      allowed: false as const,
+      retryAfterSeconds: 23,
+    }));
+    const app = createTestApp({ transcribe }, { consume });
+
+    const response = await postTranscription(app, createAudioForm());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("23");
+    expect(await response.json()).toMatchObject({
+      error: { code: "RATE_LIMITED" },
+    });
+    expect(consume).toHaveBeenCalledWith("speech-test-user");
+    expect(transcribe).not.toHaveBeenCalled();
   });
 
   it("returns a shared upstream error when recognition is unavailable or fails", async () => {

@@ -14,6 +14,7 @@ import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
 import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
 import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
+import { MusicMetadataSpeechAudioDurationReader } from "../infrastructure/ai/music-metadata-speech-audio-duration.reader";
 import { WorkersAiConcernClusterSummaryGenerator } from "../infrastructure/ai/workers-ai-concern-cluster-summary.generator";
 import { WorkersAiSpeechRecognizer } from "../infrastructure/ai/workers-ai-speech.recognizer";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
@@ -29,6 +30,7 @@ import { D1ConcernReactionRepository } from "../infrastructure/database/d1-conce
 import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
+import { D1SpeechRateLimiter } from "../infrastructure/database/d1-speech-rate-limiter";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
@@ -132,7 +134,13 @@ export function createApplication(bindings: Bindings) {
   const speechRecognizer = bindings.AI
     ? new WorkersAiSpeechRecognizer(bindings.AI)
     : null;
-  const speechHandler = new SpeechHandler(new SpeechUseCase(speechRecognizer));
+  const speechHandler = new SpeechHandler(
+    new SpeechUseCase(
+      speechRecognizer,
+      new MusicMetadataSpeechAudioDurationReader(),
+      new D1SpeechRateLimiter(bindings.DB),
+    ),
+  );
 
   return {
     app: createApp({

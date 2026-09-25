@@ -3,7 +3,12 @@ import { createFactory } from "hono/factory";
 
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
-import type { ISpeechUseCase } from "../application/usecase/speech.usecase";
+import {
+  InvalidSpeechAudioError,
+  type ISpeechUseCase,
+  SpeechAudioTooLongError,
+  SpeechRateLimitExceededError,
+} from "../application/usecase/speech.usecase";
 import type { Bindings } from "../types";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -41,6 +46,7 @@ export class SpeechHandler {
         401,
       );
     }
+    const userId = c.var.auth.user.id;
 
     const contentType = c.req.header("content-type") ?? "";
     if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
@@ -95,12 +101,47 @@ export class SpeechHandler {
 
     try {
       const text = await this.speechUseCase.transcribe(
+        userId,
         await audio.arrayBuffer(),
+        audioType,
       );
       return c.json({ text, language: "ja" as const }, 200);
-    } catch {
+    } catch (error) {
+      if (error instanceof SpeechRateLimitExceededError) {
+        c.header("Retry-After", String(error.retryAfterSeconds));
+        return c.json(
+          {
+            error: {
+              code: "RATE_LIMITED",
+              message:
+                "音声入力の利用上限に達しました。時間をおいて再度お試しください",
+              requestId,
+            },
+          },
+          429,
+        );
+      }
+
+      if (error instanceof SpeechAudioTooLongError) {
+        return c.json(
+          {
+            error: {
+              code: "PAYLOAD_TOO_LARGE",
+              message: "音声の長さは60秒以下にしてください",
+              requestId,
+            },
+          },
+          413,
+        );
+      }
+
+      if (error instanceof InvalidSpeechAudioError) {
+        return invalidRequest(requestId, c);
+      }
+
       // Upstream errors may contain request details. Keep them out of logs and
-      // return only the shared public error shape.
+      // return only the shared public error shape. Limiter storage failures also
+      // fail closed here, before the recognizer is called.
       return c.json(
         {
           error: {

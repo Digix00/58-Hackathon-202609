@@ -1,4 +1,8 @@
+import type { SpeechAudioDurationReader } from "../port/speech-audio-duration-reader";
+import type { SpeechRateLimiter } from "../port/speech-rate-limiter";
 import type { SpeechRecognizer } from "../port/speech-recognizer";
+
+const MAX_AUDIO_DURATION_SECONDS = 60;
 
 export class SpeechRecognitionUnavailableError extends Error {
   constructor() {
@@ -7,20 +11,81 @@ export class SpeechRecognitionUnavailableError extends Error {
   }
 }
 
+export class InvalidSpeechAudioError extends Error {
+  constructor() {
+    super("Speech audio metadata is invalid");
+    this.name = "InvalidSpeechAudioError";
+  }
+}
+
+export class SpeechAudioTooLongError extends Error {
+  constructor() {
+    super("Speech audio exceeds the maximum duration");
+    this.name = "SpeechAudioTooLongError";
+  }
+}
+
+export class SpeechRateLimitExceededError extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super("Speech transcription rate limit exceeded");
+    this.name = "SpeechRateLimitExceededError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export interface ISpeechUseCase {
-  transcribe(audio: ArrayBuffer): Promise<string>;
+  transcribe(
+    userId: string,
+    audio: ArrayBuffer,
+    mimeType: string,
+  ): Promise<string>;
 }
 
 export class SpeechUseCase implements ISpeechUseCase {
   private readonly recognizer: SpeechRecognizer | null;
+  private readonly audioDurationReader: SpeechAudioDurationReader;
+  private readonly rateLimiter: SpeechRateLimiter;
 
-  constructor(recognizer: SpeechRecognizer | null) {
+  constructor(
+    recognizer: SpeechRecognizer | null,
+    audioDurationReader: SpeechAudioDurationReader,
+    rateLimiter: SpeechRateLimiter,
+  ) {
     this.recognizer = recognizer;
+    this.audioDurationReader = audioDurationReader;
+    this.rateLimiter = rateLimiter;
   }
 
-  async transcribe(audio: ArrayBuffer): Promise<string> {
+  async transcribe(
+    userId: string,
+    audio: ArrayBuffer,
+    mimeType: string,
+  ): Promise<string> {
     if (!this.recognizer) {
       throw new SpeechRecognitionUnavailableError();
+    }
+
+    let duration: number;
+    try {
+      duration = await this.audioDurationReader.getDurationSeconds(
+        new Uint8Array(audio),
+        mimeType,
+      );
+    } catch {
+      throw new InvalidSpeechAudioError();
+    }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new InvalidSpeechAudioError();
+    }
+    if (duration > MAX_AUDIO_DURATION_SECONDS) {
+      throw new SpeechAudioTooLongError();
+    }
+
+    const rateLimit = await this.rateLimiter.consume(userId);
+    if (!rateLimit.allowed) {
+      throw new SpeechRateLimitExceededError(rateLimit.retryAfterSeconds);
     }
 
     const text = (await this.recognizer.transcribe(audio)).trim();

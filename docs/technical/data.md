@@ -20,6 +20,7 @@
 | `quiz_attempts` | id、quiz_id、user_id、score、answered_at | ユーザーごとの回答試行 |
 | `quiz_answers` | attempt_id、quiz_id、participant_id、selected_concern_id、is_correct | 対応付け回答の明細 |
 | `users` | id、LINE user ID、生年月（年・月）、性別、都道府県、日時 | LINE配信とユーザー単位の履歴 |
+| `speech_transcription_rate_limit_events` | id、user_id、created_at | 音声文字起こしのユーザー単位レート制限。音声や文字起こし結果は保存しない |
 | `learning_events` | id、user_id、concern_id、cluster_id、quiz_id、event_type、occurred_at | 閲覧・リアクション・クイズの履歴 |
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
@@ -53,4 +54,5 @@
 - 投稿本文、属性、リアクション、学習履歴はデモ期間中に必要な範囲で保存する
 - ユーザーが削除を要求した投稿は公開対象から直ちに除外する
 - 生の音声、画像、IPアドレス、LINEアクセストークンは保存しない
+- 音声レート制限には内部 `users.id` と受付時刻だけを記録し、直近24時間より古い記録はレート制限判定時に削除する
 - デモ終了時に投稿、翻訳、学習履歴、LINE連携情報を削除する
