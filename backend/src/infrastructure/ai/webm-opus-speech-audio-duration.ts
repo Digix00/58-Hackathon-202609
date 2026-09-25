@@ -449,12 +449,15 @@ function readWebmLacedPackets(
 }
 
 function readOpusPacketDuration(packet: Uint8Array): number {
-  if (packet.byteLength < 2) {
+  if (packet.byteLength < 1) {
     throw new TypeError("Truncated Opus packet");
   }
   const toc = packet[0]!;
   const config = toc >> 3;
   const frameCode = toc & 0x03;
+  if (packet.byteLength < 2 && frameCode >= 2) {
+    throw new TypeError("Truncated Opus packet");
+  }
   const frameCount =
     frameCode === 0 ? 1 : frameCode < 3 ? 2 : packet[1]! & 0x3f;
   if (frameCount < 1 || frameCount > 48) {

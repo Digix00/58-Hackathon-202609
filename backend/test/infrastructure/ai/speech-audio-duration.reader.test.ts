@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { SpeechAudioDurationLimitExceededError } from "../../../src/application/port/speech-audio-duration-reader";
+import { MAX_MP4_SAMPLE_ENTRIES } from "../../../src/infrastructure/ai/mp4-speech-audio-duration";
 import { VerifiedSpeechAudioDurationReader } from "../../../src/infrastructure/ai/speech-audio-duration.reader";
+import { MAX_WAV_CHUNK_VISITS } from "../../../src/infrastructure/ai/wav-speech-audio-duration";
 import { MAX_WEBM_EBML_ELEMENT_VISITS } from "../../../src/infrastructure/ai/webm-opus-speech-audio-duration";
 import {
   createMp3Audio,
@@ -58,6 +60,52 @@ describe("VerifiedSpeechAudioDurationReader", () => {
       reader.getDurationSeconds(audio, "audio/webm"),
     ).rejects.toThrow("Too many WebM EBML elements");
   });
+
+  it("rejects MP4 sample tables over budget before handing the file to MP4Box", async () => {
+    const audio = createMp4Audio(1, 1, MAX_MP4_SAMPLE_ENTRIES + 1);
+    expect(audio.byteLength).toBeLessThan(10_000);
+
+    await expect(reader.getDurationSeconds(audio, "audio/mp4")).rejects.toThrow(
+      "MP4 sample count exceeds parser budget",
+    );
+  });
+
+  it("limits WAV chunk visits and accepts a file at the parser budget", async () => {
+    const atBudget = createWavAudio(1, MAX_WAV_CHUNK_VISITS - 2);
+    await expect(
+      reader.getDurationSeconds(atBudget, "audio/wav"),
+    ).resolves.toBeCloseTo(1, 2);
+
+    const overBudget = createWavAudio(1, MAX_WAV_CHUNK_VISITS - 1);
+    await expect(
+      reader.getDurationSeconds(overBudget, "audio/wav"),
+    ).rejects.toThrow("Too many WAV chunks");
+  });
+
+  it.each([
+    ["single-frame", Uint8Array.of(0xf8), 0.02],
+    ["two-frame CBR", Uint8Array.of(0xf9), 0.04],
+  ])(
+    "accepts a one-byte Opus DTX packet (%s)",
+    async (_name, packet, expected) => {
+      const audio = createWebmAudio(0.02, 0.02, 0, packet as Uint8Array);
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/webm"),
+      ).resolves.toBeCloseTo(expected as number, 2);
+    },
+  );
+
+  it.each([0xfa, 0xfb])(
+    "rejects a one-byte Opus packet when frame code %s needs a second byte",
+    async (toc) => {
+      const audio = createWebmAudio(0.02, 0.02, 0, Uint8Array.of(toc));
+
+      await expect(
+        reader.getDurationSeconds(audio, "audio/webm"),
+      ).rejects.toThrow("Truncated Opus packet");
+    },
+  );
 
   it("rejects a WAV blockAlign that disagrees with its PCM sample format", async () => {
     const audio = createWavAudio(61);

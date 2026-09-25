@@ -2,15 +2,19 @@ const WAV_SAMPLE_RATE = 8_000;
 const WAV_CHANNELS = 1;
 const WAV_BITS_PER_SAMPLE = 16;
 
-export function createWavAudio(durationSeconds: number): Uint8Array {
+export function createWavAudio(
+  durationSeconds: number,
+  zeroLengthUnknownChunkCount = 0,
+): Uint8Array {
   const bytesPerSample = WAV_BITS_PER_SAMPLE / 8;
   const blockAlign = WAV_CHANNELS * bytesPerSample;
   const byteRate = WAV_SAMPLE_RATE * blockAlign;
   const dataLength = Math.round(durationSeconds * byteRate);
-  const buffer = new ArrayBuffer(44 + dataLength);
+  const dataHeaderOffset = 36 + zeroLengthUnknownChunkCount * 8;
+  const buffer = new ArrayBuffer(dataHeaderOffset + 8 + dataLength);
   const view = new DataView(buffer);
   writeAscii(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataLength, true);
+  view.setUint32(4, buffer.byteLength - 8, true);
   writeAscii(view, 8, "WAVE");
   writeAscii(view, 12, "fmt ");
   view.setUint32(16, 16, true);
@@ -20,8 +24,13 @@ export function createWavAudio(durationSeconds: number): Uint8Array {
   view.setUint32(28, byteRate, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, WAV_BITS_PER_SAMPLE, true);
-  writeAscii(view, 36, "data");
-  view.setUint32(40, dataLength, true);
+  for (let chunk = 0; chunk < zeroLengthUnknownChunkCount; chunk += 1) {
+    const chunkOffset = 36 + chunk * 8;
+    writeAscii(view, chunkOffset, "JUNK");
+    view.setUint32(chunkOffset + 4, 0, true);
+  }
+  writeAscii(view, dataHeaderOffset, "data");
+  view.setUint32(dataHeaderOffset + 4, dataLength, true);
   return new Uint8Array(buffer);
 }
 
@@ -61,6 +70,7 @@ export function createWebmAudio(
   durationSeconds: number,
   declaredDurationSeconds = durationSeconds,
   voidElementCount = 0,
+  opusPacket: Uint8Array<ArrayBufferLike> = Uint8Array.of(0xf8, 0xff),
 ): Uint8Array {
   const packetCount = Math.ceil(durationSeconds / 0.02);
   const ebmlHead = ebmlElement(
@@ -125,7 +135,7 @@ export function createWebmAudio(
             Uint8Array.of(0x81),
             u16be(blockTimecode),
             Uint8Array.of(0x80),
-            Uint8Array.of(0xf8, 0xff),
+            opusPacket,
           ),
         ),
       );
@@ -153,6 +163,7 @@ export function createWebmAudio(
 export function createMp4Audio(
   durationSeconds: number,
   declaredDurationSeconds = durationSeconds,
+  stszSampleCountOverride?: number,
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -265,7 +276,11 @@ export function createMp4Audio(
   );
   const sampleSizes = atom(
     "stsz",
-    concat(new Uint8Array(4), u32be(2), u32be(sampleCount)),
+    concat(
+      new Uint8Array(4),
+      u32be(2),
+      u32be(stszSampleCountOverride ?? sampleCount),
+    ),
   );
   const chunkOffset = (offset: number) =>
     atom("stco", concat(new Uint8Array(4), u32be(1), u32be(offset)));

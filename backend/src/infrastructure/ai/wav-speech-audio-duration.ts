@@ -1,5 +1,7 @@
 import { readAscii, readUint32Le } from "./audio-binary";
 
+export const MAX_WAV_CHUNK_VISITS = 100_000;
+
 const PCM_SUBFORMAT_GUID = Uint8Array.of(
   1,
   0,
@@ -58,8 +60,13 @@ export function readWavDurationSeconds(audio: Uint8Array): number {
   let blockAlign: number | undefined;
   let bitsPerSample: number | undefined;
   let dataBytes = 0;
+  let chunksVisited = 0;
 
   for (let offset = 12; offset + 8 <= riffEnd; ) {
+    chunksVisited += 1;
+    if (chunksVisited > MAX_WAV_CHUNK_VISITS) {
+      throw new TypeError("Too many WAV chunks");
+    }
     const chunkId = readAscii(audio, offset, 4);
     const chunkLength = readUint32Le(audio, offset + 4);
     const dataStart = offset + 8;

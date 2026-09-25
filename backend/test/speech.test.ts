@@ -231,6 +231,29 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).toHaveBeenCalledOnce();
   });
 
+  it("accepts WebM audio containing a one-byte Opus DTX packet", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [createWebmAudio(1, 1, 0, Uint8Array.of(0xf8))],
+          "voice.webm",
+          { type: "audio/webm" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      text: "recognized",
+      language: "ja",
+    });
+    expect(transcribe).toHaveBeenCalledOnce();
+  });
+
   it("requires an authenticated user before reading audio", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
