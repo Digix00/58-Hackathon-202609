@@ -260,7 +260,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| users | id, line_user_id, display_language, birth_year, birth_month, gender_code, region_code, created_at, updated_at | LINE/LIFF ログイン済みユーザー。LINE user ID は認証用に内部保存し、APIや画面には返さない。display_language は original, jaHira, en のいずれかで、初期値は original。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力のユーザーは NULL とする |
+| users | id, line_user_id, display_language, birth_year, birth_month, gender_code, region_code, friend_status, joined_at, unfollowed_at, last_seen_at, created_at, updated_at | LINE/LIFF ログイン済みユーザー。LINE user ID は認証用に内部保存し、APIや画面には返さない。display_language は original, jaHira, en のいずれかで、初期値は original。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力のユーザーは NULL とする。friend_status は follow/unfollow の状態を保持する |
 
 ### 4.2 投稿・AI処理
 
@@ -324,6 +324,8 @@ quiz_attempts と quiz_participants には、それぞれ (id, quiz_id) の複�
 | line_webhook_events | webhook_event_id, user_id, event_type, status, received_at, processed_at, error_code | LINE の再送に対する冪等性を確保。webhook_event_id は LINE の webhookEventId に対応し、user_id は user source の場合だけ入り得る nullable の外部キー。生の webhook payload は保存しない |
 | line_broadcasts | id, quiz_id, idempotency_key, status, claim_token, lease_expires_at, requested_at, sent_at, finished_at, last_error | デイリークイズを全友だちへ送る一回の論理実行単位。quiz_id と idempotency_key をそれぞれ UNIQUE にし、claim_token と lease_expires_at で実行単位を原子的に占有する |
 | line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, line_accepted_request_id, line_retry_key, attempted_at, error_message | LINE Broadcast API の HTTP 呼び出し一回につき一行。配信先ユーザーごとの明細ではない。外部 API 呼び出し前に status=started と line_retry_key を保存し、結果不明の再試行では同じキーを使う |
+
+`users.friend_status` は `active` または `unfollowed` を保存する。follow 時は `joined_at`（初回のみ）と `last_seen_at` を更新し、unfollow 時は `unfollowed_at` を更新する。友だち状態は運用・分析用であり、配信先一覧の生成には使わない。Broadcast API の配信対象は LINE Platform に任せる。
 
 POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。line_broadcasts はクイズごとの論理配信、line_broadcast_attempts はその論理配信に対する HTTP 試行履歴として分離する。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。line_broadcasts の claim_token と lease_expires_at を使い、Cron と内部 endpoint の呼び出しが同じ論理配信を同時に外部 API へ送らないようにする。
 

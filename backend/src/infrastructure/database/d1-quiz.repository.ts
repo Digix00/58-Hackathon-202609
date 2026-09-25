@@ -53,6 +53,18 @@ export class D1QuizRepository implements QuizRepository {
     return row ? this.findAvailableById(row.id, userId) : null;
   }
 
+  async findAvailableByDate(quizDate: string): Promise<Quiz | null> {
+    const row = await this.db
+      .select({ id: quizzes.id })
+      .from(quizzes)
+      .where(
+        and(eq(quizzes.quizDate, quizDate), eq(quizzes.status, "published")),
+      )
+      .get();
+
+    return row ? this.findAvailableById(row.id, null) : null;
+  }
+
   findPublishedById(quizId: string, userId: string): Promise<Quiz | null> {
     return this.findAvailableById(quizId, userId);
   }
@@ -262,7 +274,7 @@ export class D1QuizRepository implements QuizRepository {
 
   private async findAvailableById(
     quizId: string,
-    userId: string,
+    userId: string | null,
   ): Promise<Quiz | null> {
     const quizRow = await this.db
       .select()
@@ -328,11 +340,9 @@ export class D1QuizRepository implements QuizRepository {
       regionCode: row.regionCode,
       explanation: row.explanation,
     }));
-    const answerResult = await this.findAnswerResult(
-      quizId,
-      userId,
-      participants,
-    );
+    const answerResult = userId
+      ? await this.findAnswerResult(quizId, userId, participants)
+      : null;
 
     return new Quiz({
       id: quizRow.id,

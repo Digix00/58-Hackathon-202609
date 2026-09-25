@@ -21,7 +21,7 @@ WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の
 - LINE Webhook: POST /api/v1/webhooks/line
 - 内部配信 API: POST /api/v1/line/broadcasts/daily-quiz
 
-通常 API は Hono RPC の型共有対象とする。ヘルスチェック、LINE Webhook、内部配信 API は外部サービス・内部処理との境界が異なるため、通常の画面向け API と分けて扱う。
+通常 API、ヘルスチェック、管理画面向け配信 API は Hono RPC の型共有対象とする。管理画面向け API は Cloudflare Access と Origin 検証で保護する。LINE Webhook と内部配信 API は外部サービス・内部処理との境界が異なるため、画面向けの RPC 型から分けて扱う。
 
 ### 1.2 リクエストとレスポンス
 
@@ -249,6 +249,8 @@ representations.jaHira と representations.en は、作成 API では未生成�
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
+| GET | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日の配信状況を管理者向けに取得 |
+| POST | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日のクイズ生成と配信を手動実行 |
 
 userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
 
@@ -944,8 +946,8 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 2. quizId のクイズが published であることを確認する
 3. quizDate が当日の配信対象として妥当か確認する
 4. idempotencyKey=daily-quiz:YYYY-MM-DD の line_broadcasts を取得または作成する
-5. LINE Messaging API の POST /v2/bot/message/broadcast を一回の論理配信として呼び出す
-6. LINEミニアプリのクイズ URL を含む同一メッセージを LINE 公式アカウントの全友だちへ送信する
+5. 本番は LINE Messaging API の POST /v2/bot/message/broadcast を一回の論理配信として呼び出す。ローカル開発の模擬モードでは外部 API を呼び出さない
+6. 本番は LINEミニアプリのクイズ URL を含む同一メッセージを LINE 公式アカウントの全友だちへ送信する
 7. line_broadcast_attempts に試行結果、HTTP status、X-Line-Request-Id、X-Line-Accepted-Request-Id、Retry Key を記録する
 8. 成功時は line_broadcasts を succeeded にし、送信時刻を保存する
 
@@ -956,7 +958,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 - LINE Broadcast API の全友だち配信を一回の論理実行として扱う
 - アプリケーションの idempotencyKey と LINE API の Retry Key は別に管理する
 - LINE API の応答が不明な状態で再試行する場合は、同じ論理リクエストの Retry Key を再利用して二重配信を抑止する
-- response の status=succeeded は LINE Broadcast API が一回の論理リクエストを受理したことを示すもので、全友だちの個別配信完了や個別 delivery status を表さない
+- deliveryMode=line_api の status=succeeded は LINE Broadcast API が一回の論理リクエストを受理したことを示すもので、全友だちの個別配信完了や個別 delivery status を表さない。simulation は外部送信なしのローカル模擬実行を示す
 - LINE API が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みであるため attempt を論理成功として扱い、BROADCAST_UPSTREAM_UNAVAILABLE にはしない
 - BROADCAST_IN_PROGRESS はアプリケーション内で同じ idempotencyKey の runner が並行実行中の場合だけに用い、LINE API の 409 とは区別する
 
@@ -968,6 +970,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
   "quizId": "quiz_2026-09-21",
   "quizDate": "2026-09-21",
   "status": "succeeded",
+  "deliveryMode": "line_api",
   "requestedAt": "2026-09-21T00:00:00.000Z",
   "sentAt": "2026-09-21T00:00:01.000Z"
 }
@@ -983,15 +986,56 @@ LINE API が一時的に失敗した場合は、失敗した attempt を保存�
 
 ### 9.2 Cloudflare Cron
 
+- 毎日 09:00 JST に実行し、Wrangler の Cron expression は `0 0 * * *`（00:00 UTC）とする
 - Cron の実行時刻は UTC として受け取る
 - 実行対象の quizDate は Asia/Tokyo へ変換して決める
-- scheduled handler は HTTP endpoint を自己呼び出しせず、9.1 と同じ配信ランナーを直接起動する
+- scheduled handler は HTTP endpoint を自己呼び出しせず、まず当日の公開クイズを確認し、なければ `QuizUseCase.ensureDailyQuiz()` で生成を試みてから、9.1 と同じ配信ランナーを直接起動する
+- 候補不足などで公開クイズがない場合は配信を行わず、その日の処理結果を `quiz_not_available` とする
 - Cron と内部 POST のどちらから起動しても、line_broadcasts の idempotencyKey により同じ日付の成功配信を二重実行しない
 
-### 9.3 APIレスポンスとDBの責務
+### 9.3 管理画面向け配信 API
+
+管理画面 `/admin/line-broadcast` から使う運用 API。GET / POST は Hono RPC の `AppType` に含める。ブラウザーには `INTERNAL_API_TOKEN` を渡さない。
+
+#### 認証
+
+- 本番の GET / POST は Cloudflare Access の JWT assertion (`Cf-Access-Jwt-Assertion`) を Worker 内で検証する
+- `ACCESS_TEAM_DOMAIN` から issuer と JWKS URL を決め、`ACCESS_AUD` を audience として署名・issuer・audience を検証する
+- Cloudflare Access 側のアプリケーションポリシーで、運用担当者だけを許可する
+- POST は `Origin` を `CORS_ORIGIN` と照合し、両方を URL の Origin に正規化した値が完全一致する場合だけ受け付ける。`Origin` の欠落、`null`、形式不正、不一致、および未設定・不正な `CORS_ORIGIN` は 403 とする。GET の状態取得にはこの Origin 制限を適用しない
+- この Origin 検証は CORS とは別にサーバー側で実行する。CORS の許可設定だけでは管理操作 POST の CSRF 対策にならない
+- ローカルの Wrangler 開発設定では `DEV_AUTH_ENABLED=true` と `DEV_ACCESS_BYPASS=true` の両方がある場合にAccess検証を省略する。さらに `DEV_LINE_BROADCAST_SIMULATION=true` が揃う場合はLINE APIを呼ばず、配信状態を模擬する。本番設定にはこれらのフラグを置かない
+- `deliveryMode` は `line_api` または `simulation`。`succeeded` は `line_api` のときLINE APIが受理した状態、`simulation` のときはLINEへ送信しないローカル模擬実行の完了を示す
+
+#### GET /api/v1/admin/line/broadcasts/daily-quiz
+
+`quizDate` query は省略時に Asia/Tokyo の当日を使う。
+
+~~~json
+{
+  "quizDate": "2026-09-25",
+  "quizId": "quiz_2026-09-25",
+  "quizStatus": "published",
+  "broadcastStatus": "succeeded",
+  "deliveryMode": "line_api",
+  "requestedAt": "2026-09-25T00:00:00.000Z",
+  "sentAt": "2026-09-25T00:00:01.000Z",
+  "finishedAt": "2026-09-25T00:00:01.000Z"
+}
+~~~
+
+`quizStatus` は `missing` または `published`。`broadcastStatus` は `not_started`, `pending`, `running`, `succeeded`, `failed`。`deliveryMode` は `line_api` または `simulation`。レスポンスには LINE user ID、LINE request ID、Retry Key、内部エラー本文を含めない。
+
+#### POST /api/v1/admin/line/broadcasts/daily-quiz
+
+Request body は持たない。今日の公開クイズがなければ生成を試し、公開済みクイズが得られた場合に配信する。すでに成功済みなら既存状態を返し、再配信しない。`running` の場合は 202 を返す。
+
+管理画面は `credentials: include` でこの API を呼び出し、Cloudflare Access の認証状態を利用する。フロントエンドのビルド変数・ソース・ブラウザーストレージに `INTERNAL_API_TOKEN` を置かない。
+
+### 9.4 APIレスポンスとDBの責務
 
 - この API は受信者一覧、ユーザーごとの送信結果、個別 delivery status を返さない
-- status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない
+- `deliveryMode=line_api` の status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない。`simulation` はローカル模擬実行の完了を意味する
 - アプリケーションの broadcastId / idempotencyKey と、LINE API の Retry Key / Request ID は別の識別子として扱う
 - DBの物理カラムや制約は #32 の database.md で定義し、この PR は HTTP の認証、Request/Response、状態コード、冪等性の契約を定義する
 
@@ -1054,10 +1098,12 @@ PoCでは公開前の人手確認や自動判定を行わない。実在の個�
 - quizzes
 - history
 - speech transcriptions
+- GET /health
+- GET /api/v1/admin/line/broadcasts/daily-quiz
+- POST /api/v1/admin/line/broadcasts/daily-quiz
 
 次の endpoint は通常の画面向け RPC 型から分離する。
 
-- GET /health
 - POST /api/v1/webhooks/line
 - POST /api/v1/line/broadcasts/daily-quiz
 

@@ -71,6 +71,11 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `CONCERN_PROCESSING_QUEUE` | 投稿後のAI処理Queue producer | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINEクイズ配信 | Worker環境変数またはSecret |
+| `INTERNAL_API_TOKEN` | 内部専用のデイリークイズ配信API | Worker Secret。フロントエンドに設定しない |
+| `ACCESS_TEAM_DOMAIN` | Cloudflare Access JWT の issuer と JWKS | Worker環境変数 |
+| `ACCESS_AUD` | Worker API用 Cloudflare Access application の audience | Worker環境変数 |
+| `DEV_ACCESS_BYPASS` | ローカル管理画面でのCloudflare Access検証迂回 | `wrangler.dev.jsonc` / `wrangler.vectorize.dev.jsonc` のみ。`DEV_AUTH_ENABLED=true` と併用 |
+| `DEV_LINE_BROADCAST_SIMULATION` | ローカルLINE配信の模擬実行 | `wrangler.dev.jsonc` / `wrangler.vectorize.dev.jsonc` のみ。Access迂回フラグも必須 |
 | `E2E_BASE_URL` | E2Eテスト対象のWeb URL | GitHub Actions Secretまたは環境設定 |
 
 ### CIとPR
