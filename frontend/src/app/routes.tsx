@@ -12,9 +12,9 @@ const feedPage = lazy(async () => ({
 const concernDetailPage = lazy(async () => ({
   default: (await import('../features/concern-detail/ConcernDetailPage')).ConcernDetailPage,
 }))
-const DevQuizPage = import.meta.env.DEV
-  ? lazy(async () => ({ default: (await import('../features/quiz/QuizPage')).QuizPage }))
-  : null
+const quizPage = lazy(async () => ({
+  default: (await import('../features/quiz/QuizPage')).QuizPage,
+}))
 const DevHistoryPage = import.meta.env.DEV
   ? lazy(async () => ({ default: (await import('../features/history/HistoryPage')).HistoryPage }))
   : null
@@ -61,7 +61,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'quiz/today',
-        element: <ProtectedRoute>{demoPage(DevQuizPage)}</ProtectedRoute>,
+        element: <ProtectedRoute>{apiPage(quizPage)}</ProtectedRoute>,
       },
       {
         path: 'history',
