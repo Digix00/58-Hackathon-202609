@@ -8,7 +8,10 @@ import {
 } from "../../../src/infrastructure/ai/mp4-speech-audio-duration";
 import { VerifiedSpeechAudioDurationReader } from "../../../src/infrastructure/ai/speech-audio-duration.reader";
 import { MAX_WAV_CHUNK_VISITS } from "../../../src/infrastructure/ai/wav-speech-audio-duration";
-import { MAX_WEBM_EBML_ELEMENT_VISITS } from "../../../src/infrastructure/ai/webm-opus-speech-audio-duration";
+import {
+  MAX_WEBM_EBML_ELEMENT_VISITS,
+  MAX_WEBM_OPUS_PACKETS,
+} from "../../../src/infrastructure/ai/webm-opus-speech-audio-duration";
 import {
   createMp3Audio,
   createMp4Audio,
@@ -63,6 +66,23 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     await expect(
       reader.getDurationSeconds(audio, "audio/webm"),
     ).rejects.toThrow("Too many WebM EBML elements");
+  });
+
+  it("caps fixed-laced Opus packet processing", async () => {
+    const audio = createWebmAudio(
+      (MAX_WEBM_OPUS_PACKETS + 1) * 0.02,
+      1,
+      0,
+      Uint8Array.of(0x80),
+      {
+        codecDelayNs: 3_000_000_000,
+        fixedLacingPacketsPerBlock: 256,
+      },
+    );
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
   });
 
   it.each([
@@ -328,7 +348,7 @@ describe("VerifiedSpeechAudioDurationReader", () => {
 
     await expect(
       reader.getDurationSeconds(audio, "audio/webm"),
-    ).resolves.toBeGreaterThan(60);
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
   });
 
   it.each([
@@ -427,17 +447,42 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
   });
 
-  it.each([["WebM", "audio/webm", createWebmAudio(61, 1)]])(
-    "ignores a shortened container duration when %s sample data exceeds 60 seconds",
-    async (_name, mimeType, audio) => {
-      const duration = await reader.getDurationSeconds(
-        audio as Uint8Array,
-        mimeType as string,
+  it("rejects a WebM Opus stream as soon as its verified duration exceeds 60 seconds", async () => {
+    await expect(
+      reader.getDurationSeconds(createWebmAudio(61, 1), "audio/webm"),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
+  it.each([
+    ["CodecDelay", 60.01, { codecDelayNs: 20_000_000 }],
+    ["positive DiscardPadding", 60.01, { discardPaddingNs: 20_000_000 }],
+    ["negative DiscardPadding", 60.01, { discardPaddingNs: -20_000_000 }],
+  ])(
+    "subtracts %s when calculating WebM playback duration",
+    async (_name, encodedDuration, options) => {
+      const audio = createWebmAudio(
+        encodedDuration as number,
+        1,
+        0,
+        Uint8Array.of(0xf8, 0xff),
+        options as { codecDelayNs?: number; discardPaddingNs?: number },
       );
 
-      expect(duration).toBeGreaterThan(60);
+      await expect(
+        reader.getDurationSeconds(audio, "audio/webm"),
+      ).resolves.toBeCloseTo(60, 2);
     },
   );
+
+  it("rejects WebM DiscardPadding longer than its encoded audio block", async () => {
+    const audio = createWebmAudio(0.02, 0.02, 0, Uint8Array.of(0xf8, 0xff), {
+      discardPaddingNs: 20_000_001,
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow("WebM discard padding exceeds its audio block");
+  });
 
   it.each([
     ["empty WAV", "audio/wav", new Uint8Array()],

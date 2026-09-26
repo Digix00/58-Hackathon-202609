@@ -82,6 +82,9 @@ export function createWebmAudio(
   options: {
     segmentSize?: "known" | "unknown" | "oversized";
     clusterSize?: "known" | "unknown";
+    codecDelayNs?: number;
+    discardPaddingNs?: number;
+    fixedLacingPacketsPerBlock?: number;
   } = {},
 ): Uint8Array {
   const packetCount = Math.ceil(durationSeconds / 0.02);
@@ -127,40 +130,94 @@ export function createWebmAudio(
           Uint8Array.of(1, 1, 0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0),
         ),
       ),
+      ...(options.codecDelayNs === undefined
+        ? []
+        : [ebmlUint([0x56, 0xaa], options.codecDelayNs)]),
     ),
   );
   const tracks = ebmlElement([0x16, 0x54, 0xae, 0x6b], audioTrack);
   const clusters: Uint8Array[] = [];
-  for (let firstPacket = 0; firstPacket < packetCount; firstPacket += 50) {
-    const clusterSecond = Math.floor(firstPacket / 50);
-    const blocks: Uint8Array[] = [];
-    for (
-      let packet = firstPacket;
-      packet < Math.min(firstPacket + 50, packetCount);
-      packet += 1
-    ) {
-      const blockTimecode = (packet - firstPacket) * 20;
-      blocks.push(
-        ebmlElement(
-          [0xa3],
-          concat(
-            Uint8Array.of(0x81),
-            u16be(blockTimecode),
-            Uint8Array.of(0x80),
-            opusPacket,
-          ),
-        ),
-      );
+  const createBlockElement = (
+    blockPayload: Uint8Array,
+    firstPacket: number,
+    lastPacket: number,
+  ): Uint8Array => {
+    const hasDiscardPadding =
+      options.discardPaddingNs !== undefined &&
+      (options.discardPaddingNs < 0
+        ? firstPacket === 0
+        : lastPacket === packetCount - 1);
+    if (!hasDiscardPadding) {
+      return ebmlElement([0xa3], blockPayload);
     }
-    const clusterBody = concat(
-      ebmlUint([0xe7], clusterSecond * 1_000),
-      ...blocks,
+    return ebmlElement(
+      [0xa0],
+      concat(
+        ebmlElement([0xa1], blockPayload),
+        ebmlSigned([0x75, 0xa2], options.discardPaddingNs!),
+      ),
     );
+  };
+  const pushCluster = (timecodeMs: number, blocks: Uint8Array[]) => {
+    const clusterBody = concat(ebmlUint([0xe7], timecodeMs), ...blocks);
     clusters.push(
       options.clusterSize === "unknown"
         ? ebmlElementWithUnknownSize([0x1f, 0x43, 0xb6, 0x75], clusterBody)
         : ebmlElement([0x1f, 0x43, 0xb6, 0x75], clusterBody),
     );
+  };
+  if (options.fixedLacingPacketsPerBlock !== undefined) {
+    const packetsPerBlock = options.fixedLacingPacketsPerBlock;
+    if (
+      !Number.isSafeInteger(packetsPerBlock) ||
+      packetsPerBlock < 1 ||
+      packetsPerBlock > 256
+    ) {
+      throw new RangeError(
+        "Fixed lacing packets per block must be from 1 to 256",
+      );
+    }
+    for (
+      let firstPacket = 0;
+      firstPacket < packetCount;
+      firstPacket += packetsPerBlock
+    ) {
+      const blockPacketCount = Math.min(
+        packetsPerBlock,
+        packetCount - firstPacket,
+      );
+      const lastPacket = firstPacket + blockPacketCount - 1;
+      const blockPayload = concat(
+        Uint8Array.of(0x81),
+        u16be(0),
+        Uint8Array.of(blockPacketCount > 1 ? 0x84 : 0x80),
+        ...(blockPacketCount > 1 ? [Uint8Array.of(blockPacketCount - 1)] : []),
+        ...Array.from({ length: blockPacketCount }, () => opusPacket),
+      );
+      pushCluster(firstPacket * 20, [
+        createBlockElement(blockPayload, firstPacket, lastPacket),
+      ]);
+    }
+  } else {
+    for (let firstPacket = 0; firstPacket < packetCount; firstPacket += 50) {
+      const clusterSecond = Math.floor(firstPacket / 50);
+      const blocks: Uint8Array[] = [];
+      for (
+        let packet = firstPacket;
+        packet < Math.min(firstPacket + 50, packetCount);
+        packet += 1
+      ) {
+        const blockTimecode = (packet - firstPacket) * 20;
+        const blockPayload = concat(
+          Uint8Array.of(0x81),
+          u16be(blockTimecode),
+          Uint8Array.of(0x80),
+          opusPacket,
+        );
+        blocks.push(createBlockElement(blockPayload, packet, packet));
+      }
+      pushCluster(clusterSecond * 1_000, blocks);
+    }
   }
   const voidElements = new Uint8Array(voidElementCount * 2);
   for (let offset = 0; offset < voidElements.length; offset += 2) {
@@ -613,6 +670,27 @@ function ebmlUint(id: number[], value: number): Uint8Array {
   for (let index = byteLength - 1; index >= 0; index -= 1) {
     body[index] = value & 0xff;
     value = Math.floor(value / 256);
+  }
+  return ebmlElement(id, body);
+}
+
+function ebmlSigned(id: number[], value: number): Uint8Array {
+  let byteLength = 1;
+  while (
+    value < -(2 ** (byteLength * 8 - 1)) ||
+    value > 2 ** (byteLength * 8 - 1) - 1
+  ) {
+    byteLength += 1;
+  }
+  const bitLength = BigInt(byteLength * 8);
+  let encoded = BigInt(value);
+  if (encoded < 0) {
+    encoded += 1n << bitLength;
+  }
+  const body = new Uint8Array(byteLength);
+  for (let index = byteLength - 1; index >= 0; index -= 1) {
+    body[index] = Number(encoded & 0xffn);
+    encoded >>= 8n;
   }
   return ebmlElement(id, body);
 }

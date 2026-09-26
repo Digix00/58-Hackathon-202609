@@ -484,6 +484,26 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).not.toHaveBeenCalled();
   });
 
+  it("returns 413 for a long WebM Opus stream without calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File([createWebmAudio(61, 1)], "long.webm", {
+          type: "audio/webm",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
   it("rejects WAV with inconsistent PCM header fields before calling the recognizer", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
