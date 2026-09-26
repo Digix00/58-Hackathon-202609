@@ -369,16 +369,6 @@
   opacity: 0.72;
 }
 
-/* ボタンに貼った小さな付箋。ボタンの役割を邪魔せず、準備中だけを添える。 */
-.voiceLabel {
-  position: absolute;
-  z-index: 1;
-  top: -0.8em;
-  right: -0.7em;
-  font-size: calc(11px * var(--font-scale));
-  transform: rotate(3deg);
-}
-
 .mic {
   width: 1.3em;
   height: 1.3em;
@@ -391,11 +381,27 @@
   filter: url(#crayon-edge-fine);
 }
 
-/*
- * 準備中の知らせ。
- * 貼った札の大きさは札の側で決まっているので、ここで字を縮めない。
- * 縮めると、ほかの画面に貼ってある同じ札より小さくなる。
- */
+/* 音声操作は紙面内で折り返し、結果の長文も省略しない。 */
+.voiceControls {
+  display: grid;
+  gap: 0.65em;
+  margin-top: 0.7em;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.voiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  align-items: center;
+}
+
+.transcript {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
 .voiceNote {
   flex-basis: 100%;
   color: var(--color-muted);

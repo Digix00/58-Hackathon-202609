@@ -8,7 +8,6 @@ import {
   type RefObject,
 } from 'react'
 import { Link } from 'react-router'
-import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
@@ -20,6 +19,8 @@ import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import { POST_BODY_MAX_LENGTH } from './postTypes'
 import { usePostDraft } from './usePostDraft'
 import { usePostSubmit } from './usePostSubmit'
+import { SpeechInputControls } from './SpeechInputControls'
+import { useSpeechInput, type SpeechInput } from './useSpeechInput'
 import styles from './PostPage.module.css'
 
 /**
@@ -59,21 +60,6 @@ const BODY_EXAMPLE = 'post.example'
  * どちらも紙に載っている言葉は同じなので、めくる紙は読む面で描く。
  */
 type TurningPage = { step: Step; direction: 1 | -1; key: number }
-
-/**
- * 手で描いたマイク。
- * 記号や既製のアイコンを置くと、この画面の中でここだけ定規で引いた線に見える。
- */
-function CrayonMic() {
-  return (
-    <svg className={styles.mic} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 3.3c1.8-.1 3.1 1.2 3.2 2.9v4.4c.1 1.8-1.3 3.2-3.1 3.2-1.8 0-3.2-1.3-3.2-3.1V6.4c0-1.7 1.3-3 3.1-3.1Z" />
-      <path d="M6.5 11.3c.2 2.9 2.6 5.3 5.6 5.3 3 0 5.4-2.3 5.5-5.2" />
-      <path d="M12 16.8c.1 1.2.1 2.3 0 3.4" />
-      <path d="M9.3 20.4c1.9-.2 3.7-.2 5.5 0" />
-    </svg>
-  )
-}
 
 /**
  * 置いていった紙に添える星。
@@ -148,11 +134,13 @@ function WriteSheet({
   fieldError,
   inputRef,
   onBodyChange,
+  speech,
 }: {
   body: string
   fieldError?: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
 }) {
   const { t } = useTranslation()
 
@@ -176,6 +164,7 @@ function WriteSheet({
         fieldError={fieldError}
         inputRef={inputRef}
         onBodyChange={onBodyChange}
+        speech={speech}
       />
     </article>
   )
@@ -187,11 +176,13 @@ function WriteFields({
   fieldError,
   inputRef,
   onBodyChange,
+  speech,
 }: {
   initialBody: string
   fieldError?: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
 }) {
   const { t, message } = useTranslation()
   const [body, setBody] = useState(initialBody)
@@ -223,22 +214,17 @@ function WriteFields({
           {message(fieldError, { max: POST_BODY_MAX_LENGTH })}
         </p>
       ) : null}
+      <SpeechInputControls
+        speech={speech}
+        onApply={(text) => {
+          const nextBody = body ? `${body}\n${text}` : text
+          setBody(nextBody)
+          onBodyChange(nextBody)
+          speech.cancel()
+          inputRef.current?.focus()
+        }}
+      />
       <div className={styles.cardFoot}>
-        {/* TODO: 音声入力と文字起こしを接続し、投稿前に結果を確認・修正できるようにする。 */}
-        <button
-          type="button"
-          className={styles.voiceButton}
-          disabled
-          aria-describedby="post-voice-note"
-        >
-          <CrayonMic />
-          {t('post.voice')}
-          <ComingSoonLabel
-            id="post-voice-note"
-            className={styles.voiceLabel}
-            ariaLabel={t('post.voiceSoon')}
-          />
-        </button>
         <p id="post-body-count" className={`${styles.count} ${tooLong ? styles.countOver : ''}`}>
           {t('post.characterCount', { count: body.length, max: POST_BODY_MAX_LENGTH })}
           {tooLong ? <span className={styles.srOnly}>{t('post.overLimit')}</span> : null}
@@ -299,6 +285,7 @@ function PostStack({
   doneNote,
   inputRef,
   onBodyChange,
+  speech,
   onTurningFinished,
 }: {
   body: string
@@ -308,6 +295,7 @@ function PostStack({
   doneNote: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
   onTurningFinished: () => void
 }) {
   return (
@@ -345,6 +333,7 @@ function PostStack({
             fieldError={fieldError}
             inputRef={inputRef}
             onBodyChange={onBodyChange}
+            speech={speech}
           />
         ) : view === 'confirm' ? (
           <ReadSheet body={body} step="confirm" />
@@ -362,6 +351,7 @@ function PostActions({
   view,
   error,
   submitting,
+  voiceBusy,
   onConfirm,
   onEdit,
   onSubmit,
@@ -369,6 +359,7 @@ function PostActions({
   view: Step | 'done'
   error: string | null
   submitting: boolean
+  voiceBusy: boolean
   onConfirm: () => void
   onEdit: () => void
   onSubmit: () => void
@@ -382,6 +373,7 @@ function PostActions({
           type="button"
           className={`${actionStyles.primary} ${styles.nextButton}`}
           onClick={onConfirm}
+          disabled={voiceBusy}
         >
           {t('post.reviewAction')}
           <span aria-hidden="true">→</span>
@@ -429,6 +421,7 @@ export function PostPage() {
   const { t } = useTranslation()
 
   const draft = usePostDraft()
+  const speech = useSpeechInput()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const submission = usePostSubmit()
   /** めくり直すたびにアニメーションを最初から流すため、鍵を増やしながら持つ。 */
@@ -453,6 +446,7 @@ export function PostPage() {
         </h1>
         <PostStack
           body={draft.body}
+          speech={speech}
           view={view}
           turning={turning}
           fieldError={submission.fieldErrors.body}
@@ -469,7 +463,9 @@ export function PostPage() {
         view={view}
         error={submission.error}
         submitting={submission.status === 'submitting'}
+        voiceBusy={speech.busy}
         onConfirm={() => {
+          if (speech.busy) return
           // 進めない本文のときは、送信の検証にエラーの文言を出させる。
           if (!draft.confirm()) {
             void submission.submit({ body: draft.getBody() })
