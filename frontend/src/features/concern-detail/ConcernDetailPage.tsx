@@ -46,10 +46,20 @@ export function ConcernDetailPage() {
     <ConcernDetailView
       concern={concern}
       isLiff={runtime.status === 'ready' && runtime.mode === 'liff'}
-      isAuthenticated={authStatus === 'authenticated'}
       showLogin={showLogin}
-      reaction={reaction}
-      onShowLogin={() => setShowLogin(true)}
+      reaction={{
+        reactionCount: reaction.reactionCount,
+        reacted: reaction.reacted,
+        submitting: reaction.status === 'submitting',
+        error: reaction.error,
+      }}
+      onReact={() => {
+        if (authStatus !== 'authenticated') {
+          setShowLogin(true)
+          return
+        }
+        void reaction.react()
+      }}
     />
   )
 }

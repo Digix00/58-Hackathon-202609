@@ -189,26 +189,14 @@ function HistoryCountList({
   )
 }
 
-function HistoryUnavailableView() {
+function HistoryUnavailableView({ onReturnToLine }: { onReturnToLine: () => void }) {
   const { t } = useTranslation()
-
-  const { liffUrl } = useRuntime()
-  const returnUrl = liffUrl('/') ?? '/'
-
-  const handleReturnToLine = () => {
-    try {
-      if (closeLineWindow()) return
-    } catch {
-      // Use the LIFF URL as a fallback when the client cannot close the app.
-    }
-    window.location.assign(returnUrl)
-  }
 
   return (
     <section className={`${screen.paper} ${crayonStyles.edge}`}>
       <h2>{t('history.unavailable')}</h2>
       <p className={screen.muted}>{t('history.accountUnavailable')}</p>
-      <button type="button" className={actionStyles.primary} onClick={handleReturnToLine}>
+      <button type="button" className={actionStyles.primary} onClick={onReturnToLine}>
         {t('history.returnLine')}
       </button>
     </section>
@@ -385,10 +373,19 @@ export function HistoryPage() {
 
 function HistoryContent() {
   const { t } = useTranslation()
+  const { liffUrl } = useRuntime()
 
   const { status, data, error, isLoadingMore, refresh, loadMoreQuizAnswers } = useHistory()
   const [detail, setDetail] = useState<Detail>(null)
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
+  const handleReturnToLine = () => {
+    try {
+      if (closeLineWindow()) return
+    } catch {
+      // Use the LIFF URL as a fallback when the client cannot close the app.
+    }
+    window.location.assign(liffUrl('/') ?? '/')
+  }
 
   return (
     <div className={screen.page}>
@@ -400,7 +397,9 @@ function HistoryContent() {
           onRetry={() => void refresh()}
         />
       ) : null}
-      {status === 'unavailable' ? <HistoryUnavailableView /> : null}
+      {status === 'unavailable' ? (
+        <HistoryUnavailableView onReturnToLine={handleReturnToLine} />
+      ) : null}
       {status === 'success' && data ? (
         detail ? (
           <HistoryDetailView
