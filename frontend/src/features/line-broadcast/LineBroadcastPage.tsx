@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getDailyBroadcastStatus,
@@ -7,28 +8,35 @@ import {
 } from './lineBroadcastApi'
 import styles from './LineBroadcastPage.module.css'
 
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Tokyo',
-})
+const timeFormatters: Record<string, Intl.DateTimeFormat> = {
+  en: new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Tokyo',
+  }),
+  'ja-JP': new Intl.DateTimeFormat('ja-JP', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Tokyo',
+  }),
+}
 
 export function LineBroadcastPage() {
+  const { t } = useTranslation()
+
   const { status, loading, triggering, error, isSimulation, refresh, trigger } =
     useLineBroadcastPageState()
 
   return (
     <main className={styles.page}>
       <header className={styles.heading}>
-        <p className={styles.eyebrow}>運用</p>
-        <h1>今日のクイズ配信</h1>
-        <p className={styles.description}>
-          毎日 09:00 JST にクイズ生成を試みます。本番ではLINE配信し、開発環境では送信を模擬します。
-        </p>
+        <p className={styles.eyebrow}>{t('broadcast.section')}</p>
+        <h1>{t('broadcast.title')}</h1>
+        <p className={styles.description}>{t('broadcast.schedule')}</p>
       </header>
 
       <section className={styles.card} aria-labelledby="broadcast-status-title" aria-busy={loading}>
-        <h2 id="broadcast-status-title">配信状況</h2>
+        <h2 id="broadcast-status-title">{t('broadcast.status')}</h2>
         <BroadcastStatusContent loading={loading} status={status} error={error} />
         <BroadcastActions
           loading={loading}
@@ -141,13 +149,15 @@ function BroadcastStatusContent({
   status: DailyBroadcastStatus | null
   error: string | null
 }) {
+  const { t, message } = useTranslation()
+
   return (
     <>
-      {loading && !status ? <p className={styles.status}>読み込み中…</p> : null}
+      {loading && !status ? <p className={styles.status}>{t('broadcast.loading')}</p> : null}
       {status ? <BroadcastStatusDetails status={status} /> : null}
       {error ? (
         <p className={styles.error} role="alert">
-          {error}
+          {message(error)}
         </p>
       ) : null}
     </>
@@ -155,17 +165,23 @@ function BroadcastStatusContent({
 }
 
 function BroadcastStatusDetails({ status }: { status: DailyBroadcastStatus }) {
+  const { t, message, locale } = useTranslation()
+
   return (
     <>
-      <p className={styles.status}>{statusLabel(status)}</p>
-      <p className={styles.note}>{statusDetail(status)}</p>
+      <p className={styles.status}>{message(statusLabel(status))}</p>
+      <p className={styles.note}>{message(statusDetail(status))}</p>
       {status.requestedAt ? (
-        <p className={styles.timestamp}>受付処理開始: {formatTime(status.requestedAt)}</p>
+        <p className={styles.timestamp}>
+          {t('broadcast.requested')} {formatTime(status.requestedAt, locale)}
+        </p>
       ) : null}
       {status.sentAt ? (
         <p className={styles.timestamp}>
-          {status.deliveryMode === 'simulation' ? '模擬受付' : 'LINE API受付'}:{' '}
-          {formatTime(status.sentAt)}
+          {status.deliveryMode === 'simulation'
+            ? t('broadcast.simulated')
+            : t('broadcast.accepted')}
+          : {formatTime(status.sentAt, locale)}
         </p>
       ) : null}
     </>
@@ -185,6 +201,8 @@ function BroadcastActions({
   onTrigger: () => void
   onRefresh: () => void
 }) {
+  const { t, message } = useTranslation()
+
   return (
     <div className={styles.actions}>
       <button
@@ -193,7 +211,7 @@ function BroadcastActions({
         onClick={() => void onTrigger()}
         disabled={triggering || loading}
       >
-        {triggerButtonLabel(triggering, isSimulation)}
+        {message(triggerButtonLabel(triggering, isSimulation))}
       </button>
       <button
         className={`${styles.button} ${styles.secondary}`}
@@ -201,76 +219,78 @@ function BroadcastActions({
         onClick={() => void onRefresh()}
         disabled={loading || triggering}
       >
-        状況を更新
+        {t('broadcast.refresh')}
       </button>
     </div>
   )
 }
 
 function DeliveryModeNote({ isSimulation }: { isSimulation: boolean }) {
+  const { t } = useTranslation()
+
   return (
     <p className={styles.note}>
-      {isSimulation
-        ? '開発用シミュレーションです。LINEへは送信せず、配信処理と状態表示だけを確認できます。'
-        : '「LINE API受付済み」はLINEが一斉配信リクエストを受け付けた状態です。友だち一人ひとりへの到達状況は表示しません。'}
+      {isSimulation ? t('broadcast.simulationNote') : t('broadcast.acceptedNote')}
     </p>
   )
 }
 
 function triggerButtonLabel(triggering: boolean, isSimulation: boolean): string {
   if (triggering) {
-    return isSimulation ? '生成・模擬配信しています…' : '生成・配信しています…'
+    return isSimulation ? 'broadcast.simulating' : 'broadcast.triggering'
   }
-  return isSimulation ? '今日のクイズを生成して模擬配信' : '今日のクイズを生成して配信'
+  return isSimulation ? 'broadcast.simulate' : 'broadcast.trigger'
 }
 
 function statusLabel(status: DailyBroadcastStatus): string {
-  if (status.quizStatus === 'missing') return '公開クイズがありません'
+  if (status.quizStatus === 'missing') return 'broadcast.noQuiz'
   switch (status.broadcastStatus) {
     case 'not_started':
     case 'pending':
-      return '今日の配信はまだありません'
+      return 'broadcast.notStarted'
     case 'running':
-      return status.deliveryMode === 'simulation' ? '模擬配信処理中' : '配信処理中'
+      return status.deliveryMode === 'simulation'
+        ? 'broadcast.simulationRunning'
+        : 'broadcast.running'
     case 'succeeded':
-      return status.deliveryMode === 'simulation' ? '開発用の模擬配信完了' : 'LINE API受付済み'
+      return status.deliveryMode === 'simulation'
+        ? 'broadcast.simulationSucceeded'
+        : 'broadcast.succeeded'
     case 'failed':
-      return '配信に失敗しました'
+      return 'broadcast.failed'
   }
 }
 
 function statusDetail(status: DailyBroadcastStatus): string {
   if (status.quizStatus === 'missing') {
-    return '今日のクイズ生成はまだ完了していません。手動実行すると生成を試みてから配信します。'
+    return 'broadcast.missingDetail'
   }
   if (status.broadcastStatus === 'running') {
     return status.deliveryMode === 'simulation'
-      ? 'LINEへ送信せず、開発用の模擬配信を処理しています。状態は自動で更新されます。'
-      : '配信中、またはLINEの受付結果を確認しています。状態は自動で更新されます。'
+      ? 'broadcast.simulationRunningDetail'
+      : 'broadcast.runningDetail'
   }
   if (status.broadcastStatus === 'succeeded') {
     return status.deliveryMode === 'simulation'
-      ? '開発用の模擬配信が完了しました。LINEには送信されていません。'
-      : 'LINEが一斉配信リクエストを受け付けました。'
+      ? 'broadcast.simulationSucceededDetail'
+      : 'broadcast.succeededDetail'
   }
   if (status.broadcastStatus === 'failed') {
-    return 'LINEへの配信が失敗しました。再実行すると同じ日付の配信として再試行します。'
+    return 'broadcast.failedDetail'
   }
-  return '手動実行では、公開済みクイズがあればそのまま配信し、なければ生成を試みます。'
+  return 'broadcast.pendingDetail'
 }
 
-function formatTime(value: string): string {
+function formatTime(value: string, locale: string): string {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date)
+  return Number.isNaN(date.getTime()) ? value : timeFormatters[locale].format(date)
 }
 
 function toMessage(error: unknown): string {
   if (error instanceof LineBroadcastApiError) {
-    if (error.code === 'ADMIN_ACCESS_REQUIRED')
-      return 'Cloudflare Accessで管理者ログインしてください。'
-    if (error.code === 'QUIZ_NOT_AVAILABLE')
-      return '今日の公開クイズを用意できませんでした。投稿候補を確認してください。'
+    if (error.code === 'ADMIN_ACCESS_REQUIRED') return 'broadcast.login'
+    if (error.code === 'QUIZ_NOT_AVAILABLE') return 'broadcast.quizFailed'
     return error.message
   }
-  return '配信状況を取得できませんでした。'
+  return 'broadcast.statusFailed'
 }

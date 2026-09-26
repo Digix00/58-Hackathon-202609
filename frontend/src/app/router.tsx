@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n/useTranslation'
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
@@ -16,6 +17,8 @@ function CenteredState({ children }: { children: ReactNode }) {
 }
 
 export function AppLayout() {
+  const { t } = useTranslation()
+
   const { state, liffUrl } = useRuntime()
   const location = useLocation()
   /*
@@ -47,12 +50,10 @@ export function AppLayout() {
       ) : state.liffInitializationFailed ? (
         <main className={`${styles.browserFallbackPage} ${notebookBackground.grid}`}>
           <section className={styles.runtimeNotice} role="status">
-            <p>
-              LINEの初期化に失敗したため、公開フィードを表示しています。投稿などの操作を使うには、LINEミニアプリで開き直してください。
-            </p>
+            <p>{t('guide.initFailed')}</p>
             {liffTarget ? (
               <a className={actionStyles.text} href={liffTarget}>
-                LINEで開き直す
+                {t('guide.reopen')}
               </a>
             ) : null}
           </section>
@@ -70,48 +71,54 @@ export function AppLayout() {
 }
 
 export function OpenInLiffGuide() {
+  const { t } = useTranslation()
+
   const { liffUrl } = useRuntime()
   const location = useLocation()
   const target = liffUrl(location.pathname)
 
   return (
     <section className={`${styles.guideCard} ${crayonStyles.edge}`}>
-      <p className={styles.eyebrow}>目安箱</p>
-      <h1>この操作は、LINEミニアプリで使えます。</h1>
-      <p>投稿やクイズは、LINEの中で安心して続けられます。</p>
+      <p className={styles.eyebrow}>{t('app.name')}</p>
+      <h1>{t('guide.liffTitle')}</h1>
+      <p>{t('guide.liffDescription')}</p>
       {target ? (
         <a className={actionStyles.primary} href={target}>
-          LINEミニアプリで開く
+          {t('guide.openLiff')}
         </a>
       ) : (
-        <p className={styles.guideNote}>LIFF ID を設定すると、ここからLINEミニアプリを開けます。</p>
+        <p className={styles.guideNote}>{t('guide.noLiff')}</p>
       )}
       <Link className={actionStyles.text} to="/">
-        読むだけ続ける
+        {t('guide.keepReading')}
       </Link>
     </section>
   )
 }
 
 export function LoginGuide() {
+  const { t } = useTranslation()
+
   const { login } = useAuth()
 
   return (
     <section className={`${styles.guideCard} ${crayonStyles.edge}`}>
-      <p className={styles.eyebrow}>LINEで続ける</p>
-      <h1>この操作は、LINEでログインしてから使えます。</h1>
-      <p>LINEの名前や画像は公開されず、投稿は匿名で表示されます。</p>
+      <p className={styles.eyebrow}>{t('guide.login')}</p>
+      <h1>{t('guide.loginTitle')}</h1>
+      <p>{t('guide.privacy')}</p>
       <button type="button" className={actionStyles.primary} onClick={() => void login()}>
-        LINEで続ける
+        {t('guide.login')}
       </button>
       <Link className={actionStyles.text} to="/">
-        読むだけ続ける
+        {t('guide.keepReading')}
       </Link>
     </section>
   )
 }
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
+
   const { state } = useRuntime()
   const { status, user } = useAuth()
 
@@ -120,7 +127,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   if (status === 'initializing') {
     return (
       <main className={styles.standalonePage}>
-        <LoadingState label="ログイン状態を確認しています…" />
+        <LoadingState label={t('auth.checking')} />
       </main>
     )
   }
@@ -136,13 +143,15 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 export function NotFoundPage() {
+  const { t } = useTranslation()
+
   const navigate = useNavigate()
 
   return (
     <CenteredState>
       <ErrorState
-        title="ページが見つかりません"
-        description="もう一度、読みたい声を選んでください。"
+        title={t('route.notFound')}
+        description={t('route.chooseAgain')}
         onRetry={() => navigate('/')}
       />
     </CenteredState>
@@ -150,13 +159,15 @@ export function NotFoundPage() {
 }
 
 export function RouteErrorBoundary() {
+  const { t } = useTranslation()
+
   const navigate = useNavigate()
 
   return (
     <main className={styles.standalonePage}>
       <ErrorState
-        title="画面を表示できませんでした"
-        description="一時的な問題が起きました。最初の画面からもう一度お試しください。"
+        title={t('route.failed')}
+        description={t('route.retry')}
         onRetry={() => navigate('/')}
       />
     </main>

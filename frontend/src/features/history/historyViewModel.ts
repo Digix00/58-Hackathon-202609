@@ -1,5 +1,6 @@
 import type { HistorySummaryResponse, QuizAnswerHistoryResponse } from '../../lib/api'
 import { ageGroupLabel, genderLabel, regionLabel } from '../../shared/concernPresentation'
+import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
 
 export interface HistoryViewModel {
   viewedCount: number
@@ -16,6 +17,7 @@ export interface HistoryViewModel {
 export function toHistoryViewModel(
   summary: HistorySummaryResponse,
   quizAnswers: QuizAnswerHistoryResponse,
+  language: DisplayLanguage = 'original',
 ): HistoryViewModel {
   return {
     viewedCount: summary.viewedConcernCount,
@@ -26,15 +28,15 @@ export function toHistoryViewModel(
     })),
     regions: summary.regions.map((region) => ({
       code: region.regionCode,
-      label: regionLabel(region.regionCode) ?? region.regionCode,
+      label: regionLabel(region.regionCode, language) ?? region.regionCode,
       count: region.count,
     })),
     ageGroups: summary.attributes.ageGroups.map((item) => ({
-      label: ageGroupLabel(item.ageGroup) ?? item.ageGroup,
+      label: ageGroupLabel(item.ageGroup, language) ?? item.ageGroup,
       count: item.count,
     })),
     genders: summary.attributes.genders.map((item) => ({
-      label: genderLabel(item.gender) ?? item.gender,
+      label: genderLabel(item.gender, language) ?? item.gender,
       count: item.count,
     })),
     nextSuggestion: summary.nextSuggestion
@@ -43,7 +45,8 @@ export function toHistoryViewModel(
         : {
             kind: 'region',
             label:
-              regionLabel(summary.nextSuggestion.regionCode) ?? summary.nextSuggestion.regionCode,
+              regionLabel(summary.nextSuggestion.regionCode, language) ??
+              summary.nextSuggestion.regionCode,
           }
       : null,
     quiz: summary.quiz,

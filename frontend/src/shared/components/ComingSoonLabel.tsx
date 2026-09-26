@@ -1,7 +1,8 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import styles from './ComingSoonLabel.module.css'
 
 export function ComingSoonLabel({
-  ariaLabel = '準備中',
+  ariaLabel = 'common.comingSoon',
   id,
   className,
 }: {
@@ -9,14 +10,16 @@ export function ComingSoonLabel({
   id?: string
   className?: string
 }) {
+  const { t } = useTranslation()
+
   return (
     <span
       id={id}
       className={`${styles.label}${className ? ` ${className}` : ''}`}
       role="status"
-      aria-label={ariaLabel}
+      aria-label={ariaLabel === 'common.comingSoon' ? t('common.comingSoon') : ariaLabel}
     >
-      <span aria-hidden="true">準備中</span>
+      <span aria-hidden="true">{t('common.comingSoon')}</span>
     </span>
   )
 }

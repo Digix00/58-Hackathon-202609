@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import {
   useCallback,
   useContext,
@@ -36,8 +37,11 @@ import type { QuizAnswerResponse, TodayQuizResponse } from '../../lib/api'
 import { CoverArt } from './CoverArt'
 import { answerQuiz, getQuizById, getTodayQuiz, type QuizMatch } from './quizApi'
 import styles from './QuizPage.module.css'
+import { translate } from '../../i18n/translate'
+import { messages } from '../../i18n/messages'
+import { TranslationNotice } from '../../shared/components/TranslationNotice'
 
-type Letter = { id: string; body: string }
+type Letter = { id: string; body: string; language: DisplayLanguage }
 type QuizParticipant = {
   id: string
   sourceAttributes: TodayQuizResponse['participants'][number]['attributes']
@@ -292,10 +296,13 @@ function formatAttributes(
   language: DisplayLanguage,
 ) {
   const { ageGroup, gender, regionCode } = attributes
-  const region = regionCode === 'no_answer' ? '回答しない' : regionLabel(regionCode, language)
-  return [ageGroupLabel(ageGroup), genderLabel(gender), region]
+  const region =
+    regionCode === 'no_answer'
+      ? translate(language, 'common.noAnswer')
+      : regionLabel(regionCode, language)
+  return [ageGroupLabel(ageGroup, language), genderLabel(gender, language), region]
     .filter((label): label is string => Boolean(label))
-    .join('・')
+    .join(language === 'en' ? ' · ' : '・')
 }
 
 function toQuizPageModel(quiz: TodayQuizResponse): QuizPageModel {
@@ -308,7 +315,7 @@ function toQuizPageModel(quiz: TodayQuizResponse): QuizPageModel {
     }))
   const letters = [...quiz.concerns]
     .sort((left, right) => left.displayOrder - right.displayOrder)
-    .map((concern) => ({ id: concern.concernId, body: concern.body }))
+    .map((concern) => ({ id: concern.concernId, body: concern.body, language: concern.language }))
 
   return { id: quiz.id, people, letters, answerResult: quiz.answerResult }
 }
@@ -368,6 +375,8 @@ function Paper({
  * 出てくるのかを、めくる前に予告するものは置かない。
  */
 function QuizCover({ answered = false }: { answered?: boolean }) {
+  const { t } = useTranslation()
+
   return (
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
@@ -377,18 +386,18 @@ function QuizCover({ answered = false }: { answered?: boolean }) {
         まだ次が届くという誤った合図になる。上辺も付箋に明け渡す。
       */}
       <CoverArt arrived={!answered} />
-      <p className={styles.coverTitle}>きょうの手紙</p>
+      <p className={styles.coverTitle}>{t('quiz.title')}</p>
       {answered ? (
         <p className={styles.coverLead}>
-          3通ぜんぶに、しおりを挟みました。
+          {t('quiz.allMarked')}
           <br />
-          付箋を押すと、その手紙へ戻れます。
+          {t('quiz.reviewHint')}
         </p>
       ) : (
         <p className={styles.coverLead}>
-          3通、届きました。
+          {t('quiz.arrived')}
           <br />
-          書いたのは、どんな人だろう。
+          {t('quiz.who')}
         </p>
       )}
     </article>
@@ -461,13 +470,15 @@ function QuizResultPaperBody({
   people: Person[]
   answerResult: QuizAnswerResponse | undefined
 }) {
+  const { t } = useTranslation()
+
   const writerResult = answerResult?.results.find((result) => result.correctConcernId === target.id)
   const selectedResult = answerResult?.results.find(
     (result) => result.selectedConcernId === target.id,
   )
   const writer = personById(writerResult?.participantId, people)
   if (!writer || !writerResult || !selectedResult) {
-    return <p role="alert">回答結果を表示できませんでした。</p>
+    return <p role="alert">{t('quiz.resultFailed')}</p>
   }
 
   const correct = selectedResult.correct
@@ -485,23 +496,37 @@ function QuizResultPaperBody({
         </span>
       </div>
       {/* 問いかけと同じ位置に、そのまま答えを置く。 */}
-      <p className={styles.ask}>この声の条件</p>
+      <p className={styles.ask}>{t('quiz.writer')}</p>
       <div className={styles.letterSheet}>
-        <p className={styles.letter}>{body}</p>
+        <p className={styles.letter} lang={target.language === 'en' ? 'en' : 'ja'}>
+          {body}
+        </p>
+        <TranslationNotice actualLanguage={target.language} />
       </div>
       <div className={styles.verdict} role="status">
         <p className={styles.judge}>
           {correct ? <CorrectRing /> : null}
-          {correct ? '合っていました' : 'ちがいました'}
+          {correct ? t('quiz.correct') : t('quiz.incorrect')}
           {/*
             書いた条件はすぐ上のしおりに出ているので、目では読み返せる。
             読み上げでは紙の上端まで戻れないので、ここで言葉にして添える。
           */}
           {correct ? null : (
-            <span className={styles.srOnly}>。書いた条件は{writer.attributes}</span>
+            <span className={styles.srOnly}>
+              {t('quiz.writerDescription', { attributes: writer.attributes })}
+            </span>
           )}
         </p>
-        <p className={styles.note}>{writerResult.explanation}</p>
+        {writerResult.explanation === messages['quiz.explanation'][0] ? (
+          <p className={styles.note}>{t('quiz.explanation')}</p>
+        ) : (
+          <div>
+            <p className={styles.note} lang="ja">
+              {writerResult.explanation}
+            </p>
+            <TranslationNotice actualLanguage="original" />
+          </div>
+        )}
       </div>
     </>
   )
@@ -528,6 +553,8 @@ function QuizSelectionPaperBody({
   dragOver: boolean
   onPull: (letterId: string) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <>
       <div
@@ -539,7 +566,7 @@ function QuizSelectionPaperBody({
             type="button"
             className={`${styles.choice} ${styles.fitted}`}
             onClick={() => interactive && onPull(target.id)}
-            aria-label={`条件は${fitted.attributes}。この声から外す`}
+            aria-label={t('quiz.remove', { attributes: fitted.attributes })}
           >
             <span className={styles.tag} style={tagStyle(fitted)}>
               <TagFace label={fitted.attributes} />
@@ -559,14 +586,17 @@ function QuizSelectionPaperBody({
             >
               <path className={styles.tagHollow} d={TAG_PATH} vectorEffect="non-scaling-stroke" />
             </svg>
-            <span className={styles.tagLabel}>ここへ</span>
+            <span className={styles.tagLabel}>{t('quiz.placeHere')}</span>
           </span>
         )}
       </div>
       {/* 問いかけの場所は動かさない。挟んだあとは、やり直し方をここで伝える。 */}
-      <p className={styles.ask}>{fitted ? 'ちがったら、しおりを押す' : 'この声は、どの条件？'}</p>
+      <p className={styles.ask}>{fitted ? t('quiz.changeHint') : t('quiz.matchQuestion')}</p>
       <div className={styles.letterSheet}>
-        <p className={styles.letter}>{body}</p>
+        <p className={styles.letter} lang={target.language === 'en' ? 'en' : 'ja'}>
+          {body}
+        </p>
+        <TranslationNotice actualLanguage={target.language} />
       </div>
     </>
   )
@@ -601,6 +631,8 @@ function QuizActions({
   onOpenCover: () => void
   onSubmit: () => void
 }) {
+  const { t, message } = useTranslation()
+
   if (!coverOpened && !closed) {
     // 表紙の中身は静かに保ち、読みはじめる操作だけを紙の外に置く。
     return (
@@ -611,7 +643,8 @@ function QuizActions({
             className={`${actionStyles.primary} ${styles.nextButton}`}
             onClick={onOpenCover}
           >
-            手紙をひらく <span aria-hidden="true">→</span>
+            {t('quiz.open')}
+            <span aria-hidden="true">→</span>
           </button>
         )}
       </div>
@@ -627,19 +660,16 @@ function QuizActions({
             className={`${actionStyles.primary} ${styles.nextButton}`}
             onClick={onNext}
           >
-            つぎの手紙へ <span aria-hidden="true">→</span>
+            {t('quiz.next')}
+            <span aria-hidden="true">→</span>
           </button>
         ) : (
           <>
             {score !== undefined ? (
-              <p className={styles.score}>
-                3つのうち<strong>{score}</strong>つ、
-                <br />
-                言葉から見つけられました。
-              </p>
+              <p className={styles.score}>{t('quiz.score', { score })}</p>
             ) : null}
             <Link className={actionStyles.primary} to="/history">
-              履歴を見る
+              {t('quiz.history')}
             </Link>
           </>
         )}
@@ -656,12 +686,12 @@ function QuizActions({
           onClick={onSubmit}
           disabled={submitting}
         >
-          {submitting ? '出しています…' : 'これで出す'}
+          {submitting ? t('quiz.submitting') : t('quiz.submit')}
         </button>
       ) : null}
       {submitError ? (
         <p className={styles.submitError} role="alert">
-          {submitError}
+          {message(submitError)}
         </p>
       ) : null}
     </div>
@@ -746,6 +776,7 @@ function useQuizAnimation(coverOpening: boolean, coverLifting: boolean, onCoverL
 }
 
 function useQuizNavigation(setAnswerResult: (result: QuizAnswerResponse) => void) {
+  const { language } = useDisplaySettings()
   const { id: quizId, people, letters: quizLetters, answerResult: quizResult } = useQuizData()
   const { state, dispatch, letters, letter, answers, remaining, complete, showingResults } =
     useQuizState(quizResult, people, quizLetters)
@@ -992,7 +1023,7 @@ function useQuizNavigation(setAnswerResult: (result: QuizAnswerResponse) => void
     }
 
     // タイムアウト後に送信が完了していた場合も、結果の再取得で回答済み状態へ戻す。
-    const latest = await getQuizById(quizId)
+    const latest = await getQuizById(quizId, language)
     if (latest.ok && latest.data.answered && latest.data.answerResult) {
       showResult(latest.data.answerResult)
       return
@@ -1005,9 +1036,7 @@ function useQuizNavigation(setAnswerResult: (result: QuizAnswerResponse) => void
 
     dispatch({ type: 'submitFailed' })
     setSubmitError(
-      result.code === 'QUIZ_ALREADY_ANSWERED'
-        ? '回答済みか確認できませんでした。もう一度お試しください。'
-        : '回答を送信できませんでした。選んだ内容はそのままなので、もう一度お試しください。',
+      result.code === 'QUIZ_ALREADY_ANSWERED' ? 'quiz.verifyFailed' : 'quiz.submitFailed',
     )
   }
 
@@ -1125,11 +1154,13 @@ function QuizTray({
   onStartDrag: (event: ReactPointerEvent<HTMLButtonElement>, personId: string) => void
   onFit: (personId: string) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <div
       className={`${styles.tray} ${remaining.length === 0 ? styles.trayEmpty : ''}`}
       role="group"
-      aria-label="手元のしおり"
+      aria-label={t('quiz.bookmarks')}
     >
       {remaining.map((person) => (
         <button
@@ -1144,7 +1175,7 @@ function QuizTray({
           onClick={(event) => {
             if (event.detail === 0) onFit(person.id)
           }}
-          aria-label={`条件は${person.attributes}。この声のしおりにする`}
+          aria-label={t('quiz.choose', { attributes: person.attributes })}
         >
           <span className={styles.tag} style={tagStyle(person)}>
             <TagFace label={person.attributes} />
@@ -1194,6 +1225,8 @@ function QuizTabs({
   closed: boolean
   onSelect: (index: number) => void
 }) {
+  const { t } = useTranslation()
+
   const { letters, people } = useQuizData()
 
   return (
@@ -1208,9 +1241,11 @@ function QuizTabs({
             className={`${styles.choice} ${styles.tab}`}
             style={{ '--tab-slot': index + 1 } as CSSProperties}
             onClick={() => onSelect(index)}
-            aria-label={`${index + 1}通目の手紙。条件は${fitted.attributes}。${
-              closed ? '開いて見直す' : 'この手紙へ移る'
-            }`}
+            aria-label={t('quiz.letterBookmark', {
+              index: index + 1,
+              attributes: fitted.attributes,
+              action: t(closed ? 'quiz.reopen' : 'quiz.goLetter'),
+            })}
           >
             <span className={styles.tag} style={tagStyle(fitted)}>
               <TagFace label={fitted.attributes} />
@@ -1406,6 +1441,8 @@ function QuizStage({
   /** 付箋が押されたとき、その手紙を開く。 */
   onSelect: (index: number) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <section
       className={styles.stage}
@@ -1416,7 +1453,7 @@ function QuizStage({
       onTouchCancel={swipe.handleTouchCancel}
     >
       <h1 id="quiz-title" className={styles.srOnly}>
-        きょうの3つの手紙。条件のしおりを結ぶ
+        {t('quiz.pageTitle')}
       </h1>
       {/*
         小さく置くのは、まだ読みはじめていない表紙だけにする。
@@ -1502,15 +1539,14 @@ function QuizDragGhost({ drag, dragged }: { drag: DragState | null; dragged: Per
 }
 
 function QuizUnavailableState() {
+  const { t } = useTranslation()
+
   return (
     <div className={styles.page}>
-      <EmptyState
-        title="今日のクイズは利用できません"
-        description="クイズは現在利用できません。フィードでほかの悩みを読んでみてください。"
-      />
+      <EmptyState title={t('quiz.unavailable')} description={t('quiz.unavailableHint')} />
       <div className={styles.actions}>
         <Link className={actionStyles.primary} to="/">
-          フィードを見る
+          {t('common.viewFeed')}
         </Link>
       </div>
     </div>
@@ -1536,6 +1572,8 @@ function QuizReader({
 }: {
   setAnswerResult: (result: QuizAnswerResponse) => void
 }) {
+  const { t } = useTranslation()
+
   const { answerResult, people } = useQuizData()
   const quiz = useQuizNavigation(setAnswerResult)
   const { drag, slotRef, startDrag } = useQuizDrag(quiz.fit)
@@ -1599,9 +1637,9 @@ function QuizReader({
 
       <p className={styles.srOnly} aria-live="polite">
         {quiz.state.closed
-          ? '3通ぜんぶに、しおりを挟みました。ノートを閉じました。付箋を押すと、その手紙へ戻れます'
+          ? t('quiz.closedAnnouncement')
           : quiz.state.coverOpened && (quiz.canGoPrev || quiz.canGoNext)
-            ? `${quiz.state.index + 1}通目の手紙`
+            ? t('quiz.letterNumber', { index: quiz.state.index + 1 })
             : ''}
       </p>
     </div>
@@ -1630,6 +1668,20 @@ function quizLoadReducer(_state: QuizLoadState, action: QuizLoadAction): QuizLoa
     case 'error':
       return { status: 'error' }
     case 'ready':
+      // 言語だけの再取得では、回答中の順番と選択を保つ。
+      if (_state.status === 'ready' && _state.quiz.id === action.quiz.id) {
+        return {
+          status: 'ready',
+          quiz: {
+            ...action.quiz,
+            people: _state.quiz.people,
+            letters: _state.quiz.letters.map(
+              (letter) => action.quiz.letters.find((next) => next.id === letter.id) ?? letter,
+            ),
+            answerResult: action.quiz.answerResult ?? _state.quiz.answerResult,
+          },
+        }
+      }
       return { status: 'ready', quiz: action.quiz }
     case 'answerReceived':
       return _state.status === 'ready'
@@ -1639,6 +1691,9 @@ function quizLoadReducer(_state: QuizLoadState, action: QuizLoadAction): QuizLoa
 }
 
 export function QuizPage() {
+  const { t, language } = useTranslation()
+  const requestVersion = useRef(0)
+
   const [loadState, dispatchLoad] = useReducer(quizLoadReducer, { status: 'loading' })
 
   const setQuizAnswerResult = useCallback((answerResult: QuizAnswerResponse) => {
@@ -1646,7 +1701,9 @@ export function QuizPage() {
   }, [])
 
   const loadQuiz = useCallback(async () => {
-    const result = await getTodayQuiz()
+    const version = ++requestVersion.current
+    const result = await getTodayQuiz(language)
+    if (version !== requestVersion.current) return
     if (!result.ok) {
       dispatchLoad({ type: result.code === 'QUIZ_NOT_AVAILABLE' ? 'unavailable' : 'error' })
       return
@@ -1661,7 +1718,7 @@ export function QuizPage() {
     }
 
     dispatchLoad({ type: 'ready', quiz: toQuizPageModel(result.data) })
-  }, [dispatchLoad])
+  }, [language])
 
   const retryLoad = useCallback(() => {
     dispatchLoad({ type: 'loading' })
@@ -1670,27 +1727,33 @@ export function QuizPage() {
 
   useEffect(() => {
     void loadQuiz()
+    return () => {
+      requestVersion.current += 1
+    }
   }, [loadQuiz])
 
   if (loadState.status === 'loading') {
-    return <LoadingState label="今日のクイズを読み込んでいます…" />
+    return <LoadingState label={t('quiz.loading')} />
   }
   if (loadState.status === 'unavailable') return <QuizUnavailableState />
   if (loadState.status === 'error') {
     return (
       <div className={styles.page}>
-        <ErrorState
-          description="今日のクイズを読み込めませんでした。時間をおいて再試行してください。"
-          onRetry={retryLoad}
-        />
+        <ErrorState description={t('error.todayQuizFull')} onRetry={retryLoad} />
         <div className={styles.actions}>
           <Link className={actionStyles.primary} to="/">
-            フィードを見る
+            {t('common.viewFeed')}
           </Link>
         </div>
       </div>
     )
   }
 
-  return <QuizExperience quiz={loadState.quiz} setAnswerResult={setQuizAnswerResult} />
+  return (
+    <QuizExperience
+      key={loadState.quiz.id}
+      quiz={loadState.quiz}
+      setAnswerResult={setQuizAnswerResult}
+    />
+  )
 }

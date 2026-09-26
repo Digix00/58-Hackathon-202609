@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appendQuizAnswers, toHistoryViewModel, type HistoryViewModel } from './historyViewModel'
 import { getHistorySummary, getQuizAnswerHistory } from './historyApi'
+import {
+  useDisplaySettings,
+  type DisplayLanguage,
+} from '../../app/providers/DisplaySettingsContext'
 
 export type HistoryStatus = 'loading' | 'success' | 'error' | 'unavailable'
 
@@ -21,7 +25,7 @@ export interface UseHistoryResult {
 
 type HistoryFetchResult = { data: HistoryViewModel } | { error: HistoryError }
 
-async function fetchHistoryData(): Promise<HistoryFetchResult> {
+async function fetchHistoryData(language: DisplayLanguage): Promise<HistoryFetchResult> {
   const [summary, quizAnswers] = await Promise.all([getHistorySummary(), getQuizAnswerHistory()])
 
   if (!summary.ok && summary.code === 'USER_DELETED') {
@@ -45,10 +49,11 @@ async function fetchHistoryData(): Promise<HistoryFetchResult> {
     }
   }
 
-  return { data: toHistoryViewModel(summary.data, quizAnswers.data) }
+  return { data: toHistoryViewModel(summary.data, quizAnswers.data, language) }
 }
 
 export function useHistory(): UseHistoryResult {
+  const { language } = useDisplaySettings()
   const [status, setStatus] = useState<HistoryStatus>('loading')
   const [data, setData] = useState<HistoryViewModel | null>(null)
   const [error, setError] = useState<HistoryError | null>(null)
@@ -74,10 +79,10 @@ export function useHistory(): UseHistoryResult {
     setError(null)
     setIsLoadingMore(false)
 
-    const result = await fetchHistoryData()
+    const result = await fetchHistoryData(language)
     if (version !== requestVersion.current) return
     applyHistoryResult(result)
-  }, [applyHistoryResult])
+  }, [applyHistoryResult, language])
 
   const loadMoreQuizAnswers = useCallback(async () => {
     const cursor = data?.quizAnswersNextCursor
@@ -110,7 +115,7 @@ export function useHistory(): UseHistoryResult {
   useEffect(() => {
     const version = ++requestVersion.current
     let isCurrent = true
-    void fetchHistoryData().then((result) => {
+    void fetchHistoryData(language).then((result) => {
       if (isCurrent && version === requestVersion.current) {
         applyHistoryResult(result)
       }
@@ -119,7 +124,7 @@ export function useHistory(): UseHistoryResult {
       isCurrent = false
       requestVersion.current += 1
     }
-  }, [applyHistoryResult])
+  }, [applyHistoryResult, language])
 
   return { status, data, error, isLoadingMore, refresh, loadMoreQuizAnswers }
 }
