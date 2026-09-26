@@ -106,8 +106,8 @@
   z-index: 1;
   align-content: center;
   justify-items: stretch;
-  /* ページごとの地色。見開きごとに景色が変わる絵本にならう。 */
-  background: var(--paper-tint, var(--color-surface));
+  /* 本全体で同じ紙色にして、ページをめくっても紙面の色を変えない。 */
+  background: var(--color-surface);
   gap: clamp(0.7em, 1.8vh, 1em);
   /*
    * どの問いでも紙の大きさは変えない。めくる手応えを一定に保つため。

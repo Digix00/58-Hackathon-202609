@@ -19,7 +19,6 @@ import { useOnboardingNotebook, type OnboardingTurn } from './useOnboardingNoteb
 import {
   COVER_BACK_COLOR,
   birthError,
-  paletteForIndex,
   onboardingSlips,
   type OnboardingDraft,
   type OnboardingFieldUpdate,
@@ -30,6 +29,9 @@ import styles from './OnboardingPage.module.css'
 
 /** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
 const TURNED_BACK_COLOR = 'var(--color-surface)'
+
+/** ページをめくっても紙の裏面が色変わりしないよう、裏面の色を固定する。 */
+const PAGE_BACK_COLOR = '#e3d8c0'
 
 const currentYear = new Date().getFullYear()
 
@@ -252,7 +254,6 @@ type SheetProps = {
 
 function OnboardingSheet({
   page,
-  index,
   draft,
   slips,
   disabled,
@@ -260,8 +261,6 @@ function OnboardingSheet({
   onFieldChange,
   onChooseGender,
 }: SheetProps) {
-  const palette = paletteForIndex(index)
-
   return (
     <article
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
@@ -272,7 +271,6 @@ function OnboardingSheet({
       style={
         {
           transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
-          '--paper-tint': palette.tint,
         } as CSSProperties
       }
     >
@@ -340,7 +338,7 @@ function OnboardingStack({
             startAngle={turning.startAngle}
             direction={turning.direction}
             backColor={
-              turning.page === 'cover' ? COVER_BACK_COLOR : paletteForIndex(turning.index).back
+              turning.page === 'cover' ? COVER_BACK_COLOR : PAGE_BACK_COLOR
             }
             onFinish={onTurningFinished}
           >

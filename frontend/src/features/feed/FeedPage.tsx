@@ -44,6 +44,9 @@ import styles from './FeedPage.module.css'
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
 
+/** ページをめくっても紙の裏面が色変わりしないよう、裏面の色を固定する。 */
+const PAGE_BACK_COLOR = '#e3d8c0'
+
 /** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
 const TURNED_BACK_COLOR = 'var(--color-surface)'
 
@@ -184,7 +187,6 @@ function FeedCard({
           '--bookmark': palette.bookmark,
           '--tag-age': palette.tagAge,
           '--tag-region': palette.tagRegion,
-          '--paper-tint': palette.tint,
         } as CSSProperties
       }
     >
@@ -296,7 +298,7 @@ function FeedStack({
             startAngle={turning.startAngle}
             direction={turning.kind === 'concern' ? turning.direction : 1}
             backColor={
-              turning.kind === 'concern' ? paletteForPage(turning.page).back : COVER_BACK_COLOR
+              turning.kind === 'concern' ? PAGE_BACK_COLOR : COVER_BACK_COLOR
             }
             onFinish={onTurningFinished}
           >
