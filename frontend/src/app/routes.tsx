@@ -2,8 +2,7 @@ import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { PostPage } from '../features/post/PostPage'
 import { LineBroadcastPage } from '../features/line-broadcast/LineBroadcastPage'
-import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
-import { ComingSoonLabel } from '../shared/components/ComingSoonLabel'
+import { LoadingState } from '../shared/components/AsyncStates'
 import { SettingsRoute } from './SettingsRoute'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
 
@@ -16,25 +15,12 @@ const concernDetailPage = lazy(async () => ({
 const quizPage = lazy(async () => ({
   default: (await import('../features/quiz/QuizPage')).QuizPage,
 }))
-const DevHistoryPage = import.meta.env.DEV
-  ? lazy(async () => ({ default: (await import('../features/history/HistoryPage')).HistoryPage }))
-  : null
-
-function demoPage(Page: ComponentType | null) {
-  if (!Page) {
-    return (
-      <ErrorState
-        title={<ComingSoonLabel ariaLabel="この画面は準備中です" />}
-        description="データの接続が完了していません。しばらくお待ちください。"
-      />
-    )
-  }
-  return (
-    <Suspense fallback={<LoadingState />}>
-      <Page />
-    </Suspense>
-  )
-}
+const onboardingPage = lazy(async () => ({
+  default: (await import('../features/onboarding/OnboardingPage')).OnboardingPage,
+}))
+const historyPage = lazy(async () => ({
+  default: (await import('../features/history/HistoryPage')).HistoryPage,
+}))
 
 function apiPage(Page: ComponentType) {
   return (
@@ -56,6 +42,9 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
     children: [
       { index: true, element: apiPage(feedPage) },
+      // はじめの1ページは ProtectedRoute で包まない。包むと、
+      // プロフィール未記入の案内がこの画面自身へ戻り続ける。
+      { path: 'onboarding', element: apiPage(onboardingPage) },
       { path: 'concerns/:id', element: apiPage(concernDetailPage) },
       {
         path: 'post',
@@ -71,7 +60,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'history',
-        element: <ProtectedRoute>{demoPage(DevHistoryPage)}</ProtectedRoute>,
+        element: <ProtectedRoute>{apiPage(historyPage)}</ProtectedRoute>,
       },
       { path: 'settings', element: <SettingsRoute /> },
       { path: '*', Component: NotFoundPage },

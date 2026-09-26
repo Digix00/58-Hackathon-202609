@@ -7,7 +7,6 @@ type AuthenticatedUser = NonNullable<AuthResponse['user']>
 export const GENDERS = [
   { value: 'female', label: '女性' },
   { value: 'male', label: '男性' },
-  { value: 'non_binary', label: 'ノンバイナリー' },
   { value: 'other', label: 'その他' },
   { value: 'no_answer', label: '回答しない' },
 ] as const

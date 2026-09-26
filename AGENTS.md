@@ -119,6 +119,7 @@ pnpm --filter frontend build
 
 ## 6. フロントエンドの設計規約
 
+- フロントエンドを編集するときは、[LINEミニアプリ固有の挙動とフロントエンド編集ガイド](docs/technical/line-mini-app.md)を必ず読み、通常Webとの利用区分、LIFF初期化・認証、画面遷移、実機確認の条件を確認する。
 - API 通信は `frontend/src/lib/api.ts` の Hono RPC クライアントを利用し、バックエンドの型共有を維持する。
 - API の接続先は `VITE_API_BASE_URL` で設定し、未設定時のローカル開発用既定値を壊さない。
 - 画面の主要操作はキーボードだけで完了できるようにする。

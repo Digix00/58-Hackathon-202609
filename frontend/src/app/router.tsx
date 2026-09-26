@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { SplashScreen } from '../features/splash/SplashScreen'
 import { CrayonFilters } from '../shared/components/CrayonFilters'
@@ -113,7 +113,7 @@ export function LoginGuide() {
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { state } = useRuntime()
-  const { status } = useAuth()
+  const { status, user } = useAuth()
 
   if (state.status !== 'ready') return null
   if (state.mode === 'browser') return <OpenInLiffGuide />
@@ -125,6 +125,13 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     )
   }
   if (status === 'anonymous') return <LoginGuide />
+  /*
+   * 年代・性別・地域は、投稿の公開属性と声の選びかたに使う。
+   * 空のまま投稿・クイズ・履歴へ進むと、あとから遡って書き足せないので、
+   * ログイン済みで未記入のときだけ、はじめの1ページへ寄り道させる。
+   * 読むだけの利用は今までどおり素通りできる。
+   */
+  if (user && !user.profileCompleted) return <Navigate to="/onboarding" replace />
   return children
 }
 

@@ -18,6 +18,7 @@ import {
   concernReactions,
   concernRepresentations,
   concerns,
+  learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
@@ -26,9 +27,13 @@ import { ConcernReactionHandler } from "../src/presentation/concern-reaction.han
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
-function createTestApp(lineUserId = "line_concern_test_user") {
+function createTestApp(
+  lineUserId = "line_concern_test_user",
+  now: () => Date = () => new Date(),
+) {
   const authUseCase = new AuthUseCase(
     new D1UserRepository(env.DB),
     new D1SessionRepository(env.DB),
@@ -42,7 +47,7 @@ function createTestApp(lineUserId = "line_concern_test_user") {
     },
   );
   const concernHandler = new ConcernHandler(
-    new ConcernUseCase(new D1ConcernRepository(env.DB)),
+    new ConcernUseCase(new D1ConcernRepository(env.DB), now),
   );
   const concernReactionHandler = new ConcernReactionHandler(
     new ConcernReactionUseCase(new D1ConcernReactionRepository(env.DB)),
@@ -52,6 +57,7 @@ function createTestApp(lineUserId = "line_concern_test_user") {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     concernHandler,
     concernReactionHandler,
     ...createUserDependencies(),
@@ -70,6 +76,7 @@ function anonymousTestApp() {
   return createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
@@ -138,6 +145,22 @@ const validBody = {
   gender: "no_answer",
   regionCode: "osaka",
 };
+
+async function seedUserProfile(
+  lineUserId: string,
+  profile: {
+    birthYear: number;
+    birthMonth: number;
+    genderCode: string;
+    regionCode: string;
+  },
+): Promise<void> {
+  await drizzle(env.DB)
+    .update(users)
+    .set(profile)
+    .where(eq(users.lineUserId, lineUserId))
+    .run();
+}
 
 async function seedConcern(input: {
   body: string;
@@ -337,6 +360,78 @@ describe("POST /api/v1/concerns", () => {
       gender: "no_answer",
       regionCode: "osaka",
       regionName: "大阪府",
+    });
+  });
+
+  it("falls back to the user's profile when attributes are omitted", async () => {
+    const lineUserId = "line_profile_fallback_test_user";
+    const app = createTestApp(
+      lineUserId,
+      () => new Date("2026-09-22T00:00:00.000Z"),
+    );
+    const cookie = await loginCookie(app);
+    await seedUserProfile(lineUserId, {
+      birthYear: 2006,
+      birthMonth: 8,
+      genderCode: "female",
+      regionCode: "osaka",
+    });
+
+    const res = await app.request(
+      "/api/v1/concerns",
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: "属性未指定でプロフィールから補われる投稿",
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(201);
+    const created = await res.json<{ attributes: Record<string, unknown> }>();
+    expect(created.attributes).toEqual({
+      ageGroup: "20s",
+      gender: "female",
+      regionCode: "osaka",
+      regionName: "大阪府",
+    });
+  });
+
+  it("prefers explicitly provided attributes over the user's profile", async () => {
+    const lineUserId = "line_profile_override_test_user";
+    const app = createTestApp(
+      lineUserId,
+      () => new Date("2026-09-22T00:00:00.000Z"),
+    );
+    const cookie = await loginCookie(app);
+    await seedUserProfile(lineUserId, {
+      birthYear: 2006,
+      birthMonth: 8,
+      genderCode: "female",
+      regionCode: "osaka",
+    });
+
+    const res = await app.request(
+      "/api/v1/concerns",
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: "明示的な属性を優先する投稿",
+          gender: "male",
+          regionCode: "tokyo",
+        }),
+      },
+      env,
+    );
+
+    expect(res.status).toBe(201);
+    const created = await res.json<{ attributes: Record<string, unknown> }>();
+    expect(created.attributes).toMatchObject({
+      gender: "male",
+      regionCode: "tokyo",
     });
   });
 
@@ -1112,6 +1207,41 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
       .from(concernReactions)
       .where(eq(concernReactions.concernId, concernId));
     expect(rows).toHaveLength(1);
+
+    const events = await drizzle(env.DB)
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe("reaction");
+  });
+
+  it("does not add a learning event when retrying a preexisting reaction", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const concernId = await createConcern(app, cookie);
+    const request = {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ reactionType: "empathy" }),
+    } as const;
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    const original = await app.request(path, request, env);
+    expect(original.status).toBe(201);
+
+    await drizzle(env.DB)
+      .delete(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+
+    const retry = await app.request(path, request, env);
+    expect(retry.status).toBe(200);
+
+    const events = await drizzle(env.DB)
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(0);
   });
 
   it("counts a reaction from a different user separately", async () => {

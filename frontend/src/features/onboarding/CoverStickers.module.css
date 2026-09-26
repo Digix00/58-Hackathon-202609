@@ -1,0 +1,206 @@
+/*
+ * 表紙のまわりに置いた文房具。
+ *
+ * 紙より先に置いた層に並べ、紙の下へ潜らせる。層は紙と同じ大きさなので、
+ * 置く場所は紙そのものに対する割合で指す。紙の外に出した側と、
+ * ふもとの「ひらいてみる」のまわりが、大きな道具の見える場所になる。
+ * 紙束の中にあるので、表紙が開いて本が広がるとき、道具も一緒に大きくなる。
+ * 紙に隠れる側は隠れたままでよい。全部が見えていると、机に出した道具ではなく
+ * 背景の模様に見える。装飾なので指も読み上げも通さない。
+ */
+.layer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * 1本の道具。
+ *
+ * 置いた場所（この要素）・入っていく動き（この要素のアニメーション）・
+ * 待っている間の揺れ（.float）・置かれた瞬間の弾み（.art）を層で分ける。
+ * ひとつの要素に重ねると、あとから流れる動きが前の位置を打ち消す。
+ */
+.sticker {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  display: block;
+  width: var(--size);
+  transform: translate(-50%, -50%) rotate(var(--tilt));
+}
+
+/*
+ * 置いたまま、ずっと少しだけ動いている。
+ *
+ * 振れ幅・周期・位相は1本ずつ変える。同じ揺れを同じ間で繰り返すと、
+ * 12本が一斉に動く列になり、机の道具ではなく貼り紙が風で揺れて見える。
+ * 揺れの値は置く場所ではなく本数の順から作る。表を手で埋めると、
+ * 1本足すたびに全部を組み直すことになる。
+ */
+.float {
+  display: block;
+  animation: toolSway var(--beat) ease-in-out var(--phase) infinite alternate;
+}
+
+/*
+ * 旗・音符・リボンは、揺れるかわりにときどき跳ねる。
+ * 全部を同じように揺らすと、絵の違いが動きに出ない。
+ */
+.bounces {
+  animation-name: toolBounce;
+  animation-direction: normal;
+}
+
+/*
+ * クレヨンの目。表紙の絵と同じ砂目を、線にも塗りにもかける。
+ * 道具は絵より小さいので、目は絵（110px）より細かくして、
+ * 短い線が点線に割れないようにする。
+ */
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 84px 84px;
+  mask-size: 84px 84px;
+  /* 置かれた順に一本ずつ現れる。最初の1本が題字より先に目に入らない速さにする。 */
+  animation: toolIn 520ms cubic-bezier(0.3, 1.32, 0.5, 1) both;
+  animation-delay: var(--in-delay);
+}
+
+.fill {
+  opacity: 0.92;
+}
+
+.line {
+  fill: none;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 表紙をひらくとき。
+ *
+ * ひと息だけ外へふくらんでから、本の中心へ吸い寄せられて小さくなる。
+ * 外へ散らさないのは、この本がこれから書く本だから。道具が持ち主のノートへ
+ * しまわれて、書きはじめる紙が出てくる、という順にする。
+ * 本が大きく開くのと同じ時間で終わらせ、めくり終わりに残さない。
+ */
+.tucking .sticker {
+  animation: toolTuck 700ms cubic-bezier(0.32, 0, 0.36, 1) both;
+  animation-delay: var(--delay);
+}
+
+/* 入っていく間は揺れを止める。揺れたまま動くと、吸い寄せられる向きが鈍る。 */
+.tucking .float {
+  animation: none;
+}
+
+@keyframes toolIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes toolSway {
+  from {
+    transform: translate(calc(var(--drift) * -1), var(--bob)) rotate(calc(var(--swing) * -1));
+  }
+  to {
+    transform: translate(var(--drift), calc(var(--bob) * -1)) rotate(var(--swing));
+  }
+}
+
+/* ひと跳ねして、着地でわずかに潰れる。潰さないと、浮いて戻るだけに見える。 */
+@keyframes toolBounce {
+  0%,
+  46% {
+    transform: translateY(0) rotate(calc(var(--swing) * -0.5)) scale(1, 1);
+  }
+  60% {
+    transform: translateY(calc(var(--bob) * -2.2)) rotate(var(--swing)) scale(0.96, 1.05);
+  }
+  74% {
+    transform: translateY(0) rotate(0deg) scale(1.06, 0.94);
+  }
+  86% {
+    transform: translateY(calc(var(--bob) * -0.7)) rotate(calc(var(--swing) * 0.4)) scale(1, 1);
+  }
+  100% {
+    transform: translateY(0) rotate(calc(var(--swing) * -0.5)) scale(1, 1);
+  }
+}
+
+@keyframes toolTuck {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--tilt)) scale(1);
+  }
+  /* ふくらみは一瞬だけ。長く持つと、広がってくる紙に追い越されて飲み込まれる。 */
+  16% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--drift-x) * 0.14), calc(-50% + var(--drift-y) * 0.14))
+      rotate(calc(var(--tilt) - var(--spin) * 0.12)) scale(1.12);
+  }
+  /* 色が消えるのは本へ着いてから。早く薄めると、入らずに消えたように見える。 */
+  68% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% - var(--drift-x) * 0.66), calc(-50% - var(--drift-y) * 0.66))
+      rotate(calc(var(--tilt) + var(--spin))) scale(0.34);
+  }
+}
+
+/*
+ * 画面がせまいほど、本のまわりに空く余白もせまい。道具ごと小さく置く。
+ * 背の低い端末の指定をあとに置くのは、どちらにも当てはまる端末で
+ * 小さいほうを採らせるため。
+ */
+@media (max-width: 359px) {
+  .layer {
+    font-size: 0.84em;
+  }
+}
+
+@media (max-height: 700px) {
+  .layer {
+    font-size: 0.78em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .art {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .art g {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * 動きを控える設定では、置いてあるだけの道具にする。
+   * 表紙も回さずに切り替わるので、入っていく動きは持たせない。
+   */
+  .art,
+  .float,
+  .tucking .sticker {
+    animation: none;
+  }
+}

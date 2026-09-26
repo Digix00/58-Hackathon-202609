@@ -1,5 +1,7 @@
 # React + TypeScript + Vite
 
+画面を編集するAIエージェント・開発者は、[フロントエンド実装指針](../docs/technical/frontend.md)と[LINEミニアプリ固有の挙動とフロントエンド編集ガイド](../docs/technical/line-mini-app.md)を先に確認する。
+
 ## LINE MINI App認証
 
 ローカルの環境変数はGit管理外の`.env.local`で設定する。`make dev`または`make frontend`を実行すると、`.env.local`がない場合だけ`.env.example`から自動作成される。手動で作成する場合は次を実行する。
@@ -23,6 +25,8 @@ VITE_DEV_USER=demo-a
 `VITE_DEV_USER`には`demo-a`、`demo-b`、`demo-c`のいずれかを指定する。フロントエンドは開発専用APIからLINEログインと同じHttpOnly Cookieセッションを取得するため、フィード・投稿詳細・閲覧記録・リアクション・投稿・プロフィール保存をローカルD1で確認できる。
 開発用認証エンドポイントは開発用Worker設定でのみ有効で、本番用設定では利用できない。
 
+Historyも実APIへ接続しており、ログイン中ユーザー自身の既読・クイズ履歴を表示する。ローカルで確認するには、上記の開発用認証設定（`VITE_DEV_LIFF_MODE=true`、`VITE_DEV_AUTH_MODE=backend`、`VITE_DEV_USER`）を使ってログイン済みセッションを作り、バックエンドとD1を起動する。D1に当該ユーザーの既読またはクイズ回答がない場合は空状態が表示される。
+
 ### 開発時のLINE認証
 
 実際のLINE認証を確認する場合は、`.env.local`を次のように変更する。
@@ -35,9 +39,9 @@ VITE_DEV_AUTH_MODE=
 
 設定変更後に開発サーバーを再起動し、LINEミニアプリから開く。認証時はLIFF SDKで取得したIDトークンをバックエンドへ送り、アプリのログイン状態はバックエンドが発行するHttpOnly Cookieで保持する。
 
-## デモ画面
+## API接続済み画面
 
-QuizはAPIへ接続している。HistoryはAPI未実装のため、Vite開発環境ではサンプルデータを表示する。Feed、詳細、投稿、リアクション、既読も実APIへ接続している。
+QuizとHistoryはAPIへ接続している。HistoryはLINEログイン済みユーザー自身の学習履歴を表示する。Feed、詳細、投稿、リアクション、既読も実APIへ接続している。
 
 ## コード整形
 

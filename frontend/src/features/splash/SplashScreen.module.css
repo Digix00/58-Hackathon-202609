@@ -68,7 +68,7 @@
   white-space: nowrap;
   transform: rotate(-1.4deg);
   /* クレヨンが通った分だけ現れる。線より少し遅れて出て、先に書かれた字にしない。 */
-  animation: titleWrite 440ms linear 140ms both;
+  animation: titleWrite 720ms linear 240ms both;
 }
 
 @keyframes titleWrite {
@@ -104,7 +104,7 @@
   stroke-linecap: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
-  animation: ruleDraw 490ms cubic-bezier(0.34, 0.1, 0.5, 1) 110ms both;
+  animation: ruleDraw 805ms cubic-bezier(0.34, 0.1, 0.5, 1) 195ms both;
 }
 
 @keyframes ruleDraw {
@@ -134,7 +134,7 @@
   transform-origin: 50% 5%;
   /* 絵の先端は上から約5%の位置にある。その先が波線に触れる高さへ上げる。 */
   margin-top: -0.3em;
-  animation: penDraw 1000ms both;
+  animation: penDraw 1500ms both;
 }
 
 /*
@@ -143,7 +143,7 @@
  *
  * left から先の位置（幅の半分）を引くのは、動かしているのが要素の左端だから。
  * 引かずに動かすと、先が線の先端より幅の半分だけ前に出て、引いていない場所を
- * なぞる絵になる。時刻も波線（110ms から 600ms）にそろえる。
+ * なぞる絵になる。時刻も波線（195ms から 1000ms）にそろえる。
  */
 @keyframes penDraw {
   0% {
@@ -153,19 +153,19 @@
     animation-timing-function: cubic-bezier(0.32, 0.12, 0.42, 1);
   }
   /* 線の引きはじめに着く。ここから先は線と同じ速さで渡る。 */
-  11% {
+  13% {
     left: calc(0% - 0.95em);
     opacity: 1;
     transform: rotate(-26deg) translateY(0.12em);
     animation-timing-function: cubic-bezier(0.34, 0.1, 0.5, 1);
   }
   /* 線を引き終える。ここから先は、置かれるまでの余韻。 */
-  60% {
+  67% {
     left: calc(100% - 0.95em);
     transform: rotate(-18deg) translateY(0);
     animation-timing-function: cubic-bezier(0.3, 1.4, 0.55, 1);
   }
-  82% {
+  85% {
     left: calc(106% - 0.95em);
     transform: rotate(-5deg) translateY(-0.34em);
   }
@@ -178,7 +178,7 @@
 .penBreath {
   display: block;
   /* 置いたまま、ごくわずかに息をする。引き終えてから始める。 */
-  animation: penBreathe 3.8s ease-in-out 1000ms infinite alternate;
+  animation: penBreathe 4.2s ease-in-out 1500ms infinite alternate;
 }
 
 @keyframes penBreathe {
@@ -224,7 +224,7 @@
  */
 .fill {
   opacity: 0;
-  animation: fillIn 280ms ease-out 600ms both;
+  animation: fillIn 340ms ease-out 1000ms both;
 }
 
 @keyframes fillIn {
@@ -273,7 +273,7 @@
 
 .stickerArt {
   /* 貼られた順に1枚ずつ。遅れは貼る順から作るので inline style で渡す。 */
-  animation: stickerIn 300ms cubic-bezier(0.3, 1.32, 0.5, 1) var(--delay) both;
+  animation: stickerIn 340ms cubic-bezier(0.3, 1.32, 0.5, 1) var(--delay) both;
 }
 
 @keyframes stickerIn {
@@ -323,7 +323,7 @@
  * ここで本を開かないのは、ノートを開く動作がフィードの表紙の見せ場だから。
  */
 .leaving .mark {
-  animation: markOut 320ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
+  animation: markOut 400ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
 }
 
 /* 抜けるあいだ、引く・貼る・息をするの動きは止める。残すと抜ける向きが鈍る。 */
@@ -346,7 +346,7 @@
 
 /* クレヨンだけは、紙から離れる向きへもう一段持ち上げる。 */
 .leaving .pen {
-  animation: penOut 320ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
+  animation: penOut 400ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
 }
 
 @keyframes markOut {

@@ -89,12 +89,12 @@ const STICKERS: readonly Sticker[] = [
 
 /**
  * 貼りはじめ。線を引き終えて色が入るのと同じ拍から貼る。
- * SplashScreen.module.css の .fill と同じ 600ms を起点にする。
+ * SplashScreen.module.css の .fill と同じ 1000ms を起点にする。
  */
-const STUCK_FROM_MS = 600
+const STUCK_FROM_MS = 1000
 
 /** 1枚ぶんの遅れ。3枚を貼り終えても、描き切る時間（DRAW_MS）を越えない間隔。 */
-const STEP_MS = 45
+const STEP_MS = 80
 
 export function SplashStickers() {
   return (

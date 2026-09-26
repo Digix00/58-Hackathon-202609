@@ -45,6 +45,16 @@ export type QuizAnswerResponse = InferResponseType<
   201
 >
 
+export type HistorySummaryResponse = InferResponseType<
+  typeof apiClient.api.v1.history.summary.$get,
+  200
+>
+
+export type QuizAnswerHistoryResponse = InferResponseType<
+  (typeof apiClient.api.v1.history)['quiz-answers']['$get'],
+  200
+>
+
 export const API_REQUEST_TIMEOUT_MS = 10_000
 
 export class ApiTimeoutError extends Error {

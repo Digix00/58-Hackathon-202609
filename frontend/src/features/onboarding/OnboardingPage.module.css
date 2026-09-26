@@ -1,0 +1,471 @@
+/*
+ * 紙とふもとの操作を、画面の中央に置く。
+ *
+ * 行は auto にして、文字を大きくしたときに紙が伸びられるようにする。
+ * 1fr で高さを固定すると、伸びた紙が上下へはみ出し、上へはみ出したぶんは
+ * スクロールでも届かなくなる。safe center は、収まらないときだけ
+ * 上ぞろえに切り替わるので、はみ出しは常に下へ出る。
+ */
+.page {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: safe center;
+  gap: clamp(1.15em, 3.5vh, 1.8em);
+  min-width: 0;
+  min-height: 100%;
+}
+
+/*
+ * 一枚の紙だけを置く舞台。
+ * 横のスワイプだけを受け取り、縦スクロールは端末にまかせる。
+ */
+.stage {
+  /*
+   * 地域の一覧は紙の上に開く。ふもとの操作より後ろに置くと、
+   * あとから描かれるボタンが一覧の上にかぶる。
+   */
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding-block: clamp(0.75em, 2.5vh, 1.4em);
+  touch-action: pan-y;
+}
+
+/*
+ * 紙束。「まだ先がある」ことを、残り枚数の数字ではなく
+ * 下に控えた紙のふちで伝える。
+ *
+ * 表紙のあいだは少し小さく置き、開くときに本そのものが広がる。
+ * フィードの本と同じ手つきにそろえる。まわりに敷いたシールが見えるのも、
+ * 本が小さいあいだだけ。広がると紙の下へ入り、散って消える。
+ */
+.stackMotion {
+  width: 100%;
+  min-width: 0;
+  transform: translateY(var(--lift, 0px)) scale(var(--stack-scale, 0.84));
+  transform-origin: center;
+  transition: transform var(--lift-duration, 760ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.stackMotion.stackOpening {
+  --stack-scale: 1;
+}
+
+.stack {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  /* 上辺のしおりが右へはみ出すぶんだけ束を左へ寄せ、画面の外へ出さない。 */
+  margin-inline-end: 8px;
+}
+
+/*
+ * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
+ * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
+ */
+.sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
+  pointer-events: none;
+}
+
+.sheet::before {
+  position: absolute;
+  inset: -2px;
+  border: 3.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.72;
+  content: '';
+}
+
+/* 遠い方の紙。先に描かれるので束の一番下になる。 */
+.sheetFar {
+  background: #fdf5e4;
+  transform: rotate(2.4deg) translate(8px, 10px);
+}
+
+.sheetNear {
+  background: #fffaef;
+  transform: rotate(1.3deg) translate(4px, 5px);
+}
+
+.enter {
+  /* 紙束の上に重ねる。下に控えた紙より手前で書かせる。 */
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+/* めくられている紙の写し。位置を持たせず、紙そのものをめくり側へ渡す。 */
+.frozen {
+  display: contents;
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  align-content: center;
+  justify-items: stretch;
+  /* 本全体で同じ紙色にして、ページをめくっても紙面の色を変えない。 */
+  background: var(--color-surface);
+  gap: clamp(0.7em, 1.8vh, 1em);
+  /*
+   * どの問いでも紙の大きさは変えない。めくる手応えを一定に保つため。
+   * 問いの内容で紙が伸び縮みすると、めくるたびに本の大きさが変わって見える。
+   * 文字を大きくしたときも、この高さの中で収まるように内容を組む。
+   */
+  height: clamp(24em, 62vh, 36em);
+  /* 左はとじ代。リングの上に文字が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
+    calc(clamp(1.55em, 7vw, 2em) + 15px);
+  box-shadow: 4px 5px 0 var(--color-paper-shadow);
+}
+
+/*
+ * 地域の紙だけ、中身を上へ寄せる。
+ * 47件から選ぶ一覧が紙の中に収まる高さから始めるため。中央に置くと、
+ * 開いた一覧が紙の下辺からはみ出し、紙の外に貼られた表に見える。
+ */
+.regionCard {
+  align-content: start;
+}
+
+/*
+ * 表紙。問いの紙と同じ大きさ・同じとじ代にする。
+ * 大きさが違うと、めくった先で紙が入れ替わったように見えるため。
+ */
+.cover {
+  /*
+   * クレヨンの箱の高さ。CoverArt がこの値から軸の出ぐあいを引く。
+   * 名札は紙の余白に収まるが、クレヨンは下辺に並ぶので、
+   * そのぶん下の余白を足して題字と一言を上へ寄せる。詰めると軸に文字が乗る。
+   */
+  --box-height: clamp(4.6em, 13vh, 6.2em);
+  --cover-content-lift: clamp(0.5em, 1.8vh, 0.9em);
+  /* 絵の左右の置き位置。本文と同じ余白・とじ代にそろえる。 */
+  --cover-gutter: clamp(1.55em, 7vw, 2em);
+  --cover-binding: 15px;
+
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  gap: 0.9em;
+  padding-bottom: calc(clamp(1.55em, 5.5vw, 2em) + var(--box-height) + var(--cover-content-lift));
+  text-align: center;
+}
+
+/*
+ * 題字。ほかの画面の見出し（Screen.module.css の .heading h1）と同じ手で書く。
+ * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ */
+.coverTitle {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: calc(27px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: rotate(-1.4deg);
+}
+
+.coverLead {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(16px * var(--font-scale));
+  line-height: 1.9;
+}
+
+/*
+ * 上辺のしおり。紙にはさんだものなので、上辺をまたいで外へ出す。
+ * 左はとじリングの領分なので、そこまでは伸ばさない。
+ */
+.slips {
+  position: absolute;
+  z-index: 2;
+  top: -0.9em;
+  right: 1.2em;
+  left: calc(clamp(1.35em, 6vw, 1.8em) + 15px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4em;
+  pointer-events: none;
+}
+
+/* しおりは貼った角度をそろえない。ひとつずつ手ではさんだものとして扱う。 */
+.slip {
+  position: relative;
+  min-width: 0;
+  padding: 0.32em 0.75em 0.38em;
+  border-radius: 4px 8px 3px 7px;
+  color: var(--color-purple-ink);
+  background: var(--slip, #f3e8b7);
+  box-shadow: 1.5px 2px 0 #b0a894;
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  transform: rotate(var(--slip-tilt, 0deg));
+}
+
+/* しおりのふちもクレヨンで引く。紙より細く、前に出すぎないように。 */
+.slip::before,
+.nameplateSlip::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.8;
+  pointer-events: none;
+  content: '';
+}
+
+/*
+ * 問い。1枚に1つだけ置く。
+ * 見出しと同じ手書きの字づかいにして、フォームの項目名に見せない。
+ */
+.question {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: calc(21px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+  transform: rotate(-0.5deg);
+}
+
+/*
+ * 添える一言。匿名性と使いみちの説明なので、装飾的に言い換えず短く書く。
+ * 本文と同じ書体にして、読み飛ばされないようにする。
+ */
+.note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(14px * var(--font-scale));
+  line-height: 1.75;
+}
+
+/* 年と月は同じ問いの中身なので、並べて置く。狭いときだけ1列にする。 */
+.birthFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 20px 16px;
+  margin-top: 0.4em;
+}
+
+.fieldError {
+  margin: 0;
+  color: #9b333a;
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/* 選択肢。しおりを1枚選ぶ形にして、選んだ手でそのまま紙がめくれる。 */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75em;
+  margin-top: 0.4em;
+}
+
+.choice {
+  position: relative;
+  min-height: 48px;
+  padding: 0.55em 1em;
+  border: 0;
+  border-radius: 14px 11px 15px 12px;
+  color: var(--color-purple-ink);
+  background: #fffaef;
+  box-shadow: 1.5px 2.5px 0 #c3b89f;
+  font: inherit;
+  font-size: calc(16px * var(--font-scale));
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transform: rotate(var(--slip-tilt, 0deg));
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
+}
+
+.choice::after {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+.choice:not(:disabled):hover {
+  transform: rotate(var(--slip-tilt, 0deg)) translateY(-1px);
+  box-shadow: 2px 3.5px 0 #c3b89f;
+}
+
+.choice:not(:disabled):active {
+  transform: rotate(var(--slip-tilt, 0deg)) translate(1px, 2px);
+  box-shadow: 0 0 0 #c3b89f;
+}
+
+/*
+ * 選んである選択肢。戻ってきたときに、前に選んだものが分かるようにする。
+ * 色だけで示さず、押下状態と濃い文字をあわせて示す。
+ */
+.choice[aria-pressed='true'] {
+  color: var(--color-paper);
+  background: var(--color-purple-strong);
+  box-shadow: 0.5px 1.5px 0 #6f66a6;
+}
+
+.choice:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 4px;
+}
+
+/*
+ * 仕上げの名札。上辺にはさんできたしおりを、そのまま紙の中央へ貼り直す。
+ * 数や割合ではなく、書いた言葉そのものを並べる。
+ */
+.nameplate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  padding: 0;
+  margin: 0.2em 0;
+  list-style: none;
+}
+
+.nameplateSlip {
+  position: relative;
+  padding: 0.4em 0.9em 0.46em;
+  border-radius: 5px 9px 3px 8px;
+  color: var(--color-purple-ink);
+  background: var(--slip, #f3e8b7);
+  box-shadow: 1.5px 2.5px 0 #b0a894;
+  font-size: calc(16px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  transform: rotate(var(--slip-tilt, 0deg));
+}
+
+/*
+ * 紙のふもと。主要な操作を紙の直後に置き、固定表示にはしない。
+ *
+ * 高さは「つぎへ」と「ひとつ前へ」の2行ぶんを常に確保する。
+ * 紙によって行が増減すると、そのぶん紙の位置が上下し、
+ * めくるたびにノートごと動いて見える。
+ */
+.actions {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.7em;
+  min-width: 0;
+  min-height: 6.8em;
+}
+
+/*
+ * 表紙をひらく操作。ほかの紙の「つぎへ」と同じ紙のボタンにするが、
+ * 矢印だけがときどき先へ進む。本も操作も止まったままだと、
+ * 開けることに気づかれないまま表紙で止まる。
+ */
+.coverButton {
+  gap: 0.8em;
+  font-size: calc(16px * var(--font-scale));
+}
+
+.coverButton span {
+  font-size: calc(18px * var(--font-scale));
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
+.submitError {
+  margin: 0;
+  color: #9b333a;
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (prefers-contrast: more) {
+  .sheet::before,
+  .slip::before,
+  .nameplateSlip::before,
+  .choice::after {
+    border-width: 2px;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stackMotion,
+  .choice {
+    transition: none;
+  }
+
+  .coverButton span {
+    animation: none;
+  }
+}
