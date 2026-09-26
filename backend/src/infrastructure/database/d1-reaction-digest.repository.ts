@@ -1,7 +1,30 @@
 import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  notExists,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import { alias, type SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
+
+import {
   ClaimedReactionDigestRun,
   type ClaimReactionDigestRunResult,
   ReactionDigestDelivery,
+  type ReactionDigestDeliveryStatus,
   type ReactionDigestRun,
   type ReactionDigestRunRequest,
   type ReactionDigestRunStatus,
@@ -13,48 +36,22 @@ import {
   DISPLAY_LANGUAGES,
   type DisplayLanguage,
 } from "../../util/display-language";
+import {
+  concernReactions,
+  concerns,
+  reactionDigestDeliveries,
+  reactionDigestRuns,
+  users,
+} from "./schema";
 
-interface RunRow {
-  id: string;
-  trigger: string;
-  status: string;
-  claim_token: string | null;
-  cutoff_at: string;
-  requested_at: string;
-  finished_at: string | null;
-  target_count: number;
-  sent_count: number;
-  failed_count: number;
-  skipped_count: number;
-  remaining_count: number;
-}
+/** まだ結果が確定していない run。手動実行はこの run の続きを送る。 */
+const UNFINISHED_RUN_STATUSES = ["pending", "running"] as const;
 
-interface DeliveryRow {
-  id: string;
-  run_id: string;
-  status: string;
-  line_retry_key: string | null;
-  attempted_at: string | null;
-  reactor_count: number;
-  same_region_count: number;
-  region_count: number;
-  region_code_snapshot: string | null;
-  line_user_id: string;
-  display_language: string;
-  is_reachable: number;
-}
-
-// run の件数は delivery から毎回集計し、run 側に二重に持たない。
-const RUN_VIEW_SQL = `
-  select
-    r.id, r.trigger, r.status, r.claim_token, r.cutoff_at, r.requested_at, r.finished_at,
-    count(d.id) as target_count,
-    coalesce(sum(d.status = 'sent'), 0) as sent_count,
-    coalesce(sum(d.status = 'failed'), 0) as failed_count,
-    coalesce(sum(d.status = 'skipped'), 0) as skipped_count,
-    coalesce(sum(d.status in ('pending', 'started')), 0) as remaining_count
-  from reaction_digest_runs r
-  left join reaction_digest_deliveries d on d.run_id = r.id`;
+/** まだ送信結果が確定していない delivery。 */
+const UNRESOLVED_DELIVERY_STATUSES: readonly ReactionDigestDeliveryStatus[] = [
+  "pending",
+  "started",
+];
 
 /**
  * 手動実行で run を決めるまでの試行回数。
@@ -63,20 +60,73 @@ const RUN_VIEW_SQL = `
  */
 const MANUAL_RUN_ATTEMPTS = 2;
 
-const HAS_CURRENT_CLAIM_SQL = `exists (
-  select 1 from reaction_digest_runs r
-  where r.id = ? and r.claim_token = ? and r.status = 'running'
-)`;
+/** 条件に合う delivery の件数。left join なので、delivery が無い run でも 0 を返す。 */
+function countDeliveriesWhere(condition: SQL): SQL<number> {
+  return sql<number>`coalesce(sum(${condition}), 0)`.mapWith(Number);
+}
+
+// run の件数は delivery から毎回集計し、run 側に二重に持たない。
+const RUN_COLUMNS = {
+  runId: reactionDigestRuns.id,
+  trigger: reactionDigestRuns.trigger,
+  status: reactionDigestRuns.status,
+  claimToken: reactionDigestRuns.claimToken,
+  cutoffAt: reactionDigestRuns.cutoffAt,
+  requestedAt: reactionDigestRuns.requestedAt,
+  finishedAt: reactionDigestRuns.finishedAt,
+  targetCount: count(reactionDigestDeliveries.id),
+  sentCount: countDeliveriesWhere(eq(reactionDigestDeliveries.status, "sent")),
+  failedCount: countDeliveriesWhere(
+    eq(reactionDigestDeliveries.status, "failed"),
+  ),
+  skippedCount: countDeliveriesWhere(
+    eq(reactionDigestDeliveries.status, "skipped"),
+  ),
+  remainingCount: countDeliveriesWhere(
+    inArray(reactionDigestDeliveries.status, [...UNRESOLVED_DELIVERY_STATUSES]),
+  ),
+};
+
+type RunRow = {
+  runId: string;
+  trigger: string;
+  status: string;
+  claimToken: string | null;
+  cutoffAt: string;
+  requestedAt: string;
+  finishedAt: string | null;
+  targetCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  remainingCount: number;
+};
+
+type DeliveryRow = {
+  id: string;
+  runId: string;
+  status: string;
+  retryKey: string | null;
+  attemptedAt: string | null;
+  reactorCount: number;
+  sameRegionCount: number;
+  regionCount: number;
+  regionCodeSnapshot: string | null;
+  lineUserId: string;
+  displayLanguage: string;
+  isReachable: number;
+};
 
 /**
  * 寄りそい通知の run と受信者ごとの delivery を D1 へ保存する Adapter。
- * 集計と重複防止を一つの SQL 文で行うため、D1 の prepared statement を直接使う。
+ * 集計と重複防止は一つの SQL 文に収める必要があるため、
+ * クエリビルダで表せない部分だけ drizzle の sql テンプレートで組む。
  */
 export class D1ReactionDigestRepository implements ReactionDigestRepository {
-  private readonly db: D1Database;
+  private readonly db: ReturnType<typeof drizzle>;
 
   constructor(database: D1Database) {
-    this.db = database;
+    this.db = drizzle(database);
   }
 
   async claimRun(
@@ -85,17 +135,24 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     const runId = await this.findOrCreateTargetRun(request);
 
     await this.db
-      .prepare(
-        `update reaction_digest_runs
-         set status = 'running', claim_token = ?, lease_expires_at = ?
-         where id = ?
-           and (status = 'pending' or (status = 'running' and lease_expires_at <= ?))`,
-      )
-      .bind(
-        request.claimToken,
-        request.leaseExpiresAt,
-        runId,
-        request.requestedAt,
+      .update(reactionDigestRuns)
+      .set({
+        status: "running",
+        claimToken: request.claimToken,
+        leaseExpiresAt: request.leaseExpiresAt,
+      })
+      .where(
+        and(
+          eq(reactionDigestRuns.id, runId),
+          or(
+            eq(reactionDigestRuns.status, "pending"),
+            // lease が切れた run は、前の runner が落ちたものとして引き継ぐ。
+            and(
+              eq(reactionDigestRuns.status, "running"),
+              lte(reactionDigestRuns.leaseExpiresAt, request.requestedAt),
+            ),
+          ),
+        ),
       )
       .run();
 
@@ -104,7 +161,7 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       throw new Error("reaction digest run disappeared after claim");
     }
     const run = toRun(row);
-    if (row.claim_token === request.claimToken) {
+    if (row.claimToken === request.claimToken) {
       return {
         status: "claimed",
         claimed: new ClaimedReactionDigestRun(run, request.claimToken),
@@ -121,87 +178,49 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     preparedAt: string,
   ): Promise<void> {
     const { runId, claimToken } = claimed;
-    // 受信者の起点は「最後に送信成功した delivery の window_end」。
-    // 未確定（pending/started）の delivery を持つ人は、別の run で二重に送らないよう除外する。
-    const insertDeliveries = this.db
-      .prepare(
-        `insert into reaction_digest_deliveries (
-           id, run_id, user_id, window_start, window_end,
-           reactor_count, same_region_count, region_count, region_code_snapshot,
-           status, created_at
-         )
-         select
-           lower(hex(randomblob(16))), run.id, agg.user_id, agg.window_start, run.cutoff_at,
-           agg.reactor_count, agg.same_region_count, agg.region_count, agg.region_code,
-           'pending', ?
-         from reaction_digest_runs run
-         join (
-           select
-             recipient.user_id,
-             recipient.window_start,
-             recipient.region_code,
-             count(distinct reaction.user_id) as reactor_count,
-             count(distinct case
-               when recipient.region_code is not null
-                 and recipient.region_code <> 'no_answer'
-                 and reactor.region_code = recipient.region_code
-               then reaction.user_id end) as same_region_count,
-             count(distinct case
-               when reactor.region_code is not null
-                 and reactor.region_code <> 'no_answer'
-               then reactor.region_code end) as region_count
-           from (
-             select
-               u.id as user_id,
-               u.region_code,
-               (
-                 select max(sent.window_end)
-                 from reaction_digest_deliveries sent
-                 where sent.user_id = u.id and sent.status = 'sent'
-               ) as window_start
-             from users u
-             where u.friend_status = 'active'
-               and u.deleted_at is null
-               and not exists (
-                 select 1 from reaction_digest_deliveries unresolved
-                 where unresolved.user_id = u.id
-                   and unresolved.status in ('pending', 'started')
-               )
-           ) recipient
-           join concerns c
-             on c.user_id = recipient.user_id
-            and c.visibility_status = 'published'
-           join concern_reactions reaction
-             on reaction.concern_id = c.id
-            and reaction.user_id <> recipient.user_id
-           join users reactor on reactor.id = reaction.user_id
-           where reaction.created_at <= (
-               select cutoff_at from reaction_digest_runs where id = ?
-             )
-             and (
-               recipient.window_start is null
-               or reaction.created_at > recipient.window_start
-             )
-           group by recipient.user_id
-         ) agg
-         where run.id = ?
-           and run.claim_token = ?
-           and run.status = 'running'
-           and run.deliveries_prepared_at is null
-         on conflict do nothing`,
-      )
-      .bind(preparedAt, runId, runId, claimToken);
+    const aggregate = this.recipientAggregate(runId);
+    const notPrepared = and(
+      eq(reactionDigestRuns.id, runId),
+      eq(reactionDigestRuns.claimToken, claimToken),
+      eq(reactionDigestRuns.status, "running"),
+      isNull(reactionDigestRuns.deliveriesPreparedAt),
+    );
 
-    const markPrepared = this.db
-      .prepare(
-        `update reaction_digest_runs
-         set deliveries_prepared_at = ?
-         where id = ? and claim_token = ? and status = 'running'
-           and deliveries_prepared_at is null`,
-      )
-      .bind(preparedAt, runId, claimToken);
-
-    await this.db.batch([insertDeliveries, markPrepared]);
+    await this.db.batch([
+      this.db
+        .insert(reactionDigestDeliveries)
+        // insert の列は drizzle がスキーマ宣言順に並べるため、select も同じ順にする。
+        .select(
+          this.db
+            .select({
+              id: sql`lower(hex(randomblob(16)))`.as("id"),
+              runId: reactionDigestRuns.id,
+              userId: aggregate.userId,
+              windowStart: aggregate.windowStart,
+              windowEnd: reactionDigestRuns.cutoffAt,
+              reactorCount: aggregate.reactorCount,
+              sameRegionCount: aggregate.sameRegionCount,
+              regionCount: aggregate.regionCount,
+              regionCodeSnapshot: aggregate.regionCode,
+              status: sql`'pending'`.as("status"),
+              lineRetryKey: sql`null`.as("line_retry_key"),
+              httpStatus: sql`null`.as("http_status"),
+              lineRequestId: sql`null`.as("line_request_id"),
+              createdAt: sql`${preparedAt}`.as("created_at"),
+              attemptedAt: sql`null`.as("attempted_at"),
+              sentAt: sql`null`.as("sent_at"),
+              errorCode: sql`null`.as("error_code"),
+            })
+            .from(reactionDigestRuns)
+            .crossJoin(aggregate)
+            .where(notPrepared),
+        )
+        .onConflictDoNothing(),
+      this.db
+        .update(reactionDigestRuns)
+        .set({ deliveriesPreparedAt: preparedAt })
+        .where(notPrepared),
+    ]);
   }
 
   async listSendableDeliveries(
@@ -209,25 +228,43 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     limit: number,
   ): Promise<ReactionDigestDelivery[]> {
     const { runId, claimToken } = claimed;
-    const { results } = await this.db
-      .prepare(
-        `select
-           d.id, d.run_id, d.status, d.line_retry_key, d.attempted_at,
-           d.reactor_count, d.same_region_count, d.region_count, d.region_code_snapshot,
-           u.line_user_id, u.display_language,
-           (u.friend_status = 'active' and u.deleted_at is null) as is_reachable
-         from reaction_digest_deliveries d
-         join users u on u.id = d.user_id
-         where d.run_id = ?
-           and d.status in ('pending', 'started')
-           and ${HAS_CURRENT_CLAIM_SQL}
-         order by d.created_at, d.id
-         limit ?`,
+    const rows = await this.db
+      .select({
+        id: reactionDigestDeliveries.id,
+        runId: reactionDigestDeliveries.runId,
+        status: reactionDigestDeliveries.status,
+        retryKey: reactionDigestDeliveries.lineRetryKey,
+        attemptedAt: reactionDigestDeliveries.attemptedAt,
+        reactorCount: reactionDigestDeliveries.reactorCount,
+        sameRegionCount: reactionDigestDeliveries.sameRegionCount,
+        regionCount: reactionDigestDeliveries.regionCount,
+        regionCodeSnapshot: reactionDigestDeliveries.regionCodeSnapshot,
+        lineUserId: users.lineUserId,
+        displayLanguage: users.displayLanguage,
+        // 送信直前にも友だち状態を確認し、解除・削除済みなら送らない。
+        isReachable: sql<number>`(
+          ${eq(users.friendStatus, "active")} and ${isNull(users.deletedAt)}
+        )`.mapWith(Number),
+      })
+      .from(reactionDigestDeliveries)
+      .innerJoin(users, eq(users.id, reactionDigestDeliveries.userId))
+      .where(
+        and(
+          eq(reactionDigestDeliveries.runId, runId),
+          inArray(reactionDigestDeliveries.status, [
+            ...UNRESOLVED_DELIVERY_STATUSES,
+          ]),
+          this.hasCurrentClaim(runId, claimToken),
+        ),
       )
-      .bind(runId, runId, claimToken, limit)
-      .all<DeliveryRow>();
+      .orderBy(
+        asc(reactionDigestDeliveries.createdAt),
+        asc(reactionDigestDeliveries.id),
+      )
+      .limit(limit)
+      .all();
 
-    return results.map(toDelivery);
+    return rows.map(toDelivery);
   }
 
   async saveDelivery(
@@ -237,18 +274,20 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     if (delivery.runId !== claimed.runId) {
       return false;
     }
-    const update = deliveryUpdate(delivery);
-    if (!update) {
+    const transition = deliveryTransition(delivery);
+    if (!transition) {
       return false;
     }
     const result = await this.db
-      .prepare(update.sql)
-      .bind(
-        ...update.values,
-        delivery.id,
-        claimed.runId,
-        claimed.runId,
-        claimed.claimToken,
+      .update(reactionDigestDeliveries)
+      .set(transition.set)
+      .where(
+        and(
+          eq(reactionDigestDeliveries.id, delivery.id),
+          eq(reactionDigestDeliveries.runId, claimed.runId),
+          inArray(reactionDigestDeliveries.status, [...transition.from]),
+          this.hasCurrentClaim(claimed.runId, claimed.claimToken),
+        ),
       )
       .run();
     return result.meta.changes > 0;
@@ -260,32 +299,30 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   ): Promise<ReactionDigestRun> {
     const { runId, claimToken } = claimed;
     await this.db
-      .prepare(
-        `update reaction_digest_runs
-         set status = (
-               select case
-                 when coalesce(sum(d.status in ('pending', 'started')), 0) > 0 then 'pending'
-                 when coalesce(sum(d.status = 'failed'), 0) = 0 then 'succeeded'
-                 when coalesce(sum(d.status = 'sent'), 0) = 0 then 'failed'
-                 else 'partially_failed'
-               end
-               from reaction_digest_deliveries d
-               where d.run_id = reaction_digest_runs.id
-             ),
-             claim_token = null,
-             lease_expires_at = null
-         where id = ? and claim_token = ? and status = 'running'`,
+      .update(reactionDigestRuns)
+      .set({
+        status: runStatusFromDeliveries(),
+        claimToken: null,
+        leaseExpiresAt: null,
+      })
+      .where(
+        and(
+          eq(reactionDigestRuns.id, runId),
+          eq(reactionDigestRuns.claimToken, claimToken),
+          eq(reactionDigestRuns.status, "running"),
+        ),
       )
-      .bind(runId, claimToken)
       .run();
     await this.db
-      .prepare(
-        `update reaction_digest_runs
-         set finished_at = ?
-         where id = ? and status <> 'pending' and status <> 'running'
-           and finished_at is null`,
+      .update(reactionDigestRuns)
+      .set({ finishedAt })
+      .where(
+        and(
+          eq(reactionDigestRuns.id, runId),
+          notInArray(reactionDigestRuns.status, [...UNFINISHED_RUN_STATUSES]),
+          isNull(reactionDigestRuns.finishedAt),
+        ),
       )
-      .bind(finishedAt, runId)
       .run();
 
     const row = await this.findRunRow(runId);
@@ -296,16 +333,103 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 
   async findRecentRuns(limit: number): Promise<ReactionDigestRun[]> {
-    const { results } = await this.db
-      .prepare(
-        `${RUN_VIEW_SQL}
-         group by r.id
-         order by r.requested_at desc, r.id desc
-         limit ?`,
+    const rows = await this.runQuery()
+      .groupBy(reactionDigestRuns.id)
+      .orderBy(
+        desc(reactionDigestRuns.requestedAt),
+        desc(reactionDigestRuns.id),
       )
-      .bind(limit)
-      .all<RunRow>();
-    return results.map(toRun);
+      .limit(limit)
+      .all();
+    return rows.map(toRun);
+  }
+
+  /**
+   * 受信者ごとの集計。起点は「最後に送信成功した delivery の締め時刻」で、
+   * 未確定の delivery を持つ人は、別の run で二重に送らないよう除外する。
+   */
+  private recipientAggregate(runId: string) {
+    const reactor = alias(users, "reactor");
+    const recipient = this.db
+      .select({
+        userId: users.id,
+        regionCode: users.regionCode,
+        windowStart: sql<string | null>`(
+          select max(${reactionDigestDeliveries.windowEnd})
+          from ${reactionDigestDeliveries}
+          where ${eq(reactionDigestDeliveries.userId, users.id)}
+            and ${eq(reactionDigestDeliveries.status, "sent")}
+        )`.as("window_start"),
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.friendStatus, "active"),
+          isNull(users.deletedAt),
+          notExists(
+            this.db
+              .select({ one: sql`1` })
+              .from(reactionDigestDeliveries)
+              .where(
+                and(
+                  eq(reactionDigestDeliveries.userId, users.id),
+                  inArray(reactionDigestDeliveries.status, [
+                    ...UNRESOLVED_DELIVERY_STATUSES,
+                  ]),
+                ),
+              ),
+          ),
+        ),
+      )
+      .as("recipient");
+
+    return this.db
+      .select({
+        userId: recipient.userId,
+        windowStart: recipient.windowStart,
+        regionCode: recipient.regionCode,
+        // 同じ人が複数の投稿へ寄りそっても 1 人と数える。
+        reactorCount: countDistinct(concernReactions.userId).as(
+          "reactor_count",
+        ),
+        sameRegionCount: countDistinct(sql`case
+          when ${recipient.regionCode} is not null
+            and ${ne(recipient.regionCode, "no_answer")}
+            and ${eq(reactor.regionCode, recipient.regionCode)}
+          then ${concernReactions.userId} end`).as("same_region_count"),
+        regionCount: countDistinct(sql`case
+          when ${reactor.regionCode} is not null
+            and ${ne(reactor.regionCode, "no_answer")}
+          then ${reactor.regionCode} end`).as("region_count"),
+      })
+      .from(recipient)
+      .innerJoin(
+        concerns,
+        and(
+          eq(concerns.userId, recipient.userId),
+          eq(concerns.visibilityStatus, "published"),
+        ),
+      )
+      .innerJoin(
+        concernReactions,
+        and(
+          eq(concernReactions.concernId, concerns.id),
+          // 自分の寄りそいは数えない。
+          ne(concernReactions.userId, recipient.userId),
+        ),
+      )
+      .innerJoin(reactor, eq(reactor.id, concernReactions.userId))
+      .where(
+        and(
+          lte(concernReactions.createdAt, runCutoffAt(runId)),
+          or(
+            isNull(recipient.windowStart),
+            gt(concernReactions.createdAt, recipient.windowStart),
+          ),
+        ),
+      )
+      .groupBy(recipient.userId)
+      .as("aggregate");
   }
 
   private async findOrCreateTargetRun(
@@ -315,11 +439,10 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       // Cron は日付ごとの冪等キーが一意なので、INSERT 自体が重複を弾く。
       await this.insertRun(request);
       const row = await this.db
-        .prepare(
-          "select id from reaction_digest_runs where idempotency_key = ?",
-        )
-        .bind(request.idempotencyKey)
-        .first<{ id: string }>();
+        .select({ id: reactionDigestRuns.id })
+        .from(reactionDigestRuns)
+        .where(eq(reactionDigestRuns.idempotencyKey, request.idempotencyKey))
+        .get();
       if (!row) {
         throw new Error("reaction digest run was not created");
       }
@@ -344,13 +467,15 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       }
 
       const unfinished = await this.db
-        .prepare(
-          `select id from reaction_digest_runs
-           where status in ('pending', 'running')
-           order by requested_at, id
-           limit 1`,
+        .select({ id: reactionDigestRuns.id })
+        .from(reactionDigestRuns)
+        .where(inArray(reactionDigestRuns.status, [...UNFINISHED_RUN_STATUSES]))
+        .orderBy(
+          asc(reactionDigestRuns.requestedAt),
+          asc(reactionDigestRuns.id),
         )
-        .first<{ id: string }>();
+        .limit(1)
+        .get();
       if (unfinished) {
         return unfinished.id;
       }
@@ -361,107 +486,152 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
 
   private async insertRun(request: ReactionDigestRunRequest): Promise<void> {
     await this.db
-      .prepare(
-        `insert into reaction_digest_runs
-           (id, trigger, idempotency_key, status, cutoff_at, requested_at)
-         values (?, ?, ?, 'pending', ?, ?)
-         on conflict (idempotency_key) do nothing`,
-      )
-      .bind(
-        request.newRunId,
-        request.trigger,
-        request.newRunIdempotencyKey,
-        request.requestedAt,
-        request.requestedAt,
-      )
+      .insert(reactionDigestRuns)
+      .values({
+        id: request.newRunId,
+        trigger: request.trigger,
+        idempotencyKey: request.newRunIdempotencyKey,
+        status: "pending",
+        cutoffAt: request.requestedAt,
+        requestedAt: request.requestedAt,
+      })
+      .onConflictDoNothing({ target: reactionDigestRuns.idempotencyKey })
       .run();
   }
 
-  /** 未完了の run が一つもないときだけ run を作る。作れた場合だけ true を返す。 */
+  /**
+   * 未完了の run が一つも無いときだけ run を作り、作れた場合だけ true を返す。
+   * 判定と作成を一文にするため、クエリビルダではなく select 句を直接渡す。
+   * 列は drizzle がスキーマ宣言順に並べるので、値も同じ順にする。
+   */
   private async insertRunIfNoneUnfinished(
     request: ReactionDigestRunRequest,
   ): Promise<boolean> {
     const result = await this.db
-      .prepare(
-        `insert into reaction_digest_runs
-           (id, trigger, idempotency_key, status, cutoff_at, requested_at)
-         select ?, ?, ?, 'pending', ?, ?
-         where not exists (
-           select 1 from reaction_digest_runs
-           where status in ('pending', 'running')
-         )
-         on conflict (idempotency_key) do nothing`,
+      .insert(reactionDigestRuns)
+      .select(
+        sql`select
+          ${request.newRunId}, ${request.trigger}, ${request.newRunIdempotencyKey},
+          'pending', ${request.requestedAt}, null, null, null, ${request.requestedAt}, null
+        where not exists (
+          select 1 from ${reactionDigestRuns}
+          where ${inArray(reactionDigestRuns.status, [...UNFINISHED_RUN_STATUSES])}
+        )`,
       )
-      .bind(
-        request.newRunId,
-        request.trigger,
-        request.newRunIdempotencyKey,
-        request.requestedAt,
-        request.requestedAt,
-      )
+      .onConflictDoNothing({ target: reactionDigestRuns.idempotencyKey })
       .run();
     return result.meta.changes > 0;
   }
 
-  private async findRunRow(runId: string): Promise<RunRow | null> {
+  private runQuery() {
     return this.db
-      .prepare(`${RUN_VIEW_SQL} where r.id = ? group by r.id`)
-      .bind(runId)
-      .first<RunRow>();
+      .select(RUN_COLUMNS)
+      .from(reactionDigestRuns)
+      .leftJoin(
+        reactionDigestDeliveries,
+        eq(reactionDigestDeliveries.runId, reactionDigestRuns.id),
+      );
+  }
+
+  private async findRunRow(runId: string): Promise<RunRow | undefined> {
+    return this.runQuery()
+      .where(eq(reactionDigestRuns.id, runId))
+      .groupBy(reactionDigestRuns.id)
+      .get();
+  }
+
+  /** claim を持つ runner だけが書き込めるようにする条件。 */
+  private hasCurrentClaim(runId: string, claimToken: string): SQL {
+    return exists(
+      this.db
+        .select({ one: sql`1` })
+        .from(reactionDigestRuns)
+        .where(
+          and(
+            eq(reactionDigestRuns.id, runId),
+            eq(reactionDigestRuns.claimToken, claimToken),
+            eq(reactionDigestRuns.status, "running"),
+          ),
+        ),
+    );
   }
 }
 
-/**
- * 遷移後の状態ごとに、遷移元の状態を条件にした UPDATE を組み立てる。
- * values の後ろに続く 4 つの bind は delivery ID、run ID、claim の run ID と claim token。
- */
-function deliveryUpdate(
-  delivery: ReactionDigestDelivery,
-): { sql: string; values: (string | number | null)[] } | null {
-  const condition = (fromStatuses: string) => `
-    where id = ? and run_id = ? and status in (${fromStatuses})
-      and ${HAS_CURRENT_CLAIM_SQL}`;
+/** run の締め時刻。派生テーブルからは外側の run を参照できないため、その場で読み直す。 */
+function runCutoffAt(runId: string): SQL<string> {
+  return sql<string>`(
+    select ${reactionDigestRuns.cutoffAt} from ${reactionDigestRuns}
+    where ${eq(reactionDigestRuns.id, runId)}
+  )`;
+}
 
+/** delivery の状態から run の結果を決める。未確定が残っていれば pending のままにする。 */
+function runStatusFromDeliveries(): SQL<string> {
+  return sql<string>`(
+    select case
+      when coalesce(sum(${inArray(reactionDigestDeliveries.status, [
+        ...UNRESOLVED_DELIVERY_STATUSES,
+      ])}), 0) > 0 then 'pending'
+      when coalesce(sum(${eq(
+        reactionDigestDeliveries.status,
+        "failed",
+      )}), 0) = 0 then 'succeeded'
+      when coalesce(sum(${eq(
+        reactionDigestDeliveries.status,
+        "sent",
+      )}), 0) = 0 then 'failed'
+      else 'partially_failed'
+    end
+    from ${reactionDigestDeliveries}
+    where ${eq(reactionDigestDeliveries.runId, reactionDigestRuns.id)}
+  )`;
+}
+
+/** 遷移後の状態ごとに、更新する列と、遷移元として許す状態を決める。 */
+function deliveryTransition(delivery: ReactionDigestDelivery): {
+  from: readonly ReactionDigestDeliveryStatus[];
+  set: SQLiteUpdateSetSource<typeof reactionDigestDeliveries>;
+} | null {
   switch (delivery.status) {
     case "started":
       return {
-        sql: `update reaction_digest_deliveries
-           set status = 'started',
-               line_retry_key = coalesce(line_retry_key, ?),
-               attempted_at = ?
-           ${condition("'pending', 'started'")}`,
-        values: [delivery.retryKey, delivery.attemptedAt],
+        from: UNRESOLVED_DELIVERY_STATUSES,
+        set: {
+          status: "started",
+          // 結果不明の再送では、最初に決めた Retry Key を使い続ける。
+          lineRetryKey: sql`coalesce(${reactionDigestDeliveries.lineRetryKey}, ${delivery.retryKey})`,
+          attemptedAt: delivery.attemptedAt,
+        },
       };
     case "sent":
       return {
-        sql: `update reaction_digest_deliveries
-           set status = 'sent', http_status = ?, line_request_id = ?,
-               sent_at = ?, error_code = null
-           ${condition("'started'")}`,
-        values: [
-          delivery.response?.httpStatus ?? null,
-          delivery.response?.requestId ?? null,
-          delivery.sentAt,
-        ],
+        from: ["started"],
+        set: {
+          status: "sent",
+          httpStatus: delivery.response?.httpStatus ?? null,
+          lineRequestId: delivery.response?.requestId ?? null,
+          sentAt: delivery.sentAt,
+          errorCode: null,
+        },
       };
     case "failed":
       return {
-        sql: `update reaction_digest_deliveries
-           set status = 'failed', http_status = ?, line_request_id = ?,
-               error_code = ?
-           ${condition("'started'")}`,
-        values: [
-          delivery.response?.httpStatus ?? null,
-          delivery.response?.requestId ?? null,
-          delivery.errorCode,
-        ],
+        from: ["started"],
+        set: {
+          status: "failed",
+          httpStatus: delivery.response?.httpStatus ?? null,
+          lineRequestId: delivery.response?.requestId ?? null,
+          errorCode: delivery.errorCode,
+        },
       };
     case "skipped":
       return {
-        sql: `update reaction_digest_deliveries
-           set status = 'skipped', error_code = ?, attempted_at = ?
-           ${condition("'pending', 'started'")}`,
-        values: [delivery.errorCode, delivery.attemptedAt],
+        from: UNRESOLVED_DELIVERY_STATUSES,
+        set: {
+          status: "skipped",
+          errorCode: delivery.errorCode,
+          attemptedAt: delivery.attemptedAt,
+        },
       };
     case "pending":
       return null;
@@ -479,45 +649,45 @@ const RUN_STATUSES: readonly ReactionDigestRunStatus[] = [
 
 function toRun(row: RunRow): ReactionDigestRun {
   return {
-    runId: row.id,
+    runId: row.runId,
     trigger: parseEnum(RUN_TRIGGERS, row.trigger, "trigger"),
     status: parseEnum(RUN_STATUSES, row.status, "run status"),
-    cutoffAt: row.cutoff_at,
-    requestedAt: row.requested_at,
-    finishedAt: row.finished_at,
-    targetCount: row.target_count,
-    sentCount: row.sent_count,
-    failedCount: row.failed_count,
-    skippedCount: row.skipped_count,
-    remainingCount: row.remaining_count,
+    cutoffAt: row.cutoffAt,
+    requestedAt: row.requestedAt,
+    finishedAt: row.finishedAt,
+    targetCount: row.targetCount,
+    sentCount: row.sentCount,
+    failedCount: row.failedCount,
+    skippedCount: row.skippedCount,
+    remainingCount: row.remainingCount,
   };
 }
 
 function toDelivery(row: DeliveryRow): ReactionDigestDelivery {
   return new ReactionDigestDelivery({
     id: row.id,
-    runId: row.run_id,
+    runId: row.runId,
     // 送信対象として取り出すのは未確定（pending / started）の delivery だけ。
     status: parseEnum(
       ["pending", "started"] as const,
       row.status,
       "delivery status",
     ),
-    retryKey: row.line_retry_key,
-    attemptedAt: row.attempted_at,
+    retryKey: row.retryKey,
+    attemptedAt: row.attemptedAt,
     sentAt: null,
     response: null,
     errorCode: null,
     recipient: {
-      lineUserId: row.line_user_id,
-      displayLanguage: parseDisplayLanguage(row.display_language),
-      isReachable: row.is_reachable === 1,
+      lineUserId: row.lineUserId,
+      displayLanguage: parseDisplayLanguage(row.displayLanguage),
+      isReachable: row.isReachable === 1,
     },
     summary: new ReactionDigestSummary({
-      reactorCount: row.reactor_count,
-      sameRegionCount: row.same_region_count,
-      regionCount: row.region_count,
-      regionCode: row.region_code_snapshot,
+      reactorCount: row.reactorCount,
+      sameRegionCount: row.sameRegionCount,
+      regionCount: row.regionCount,
+      regionCode: row.regionCodeSnapshot,
     }),
   });
 }
