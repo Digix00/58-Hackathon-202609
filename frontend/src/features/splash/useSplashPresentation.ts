@@ -29,6 +29,9 @@ const HOLD_MS = 350
 /** 起動画面を出しておく最短の時間。描き切りと、絵を見る間の合計。 */
 const SHOW_MS = DRAW_MS + HOLD_MS
 
+/** 動きを減らす設定でも、静止した起動画面を認識できるだけ表示する。 */
+const STATIC_SHOW_MS = 800
+
 /**
  * 待っていることを文字で言うまでの間。
  *
@@ -81,8 +84,10 @@ function speedUp(root: HTMLElement | null) {
  */
 export function useSplashPresentation(ready: boolean, onDone: () => void) {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const reduceMotion = prefersReducedMotion()
   // 動きを控える設定では描く時間を持たない。描き終えた絵として始める。
-  const [drawn, setDrawn] = useState(prefersReducedMotion)
+  const [drawn, setDrawn] = useState(reduceMotion)
+  const [staticShowTimeElapsed, setStaticShowTimeElapsed] = useState(!reduceMotion)
   const [hint, setHint] = useState(false)
   const drawStartedAt = useRef(0)
   const finished = useEffectEvent(onDone)
@@ -91,7 +96,16 @@ export function useSplashPresentation(ready: boolean, onDone: () => void) {
    * 描き切るまでは、準備が終わっても幕は drawing のまま。
    * 描き切ったあとは、準備が終わっているかどうかがそのまま幕になる。
    */
-  const phase: SplashPhase = !drawn ? 'drawing' : ready ? 'leaving' : 'waiting'
+  const canLeave = ready && (!reduceMotion || staticShowTimeElapsed)
+  const phase: SplashPhase = !drawn ? 'drawing' : canLeave ? 'leaving' : 'waiting'
+
+  // reduced-motionでは演出だけを省き、初期化が即時に完了しても画面自体は残す。
+  useEffect(() => {
+    if (!reduceMotion || staticShowTimeElapsed) return
+
+    const timer = window.setTimeout(() => setStaticShowTimeElapsed(true), STATIC_SHOW_MS)
+    return () => window.clearTimeout(timer)
+  }, [reduceMotion, staticShowTimeElapsed])
 
   // 第1幕・第2幕。準備が先に終わっていれば、残りを早送りする。
   useEffect(() => {
@@ -109,9 +123,9 @@ export function useSplashPresentation(ready: boolean, onDone: () => void) {
   useEffect(() => {
     if (phase !== 'leaving') return
 
-    const timer = window.setTimeout(finished, prefersReducedMotion() ? 0 : LEAVE_MS)
+    const timer = window.setTimeout(finished, reduceMotion ? 0 : LEAVE_MS)
     return () => window.clearTimeout(timer)
-  }, [phase])
+  }, [phase, reduceMotion])
 
   // 待機の文言は起動からの時間で決める。幕が変わるたびに数え直さない。
   useEffect(() => {
