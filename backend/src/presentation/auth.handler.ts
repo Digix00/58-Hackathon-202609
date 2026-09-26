@@ -6,6 +6,7 @@ import {
   SESSION_COOKIE_NAME,
   setSessionCookie,
 } from "../app/auth-cookie";
+import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import { isUserProfileCompleted, type User } from "../application/entity/user";
 import {
@@ -22,7 +23,10 @@ const devLoginRequest = z.object({
   userKey: z.enum(["demo-a", "demo-b", "demo-c"]),
 });
 
-const factory = createFactory<{ Bindings: Bindings }>();
+const factory = createFactory<{
+  Bindings: Bindings;
+  Variables: AuthVariables;
+}>();
 
 export class AuthHandler {
   private readonly authUseCase: IAuthUseCase;
@@ -136,6 +140,16 @@ export class AuthHandler {
 
   readonly session = factory.createHandlers(async (c) => {
     setRequestId(c);
+
+    // 認証ミドルウェアが既にセッションを解決している(通常のCookie復元、
+    // またはDEV_AUTH_ENABLEDによる自動ログイン)場合はその結果をそのまま返す。
+    // ここで getOrCreateSession を取り直すと、ミドルウェアが発行した
+    // Cookie/認証結果を匿名セッションで上書きしてしまう。
+    const resolved = c.var.auth;
+    if (resolved?.user) {
+      return c.json(toResponse(resolved));
+    }
+
     const result = await this.authUseCase.getOrCreateSession(
       getCookie(c, SESSION_COOKIE_NAME),
     );
