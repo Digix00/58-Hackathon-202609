@@ -4,7 +4,6 @@ import { LoginGuide, OpenInLiffGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { useAuth } from '../../auth/useAuth'
 import { LoadingState } from '../../shared/components/AsyncStates'
-import { CoverStickers } from '../../shared/components/CoverStickers'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
@@ -16,6 +15,8 @@ import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { GENDERS, REGION_OPTIONS, type Gender } from '../profile/profileApi'
 import { CoverArt } from './CoverArt'
+import { CoverStickers } from './CoverStickers'
+import { SheetDoodles } from './SheetDoodles'
 import { useOnboardingNotebook, type OnboardingTurn } from './useOnboardingNotebook'
 import {
   COVER_BACK_COLOR,
@@ -277,6 +278,8 @@ function OnboardingSheet({
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
+      {/* 紙の余白のラクガキ。本文より後ろに敷くので、問いの前には出ない。 */}
+      <SheetDoodles page={page} />
       {page === 'cover' || page === 'done' ? null : <OnboardingSlips slips={slips} />}
       {page === 'cover' ? <CoverSheet /> : null}
       {page === 'birth' ? (
@@ -320,12 +323,12 @@ function OnboardingStack({
     <div ref={stackRef} className={`${styles.stackMotion} ${opening ? styles.stackOpening : ''}`}>
       <div className={styles.stack} style={notebookBindingStyle}>
         {/*
-         * 本の下に敷いたシール。大きい1枚は紙の下へ潜り込み、はみ出した側だけが見える。
-         * 紙より先に置くのは、そうしないと紙の上に貼られて問いより前に出るため。
-         * 紙束の中に置くので、表紙が開くときは本と一緒に大きくなる。
-         * 表紙をめくりはじめたら、散り終えたまま外す。
+         * 本のまわりに出したままの文房具。大きい1本は紙の下へ潜り込み、
+         * はみ出した側だけが見える。紙より先に置くのは、そうしないと紙の上に
+         * 乗って問いより前に出るため。紙束の中に置くので、表紙が開くときは
+         * 本と一緒に大きくなる。表紙をめくりはじめたら、しまい終えたまま外す。
          */}
-        {!opened ? <CoverStickers scattering={opening} /> : null}
+        {!opened ? <CoverStickers opening={opening} /> : null}
         <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
         {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
