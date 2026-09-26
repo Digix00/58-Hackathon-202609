@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../i18n/translate'
 import { apiClient } from '../../lib/api'
 import type { AuthResponse } from '../../lib/api'
 import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
@@ -93,8 +94,10 @@ export async function updateUserProfile(
   const response = await profileApiClient.api.v1.users.me.$put({ json: input })
   if (response.ok) return { ok: true }
 
-  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
-  return { ok: false, message: body?.error?.message ?? '設定を保存できませんでした' }
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string }
+  } | null
+  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.profile') }
 }
 
 export async function updateUserDisplayLanguage(
@@ -106,9 +109,11 @@ export async function updateUserDisplayLanguage(
   if (response.ok) {
     const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
     if (body?.user) return { ok: true, user: body.user }
-    return { ok: false, message: '表示形式を保存できませんでした' }
+    return { ok: false, message: 'error.language' }
   }
 
-  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
-  return { ok: false, message: body?.error?.message ?? '表示形式を保存できませんでした' }
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string }
+  } | null
+  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.language') }
 }

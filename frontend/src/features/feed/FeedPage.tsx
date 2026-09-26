@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import {
   useState,
   type CSSProperties,
@@ -39,6 +40,7 @@ import type { TurningPage } from './useFeedReader'
 import { useFeed } from './useFeed'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
+import { TranslationNotice } from '../../shared/components/TranslationNotice'
 
 /** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
 const COVER_BACK_COLOR = '#a894dd'
@@ -112,6 +114,8 @@ function FeedReaction({
   submitting,
   onReact,
 }: FeedReactionProps) {
+  const { t } = useTranslation()
+
   const [sparked, setSparked] = useState(false)
 
   if (!canReact) return null
@@ -133,8 +137,10 @@ function FeedReaction({
         <CrayonHeart />
         {sparked ? <ReactionSpark /> : null}
       </span>
-      <span className={styles.label}>{reacted ? '寄りそいました' : 'そっと寄りそう'}</span>
-      <span className={styles.count} aria-label={`${reactionCount}件の反応`}>
+      <span className={styles.label}>
+        {reacted ? t('reaction.supportedShort') : t('reaction.support')}
+      </span>
+      <span className={styles.count} aria-label={t('reaction.count', { count: reactionCount })}>
         {reactionCount}
       </span>
     </button>
@@ -179,6 +185,7 @@ function FeedCard({
   reactionError?: string | null
 }) {
   const palette = paletteForPage(page)
+  const { t, message } = useTranslation()
 
   return (
     <article
@@ -200,17 +207,22 @@ function FeedCard({
       <Link
         className={styles.storyLink}
         to={`/concerns/${encodeURIComponent(concern.id)}`}
-        aria-label={`${concern.body} 詳しく読む`}
+        aria-label={t('feed.details', { body: concern.body })}
         onClick={onLinkClick}
       >
-        <p className={screen.body}>{concern.body}</p>
+        <p className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
+          {concern.body}
+        </p>
       </Link>
+      {showTabs ? (
+        <TranslationNotice actualLanguage={concern.language} status={concern.translationStatus} />
+      ) : null}
       {reaction?.canReact ? (
         <div className={styles.cardActions}>
           <FeedReaction {...reaction} />
           {reactionError ? (
             <p className={styles.submitError} role="alert">
-              {reactionError}
+              {message(reactionError)}
             </p>
           ) : null}
         </div>
@@ -232,15 +244,17 @@ function FeedCard({
  * 声の紙は本文が主役なので、同じ絵を持ち込むと読む前に絵を見てしまう。
  */
 function FeedCover() {
+  const { t } = useTranslation()
+
   return (
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
       <CoverArt />
-      <p className={styles.coverTitle}>目安箱</p>
+      <p className={styles.coverTitle}>{t('app.name')}</p>
       <p className={styles.coverLead}>
-        きょうは、
+        {t('feed.coverLead')}
         <br />
-        どんな声に会えるかな。
+        {t('feed.coverQuestion')}
       </p>
     </article>
   )
@@ -357,11 +371,13 @@ function FeedStack({
 }
 
 function FeedEmpty({ onReset }: { onReset: () => void }) {
+  const { t } = useTranslation()
+
   return (
     <div className={styles.empty}>
-      <p>選んだ条件の声は、まだありません。</p>
+      <p>{t('feed.empty')}</p>
       <button type="button" className={actionStyles.secondary} onClick={onReset}>
-        すべての声を読む
+        {t('feed.readAll')}
       </button>
     </div>
   )
@@ -385,6 +401,8 @@ function FeedStage({
   onTouchCancel,
   ...stackProps
 }: FeedStageProps) {
+  const { t } = useTranslation()
+
   return (
     <section
       className={styles.stage}
@@ -395,7 +413,7 @@ function FeedStage({
       onTouchCancel={onTouchCancel}
     >
       <h1 id="feed-title" className={styles.srOnly}>
-        届いた声を読む
+        {t('feed.start')}
       </h1>
       {concern ? <FeedStack concern={concern} {...stackProps} /> : <FeedEmpty onReset={onReset} />}
     </section>
@@ -427,6 +445,8 @@ function FeedActions({
   onFiltersToggle,
   onFilterChange,
 }: FeedActionsProps) {
+  const { t } = useTranslation()
+
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
@@ -437,7 +457,8 @@ function FeedActions({
             className={`${actionStyles.primary} ${styles.coverButton}`}
             onClick={onNext}
           >
-            めくってみる <span aria-hidden="true">→</span>
+            {t('feed.next')}
+            <span aria-hidden="true">→</span>
           </button>
         </div>
       ) : null}
@@ -447,19 +468,19 @@ function FeedActions({
         onToggle={(event) => onFiltersToggle(event.currentTarget.open)}
       >
         <summary>
-          <span>{activeFilter ? 'えらんだ条件' : '性別・地域でえらぶ'}</span>
+          <span>{activeFilter ? t('feed.filtered') : t('feed.filter')}</span>
           {activeFilter ? <span className={styles.filterValue}>{activeFilter}</span> : null}
         </summary>
-        <div className={styles.filterFields} aria-label="読む声の条件">
+        <div className={styles.filterFields} aria-label={t('feed.filterLabel')}>
           <SelectField
-            label="性別"
+            label={t('common.gender')}
             placement="up"
             value={filter.gender || ALL}
             options={genderOptions}
             onChange={(value) => onFilterChange('gender', value === ALL ? '' : value)}
           />
           <SelectField
-            label="地域"
+            label={t('common.region')}
             placement="up"
             value={filter.region || ALL}
             options={regionOptions}
@@ -496,23 +517,19 @@ function FeedPageView({
   onRetry,
   reactionAnnouncement,
 }: FeedPageViewProps) {
+  const { t } = useTranslation()
+
   return (
     <div className={styles.page}>
-      {showInitialLoading ? <LoadingState label="声を読み込んでいます…" /> : null}
+      {showInitialLoading ? <LoadingState label={t('feed.loading')} /> : null}
       {showInitialError ? (
-        <ErrorState
-          description={initialError ?? '投稿を読み込めませんでした。'}
-          onRetry={onRetry}
-        />
+        <ErrorState description={initialError ?? t('error.loadConcernShort')} onRetry={onRetry} />
       ) : null}
       {!showInitialLoading && !showInitialError ? <FeedStage {...stageProps} /> : null}
       <FeedActions {...actionsProps} />
-      {loadingMore ? <LoadingState label="次の声を読み込んでいます…" /> : null}
+      {loadingMore ? <LoadingState label={t('feed.loadingNext')} /> : null}
       {showPaginationError ? (
-        <ErrorState
-          description={paginationError ?? '次の声を読み込めませんでした。'}
-          onRetry={onRetry}
-        />
+        <ErrorState description={paginationError ?? t('feed.nextFailed')} onRetry={onRetry} />
       ) : null}
       <p className={styles.srOnly} aria-live="polite">
         {reactionAnnouncement}
@@ -522,19 +539,21 @@ function FeedPageView({
 }
 
 export function FeedPage() {
+  const { t } = useTranslation()
   const { state: runtime } = useRuntime()
   const { language } = useDisplaySettings()
   const { status: authStatus, user } = useAuth()
   const [reader, dispatch] = useFeedReaderState()
   const feedContext = resolveFeedContext(runtime, authStatus)
   const feed = useFeed({
+    language,
     enabled: feedContext.enabled,
     sort: feedContext.sort,
     gender: reader.filter.gender || undefined,
     regionCode: reader.filter.region || undefined,
     authUserId: user?.id,
   })
-  const concerns = feed.items.map(toFeedConcern)
+  const concerns = feed.items.map((item) => toFeedConcern(item, language))
   const readerView = useFeedReaderNavigation({
     state: reader,
     dispatch,
@@ -634,7 +653,7 @@ export function FeedPage() {
       paginationError={feed.error}
       onRetry={feed.retry}
       reactionAnnouncement={
-        reaction.reacted ? `そっと寄りそいました。現在${reaction.reactionCount}件です。` : ''
+        reaction.reacted ? t('reaction.announcementFull', { count: reaction.reactionCount }) : ''
       }
     />
   )

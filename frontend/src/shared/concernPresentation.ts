@@ -1,5 +1,6 @@
 import type { AgeGroup, Gender, RegionCode } from '../features/post/postTypes'
 import type { DisplayLanguage } from '../app/providers/DisplaySettingsContext'
+import { translate } from '../i18n/translate.ts'
 
 export const GENDER_LABELS: Record<Gender, string> = {
   male: '男性',
@@ -172,7 +173,30 @@ export const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
   no_answer: '回答しない',
 }
 
-export function genderLabel(code: string | undefined): string | undefined {
+export function genderLabel(
+  code: string | undefined,
+  language: DisplayLanguage = 'original',
+): string | undefined {
+  if (language === 'jaHira' && code) {
+    const labels: Record<Gender, string> = {
+      male: 'だんせい',
+      female: 'じょせい',
+      non_binary: 'のんばいなりー',
+      other: 'そのた',
+      no_answer: 'かいとうしない',
+    }
+    return labels[code as Gender] ?? code
+  }
+  if (language === 'en' && code) {
+    const labels: Record<Gender, string> = {
+      male: 'Male',
+      female: 'Female',
+      non_binary: 'Non-binary',
+      other: 'Other',
+      no_answer: 'Prefer not to say',
+    }
+    return labels[code as Gender] ?? code
+  }
   return code ? (GENDER_LABELS[code as Gender] ?? code) : undefined
 }
 
@@ -188,17 +212,38 @@ export function regionLabel(
   return REGION_LABELS[regionCode] ?? code
 }
 
-export function ageGroupLabel(code: string | undefined): string | undefined {
+export function ageGroupLabel(
+  code: string | undefined,
+  language: DisplayLanguage = 'original',
+): string | undefined {
+  if (language === 'jaHira' && code) {
+    if (code === 'no_answer') return translate(language, 'common.noAnswer')
+    if (code === '90s_plus') return '90だいいじょう'
+    if (Object.hasOwn(AGE_GROUP_LABELS, code)) return `${code.slice(0, -1)}だい`
+    return code
+  }
+  if (language === 'en' && code) {
+    if (code === 'no_answer') return 'Prefer not to say'
+    if (code === '90s_plus') return '90 and over'
+    return code
+  }
   return code ? (AGE_GROUP_LABELS[code as AgeGroup] ?? code) : undefined
 }
 
-export function createdLabel(createdAt: string): string {
+const englishRelativeTime = new Intl.RelativeTimeFormat('en', { numeric: 'always' })
+
+export function createdLabel(createdAt: string, language: DisplayLanguage = 'original'): string {
   const created = new Date(createdAt)
   if (Number.isNaN(created.getTime())) return ''
 
   const days = Math.max(0, Math.floor((Date.now() - created.getTime()) / 86_400_000))
-  if (days === 0) return '今日'
-  if (days < 7) return `${days}日前`
-  if (days < 31) return `${Math.floor(days / 7)}週間前`
-  return `${Math.floor(days / 30)}か月前`
+  if (days === 0) return translate(language, 'time.today')
+  if (language === 'en') {
+    if (days < 7) return englishRelativeTime.format(-days, 'day')
+    if (days < 31) return englishRelativeTime.format(-Math.floor(days / 7), 'week')
+    return englishRelativeTime.format(-Math.floor(days / 30), 'month')
+  }
+  if (days < 7) return translate(language, 'time.days', { count: days })
+  if (days < 31) return translate(language, 'time.weeks', { count: Math.floor(days / 7) })
+  return translate(language, 'time.months', { count: Math.floor(days / 30) })
 }

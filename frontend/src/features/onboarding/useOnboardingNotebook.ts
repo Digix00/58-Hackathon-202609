@@ -272,7 +272,7 @@ export function useOnboardingNotebook() {
     } catch {
       dispatch({
         type: 'saveFailed',
-        message: 'はじめの1ページを書き込めませんでした。もう一度お試しください。',
+        message: 'error.onboarding',
       })
     }
   }, [draft, navigate, refresh, status])
