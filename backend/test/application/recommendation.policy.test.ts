@@ -134,18 +134,9 @@ describe("rankConcernFeedCandidates", () => {
     expect(ranked.map((item) => item.concern.id)).toEqual(["x-1", "x-2"]);
   });
 
-  it("includes the viewer's own post without the unread bonus", () => {
+  it("ranks the viewer's own post like other posts and labels it own_post", () => {
     const ranked = rankConcernFeedCandidates(
       [
-        {
-          concern: concern({
-            id: "own",
-            clusterId: "cluster-own",
-            createdAt: "2026-09-02T00:00:00.000Z",
-          }),
-          cluster: cluster("cluster-own"),
-          viewed: false,
-        },
         {
           concern: concern({
             id: "other",
@@ -155,15 +146,26 @@ describe("rankConcernFeedCandidates", () => {
           cluster: cluster("cluster-other"),
           viewed: false,
         },
+        {
+          concern: concern({
+            id: "own",
+            clusterId: "cluster-own",
+            createdAt: "2026-09-02T00:00:00.000Z",
+          }),
+          cluster: cluster("cluster-own"),
+          viewed: false,
+        },
       ],
       [],
       null,
       "user-own",
     );
 
-    expect(ranked.map((item) => item.concern.id)).toEqual(["other", "own"]);
-    expect(ranked[0]?.recommendation.reasonCode).toBe("unread_cluster");
-    expect(ranked[1]?.recommendation.reasonCode).toBe("own_post");
-    expect(ranked[1]?.viewed).toBe(false);
+    // 自分の投稿も未読・新しさを同じ基準で評価するため、新しい自分の投稿が先になる。
+    expect(ranked.map((item) => item.concern.id)).toEqual(["own", "other"]);
+    expect(ranked.map((item) => item.recommendation.reasonCode)).toEqual([
+      "own_post",
+      "unread_cluster",
+    ]);
   });
 });

@@ -11,6 +11,7 @@ import {
   type ConcernProcessingQueue,
 } from "../port/concern-processing-queue";
 import {
+  isOwnConcern,
   RECOMMENDATION_ALGORITHM_VERSION,
   rankConcernFeedCandidates,
 } from "../recommendation/recommendation.policy";
@@ -412,10 +413,9 @@ function toFallbackFeedItem(
     ...candidate,
     recommendation: {
       strategy: "fallback",
-      reasonCode:
-        userId && candidate.concern.userId === userId
-          ? "own_post"
-          : "fallback_newest",
+      reasonCode: isOwnConcern(candidate, userId)
+        ? "own_post"
+        : "fallback_newest",
     },
   };
 }

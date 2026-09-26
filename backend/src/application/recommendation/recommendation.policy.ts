@@ -11,8 +11,7 @@ export const RECOMMENDATION_ALGORITHM_VERSION = "v3";
  * 新着順で取得した候補を、既読状況・クラスタ・都道府県の分散で並べ替える。
  * 未読候補や閲覧履歴にないクラスタを優先しつつ、直前と同じクラスタが連続しないように
  * 候補を1件ずつ選出する。異なるクラスタが残っていない場合は、同じクラスタも選出する。
- * 閲覧者自身の投稿も候補に含めるが、本人は内容を知っているため未読として加点せず、
- * 推薦理由は own_post とする。
+ * 閲覧者自身の投稿も他の投稿と同じ候補・同じスコアで扱い、推薦理由だけを own_post とする。
  * AIや個人情報には依存せず、同じ候補と履歴なら同じ結果になる決定的な処理とする。
  */
 export function rankConcernFeedCandidates(
@@ -29,8 +28,6 @@ export function rankConcernFeedCandidates(
   );
   const remaining = candidates.map((candidate, index) => ({
     candidate,
-    own: isOwnConcern(candidate, viewerUserId),
-    unread: !candidate.viewed && !isOwnConcern(candidate, viewerUserId),
     originalIndex: index,
   }));
   const selectedClusterIds = new Set<string>();
@@ -50,7 +47,6 @@ export function rankConcernFeedCandidates(
       const scoreDifference =
         scoreCandidate(
           right.candidate,
-          right.unread,
           viewedClusterIds,
           viewedRegionCodes,
           selectedClusterIds,
@@ -58,7 +54,6 @@ export function rankConcernFeedCandidates(
         ) -
         scoreCandidate(
           left.candidate,
-          left.unread,
           viewedClusterIds,
           viewedRegionCodes,
           selectedClusterIds,
@@ -94,18 +89,12 @@ export function rankConcernFeedCandidates(
     const { candidate } = next;
     const clusterId = candidate.cluster?.id;
     const regionCode = candidate.concern.regionCode;
-    const reasonCode = next.own
+    const reasonCode = isOwnConcern(candidate, viewerUserId)
       ? ("own_post" as const)
-      : getReasonCode(
-          candidate,
-          next.unread,
-          viewedClusterIds,
-          viewedRegionCodes,
-          {
-            selectedClusterIds,
-            selectedRegionCodes,
-          },
-        );
+      : getReasonCode(candidate, viewedClusterIds, viewedRegionCodes, {
+          selectedClusterIds,
+          selectedRegionCodes,
+        });
     ranked.push({
       ...candidate,
       recommendation: {
@@ -127,7 +116,7 @@ export function rankConcernFeedCandidates(
 }
 
 /** 閲覧者自身が投稿した候補かを判定する。 */
-function isOwnConcern(
+export function isOwnConcern(
   candidate: ConcernFeedCandidate,
   viewerUserId: string | undefined,
 ): boolean {
@@ -135,13 +124,12 @@ function isOwnConcern(
 }
 
 /**
- * 候補の推薦スコアを計算する。未読（閲覧者自身の投稿を除く。クラスタあり1,000点、なし100点）、
+ * 候補の推薦スコアを計算する。未読（クラスタあり1,000点、なし100点）、
  * 閲覧履歴にないクラスタ（250点）、今回のページで未選択のクラスタ（75点）、
  * 都道府県の分散（65点、既読地域なら25点）を加点し、選出順を決める。
  */
 function scoreCandidate(
   candidate: ConcernFeedCandidate,
-  unread: boolean,
   viewedClusterIds: Set<string>,
   viewedRegionCodes: Set<string>,
   selectedClusterIds: Set<string>,
@@ -151,7 +139,7 @@ function scoreCandidate(
   const regionCode = candidate.concern.regionCode;
   let score = 0;
 
-  if (unread) {
+  if (!candidate.viewed) {
     score += clusterId ? 1_000 : 100;
   }
   if (clusterId && !viewedClusterIds.has(clusterId)) {
@@ -174,7 +162,6 @@ function scoreCandidate(
  */
 function getReasonCode(
   candidate: ConcernFeedCandidate,
-  unread: boolean,
   viewedClusterIds: Set<string>,
   viewedRegionCodes: Set<string>,
   selected: {
@@ -185,7 +172,7 @@ function getReasonCode(
   const clusterId = candidate.cluster?.id;
   const regionCode = candidate.concern.regionCode;
 
-  if (unread && clusterId) {
+  if (!candidate.viewed && clusterId) {
     return "unread_cluster" as const;
   }
   if (clusterId && !viewedClusterIds.has(clusterId)) {
