@@ -17,7 +17,11 @@ import { EmptyState, ErrorState, LoadingState } from '../../shared/components/As
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
-import { prefersReducedMotion, useNotebookSwipe } from '../../shared/hooks/useNotebookSwipe'
+import {
+  notebookAngleForDrag,
+  prefersReducedMotion,
+  useNotebookSwipe,
+} from '../../shared/hooks/useNotebookSwipe'
 import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -331,18 +335,22 @@ function assignmentsFromResult(result: QuizAnswerResponse | undefined): Answers 
  */
 function Paper({
   children,
-  swipeTarget = false,
+  dragX = 0,
   className = '',
 }: {
   children: ReactNode
-  swipeTarget?: boolean
+  dragX?: number
   /** 紙の中身に合わせた行送り。結果の紙だけ、判定のメモのぶん余白を取り直す。 */
   className?: string
 }) {
   return (
     <article
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${className} ${turnStyles.page}`}
-      data-notebook-swipe-target={swipeTarget ? '' : undefined}
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${className} ${
+        turnStyles.page
+      } ${dragX !== 0 ? turnStyles.pageDragging : ''}`}
+      style={{
+        transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
+      }}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
@@ -1297,6 +1305,7 @@ function QuizFrontPage({
   answers,
   stateIndex,
   showingResults,
+  swipe,
   slotRef,
   dragOver,
   bodyOf,
@@ -1309,6 +1318,7 @@ function QuizFrontPage({
   answers: Answers
   stateIndex: number
   showingResults: boolean
+  swipe: QuizSwipe
   slotRef: React.RefObject<HTMLSpanElement | null>
   dragOver: boolean
   bodyOf: (target: Letter) => string | undefined
@@ -1317,7 +1327,7 @@ function QuizFrontPage({
   if (coverOpened) {
     return (
       <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
-        <Paper className={showingResults ? styles.resultCard : ''} swipeTarget>
+        <Paper className={showingResults ? styles.resultCard : ''} dragX={swipe.dragX}>
           <QuizPaperBody
             target={letter}
             personId={answers[letter.id]}
@@ -1458,6 +1468,7 @@ function QuizStage({
           answers={answers}
           stateIndex={stateIndex}
           showingResults={showingResults}
+          swipe={swipe}
           slotRef={slotRef}
           dragOver={dragOver}
           bodyOf={bodyOf}
