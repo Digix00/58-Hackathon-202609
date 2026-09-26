@@ -37,6 +37,7 @@ import {
 import { useFeedReaderNavigation, useFeedReaderState } from './useFeedReader'
 import type { TurningPage } from './useFeedReader'
 import { useFeed } from './useFeed'
+import { notebookAngleForDrag } from '../../shared/hooks/useNotebookSwipe'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 
@@ -160,7 +161,7 @@ function FeedCard({
   page,
   onNext,
   articleRef,
-  swipeTarget = false,
+  dragX = 0,
   onLinkClick,
   showTabs = true,
   reaction,
@@ -171,7 +172,7 @@ function FeedCard({
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
   articleRef?: RefCallback<HTMLElement>
-  swipeTarget?: boolean
+  dragX?: number
   onLinkClick?: (event: MouseEvent) => void
   /** 表紙の下に控えているあいだは、上辺のインデックスを出さない。中身の先出しになる。 */
   showTabs?: boolean
@@ -183,10 +184,12 @@ function FeedCard({
   return (
     <article
       ref={articleRef}
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page}`}
-      data-notebook-swipe-target={swipeTarget ? '' : undefined}
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
+        dragX !== 0 ? turnStyles.pageDragging : ''
+      }`}
       style={
         {
+          transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
           '--bookmark': palette.bookmark,
           '--tag-age': palette.tagAge,
           '--tag-region': palette.tagRegion,
@@ -254,6 +257,7 @@ type FeedStackProps = {
   turning: TurningPage | null
   coverOpened: boolean
   coverOpening: boolean
+  dragX: number
   articleRef?: RefCallback<HTMLElement>
   onNext: () => void
   onLinkClick: (event: MouseEvent) => void
@@ -270,6 +274,7 @@ function FeedStack({
   turning,
   coverOpened,
   coverOpening,
+  dragX,
   articleRef,
   onNext,
   onLinkClick,
@@ -333,7 +338,7 @@ function FeedStack({
               page={position + 1}
               onNext={onNext}
               articleRef={articleRef}
-              swipeTarget
+              dragX={dragX}
               onLinkClick={onLinkClick}
               reaction={reaction}
               reactionError={reactionError}
@@ -581,6 +586,7 @@ export function FeedPage() {
     turning,
     coverOpened,
     coverOpening,
+    dragX: swipe.dragX,
     articleRef: undefined,
     onNext: goNext,
     onLinkClick: swipe.handleLinkClick,

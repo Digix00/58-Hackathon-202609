@@ -181,10 +181,9 @@
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* 指の移動量はReactを再描画せず、フレームごとにCSS変数へ反映する。 */
-.page[data-notebook-dragging] {
+/* 指に追従している間は、指を離したあとの戻りを遅らせない。 */
+.pageDragging {
   transition: none;
-  transform: rotateY(var(--notebook-drag-angle, 0deg));
 }
 
 .face,
