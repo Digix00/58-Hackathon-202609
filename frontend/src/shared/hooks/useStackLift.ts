@@ -48,7 +48,7 @@ export function useStackLift(open: boolean, onLifted: () => void, duration = LIF
       lifted()
     }
 
-    // 紙束の位置が変わらなくても、縮めていた本を広げる時間は確保する。
+    // 紙束の位置が変わらなくても、めくり始めるまでの時間は確保する。
     if (Math.abs(delta) < 1) {
       node.style.setProperty('--lift-duration', `${duration}ms`)
       const timer = window.setTimeout(() => {

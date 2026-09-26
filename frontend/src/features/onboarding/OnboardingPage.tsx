@@ -15,18 +15,18 @@ import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { GENDERS, REGION_OPTIONS, type Gender } from '../profile/profileApi'
 import { CoverArt } from './CoverArt'
-import { useWelcomeNotebook, type WelcomeTurn } from './useWelcomeNotebook'
+import { useOnboardingNotebook, type OnboardingTurn } from './useOnboardingNotebook'
 import {
   COVER_BACK_COLOR,
   birthError,
   paletteForIndex,
-  welcomeSlips,
-  type WelcomeDraft,
-  type WelcomeFieldUpdate,
-  type WelcomePage as WelcomePageName,
-  type WelcomeSlip,
-} from './welcomeSteps'
-import styles from './WelcomePage.module.css'
+  onboardingSlips,
+  type OnboardingDraft,
+  type OnboardingFieldUpdate,
+  type OnboardingPage as OnboardingPageName,
+  type OnboardingSlip,
+} from './onboardingSteps'
+import styles from './OnboardingPage.module.css'
 
 /** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
 const TURNED_BACK_COLOR = 'var(--color-surface)'
@@ -34,16 +34,16 @@ const TURNED_BACK_COLOR = 'var(--color-surface)'
 const currentYear = new Date().getFullYear()
 
 /** 読み上げへ渡す、いま開いている紙の見出し。紙が替わったことを言葉で伝える。 */
-const PAGE_TITLES: Record<WelcomePageName, string> = {
+const PAGE_TITLES: Record<OnboardingPageName, string> = {
   cover: 'はじめまして',
   birth: 'いつ、生まれましたか。',
   gender: 'あなたのことは、どう書きますか。',
-  region: 'どこから読みますか。',
+  region: 'あなたのいる地域を教えてください。',
   done: 'これで、はじめられます。',
 }
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
-function turningKey(turning: WelcomeTurn) {
+function turningKey(turning: OnboardingTurn) {
   return `${turning.page}-${turning.direction}`
 }
 
@@ -56,7 +56,7 @@ function turningKey(turning: WelcomeTurn) {
  * 押せる要素にはしない。戻る操作は紙のふもとの「ひとつ前へ」に一本化する。
  * 小さなしおりを操作にすると、44px の指の置き場を紙の本文の上へ重ねることになる。
  */
-function WelcomeSlips({ slips }: { slips: WelcomeSlip[] }) {
+function OnboardingSlips({ slips }: { slips: OnboardingSlip[] }) {
   if (slips.length === 0) return null
 
   return (
@@ -102,9 +102,9 @@ function BirthSheet({
   disabled,
   onFieldChange,
 }: {
-  draft: WelcomeDraft
+  draft: OnboardingDraft
   disabled: boolean
-  onFieldChange: (update: WelcomeFieldUpdate) => void
+  onFieldChange: (update: OnboardingFieldUpdate) => void
 }) {
   const error = birthError(draft)
 
@@ -157,7 +157,7 @@ function GenderSheet({
   disabled,
   onChoose,
 }: {
-  draft: WelcomeDraft
+  draft: OnboardingDraft
   disabled: boolean
   onChoose: (value: Gender) => void
 }) {
@@ -189,14 +189,14 @@ function RegionSheet({
   disabled,
   onFieldChange,
 }: {
-  draft: WelcomeDraft
+  draft: OnboardingDraft
   disabled: boolean
-  onFieldChange: (update: WelcomeFieldUpdate) => void
+  onFieldChange: (update: OnboardingFieldUpdate) => void
 }) {
   return (
     <>
-      <p className={styles.question}>{PAGE_TITLES.region}</p>
-      <p className={styles.note}>使うのは都道府県までです。くわしい住所は聞きません。</p>
+      <p className={styles.question}>あなたのいる地域を教えてください。</p>
+      <p className={styles.note}>都道府県だけで大丈夫です。くわしい住所は聞きません。</p>
       <SelectField
         label="地域"
         value={draft.regionCode}
@@ -214,7 +214,7 @@ function RegionSheet({
  * 書いた3枚のしおりを、そのまま1枚の紙へ貼り直して名札にする。
  * ここに絵を置かないのは、絵より先に自分の書いたものを見てほしいため。
  */
-function DoneSheet({ slips }: { slips: WelcomeSlip[] }) {
+function DoneSheet({ slips }: { slips: OnboardingSlip[] }) {
   return (
     <>
       <p className={styles.question}>{PAGE_TITLES.done}</p>
@@ -240,17 +240,17 @@ function DoneSheet({ slips }: { slips: WelcomeSlip[] }) {
 }
 
 type SheetProps = {
-  page: WelcomePageName
+  page: OnboardingPageName
   index: number
-  draft: WelcomeDraft
-  slips: WelcomeSlip[]
+  draft: OnboardingDraft
+  slips: OnboardingSlip[]
   disabled: boolean
   dragX?: number
-  onFieldChange: (update: WelcomeFieldUpdate) => void
+  onFieldChange: (update: OnboardingFieldUpdate) => void
   onChooseGender: (value: Gender) => void
 }
 
-function WelcomeSheet({
+function OnboardingSheet({
   page,
   index,
   draft,
@@ -278,7 +278,7 @@ function WelcomeSheet({
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
-      {page === 'cover' || page === 'done' ? null : <WelcomeSlips slips={slips} />}
+      {page === 'cover' || page === 'done' ? null : <OnboardingSlips slips={slips} />}
       {page === 'cover' ? <CoverSheet /> : null}
       {page === 'birth' ? (
         <BirthSheet draft={draft} disabled={disabled} onFieldChange={onFieldChange} />
@@ -294,30 +294,28 @@ function WelcomeSheet({
   )
 }
 
-type WelcomeStackProps = Omit<SheetProps, 'page' | 'index' | 'dragX'> & {
-  facePage: WelcomePageName
+type OnboardingStackProps = Omit<SheetProps, 'page' | 'index' | 'dragX'> & {
+  facePage: OnboardingPageName
   faceIndex: number
   opened: boolean
-  opening: boolean
-  turning: WelcomeTurn | null
+  turning: OnboardingTurn | null
   dragX: number
   stackRef: RefObject<HTMLDivElement | null>
   onTurningFinished: () => void
 }
 
-function WelcomeStack({
+function OnboardingStack({
   facePage,
   faceIndex,
   opened,
-  opening,
   turning,
   dragX,
   stackRef,
   onTurningFinished,
   ...sheetProps
-}: WelcomeStackProps) {
+}: OnboardingStackProps) {
   return (
-    <div ref={stackRef} className={`${styles.stackMotion} ${opening ? styles.stackOpening : ''}`}>
+    <div ref={stackRef} className={styles.stackMotion}>
       <div className={styles.stack} style={notebookBindingStyle}>
         <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
@@ -351,12 +349,12 @@ function WelcomeStack({
              * それだけでは focus が残るので、紙ごと inert にして外す。
              */}
             <div className={styles.frozen} inert>
-              <WelcomeSheet page={turning.page} index={turning.index} {...sheetProps} disabled />
+              <OnboardingSheet page={turning.page} index={turning.index} {...sheetProps} disabled />
             </div>
           </NotebookTurn>
         ) : null}
         <div key={`${facePage}-${faceIndex}`} className={styles.enter}>
-          <WelcomeSheet page={facePage} index={faceIndex} dragX={dragX} {...sheetProps} />
+          <OnboardingSheet page={facePage} index={faceIndex} dragX={dragX} {...sheetProps} />
         </div>
         {/* 手前側の線は金具として動かさない。 */}
         <NotebookBinding part="front" />
@@ -365,8 +363,8 @@ function WelcomeStack({
   )
 }
 
-type WelcomeActionsProps = {
-  page: WelcomePageName
+type OnboardingActionsProps = {
+  page: OnboardingPageName
   canGoNext: boolean
   canGoBack: boolean
   saving: boolean
@@ -376,7 +374,7 @@ type WelcomeActionsProps = {
   onSubmit: () => void
 }
 
-function WelcomeActions({
+function OnboardingActions({
   page,
   canGoNext,
   canGoBack,
@@ -385,7 +383,7 @@ function WelcomeActions({
   onNext,
   onBack,
   onSubmit,
-}: WelcomeActionsProps) {
+}: OnboardingActionsProps) {
   return (
     <div className={styles.actions}>
       {page === 'cover' ? (
@@ -429,17 +427,16 @@ function WelcomeActions({
  * 4項目を1枚のフォームに並べず、1問ずつ紙を分けてめくるのは、
  * 登録の手続きではなく、自分の本の1ページ目を書く時間にするため。
  */
-export function WelcomePage() {
+export function OnboardingPage() {
   const { state: runtime } = useRuntime()
   const { status: authStatus, user } = useAuth()
-  const notebook = useWelcomeNotebook()
+  const notebook = useOnboardingNotebook()
   const {
     draft,
     index,
     facePage,
     currentPage,
     opened,
-    opening,
     turning,
     saving,
     error,
@@ -462,26 +459,25 @@ export function WelcomePage() {
   // 書き終えた人には見せない。戻ってきても、読む画面へそのまま通す。
   if (user?.profileCompleted) return <Navigate to="/" replace />
 
-  const slips = welcomeSlips(draft)
+  const slips = onboardingSlips(draft)
 
   return (
     <div className={styles.page}>
       <section
         className={styles.stage}
-        aria-labelledby="welcome-title"
+        aria-labelledby="onboarding-title"
         onTouchStart={swipe.handleTouchStart}
         onTouchMove={swipe.handleTouchMove}
         onTouchEnd={swipe.handleTouchEnd}
         onTouchCancel={swipe.handleTouchCancel}
       >
-        <h1 id="welcome-title" className={styles.srOnly}>
+        <h1 id="onboarding-title" className={styles.srOnly}>
           はじめの1ページを書く
         </h1>
-        <WelcomeStack
+        <OnboardingStack
           facePage={facePage}
           faceIndex={index}
           opened={opened}
-          opening={opening}
           turning={turning}
           dragX={swipe.dragX}
           stackRef={stackRef}
@@ -493,7 +489,7 @@ export function WelcomePage() {
           onChooseGender={chooseGender}
         />
       </section>
-      <WelcomeActions
+      <OnboardingActions
         page={currentPage}
         canGoNext={canGoNext}
         canGoBack={canGoBack}

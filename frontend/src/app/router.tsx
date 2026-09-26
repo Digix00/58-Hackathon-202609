@@ -131,7 +131,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
    * ログイン済みで未記入のときだけ、はじめの1ページへ寄り道させる。
    * 読むだけの利用は今までどおり素通りできる。
    */
-  if (user && !user.profileCompleted) return <Navigate to="/welcome" replace />
+  if (user && !user.profileCompleted) return <Navigate to="/onboarding" replace />
   return children
 }
 

@@ -15,8 +15,8 @@ const concernDetailPage = lazy(async () => ({
 const quizPage = lazy(async () => ({
   default: (await import('../features/quiz/QuizPage')).QuizPage,
 }))
-const welcomePage = lazy(async () => ({
-  default: (await import('../features/welcome/WelcomePage')).WelcomePage,
+const onboardingPage = lazy(async () => ({
+  default: (await import('../features/onboarding/OnboardingPage')).OnboardingPage,
 }))
 const historyPage = lazy(async () => ({
   default: (await import('../features/history/HistoryPage')).HistoryPage,
@@ -44,7 +44,7 @@ export const router = createBrowserRouter([
       { index: true, element: apiPage(feedPage) },
       // はじめの1ページは ProtectedRoute で包まない。包むと、
       // プロフィール未記入の案内がこの画面自身へ戻り続ける。
-      { path: 'welcome', element: apiPage(welcomePage) },
+      { path: 'onboarding', element: apiPage(onboardingPage) },
       { path: 'concerns/:id', element: apiPage(concernDetailPage) },
       {
         path: 'post',

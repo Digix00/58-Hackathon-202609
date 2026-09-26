@@ -12,20 +12,20 @@ import {
  * 設定画面の「あなたの設定」と同じ4項目だが、あちらは書き直す紙、
  * こちらは初めて書く紙なので、1項目ずつ別の紙に分けて置く。
  */
-export type WelcomeDraft = {
+export type OnboardingDraft = {
   birthYear: number | ''
   birthMonth: number | ''
   gender: Gender | ''
   regionCode: RegionCode | ''
 }
 
-export type WelcomeFieldUpdate =
-  | { field: 'birthYear'; value: WelcomeDraft['birthYear'] }
-  | { field: 'birthMonth'; value: WelcomeDraft['birthMonth'] }
-  | { field: 'gender'; value: WelcomeDraft['gender'] }
-  | { field: 'regionCode'; value: WelcomeDraft['regionCode'] }
+export type OnboardingFieldUpdate =
+  | { field: 'birthYear'; value: OnboardingDraft['birthYear'] }
+  | { field: 'birthMonth'; value: OnboardingDraft['birthMonth'] }
+  | { field: 'gender'; value: OnboardingDraft['gender'] }
+  | { field: 'regionCode'; value: OnboardingDraft['regionCode'] }
 
-export const emptyWelcomeDraft: WelcomeDraft = {
+export const emptyOnboardingDraft: OnboardingDraft = {
   birthYear: '',
   birthMonth: '',
   gender: '',
@@ -38,10 +38,10 @@ export const emptyWelcomeDraft: WelcomeDraft = {
  * 表紙で始めて、問いを1枚ずつ置き、最後の1枚で書いたものを見せる。
  * 問いを1枚にまとめないのは、フォームではなく絵本として読ませるため。
  */
-export const WELCOME_PAGES = ['cover', 'birth', 'gender', 'region', 'done'] as const
-export type WelcomePage = (typeof WELCOME_PAGES)[number]
+export const ONBOARDING_PAGES = ['cover', 'birth', 'gender', 'region', 'done'] as const
+export type OnboardingPage = (typeof ONBOARDING_PAGES)[number]
 
-export const LAST_PAGE_INDEX = WELCOME_PAGES.length - 1
+export const LAST_PAGE_INDEX = ONBOARDING_PAGES.length - 1
 
 /** しおりを貼る紙だけを並べる。表紙と仕上げの紙には問いがない。 */
 const QUESTION_PAGES = ['birth', 'gender', 'region'] as const
@@ -53,7 +53,7 @@ type QuestionPage = (typeof QUESTION_PAGES)[number]
  * feed の themePalette を直接読まないのは、画面ごとの色の決め方が
  * 別のフィーチャの都合で変わらないようにするため。値だけをそろえる。
  */
-export type WelcomePalette = {
+export type OnboardingPalette = {
   /** 紙の地色。 */
   tint: string
   /** しおりの色。 */
@@ -62,7 +62,7 @@ export type WelcomePalette = {
   back: string
 }
 
-const palettes: readonly WelcomePalette[] = [
+const palettes: readonly OnboardingPalette[] = [
   { tint: '#fffcf1', slip: '#f8d9b0', back: '#f5a86d' },
   { tint: '#fcfdf4', slip: '#cbe3b8', back: '#93cc78' },
   { tint: '#fbfcf8', slip: '#c9d6ef', back: '#84b0e6' },
@@ -73,13 +73,13 @@ const palettes: readonly WelcomePalette[] = [
 /** 表紙の裏。フィードの表紙と同じ色にして、同じノートとして扱う。 */
 export const COVER_BACK_COLOR = '#a894dd'
 
-export function paletteForIndex(index: number): WelcomePalette {
+export function paletteForIndex(index: number): OnboardingPalette {
   const slot = ((index % palettes.length) + palettes.length) % palettes.length
   return palettes[slot]
 }
 
 /** しおり1枚。答えた項目が、答えた順に紙の右端へ増えていく。 */
-export type WelcomeSlip = {
+export type OnboardingSlip = {
   page: QuestionPage
   index: number
   label: string
@@ -99,7 +99,7 @@ function regionLabel(regionCode: RegionCode | ''): string {
  * 年月は確かめに通ったものだけを載せる。直してもらう値をしおりにすると、
  * 書き終えたものとして数えたことになる。
  */
-function slipLabel(page: QuestionPage, draft: WelcomeDraft): string {
+function slipLabel(page: QuestionPage, draft: OnboardingDraft): string {
   switch (page) {
     case 'birth':
       return isBirthWritten(draft) && birthError(draft) === null
@@ -112,19 +112,19 @@ function slipLabel(page: QuestionPage, draft: WelcomeDraft): string {
   }
 }
 
-export function welcomeSlips(draft: WelcomeDraft): WelcomeSlip[] {
+export function onboardingSlips(draft: OnboardingDraft): OnboardingSlip[] {
   return QUESTION_PAGES.flatMap((page) => {
     const label = slipLabel(page, draft)
     if (!label) return []
 
-    const index = WELCOME_PAGES.indexOf(page)
+    const index = ONBOARDING_PAGES.indexOf(page)
     return [{ page, index, label, slip: paletteForIndex(index).slip }]
   })
 }
 
 const MIN_BIRTH_YEAR = 1900
 
-function isBirthWritten(draft: WelcomeDraft): boolean {
+function isBirthWritten(draft: OnboardingDraft): boolean {
   return draft.birthYear !== '' && draft.birthMonth !== ''
 }
 
@@ -134,7 +134,7 @@ function isBirthWritten(draft: WelcomeDraft): boolean {
  * 同じ条件をバックエンドも持っているが、書き終えた紙を送ってから
  * 差し戻すと、めくった先で戻されることになる。書いた紙の上で伝える。
  */
-export function birthError(draft: WelcomeDraft, now = new Date()): string | null {
+export function birthError(draft: OnboardingDraft, now = new Date()): string | null {
   if (!isBirthWritten(draft)) return null
 
   const year = Number(draft.birthYear)
@@ -154,7 +154,11 @@ export function birthError(draft: WelcomeDraft, now = new Date()): string | null
 }
 
 /** その紙を書き終えたか。書き終えた紙だけ、次へめくれる。 */
-export function isPageAnswered(page: WelcomePage, draft: WelcomeDraft, now = new Date()): boolean {
+export function isPageAnswered(
+  page: OnboardingPage,
+  draft: OnboardingDraft,
+  now = new Date(),
+): boolean {
   switch (page) {
     case 'cover':
       return true
@@ -170,7 +174,10 @@ export function isPageAnswered(page: WelcomePage, draft: WelcomeDraft, now = new
 }
 
 /** 4項目がそろっていれば送れる形にする。ひとつでも欠けていれば送らない。 */
-export function toUserProfileInput(draft: WelcomeDraft, now = new Date()): UserProfileInput | null {
+export function toUserProfileInput(
+  draft: OnboardingDraft,
+  now = new Date(),
+): UserProfileInput | null {
   const { birthYear, birthMonth, gender, regionCode } = draft
   if (birthYear === '' || birthMonth === '' || gender === '' || regionCode === '') return null
   if (birthError(draft, now) !== null) return null

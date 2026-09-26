@@ -41,13 +41,8 @@
 .stackMotion {
   width: 100%;
   min-width: 0;
-  transform: translateY(var(--lift, 0px)) scale(var(--stack-scale, 0.84));
-  transform-origin: center;
+  transform: translateY(var(--lift, 0px));
   transition: transform var(--lift-duration, 760ms) cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.stackMotion.stackOpening {
-  --stack-scale: 1;
 }
 
 .stack {
