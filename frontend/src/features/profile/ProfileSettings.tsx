@@ -131,18 +131,24 @@ function useProfileSettings() {
 }
 
 export function ProfileSettings() {
-  const { t, message } = useTranslation()
-
   const { language } = useDisplaySettings()
-  const {
-    authStatus,
-    effectiveProfile,
-    canSaveProfile,
-    profileStatus,
-    profileError,
-    updateField,
-    saveProfile,
-  } = useProfileSettings()
+  const profile = useProfileSettings()
+  return <ProfileSettingsView {...profile} language={language} />
+}
+
+function ProfileSettingsView({
+  language,
+  authStatus,
+  effectiveProfile,
+  canSaveProfile,
+  profileStatus,
+  profileError,
+  updateField,
+  saveProfile,
+}: ReturnType<typeof useProfileSettings> & {
+  language: ReturnType<typeof useDisplaySettings>['language']
+}) {
+  const { t, message } = useTranslation()
   const isSaving = profileStatus === 'saving'
   const profileMessage =
     profileStatus === 'saved' ? t('profile.saved') : profileError ? message(profileError) : null

@@ -1,7 +1,6 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import { Link } from 'react-router'
 import { LoginGuide } from '../../app/router'
-import type { UseConcernReactionResult } from '../reaction/useConcernReaction'
 import type { ConcernDetail } from './concernDetailTypes'
 import {
   ageGroupLabel,
@@ -17,19 +16,22 @@ import { TranslationNotice } from '../../shared/components/TranslationNotice'
 type ConcernDetailViewProps = {
   concern: ConcernDetail
   isLiff: boolean
-  isAuthenticated: boolean
   showLogin: boolean
-  reaction: UseConcernReactionResult
-  onShowLogin: () => void
+  reaction: {
+    reactionCount: number
+    reacted: boolean
+    submitting: boolean
+    error: string | null
+  }
+  onReact: () => void
 }
 
 export function ConcernDetailView({
   concern,
   isLiff,
-  isAuthenticated,
   showLogin,
   reaction,
-  onShowLogin,
+  onReact,
 }: ConcernDetailViewProps) {
   const { t, message, language } = useTranslation()
 
@@ -59,16 +61,10 @@ export function ConcernDetailView({
             <button
               type="button"
               className={actionStyles.secondary}
-              onClick={() => {
-                if (!isAuthenticated) {
-                  onShowLogin()
-                  return
-                }
-                void reaction.react()
-              }}
-              disabled={reaction.reacted || reaction.status === 'submitting'}
+              onClick={onReact}
+              disabled={reaction.reacted || reaction.submitting}
               aria-pressed={reaction.reacted}
-              aria-busy={reaction.status === 'submitting'}
+              aria-busy={reaction.submitting}
             >
               {reaction.reacted ? t('reaction.supported') : t('reaction.support')} ·{' '}
               {t('common.count', { count: reaction.reactionCount })}
