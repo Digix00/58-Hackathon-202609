@@ -29,9 +29,11 @@ function SettingsPageView({
   speechEnabled,
   languageStatus,
   languageError,
-  setFontSize,
+  fontSizeStatus,
+  fontSizeError,
   setSpeechEnabled,
   selectLanguage,
+  selectFontSize,
   profileSettings,
 }: ReturnType<typeof useSettingsPage> & { profileSettings: ReactNode }) {
   const { t, message } = useTranslation()
@@ -42,8 +44,9 @@ function SettingsPageView({
         <h1 id="settings-title">{t('nav.settings')}</h1>
       </header>
 
-      <fieldset className={sharedStyles.group}>
+      <fieldset className={sharedStyles.group} disabled={fontSizeStatus === 'saving'}>
         <legend>{t('settings.fontSize')}</legend>
+        {authStatus !== 'authenticated' ? <p>{t('settings.fontSizeLoginHint')}</p> : null}
         <div className={sharedStyles.choiceRow}>
           {fontSizeOptions.map((option) => (
             <label key={option.value} className={sharedStyles.choice}>
@@ -51,12 +54,15 @@ function SettingsPageView({
                 type="radio"
                 name="font-size"
                 checked={fontSize === option.value}
-                onChange={() => setFontSize(option.value)}
+                onChange={() => void selectFontSize(option.value)}
               />
               <span>{t(option.label)}</span>
             </label>
           ))}
         </div>
+        {fontSizeStatus === 'saving' ? <p role="status">{t('common.saving')}</p> : null}
+        {fontSizeStatus === 'saved' ? <p role="status">{t('settings.fontSizeSaved')}</p> : null}
+        {fontSizeError ? <p role="alert">{message(fontSizeError)}</p> : null}
       </fieldset>
 
       <fieldset

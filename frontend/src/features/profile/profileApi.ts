@@ -1,7 +1,7 @@
 import { apiErrorMessage } from '../../i18n/translate'
 import { apiClient } from '../../lib/api'
 import type { AuthResponse } from '../../lib/api'
-import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
+import type { DisplayLanguage, FontSize } from '../../app/providers/DisplaySettingsContext'
 
 type AuthenticatedUser = NonNullable<AuthResponse['user']>
 
@@ -80,6 +80,9 @@ type ProfileApiClient = typeof apiClient & {
           'display-language': {
             $put: (args: { json: { displayLanguage: DisplayLanguage } }) => Promise<Response>
           }
+          'font-size': {
+            $put: (args: { json: { fontSize: FontSize } }) => Promise<Response>
+          }
         }
       }
     }
@@ -116,4 +119,22 @@ export async function updateUserDisplayLanguage(
     error?: { code?: string; message?: string }
   } | null
   return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.language') }
+}
+
+export async function updateUserFontSize(
+  fontSize: FontSize,
+): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
+  const response = await profileApiClient.api.v1.users.me['font-size'].$put({
+    json: { fontSize },
+  })
+  if (response.ok) {
+    const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
+    if (body?.user) return { ok: true, user: body.user }
+    return { ok: false, message: 'error.fontSize' }
+  }
+
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string; message?: string }
+  } | null
+  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.fontSize') }
 }
