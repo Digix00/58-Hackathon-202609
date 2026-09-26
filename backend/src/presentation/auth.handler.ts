@@ -1,7 +1,12 @@
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import {
+  DEFAULT_SESSION_MAX_AGE_SECONDS,
+  SESSION_COOKIE_NAME,
+  setSessionCookie,
+} from "../app/auth-cookie";
+import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import { isUserProfileCompleted, type User } from "../application/entity/user";
 import {
@@ -11,7 +16,6 @@ import {
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
 
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
   idToken: z.string().min(1).max(4096),
 });
@@ -19,7 +23,10 @@ const devLoginRequest = z.object({
   userKey: z.enum(["demo-a", "demo-b", "demo-c"]),
 });
 
-const factory = createFactory<{ Bindings: Bindings }>();
+const factory = createFactory<{
+  Bindings: Bindings;
+  Variables: AuthVariables;
+}>();
 
 export class AuthHandler {
   private readonly authUseCase: IAuthUseCase;
@@ -27,12 +34,12 @@ export class AuthHandler {
 
   constructor(
     authUseCase: IAuthUseCase,
-    sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS,
+    sessionMaxAgeSeconds = DEFAULT_SESSION_MAX_AGE_SECONDS,
   ) {
     this.authUseCase = authUseCase;
     this.sessionMaxAgeSeconds = Number.isFinite(sessionMaxAgeSeconds)
       ? Math.max(60, Math.floor(sessionMaxAgeSeconds))
-      : SESSION_MAX_AGE_SECONDS;
+      : DEFAULT_SESSION_MAX_AGE_SECONDS;
   }
 
   readonly line = factory.createHandlers(async (c) => {
@@ -133,6 +140,16 @@ export class AuthHandler {
 
   readonly session = factory.createHandlers(async (c) => {
     setRequestId(c);
+
+    // 認証ミドルウェアが既にセッションを解決している(通常のCookie復元、
+    // またはDEV_AUTH_ENABLEDによる自動ログイン)場合はその結果をそのまま返す。
+    // ここで getOrCreateSession を取り直すと、ミドルウェアが発行した
+    // Cookie/認証結果を匿名セッションで上書きしてしまう。
+    const resolved = c.var.auth;
+    if (resolved?.user) {
+      return c.json(toResponse(resolved));
+    }
+
     const result = await this.authUseCase.getOrCreateSession(
       getCookie(c, SESSION_COOKIE_NAME),
     );
@@ -158,20 +175,6 @@ function setRequestId(c: {
   const requestId = getRequestId(c.req.raw);
   c.header("X-Request-Id", requestId);
   return requestId;
-}
-
-function setSessionCookie(
-  c: Parameters<typeof setCookie>[0],
-  token: string,
-  maxAge: number,
-): void {
-  setCookie(c, SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax",
-    path: "/",
-    maxAge,
-  });
 }
 
 function toResponse(result: { user: User | null }) {

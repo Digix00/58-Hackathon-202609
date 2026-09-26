@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue.bold,green.bold --kill-others-on-fail \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
+    "dev": "make dev-vars frontend-env db-migrate db-seed-local && concurrently -n backend,frontend -c blue.bold,green.bold --kill-others-on-fail \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "build": "pnpm -r build",
