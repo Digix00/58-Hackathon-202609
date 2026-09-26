@@ -127,9 +127,7 @@ function FeedReaction({
         <CrayonHeart />
         {sparked ? <ReactionSpark /> : null}
       </span>
-      <span className={styles.label}>
-        {reacted ? t('reaction.remove') : t('reaction.support')}
-      </span>
+      <span className={styles.label}>{reacted ? t('reaction.remove') : t('reaction.support')}</span>
       <span className={styles.count} aria-label={t('reaction.count', { count: reactionCount })}>
         {reactionCount}
       </span>

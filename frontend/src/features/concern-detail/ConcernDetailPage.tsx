@@ -48,12 +48,12 @@ export function ConcernDetailPage() {
       concern={toConcernDetailViewModel(concern, language)}
       isLiff={runtime.status === 'ready' && runtime.mode === 'liff'}
       showLogin={showLogin}
-        reaction={{
-          reactionCount: reaction.reactionCount,
-          reacted: reaction.reacted,
-          submitting: reaction.status === 'submitting',
-          status: reaction.status,
-          error: reaction.error,
+      reaction={{
+        reactionCount: reaction.reactionCount,
+        reacted: reaction.reacted,
+        submitting: reaction.status === 'submitting',
+        status: reaction.status,
+        error: reaction.error,
       }}
       onReact={() => {
         if (authStatus !== 'authenticated') {

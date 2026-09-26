@@ -107,10 +107,7 @@ export function useConcernReaction({
 
   const changeReaction = useCallback(
     async (nextReacted: boolean): Promise<void> => {
-      if (
-        currentState.reacted === nextReacted ||
-        inFlightConcernIds.current.has(concernId)
-      ) {
+      if (currentState.reacted === nextReacted || inFlightConcernIds.current.has(concernId)) {
         return
       }
 
