@@ -269,6 +269,8 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | POST | /api/v1/quizzes/:quizId/answers | デモ必須 | LINEログイン（LIFF内のみ） | 対応付け回答 |
 | GET | /api/v1/history/summary | デモ必須 | LINEログイン（LIFF内のみ） | 閲覧・クラスタ・都道府県・属性・クイズ集計 |
 | GET | /api/v1/history/quiz-answers | デモ必須 | LINEログイン（LIFF内のみ） | クイズ回答履歴 |
+| GET | /api/v1/history/concerns | デモ必須 | LINEログイン（LIFF内のみ） | 自分が書いた声の履歴 |
+| GET | /api/v1/history/reactions | デモ必須 | LINEログイン（LIFF内のみ） | 自分が寄りそった声の履歴 |
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
@@ -832,6 +834,11 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~json
 {
   "viewedConcernCount": 24,
+  "contributions": {
+    "concernCount": 3,
+    "receivedReactionCount": 5,
+    "givenReactionCount": 8
+  },
   "nextSuggestion": {
     "kind": "theme",
     "label": "昼休み・食堂"
@@ -876,6 +883,9 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
+- contributions.concernCount は自分が書いた投稿のうち、削除済みを除いた件数。公開前・非公開も本人の件数には数える
+- contributions.receivedReactionCount は自分の投稿（削除済みを除く）が受け取った寄りそいの件数
+- contributions.givenReactionCount は自分が寄りそった投稿のうち、いま公開中のものの件数
 - nextSuggestion は本人以外の公開投稿の未読候補から、既読の公開投稿にまだ現れていないテーマまたは都道府県を1件返す。テーマ候補には処理完了済みの投稿と ready なラベル付きクラスタだけを使い、未読テーマを優先する。テーマ候補がない場合は未読の都道府県コードと表示名（`regionName`）を返し、該当する候補がない場合は null
 - clusters は既読履歴に現れた公開・処理完了済み投稿のうち、ready なラベル付きクラスタを集計する。`regions` は既読履歴に現れた公開投稿の都道府県コード別集計であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
@@ -914,6 +924,83 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 - 自分の quiz_attempts だけを返す
 - concernId、participantId、他ユーザーの情報は履歴一覧には含めない
 - 並びは answeredAt DESC, quizId DESC とする
+
+### 6.3 GET /api/v1/history/concerns
+
+自分が書いた声を新しい順に返す。
+
+#### Query
+
+| Param | 必須 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| limit | 任意 | 10 | 1〜50 |
+| cursor | 任意 | なし | opaque cursor。6.4 と同じ形式 |
+| language | 任意 | 1.8 の規則 | original、jaHira、en。本文の選択と属性の表示名に使う |
+
+#### Response
+
+~~~json
+{
+  "items": [
+    {
+      "id": "concern_01J...",
+      "body": "食堂が混んでいて昼休みに休めない",
+      "language": "ja",
+      "attributes": {
+        "ageGroup": "20s",
+        "ageGroupName": "20代",
+        "gender": "female",
+        "genderName": "女性",
+        "regionCode": "osaka",
+        "regionName": "大阪府"
+      },
+      "representations": {
+        "jaHira": "ready",
+        "en": "pending"
+      },
+      "cluster": {
+        "id": "cluster_01J...",
+        "label": "昼休み・食堂",
+        "summary": "休憩場所が足りない声"
+      },
+      "reactionCount": 3,
+      "visibilityStatus": "published",
+      "processingStatus": "completed",
+      "reactedAt": null,
+      "createdAt": "2026-09-21T00:20:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+~~~
+
+- 自分の投稿だけを返す。削除済みだけを除き、公開前・非公開の投稿も本人には返す
+- `visibilityStatus` が published 以外の投稿は 3.3 の詳細 API では取得できないため、画面から詳細への導線は出さない
+- 本文と `language` の選び方、`representations` の状態は 3.2 のフィードと同じ規則にそろえる
+- reactedAt は常に null とする。並びは createdAt DESC, id DESC とする
+- 投稿者の内部 userId は返さない
+- LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+
+### 6.4 GET /api/v1/history/reactions
+
+自分が寄りそった声を、寄りそった順に返す。
+
+#### Query
+
+6.3 と同じ（limit は 1〜50、既定値 10）。
+
+#### Response
+
+6.3 と同じ形。`reactedAt` に寄りそった日時が入る。
+
+- いま公開中の投稿だけを返す。相手が非公開へ変えた投稿は履歴からも外す
+- 並びは reactedAt DESC, id DESC とする
+- 投稿者の内部 userId は返さない
+- LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+
+### 6.5 履歴一覧の cursor
+
+6.3 と 6.4 の cursor は、並び順の基準日時（`sortedAt`）と投稿IDの組を base64url で包んだ opaque な値とする。復号できない cursor は 400 INVALID_CURSOR とする。cursor には userId を含めないため、書き換えても他人の履歴は読み出せない。
 
 ## 7. 音声 API
 
