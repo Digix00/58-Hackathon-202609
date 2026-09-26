@@ -10,6 +10,7 @@
     "format:check": "prettier --check .",
     "lint": "oxlint",
     "test:i18n": "node --experimental-strip-types --test tests/i18n.test.mjs",
+    "test:hooks": "node --experimental-strip-types --test tests/hooks-boundaries.test.mjs",
     "preview": "vite preview",
     "deploy": "wrangler deploy"
   },

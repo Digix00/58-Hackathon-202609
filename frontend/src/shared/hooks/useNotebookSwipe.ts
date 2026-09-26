@@ -20,7 +20,15 @@ export function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-/** ノートの横スワイプ、ドラッグ表示、矢印キー操作を画面間で共通化する。 */
+/** ノートの横スワイプ、ドラッグ表示、矢印キー操作を画面間で共通化する。
+ * Intent: ノートの横スワイプと左右キーによる移動を局所化する。
+ * Boundary: 前後の移動可否とコールバックを受け取り、DOMイベントハンドラーを返す。
+ * State Modeling: 描画を伴わないジェスチャー履歴とフレーム予約はrefで保持する。
+ * Update Surface: タッチ開始・移動・終了・中断とリンククリックのハンドラー。
+ * Hidden Complexity: 縦スクロールとの区別、スワイプ後の誤クリック抑止、入力欄のキー除外。
+ * Composition: featureの移動Hookと紙面のDOMイベントを接続する。
+ * Test Notes: 縦横の判定、中断、入力中の左右キー、購読解除を確認する。
+ */
 export function useNotebookSwipe({
   canGoNext,
   canGoPrevious,

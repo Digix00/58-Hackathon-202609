@@ -53,6 +53,10 @@ function postSubmitReducer(_state: PostSubmitState, action: PostSubmitAction): P
  * Intent: 投稿入力の検証、送信、結果表示までの状態遷移を局所化する。
  * Boundary: 投稿入力を受け取り、画面が必要とする状態と submit/reset 操作だけを返す。
  * State modeling: status、入力エラー、送信結果、通信エラーを reducer で同時に更新し、不整合な組み合わせを防ぐ。
+ * Update Surface: submit / reset。
+ * Hidden Complexity: 同期的な二重送信ロックと入力検証、API失敗を扱う。
+ * Composition: usePostDraftの本文をPostPageが渡し、保存成功後に完了表示へ移る。
+ * Test Notes: 空本文・通信失敗・連続送信・成功結果の保持を確認する。
  */
 export function usePostSubmit(): UsePostSubmitResult {
   const [state, dispatch] = useReducer(postSubmitReducer, initialPostSubmitState)

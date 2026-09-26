@@ -1,20 +1,14 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import { Link } from 'react-router'
 import { LoginGuide } from '../../app/router'
-import type { ConcernDetail } from './concernDetailTypes'
-import {
-  ageGroupLabel,
-  createdLabel,
-  genderLabel,
-  regionLabel,
-} from '../../shared/concernPresentation'
+import type { ConcernDetailViewModel } from './concernDetailViewModel'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
 
 type ConcernDetailViewProps = {
-  concern: ConcernDetail
+  concern: ConcernDetailViewModel
   isLiff: boolean
   showLogin: boolean
   reaction: {
@@ -33,14 +27,7 @@ export function ConcernDetailView({
   reaction,
   onReact,
 }: ConcernDetailViewProps) {
-  const { t, message, language } = useTranslation()
-
-  const attributes = [
-    ageGroupLabel(concern.attributes.ageGroup, language),
-    genderLabel(concern.attributes.gender, language),
-    concern.attributes.regionName ?? regionLabel(concern.attributes.regionCode, language),
-    createdLabel(concern.createdAt, language),
-  ].filter(Boolean)
+  const { t, message } = useTranslation()
 
   return (
     <div className={screen.page}>
@@ -48,14 +35,11 @@ export function ConcernDetailView({
         {t('common.backToFeedArrow')}
       </Link>
       <article className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}>
-        <p className={screen.meta}>{attributes.join(' · ')}</p>
-        <h1 className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
+        <p className={screen.meta}>{concern.attributesLabel}</p>
+        <h1 className={screen.body} lang={concern.bodyLanguage}>
           {concern.body}
         </h1>
-        <TranslationNotice
-          actualLanguage={concern.language}
-          status={language === 'original' ? undefined : concern.representations[language]}
-        />
+        <TranslationNotice actualLanguage={concern.language} status={concern.translationStatus} />
         {isLiff ? (
           <>
             <button

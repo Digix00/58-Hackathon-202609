@@ -109,6 +109,15 @@ function StepTabs({ current }: { current: Step }) {
  */
 const SUPPORTS_FIELD_SIZING = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
 
+/**
+ * Intent: 本文編集に追従する紙の高さ計測を局所化する。
+ * Boundary: textareaのrefと本文だけを受け取り、値や更新操作を公開しない。
+ * State Modeling: 前回本文は計測判断にだけ必要なのでrefで保持する。
+ * Update Surface: なし。本文変更後にDOMの高さを調整する。
+ * Hidden Complexity: field-sizingの対応判定、削除時の縮小、行送りへの丸め。
+ * Composition: 入力Viewが本文を渡し、表示の高さだけを調整する。
+ * Test Notes: 追記・削除・置換・CSS対応環境での計測省略を確認する。
+ */
 function useGrowingSheet(ref: RefObject<HTMLTextAreaElement | null>, body: string) {
   const previousBody = useRef(body)
 

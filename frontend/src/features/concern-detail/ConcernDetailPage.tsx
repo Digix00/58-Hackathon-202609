@@ -9,9 +9,10 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { ConcernDetailView } from './ConcernDetailView'
 import { useConcernDetail } from './useConcernDetail'
+import { toConcernDetailViewModel } from './concernDetailViewModel'
 
 export function ConcernDetailPage() {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
 
   const { id } = useParams()
   const { state: runtime } = useRuntime()
@@ -44,7 +45,7 @@ export function ConcernDetailPage() {
 
   return (
     <ConcernDetailView
-      concern={concern}
+      concern={toConcernDetailViewModel(concern, language)}
       isLiff={runtime.status === 'ready' && runtime.mode === 'liff'}
       showLogin={showLogin}
       reaction={{

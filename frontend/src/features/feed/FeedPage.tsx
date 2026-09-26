@@ -34,11 +34,9 @@ import {
   type FeedConcern,
   type FeedFilter,
   type FeedFilterOption,
-  toFeedConcern,
 } from './feedViewModel'
-import { useFeedReaderNavigation, useFeedReaderState } from './useFeedReader'
+import { useFeedReader } from './useFeedReader'
 import type { TurningPage } from './useFeedReader'
-import { useFeed } from './useFeed'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
@@ -522,22 +520,12 @@ export function FeedPage() {
   const { state: runtime } = useRuntime()
   const { language } = useDisplaySettings()
   const { status: authStatus, user } = useAuth()
-  const [reader, dispatch] = useFeedReaderState()
   const feedContext = resolveFeedContext(runtime, authStatus)
-  const feed = useFeed({
+  const readerView = useFeedReader({
     language,
     enabled: feedContext.enabled,
     sort: feedContext.sort,
-    gender: reader.filter.gender || undefined,
-    regionCode: reader.filter.region || undefined,
     authUserId: user?.id,
-  })
-  const concerns = feed.items.map((item) => toFeedConcern(item, language))
-  const readerView = useFeedReaderNavigation({
-    state: reader,
-    dispatch,
-    concerns,
-    feed,
   })
   const {
     showInitialLoading,
@@ -625,13 +613,13 @@ export function FeedPage() {
     <FeedPageView
       showInitialLoading={showInitialLoading}
       showInitialError={showInitialError}
-      initialError={feed.error}
+      initialError={readerView.feedError}
       stageProps={stageProps}
       actionsProps={actionsProps}
-      loadingMore={feed.status === 'loadingMore'}
-      showPaginationError={feed.status === 'error' && concerns.length > 0}
-      paginationError={feed.error}
-      onRetry={feed.retry}
+      loadingMore={readerView.feedStatus === 'loadingMore'}
+      showPaginationError={readerView.feedStatus === 'error' && readerView.total > 0}
+      paginationError={readerView.feedError}
+      onRetry={readerView.retry}
       reactionAnnouncement={
         reaction.reacted ? t('reaction.announcementFull', { count: reaction.reactionCount }) : ''
       }
