@@ -1,16 +1,4 @@
-import {
-  and,
-  count,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNull,
-  lt,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import {
@@ -367,24 +355,6 @@ export class D1ConcernRepository implements ConcernRepository {
         })),
       )
       .run();
-  }
-
-  async listUnopenedFeedExposures(userId: string, since: string) {
-    return this.db
-      .select({
-        concernId: feedImpressions.concernId,
-        count: count(),
-      })
-      .from(feedImpressions)
-      .where(
-        and(
-          eq(feedImpressions.userId, userId),
-          gte(feedImpressions.exposedAt, since),
-          isNull(feedImpressions.openedAt),
-        ),
-      )
-      .groupBy(feedImpressions.concernId)
-      .all();
   }
 }
 

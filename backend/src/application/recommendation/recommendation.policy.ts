@@ -33,9 +33,6 @@ export const RECOMMENDATION_WEIGHTS = {
   clusterHistoryShare: 300,
   /** ページ内の同一クラスタ上限に達した候補の減点。 */
   clusterOverPageCap: 400,
-  /** 開かれずに表示された回数（初回を除く）ごとの減点と、数える回数の上限。 */
-  unopenedExposure: 300,
-  maxCountedUnopenedExposures: 3,
   /** 新しさの最大加点と、加点が半分になるまでの時間。 */
   freshness: 150,
   freshnessHalfLifeHours: 24,
@@ -55,8 +52,6 @@ export interface RankConcernFeedOptions {
   viewerRegionCode?: string | null;
   /** 1ページの件数。ページ内の上限はこの件数ごとに数え直す。 */
   pageSize?: number;
-  /** 投稿ごとの、開かれずに表示された回数。 */
-  unopenedExposureCounts?: ReadonlyMap<string, number>;
   /** 新しさと日替わりのゆらぎの基準時刻。未指定なら両方とも使わない。 */
   now?: Date;
 }
@@ -82,7 +77,7 @@ interface PageState {
  * - 未読、閲覧履歴にないクラスタ、都道府県・年代の分散を加点する
  * - 閲覧者の近く（同じ都道府県・地方）の悩みを、1ページの一定割合まで加点する
  * - 直近の閲覧でよく読んだクラスタと、ページ内で上限に達したクラスタを減点する
- * - 開かれずに何度も表示された投稿を減点し、新しい投稿と日替わりのゆらぎを加点する
+ * - 新しい投稿と日替わりのゆらぎを加点し、同じ並びが続かないようにする
  * - 直前と同じクラスタは、異なるクラスタが残っている限り連続させない
  *
  * AIには依存せず、同じ入力なら同じ結果になる決定的な処理とする。
@@ -139,14 +134,6 @@ export function rankConcernFeedCandidates(
           ? weights.unseenCluster
           : -weights.clusterHistoryShare * (viewedCount / history.length);
     }
-    const unopenedCount =
-      options.unopenedExposureCounts?.get(candidate.concern.id) ?? 0;
-    baseScore -=
-      weights.unopenedExposure *
-      Math.min(
-        Math.max(unopenedCount - 1, 0),
-        weights.maxCountedUnopenedExposures,
-      );
     if (options.now) {
       baseScore += freshnessScore(candidate.concern.createdAt, options.now);
     }

@@ -3,7 +3,6 @@ import type {
   ConcernFeedCandidate,
   FeedImpression,
   RecommendationHistory,
-  UnopenedFeedExposure,
 } from "../entity/feed";
 
 export interface ConcernListCursor {
@@ -79,9 +78,4 @@ export interface ConcernRepository {
     limit: number,
   ): Promise<RecommendationHistory[]>;
   recordFeedImpressions?(impressions: FeedImpression[]): Promise<void>;
-  /** since以降に表示され、まだ開かれていない回数を投稿ごとに返す。 */
-  listUnopenedFeedExposures?(
-    userId: string,
-    since: string,
-  ): Promise<UnopenedFeedExposure[]>;
 }

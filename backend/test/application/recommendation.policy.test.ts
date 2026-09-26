@@ -314,35 +314,6 @@ describe("rankConcernFeedCandidates", () => {
     ]);
   });
 
-  it("demotes posts shown repeatedly without being opened", () => {
-    const ranked = rankConcernFeedCandidates(
-      [
-        candidate({ id: "ignored", clusterId: "c-1", day: 9 }),
-        candidate({ id: "fresh", clusterId: "c-2", day: 1 }),
-      ],
-      [],
-      { unopenedExposureCounts: new Map([["ignored", 3]]) },
-    );
-
-    expect(ranked.map((item) => item.concern.id)).toEqual(["fresh", "ignored"]);
-  });
-
-  it("keeps a single unopened exposure from demoting a post", () => {
-    const ranked = rankConcernFeedCandidates(
-      [
-        candidate({ id: "seen-once", clusterId: "c-1", day: 9 }),
-        candidate({ id: "other", clusterId: "c-2", day: 1 }),
-      ],
-      [],
-      { unopenedExposureCounts: new Map([["seen-once", 1]]) },
-    );
-
-    expect(ranked.map((item) => item.concern.id)).toEqual([
-      "seen-once",
-      "other",
-    ]);
-  });
-
   it("returns the same order for the same viewer and day", () => {
     const candidates = Array.from({ length: 12 }, (_, index) =>
       candidate({ id: `c-${index}`, day: 1 }),

@@ -175,7 +175,7 @@ describe("ConcernUseCase recommendation feed", () => {
     });
   });
 
-  it("passes the viewer region and unopened exposures to the ranking", async () => {
+  it("passes the viewer region to the ranking", async () => {
     const candidate = (id: string, regionCode: string, createdAt: string) => ({
       concern: new Concern({
         id,
@@ -187,23 +187,18 @@ describe("ConcernUseCase recommendation feed", () => {
       cluster: null,
       viewed: false,
     });
-    let requestedSince: string | undefined;
     const repository: ConcernRepository = {
       insert: async (value) => value,
       listPublished: async () => ({ items: [], hasMore: false }),
       findPublishedById: async () => null,
       listFeed: async () => ({
         items: [
-          candidate("tokyo-ignored", "tokyo", "2026-09-26T00:00:00.000Z"),
+          candidate("tokyo-newest", "tokyo", "2026-09-26T00:00:00.000Z"),
           candidate("tokyo-new", "tokyo", "2026-09-25T00:00:00.000Z"),
           candidate("osaka-old", "osaka", "2026-09-20T00:00:00.000Z"),
         ],
         hasMore: false,
       }),
-      listUnopenedFeedExposures: async (_userId, since) => {
-        requestedSince = since;
-        return [{ concernId: "tokyo-ignored", count: 4 }];
-      },
     };
     const useCase = new ConcernUseCase(
       repository,
@@ -217,50 +212,11 @@ describe("ConcernUseCase recommendation feed", () => {
       viewerRegionCode: "osaka",
     });
 
-    expect(requestedSince).toBe("2026-09-19T12:00:00.000Z");
-    expect(result.items.map((item) => item.concern.id)).toEqual([
-      "osaka-old",
-      "tokyo-new",
-      "tokyo-ignored",
-    ]);
+    // 大阪の投稿は古くても、閲覧者と同じ県として先頭に来る。
+    expect(result.items[0]?.concern.id).toBe("osaka-old");
     expect(result.items[0]?.recommendation).toEqual({
       strategy: "recommended",
       reasonCode: "nearby_prefecture",
     });
-  });
-
-  it("keeps recommending when unopened exposures cannot be loaded", async () => {
-    const repository: ConcernRepository = {
-      insert: async (value) => value,
-      listPublished: async () => ({ items: [], hasMore: false }),
-      findPublishedById: async () => null,
-      listFeed: async () => ({
-        items: [
-          {
-            concern: new Concern({
-              id: "concern-1",
-              userId: "author-1",
-              body: "推薦対象の投稿",
-              createdAt: "2026-09-22T00:00:00.000Z",
-            }),
-            cluster: null,
-            viewed: false,
-          },
-        ],
-        hasMore: false,
-      }),
-      listUnopenedFeedExposures: async () => {
-        throw new Error("impressions unavailable");
-      },
-    };
-    const useCase = new ConcernUseCase(repository);
-
-    const result = await useCase.listFeed({
-      limit: 1,
-      sort: "recommended",
-      userId: "user-1",
-    });
-
-    expect(result.items[0]?.recommendation.strategy).toBe("recommended");
   });
 });

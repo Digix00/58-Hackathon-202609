@@ -37,12 +37,6 @@ export interface RecommendationHistory {
   viewedAt: string;
 }
 
-/** 表示されたが開かれていない回数。見飽きた投稿を下げるために使う。 */
-export interface UnopenedFeedExposure {
-  concernId: string;
-  count: number;
-}
-
 export interface FeedRecommendation {
   strategy: RecommendationStrategy;
   reasonCode: RecommendationReasonCode;
