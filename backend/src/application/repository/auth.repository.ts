@@ -1,13 +1,13 @@
 import type { Session } from "../entity/session";
-import type { DisplayLanguage, User, UserProfile } from "../entity/user";
+import type { DisplaySettings, User, UserProfile } from "../entity/user";
 
 export interface UserRepository {
   selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
   selectById(userId: string): Promise<User | null>;
   updateProfile(userId: string, profile: UserProfile): Promise<User>;
-  updateDisplayLanguage(
+  updateDisplaySettings(
     userId: string,
-    displayLanguage: DisplayLanguage,
+    settings: DisplaySettings,
   ): Promise<User>;
 }
 

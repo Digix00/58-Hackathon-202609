@@ -81,7 +81,7 @@ function createPublicApp({
     .put("/api/v1/users/me", ...userHandler.updateProfile)
     .put(
       "/api/v1/users/me/display-language",
-      ...userHandler.updateDisplayLanguage,
+      ...userHandler.updateDisplaySettings,
     )
     .get("/api/v1/history/summary", ...historyHandler.getSummary)
     .get("/api/v1/history/quiz-answers", ...historyHandler.getQuizAnswers)

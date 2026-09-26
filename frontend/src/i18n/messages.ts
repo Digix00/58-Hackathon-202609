@@ -68,6 +68,10 @@ export const messages = {
     '表示形式を保存できませんでした',
     'Unable to save your language. Please try again.',
   ],
+  'error.fontSize': [
+    '文字サイズを保存できませんでした',
+    'Unable to save your text size. Please try again.',
+  ],
   'error.history': [
     '学習履歴を読み込めませんでした。時間をおいて再試行してください',
     'Unable to load your history. Please try again later.',
@@ -158,6 +162,11 @@ export const messages = {
   'settings.fontSize': ['文字サイズ', 'Text size'],
   'settings.normal': ['標準', 'Standard'],
   'settings.large': ['大きく表示', 'Large'],
+  'settings.fontSizeLoginHint': [
+    'LINEでログインすると、文字サイズをアカウントに保存できます。',
+    'Log in with LINE to save your text size to your account.',
+  ],
+  'settings.fontSizeSaved': ['文字サイズを保存しました。', 'Your text size has been saved.'],
   'settings.language': ['表示することば', 'Display language'],
   'settings.original': ['原文', 'Japanese'],
   'settings.hiragana': ['ひらがな', 'Hiragana'],

@@ -1,7 +1,7 @@
 import { apiErrorMessage } from '../../i18n/translate'
 import { apiClient } from '../../lib/api'
 import type { AuthResponse } from '../../lib/api'
-import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
+import type { DisplayLanguage, FontSize } from '../../app/providers/DisplaySettingsContext'
 
 type AuthenticatedUser = NonNullable<AuthResponse['user']>
 
@@ -71,6 +71,11 @@ export type UserProfileInput = {
   regionCode: RegionCode
 }
 
+export type DisplaySettingsInput = {
+  displayLanguage?: DisplayLanguage
+  fontSize?: FontSize
+}
+
 type ProfileApiClient = typeof apiClient & {
   api: typeof apiClient.api & {
     v1: typeof apiClient.api.v1 & {
@@ -78,7 +83,7 @@ type ProfileApiClient = typeof apiClient & {
         me: {
           $put: (args: { json: UserProfileInput }) => Promise<Response>
           'display-language': {
-            $put: (args: { json: { displayLanguage: DisplayLanguage } }) => Promise<Response>
+            $put: (args: { json: DisplaySettingsInput }) => Promise<Response>
           }
         }
       }
@@ -100,20 +105,22 @@ export async function updateUserProfile(
   return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.profile') }
 }
 
-export async function updateUserDisplayLanguage(
-  displayLanguage: DisplayLanguage,
+/** 表示言語・文字サイズのうち、指定した項目だけをアカウントへ保存する。 */
+export async function updateUserDisplaySettings(
+  settings: DisplaySettingsInput,
+  fallbackMessage: 'error.language' | 'error.fontSize',
 ): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
   const response = await profileApiClient.api.v1.users.me['display-language'].$put({
-    json: { displayLanguage },
+    json: settings,
   })
   if (response.ok) {
     const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
     if (body?.user) return { ok: true, user: body.user }
-    return { ok: false, message: 'error.language' }
+    return { ok: false, message: fallbackMessage }
   }
 
   const body = (await response.json().catch(() => null)) as {
     error?: { code?: string; message?: string }
   } | null
-  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.language') }
+  return { ok: false, message: apiErrorMessage(body?.error?.code, fallbackMessage) }
 }
