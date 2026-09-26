@@ -1,6 +1,9 @@
 import { GENDERS, type Gender } from "../application/entity/concern";
 import type { ConcernSort } from "../application/entity/feed";
-import { RECOMMENDATION_ALGORITHM_VERSION } from "../application/recommendation/recommendation.policy";
+import {
+  RECOMMENDATION_ALGORITHM_VERSION,
+  RECOMMENDATION_CYCLE_LENGTH,
+} from "../application/recommendation/recommendation.policy";
 import type {
   ConcernFeedCursor,
   ConcernListCursor,
@@ -9,7 +12,7 @@ import type {
 
 const LEGACY_CURSOR_VERSION = 1;
 const CURSOR_VERSION = 3;
-const RECOMMENDED_CURSOR_VERSION = 6;
+const RECOMMENDED_CURSOR_VERSION = 7;
 const MAX_PENDING_CONCERN_IDS = 300;
 const MAX_RETURNED_CONCERN_IDS = 300;
 const MAX_CURSOR_ID_LENGTH = 200;
@@ -77,6 +80,7 @@ export function encodeConcernCursor(
           sourceCursor: cursor,
           pendingConcernIds: [],
           lastClusterId: null,
+          nextSlot: 0,
           candidateWindowCursor: cursor,
           returnedConcernIds: [],
           sort: "recommended" as const,
@@ -140,6 +144,7 @@ export function decodeConcernCursor(
           sourceCursor: parsed.sourceCursor,
           pendingConcernIds: parsed.pendingConcernIds,
           lastClusterId: parsed.lastClusterId,
+          nextSlot: parsed.nextSlot,
           candidateWindowCursor: parsed.candidateWindowCursor,
           returnedConcernIds: parsed.returnedConcernIds,
         },
@@ -198,6 +203,10 @@ function isEncodedRecommendedConcernCursor(
     cursor.version === RECOMMENDED_CURSOR_VERSION &&
     cursor.algorithmVersion === RECOMMENDATION_ALGORITHM_VERSION &&
     cursor.type === "recommended" &&
+    typeof cursor.nextSlot === "number" &&
+    Number.isInteger(cursor.nextSlot) &&
+    cursor.nextSlot >= 0 &&
+    cursor.nextSlot < RECOMMENDATION_CYCLE_LENGTH &&
     cursor.sort === "recommended" &&
     (cursor.regionCode === null || typeof cursor.regionCode === "string") &&
     (cursor.clusterId === null || typeof cursor.clusterId === "string") &&

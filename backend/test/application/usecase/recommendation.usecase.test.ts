@@ -152,6 +152,7 @@ describe("ConcernUseCase recommendation feed", () => {
       },
       pendingConcernIds: ["pending-candidate"],
       lastClusterId: "cluster-old",
+      nextSlot: 2,
       candidateWindowCursor: null,
       returnedConcernIds: ["returned-candidate"],
     };

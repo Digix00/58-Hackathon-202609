@@ -171,6 +171,11 @@ export class D1ConcernRepository implements ConcernRepository {
         view: concernViews,
         reactionCount,
         reacted,
+        readerCount: sql<number>`(
+          select count(*) from ${concernViews}
+          where ${concernViews.concernId} = ${concerns.id}
+            and ${concernViews.actorKey} <> ${concerns.userId}
+        )`,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -245,6 +250,11 @@ export class D1ConcernRepository implements ConcernRepository {
         view: concernViews,
         reactionCount,
         reacted,
+        readerCount: sql<number>`(
+          select count(*) from ${concernViews}
+          where ${concernViews.concernId} = ${concerns.id}
+            and ${concernViews.actorKey} <> ${concerns.userId}
+        )`,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -289,6 +299,11 @@ export class D1ConcernRepository implements ConcernRepository {
         view: concernViews,
         reactionCount,
         reacted,
+        readerCount: sql<number>`(
+          select count(*) from ${concernViews}
+          where ${concernViews.concernId} = ${concerns.id}
+            and ${concernViews.actorKey} <> ${concerns.userId}
+        )`,
       })
       .from(concerns)
       .leftJoin(concernClusters, eq(concerns.clusterId, concernClusters.id))
@@ -399,6 +414,7 @@ function toFeedCandidate(
     cluster: typeof concernClusters.$inferSelect | null;
     view: typeof concernViews.$inferSelect | null;
     reactionCount?: number | null;
+    readerCount?: number | null;
     reacted?: number | boolean | null;
   },
   representations: readonly ConcernTextRepresentation[] = [],
@@ -411,6 +427,7 @@ function toFeedCandidate(
         ? toConcernCluster(row.cluster)
         : null,
     viewed: row.view !== null,
+    readerCount: row.readerCount ?? 0,
     reactionCount: row.reactionCount ?? 0,
     reacted: row.reacted === 1 || row.reacted === true,
   };

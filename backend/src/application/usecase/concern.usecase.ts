@@ -12,6 +12,7 @@ import {
 } from "../port/concern-processing-queue";
 import {
   RECOMMENDATION_ALGORITHM_VERSION,
+  RECOMMENDATION_CYCLE_LENGTH,
   rankConcernFeedCandidates,
 } from "../recommendation/recommendation.policy";
 import type {
@@ -192,6 +193,7 @@ export class ConcernUseCase implements IConcernUseCase {
       Math.max(input.limit * 5, input.limit + 1),
     );
     const recommendationCursor = input.recommendationCursor;
+    const startSlot = recommendationCursor?.nextSlot ?? 0;
     const sourceCursor = recommendationCursor
       ? recommendationCursor.sourceCursor
       : (input.cursor ?? null);
@@ -241,6 +243,7 @@ export class ConcernUseCase implements IConcernUseCase {
         candidateWindow,
         history,
         recommendationCursor?.lastClusterId,
+        startSlot,
       );
       const items = ranked.slice(0, input.limit);
       const result = {
@@ -251,6 +254,7 @@ export class ConcernUseCase implements IConcernUseCase {
           nextSourceCursor,
           candidateWindowCursor,
           returnedConcernIds,
+          startSlot,
         ),
       };
       await this.recordImpressions(input.userId ?? "", items);
@@ -306,6 +310,7 @@ export class ConcernUseCase implements IConcernUseCase {
           fallbackSourceCursor,
           candidateWindowCursor,
           fallbackReturnedConcernIds,
+          startSlot,
           restorationFailed ? pendingConcernIds : [],
         ),
       };
@@ -430,6 +435,7 @@ function toRecommendedCursor(
   sourceCursor: ConcernListCursor | null,
   candidateWindowCursor: ConcernListCursor | null,
   returnedConcernIds: string[],
+  startSlot: number,
   preservedPendingConcernIds: string[] = [],
 ): ConcernFeedCursor | null {
   const currentPageConcernIds = ranked
@@ -454,6 +460,8 @@ function toRecommendedCursor(
     sourceCursor,
     pendingConcernIds,
     lastClusterId: lastItem?.cluster?.id ?? null,
+    nextSlot:
+      (startSlot + currentPageConcernIds.length) % RECOMMENDATION_CYCLE_LENGTH,
     candidateWindowCursor,
     returnedConcernIds: allReturnedConcernIds,
   };

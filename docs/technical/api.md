@@ -453,12 +453,19 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - `attributes.regionName` の表示形式はログイン済みユーザーの `displayLanguage` に合わせる
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
-- sort=recommended はLINEログイン済みLIFFで、未読、クラスタの分散、都道府県の分散、新しさを使う
+- sort=recommended はLINEログイン済みLIFFで、未読を優先しながら「身近なテーマ → 未知のテーマ（未分類を含む） → 閲覧者数の少ない投稿」の3枠を繰り返す。詳細は [推薦設計](./recommendation.md) を参照する
+- 推薦では自分の投稿を除外し、属性未回答・未分類を理由に未読の重みを下げない。都道府県・性別は絞り込みにのみ使う
+- cursorは推薦枠の続きも保持する。アルゴリズムv3／推薦cursor v7へ変更したため、旧cursorはINVALID_CURSORとなり、先頭から再取得する
+- 閲覧者数は内部選定用であり、レスポンスへ含めない
 - 未ログインの取得で sort=recommended を指定した場合は、公開閲覧を継続するため sort=newest と同じ結果を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す
 - 推薦理由の code は画面側で表示文言へ変換する。サーバーは内部のスコアや個人識別情報を返さない
 
-reasonCode の初期値は次のとおり。
+reasonCode は次のとおり。new_cluster、region_diversity は既存データとの互換性のため型・表示変換に残すが、v3では新たに生成しない。
+
+- familiar_theme: 最近読んだテーマの別の投稿
+- discovery: 最近読んでいないテーマ、または未分類の投稿
+- less_heard: 候補の中で実際の閲覧者数が少ない投稿
 
 - unread_cluster: 未読のクラスタを優先
 - new_cluster: 最近読んでいないクラスタを優先

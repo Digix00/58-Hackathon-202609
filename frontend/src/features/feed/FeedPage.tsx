@@ -205,16 +205,19 @@ function FeedCard({
       >
         <p className={screen.body}>{concern.body}</p>
       </Link>
-      {reaction?.canReact ? (
-        <div className={styles.cardActions}>
-          <FeedReaction {...reaction} />
-          {reactionError ? (
-            <p className={styles.submitError} role="alert">
-              {reactionError}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <div className={styles.cardActions}>
+        <p className={styles.recommendationReason}>{concern.reason}</p>
+        {reaction?.canReact ? (
+          <>
+            <FeedReaction {...reaction} />
+            {reactionError ? (
+              <p className={styles.submitError} role="alert">
+                {reactionError}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
       {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
       <FeedNextCorner onNext={onNext} />
     </article>
