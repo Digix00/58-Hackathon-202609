@@ -490,7 +490,8 @@ reasonCode の初期値は次のとおり。
 - new_cluster: 最近読んでいないクラスタを優先
 - nearby_prefecture: 閲覧者のプロフィールと同じ都道府県の投稿
 - nearby_area: 閲覧者のプロフィールと同じ地方（8地方区分）の投稿
-- region_diversity: 都道府県の偏りを避けるため選択
+- region_diversity: 都道府県の偏りを避けるため選択（そのページでまだ選んでいない都道府県）
+- age_diversity: 年代の偏りを避けるため選択（そのページでまだ選んでいない年代）
 - newest: 新着順
 - fallback_newest: 推薦処理失敗時の新着順
 

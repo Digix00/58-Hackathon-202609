@@ -297,6 +297,30 @@ describe("rankConcernFeedCandidates", () => {
     ]);
   });
 
+  it("labels regional spread even for regions in the reading history", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        candidate({ id: "osaka-1", day: 9, regionCode: "osaka" }),
+        candidate({ id: "osaka-2", day: 8, regionCode: "osaka" }),
+        candidate({ id: "tokyo", day: 7, regionCode: "tokyo" }),
+      ],
+      [
+        {
+          clusterId: null,
+          regionCode: "tokyo",
+          viewedAt: "2026-09-01T00:00:00.000Z",
+        },
+      ],
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "osaka-1",
+      "tokyo",
+      "osaka-2",
+    ]);
+    expect(ranked[1]?.recommendation.reasonCode).toBe("region_diversity");
+  });
+
   it("spreads age groups within a page", () => {
     const ranked = rankConcernFeedCandidates(
       [
@@ -311,6 +335,11 @@ describe("rankConcernFeedCandidates", () => {
       "20s-1",
       "60s",
       "20s-2",
+    ]);
+    expect(ranked.map((item) => item.recommendation.reasonCode)).toEqual([
+      "age_diversity",
+      "age_diversity",
+      "newest",
     ]);
   });
 

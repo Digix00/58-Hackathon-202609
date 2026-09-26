@@ -15,6 +15,7 @@ export const RECOMMENDATION_REASON_LABELS = {
   nearby_prefecture: 'feed.nearbyPrefecture',
   nearby_area: 'feed.nearbyArea',
   region_diversity: 'feed.regionDiversity',
+  age_diversity: 'feed.ageDiversity',
   newest: 'feed.newest',
   fallback_newest: 'feed.newestFirst',
 } as const

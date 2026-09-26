@@ -200,6 +200,7 @@ export const messages = {
   'feed.newTheme': ['新しいテーマ', 'A new theme'],
   'feed.nearbyPrefecture': ['同じ県の声', 'From your prefecture'],
   'feed.nearbyArea': ['近くの地方の声', 'From your area'],
+  'feed.ageDiversity': ['ちがう年代の声', 'A different generation'],
   'feed.regionDiversity': ['地域の偏りを避けて', 'Voices from different regions'],
   'feed.newest': ['新着', 'New'],
   'feed.newestFirst': ['新着順', 'Newest first'],

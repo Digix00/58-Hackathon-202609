@@ -195,7 +195,6 @@ export function rankConcernFeedCandidates(
       recommendation: {
         strategy: "recommended",
         reasonCode: getReasonCode(best, page, {
-          viewedRegionCodes,
           clusterHistoryCounts,
           nearbyApplied,
         }),
@@ -272,20 +271,22 @@ function pageScore(
 
 /**
  * 候補を選出した理由をレスポンス用のコードに変換する。
- * 近くの悩み、未読クラスタ、未閲覧クラスタ、都道府県の分散、
- * クラスタの分散の順に判定し、いずれにも該当しない場合は新着順として扱う。
+ * 近くの悩み、未読クラスタ、未閲覧クラスタ、都道府県の分散、クラスタの分散、
+ * 年代の分散の順に判定し、いずれにも該当しない場合は新着順として扱う。
+ * 分散の判定はページ内の加点（pageScore）と同じ条件にそろえ、加点で選ばれた
+ * 候補に実際と異なる理由を示さないようにする。
  */
 function getReasonCode(
   entry: RankingEntry,
   page: PageState,
   context: {
-    viewedRegionCodes: Set<string>;
     clusterHistoryCounts: Map<string, number>;
     nearbyApplied: boolean;
   },
 ): RecommendationReasonCode {
   const clusterId = entry.candidate.cluster?.id;
   const regionCode = entry.candidate.concern.regionCode;
+  const ageGroup = entry.candidate.concern.ageGroup;
 
   if (context.nearbyApplied) {
     return entry.nearby === "prefecture" ? "nearby_prefecture" : "nearby_area";
@@ -296,15 +297,14 @@ function getReasonCode(
   if (clusterId && !context.clusterHistoryCounts.has(clusterId)) {
     return "new_cluster";
   }
-  if (
-    regionCode &&
-    !page.regionCodes.has(regionCode) &&
-    !context.viewedRegionCodes.has(regionCode)
-  ) {
+  if (regionCode && !page.regionCodes.has(regionCode)) {
     return "region_diversity";
   }
   if (clusterId && !page.clusterCounts.has(clusterId)) {
     return "new_cluster";
+  }
+  if (ageGroup && !page.ageGroups.has(ageGroup)) {
+    return "age_diversity";
   }
   return "newest";
 }

@@ -119,6 +119,7 @@ export const hiraganaMessages = {
   'feed.newTheme': 'あたらしいてーま',
   'feed.nearbyPrefecture': 'おなじけんのこえ',
   'feed.nearbyArea': 'ちかくのちほうのこえ',
+  'feed.ageDiversity': 'ちがうねんだいのこえ',
   'feed.regionDiversity': 'ちいきのかたよりをさけて',
   'feed.newest': 'しんちゃく',
   'feed.newestFirst': 'しんちゃくじゅん',

@@ -17,6 +17,7 @@ export const RECOMMENDATION_REASON_CODES = [
   "nearby_prefecture",
   "nearby_area",
   "region_diversity",
+  "age_diversity",
   "newest",
   "fallback_newest",
 ] as const;
