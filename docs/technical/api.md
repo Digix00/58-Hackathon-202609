@@ -280,6 +280,12 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 サーバー側で定義した `demo-a`、`demo-b`、`demo-c` を受け付ける。任意の `userId`、LINE user ID、アクセストークンは受け付けず、
 発行するCookieと以降の認証処理はLINEログインと同じ経路を利用する。
 
+`DEV_AUTH_ENABLED=true` かつHTTPの `localhost`、`127.0.0.1`、`[::1]` に限り、セッションCookieは
+`dev-session; HttpOnly; SameSite=Lax; Path=/` とし、`Secure` を付けない。SafariなどでローカルHTTPの
+Secure Cookieが保存されず、開発ログイン成功直後の操作APIが401になることを防ぐ。
+発行・復元・認証middleware・ログアウトは同じCookie設定を使う。それ以外の環境では
+従来の `__Host-session; Secure; HttpOnly; SameSite=Lax; Path=/` を使い、`dev-session` は読み取らない。
+
 ### 2.1 PUT /api/v1/users/me
 
 LINEログイン済みユーザー自身のプロフィールを更新する。ユーザー識別子はリクエストから受け取らず、

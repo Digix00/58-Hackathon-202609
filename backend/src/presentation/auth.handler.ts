@@ -1,5 +1,5 @@
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
 import { getSessionCookieSettings } from "../app/auth-cookie";
@@ -168,11 +168,7 @@ function getSessionToken(c: AuthContext): string | undefined {
   return getCookie(c, getSessionCookieSettings(c.req.url, c.env).name);
 }
 
-function setSessionCookie(
-  c: AuthContext,
-  token: string,
-  maxAge: number,
-): void {
+function setSessionCookie(c: AuthContext, token: string, maxAge: number): void {
   const cookie = getSessionCookieSettings(c.req.url, c.env);
   setCookie(c, cookie.name, token, {
     ...cookie.options,

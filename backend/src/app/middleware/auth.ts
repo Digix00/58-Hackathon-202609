@@ -14,9 +14,7 @@ export function createAuthMiddleware(
 ): MiddlewareHandler<{ Bindings: Bindings; Variables: AuthVariables }> {
   return async (c, next) => {
     const cookie = getSessionCookieSettings(c.req.url, c.env);
-    const auth = await authUseCase.getSession(
-      getCookie(c, cookie.name),
-    );
+    const auth = await authUseCase.getSession(getCookie(c, cookie.name));
     c.set("auth", auth);
     await next();
   };

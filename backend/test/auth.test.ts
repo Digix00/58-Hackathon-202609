@@ -100,6 +100,16 @@ describe("authentication routes", () => {
       );
       expect(profile.status).toBe(200);
 
+      // 有効な開発用Cookieでも、フラグなしの環境では認証に使わない。
+      const productionSession = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      expect(await productionSession.json()).toMatchObject({
+        authenticated: false,
+      });
+
       const logout = await app.request(
         `${baseUrl}/api/v1/auth/logout`,
         { method: "POST", headers: { Cookie: cookie } },
@@ -115,14 +125,6 @@ describe("authentication routes", () => {
         devEnv,
       );
       expect(await afterLogout.json()).toMatchObject({ authenticated: false });
-
-      // 開発用Cookieはフラグなしの環境では認証に使わない。
-      const productionSession = await app.request(
-        `${baseUrl}/api/v1/auth/session`,
-        { headers: { Cookie: cookieFrom(restored.headers.has("set-cookie") ? restored : login) } },
-        env,
-      );
-      expect(await productionSession.json()).toMatchObject({ authenticated: false });
     },
   );
 
@@ -133,19 +135,22 @@ describe("authentication routes", () => {
     ["http://example.com", "true"],
     ["http://localhost.example.com", "true"],
     ["https://example.com", "true"],
-  ])("開発用HTTP以外ではSecure Cookieを維持する (%s, %s)", async (baseUrl, enabled) => {
-    const app = createTestApp();
-    const response = await app.request(
-      `${baseUrl}/api/v1/auth/session`,
-      {},
-      { ...env, DEV_AUTH_ENABLED: enabled },
-    );
-    const cookie = response.headers.get("set-cookie");
-    expect(cookie).toContain("__Host-session=");
-    expect(cookie).toContain("Secure");
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).not.toContain("Domain=");
-  });
+  ])(
+    "開発用HTTP以外ではSecure Cookieを維持する (%s, %s)",
+    async (baseUrl, enabled) => {
+      const app = createTestApp();
+      const response = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        {},
+        { ...env, DEV_AUTH_ENABLED: enabled },
+      );
+      const cookie = response.headers.get("set-cookie");
+      expect(cookie).toContain("__Host-session=");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).not.toContain("Domain=");
+    },
+  );
 
   it("does not expose development authentication when disabled", async () => {
     const app = createTestApp();
@@ -195,7 +200,7 @@ describe("authentication routes", () => {
         profileCompleted: false,
       },
     });
-    expect(cookieFrom(response)).toContain("__Host-session=");
+    expect(cookieFrom(response)).toContain("dev-session=");
   });
 
   it("accepts only the fixed development user keys", async () => {
