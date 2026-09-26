@@ -47,9 +47,6 @@ export interface ListFeedInput extends ListConcernFeedInput {
   recommendationCursor?: RecommendedConcernCursor;
 }
 
-/** 推薦フィードの先頭に混ぜる、閲覧者自身の投稿の最大件数。 */
-const OWN_FEED_CANDIDATE_LIMIT = 3;
-
 export interface ListFeedResult {
   items: RankedConcernFeedItem[];
   nextCursor: ConcernFeedCursor | null;
@@ -225,15 +222,11 @@ export class ConcernUseCase implements IConcernUseCase {
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
-          excludeUserId: input.userId,
         });
-        const ownCandidates = recommendationCursor
-          ? []
-          : await this.listOwnFeedCandidates(input);
-        candidateWindow = mergeFeedCandidates(pendingCandidates, [
-          ...candidates.items,
-          ...ownCandidates,
-        ]);
+        candidateWindow = mergeFeedCandidates(
+          pendingCandidates,
+          candidates.items,
+        );
         nextSourceCursor = toNextCursor(candidates.items, candidates.hasMore);
         candidateWindowCursor = sourceCursor;
         returnedConcernIds = [];
@@ -277,7 +270,6 @@ export class ConcernUseCase implements IConcernUseCase {
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
-          excludeUserId: input.userId,
         });
         const returnedIds = new Set(returnedConcernIds);
         fallbackCandidates = fallback.items.filter(
@@ -333,29 +325,6 @@ export class ConcernUseCase implements IConcernUseCase {
       const candidate = candidatesById.get(id);
       return candidate ? [candidate] : [];
     });
-  }
-
-  /**
-   * 推薦の先頭ページに混ぜる閲覧者自身の投稿を、新しい順に少数だけ取得する。
-   * 他の利用者の候補とは別に取得し、本人の投稿だけで候補が埋まらないようにする。
-   * 未返却の本人投稿は、他の候補と同じく次ページ以降へ引き継ぐ。
-   */
-  private async listOwnFeedCandidates(
-    input: ListFeedInput,
-  ): Promise<ConcernFeedCandidate[]> {
-    if (!input.userId || !this.repository.listFeed) {
-      return [];
-    }
-
-    const result = await this.repository.listFeed({
-      limit: OWN_FEED_CANDIDATE_LIMIT,
-      gender: input.gender,
-      regionCode: input.regionCode,
-      clusterId: input.clusterId,
-      userId: input.userId,
-      authorUserId: input.userId,
-    });
-    return result.items;
   }
 
   private async listFeedCandidates(input: ListConcernFeedInput) {

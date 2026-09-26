@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Concern } from "../../../src/application/entity/concern";
 import { ConcernCluster } from "../../../src/application/entity/concern-cluster";
-import type {
-  ConcernRepository,
-  ListConcernFeedInput,
-} from "../../../src/application/repository/concern.repository";
+import type { ConcernRepository } from "../../../src/application/repository/concern.repository";
 import { ConcernUseCase } from "../../../src/application/usecase/concern.usecase";
 
 describe("ConcernUseCase recommendation feed", () => {
@@ -90,55 +87,6 @@ describe("ConcernUseCase recommendation feed", () => {
     ).toEqual([
       ["own", { strategy: "fallback", reasonCode: "own_post" }],
       ["other", { strategy: "fallback", reasonCode: "fallback_newest" }],
-    ]);
-  });
-
-  it("fetches the viewer's own posts separately so they cannot fill the candidates", async () => {
-    const candidate = (id: string, userId: string) => ({
-      concern: new Concern({
-        id,
-        userId,
-        body: `推薦候補-${id}`,
-        createdAt: "2026-09-22T00:00:00.000Z",
-      }),
-      cluster: null,
-      viewed: false,
-    });
-    const requests: ListConcernFeedInput[] = [];
-    const repository: ConcernRepository = {
-      insert: async (value) => value,
-      listPublished: async () => ({ items: [], hasMore: false }),
-      findPublishedById: async () => null,
-      listFeed: async (input) => {
-        requests.push(input);
-        return input.authorUserId
-          ? {
-              items: [
-                candidate("own-1", "user-1"),
-                candidate("own-2", "user-1"),
-              ],
-              hasMore: true,
-            }
-          : { items: [candidate("other", "author-1")], hasMore: false };
-      },
-    };
-    const useCase = new ConcernUseCase(repository);
-
-    const firstPage = await useCase.listFeed({
-      limit: 10,
-      sort: "recommended",
-      userId: "user-1",
-    });
-
-    expect(requests).toEqual([
-      expect.objectContaining({ excludeUserId: "user-1" }),
-      expect.objectContaining({ authorUserId: "user-1", limit: 3 }),
-    ]);
-    expect(requests[1]).not.toHaveProperty("cursor");
-    expect(firstPage.items.map((item) => item.concern.id).sort()).toEqual([
-      "other",
-      "own-1",
-      "own-2",
     ]);
   });
 

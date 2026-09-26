@@ -820,31 +820,6 @@ describe("GET /api/v1/concerns", () => {
     expect(ownItem?.recommendation.reasonCode).toBe("own_post");
   });
 
-  it("mixes only the latest few own posts into the recommended feed", async () => {
-    const app = createTestApp(`line_concern_own_posts_${crypto.randomUUID()}`);
-    const cookie = await loginCookie(app);
-    const ownConcernIds: string[] = [];
-    for (let index = 0; index < 5; index += 1) {
-      ownConcernIds.push(await createConcern(app, cookie));
-    }
-    const otherConcernId = await seedConcern({
-      body: "他のユーザーの投稿",
-      createdAt: new Date().toISOString(),
-    });
-
-    const response = await app.request(
-      "/api/v1/concerns?sort=recommended&limit=50",
-      { headers: { Cookie: cookie } },
-      env,
-    );
-    const body = await response.json<{ items: Array<{ id: string }> }>();
-    const ids = body.items.map((item) => item.id);
-
-    expect(response.status).toBe(200);
-    expect(ids.filter((id) => ownConcernIds.includes(id))).toHaveLength(3);
-    expect(ids).toContain(otherConcernId);
-  });
-
   it("does not skip candidates across recommended pages", async () => {
     const suffix = crypto.randomUUID();
     const clusterId = await seedCluster({
@@ -1230,7 +1205,7 @@ describe("GET /api/v1/concerns/:concernId", () => {
     const id = await seedConcern({
       body: "リアクション状態を確認する投稿",
       genderCode: "male",
-      createdAt: new Date().toISOString(),
+      createdAt: "9999-12-31T00:00:00.000Z",
     });
     const reactionResponse = await app.request(
       `/api/v1/concerns/${id}/reactions`,
