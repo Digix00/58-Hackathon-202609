@@ -17,10 +17,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../shared/components/As
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
-import {
-  prefersReducedMotion,
-  useNotebookSwipe,
-} from '../../shared/hooks/useNotebookSwipe'
+import { prefersReducedMotion, useNotebookSwipe } from '../../shared/hooks/useNotebookSwipe'
 import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -1300,7 +1297,6 @@ function QuizFrontPage({
   answers,
   stateIndex,
   showingResults,
-  swipe,
   slotRef,
   dragOver,
   bodyOf,
@@ -1313,7 +1309,6 @@ function QuizFrontPage({
   answers: Answers
   stateIndex: number
   showingResults: boolean
-  swipe: QuizSwipe
   slotRef: React.RefObject<HTMLSpanElement | null>
   dragOver: boolean
   bodyOf: (target: Letter) => string | undefined
@@ -1463,7 +1458,6 @@ function QuizStage({
           answers={answers}
           stateIndex={stateIndex}
           showingResults={showingResults}
-          swipe={swipe}
           slotRef={slotRef}
           dragOver={dragOver}
           bodyOf={bodyOf}

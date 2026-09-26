@@ -111,8 +111,7 @@ function StepTabs({ current }: { current: Step }) {
  * 紙が伸びれば線も一緒に増えるので、いつでも文字が線の上に乗る。
  * 高さは行送りの倍数へそろえる。端数で止めると最後の行だけ線から浮く。
  */
-const SUPPORTS_FIELD_SIZING =
-  typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
+const SUPPORTS_FIELD_SIZING = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
 
 function useGrowingSheet(ref: RefObject<HTMLTextAreaElement | null>, body: string) {
   const previousBody = useRef(body)

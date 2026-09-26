@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  type MouseEvent,
-  type TouchEvent,
-} from 'react'
+import { useEffect, useEffectEvent, useRef, type MouseEvent, type TouchEvent } from 'react'
 
 const SWIPE_THRESHOLD = 56
 const SWIPE_SLOP = 8
