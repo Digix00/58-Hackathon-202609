@@ -1,5 +1,7 @@
 # React + TypeScript + Vite
 
+画面を編集するAIエージェント・開発者は、[フロントエンド実装指針](../docs/technical/frontend.md)と[LINEミニアプリ固有の挙動とフロントエンド編集ガイド](../docs/technical/line-mini-app.md)を先に確認する。
+
 ## LINE MINI App認証
 
 ローカルの環境変数はGit管理外の`.env.local`で設定する。`make dev`または`make frontend`を実行すると、`.env.local`がない場合だけ`.env.example`から自動作成される。手動で作成する場合は次を実行する。
