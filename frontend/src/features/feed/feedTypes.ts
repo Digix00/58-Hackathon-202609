@@ -1,5 +1,6 @@
 import type { ListConcernsResponse } from '../../lib/api'
 import type { Gender, RegionCode } from '../post/postTypes'
+import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
 
 export type FeedItem = ListConcernsResponse['items'][number]
 
@@ -9,14 +10,15 @@ export const FEED_SORTS = ['newest', 'recommended'] as const
 export type FeedSort = (typeof FEED_SORTS)[number]
 
 export const RECOMMENDATION_REASON_LABELS = {
-  unread_cluster: '未読のテーマ',
-  new_cluster: '新しいテーマ',
-  region_diversity: '地域の偏りを避けて',
-  newest: '新着',
-  fallback_newest: '新着順',
+  unread_cluster: 'history.unreadTheme',
+  new_cluster: 'feed.newTheme',
+  region_diversity: 'feed.regionDiversity',
+  newest: 'feed.newest',
+  fallback_newest: 'feed.newestFirst',
 } as const
 
 export interface FeedQuery {
+  language?: DisplayLanguage
   limit?: number
   cursor?: string
   sort?: FeedSort

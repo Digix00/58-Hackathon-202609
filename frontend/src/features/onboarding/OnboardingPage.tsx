@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import type { CSSProperties, RefObject } from 'react'
 import { Navigate } from 'react-router'
 import { LoginGuide, OpenInLiffGuide } from '../../app/router'
@@ -27,6 +28,8 @@ import {
   type OnboardingSlip,
 } from './onboardingSteps'
 import styles from './OnboardingPage.module.css'
+import type { MessageKey } from '../../i18n/messages'
+import { genderLabel, regionLabel } from '../../shared/concernPresentation'
 
 /** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
 const TURNED_BACK_COLOR = 'var(--color-surface)'
@@ -37,12 +40,12 @@ const PAGE_BACK_COLOR = '#e3d8c0'
 const currentYear = new Date().getFullYear()
 
 /** 読み上げへ渡す、いま開いている紙の見出し。紙が替わったことを言葉で伝える。 */
-const PAGE_TITLES: Record<OnboardingPageName, string> = {
-  cover: 'はじめまして',
-  birth: 'いつ、生まれましたか。',
-  gender: 'あなたのことは、どう書きますか。',
-  region: 'あなたのいる地域を教えてください。',
-  done: 'これで、はじめられます。',
+const PAGE_TITLES: Record<OnboardingPageName, MessageKey> = {
+  cover: 'onboarding.welcome',
+  birth: 'onboarding.birth',
+  gender: 'onboarding.gender',
+  region: 'onboarding.region',
+  done: 'onboarding.done',
 }
 
 /**
@@ -93,14 +96,16 @@ function OnboardingSlips({ slips }: { slips: OnboardingSlip[] }) {
  * 何を聞かれるのか、あと何枚あるのかは予告しない。
  */
 function CoverSheet() {
+  const { t } = useTranslation()
+
   return (
     <>
       <CoverArt />
-      <p className={styles.coverTitle}>はじめまして</p>
+      <p className={styles.coverTitle}>{t('onboarding.welcome')}</p>
       <p className={styles.coverLead}>
-        あなたのことを、
+        {t('onboarding.lead')}
         <br />
-        すこしだけ聞かせてください。
+        {t('onboarding.leadMore')}
       </p>
     </>
   )
@@ -115,31 +120,33 @@ function BirthSheet({
   disabled: boolean
   onFieldChange: (update: OnboardingFieldUpdate) => void
 }) {
+  const { t, message } = useTranslation()
+
   const error = birthError(draft)
 
   return (
     <>
-      <p className={styles.question}>{PAGE_TITLES.birth}</p>
-      <p className={styles.note}>声に添えるのは年ではなく、10代・20代といった年代だけです。</p>
+      <p className={styles.question}>{t(PAGE_TITLES.birth)}</p>
+      <p className={styles.note}>{t('onboarding.agePrivacy')}</p>
       <div className={styles.birthFields}>
         <NumberInputField
-          label="生まれた年"
+          label={t('profile.birthYear')}
           inputMode="numeric"
           min="1900"
           max={currentYear}
-          placeholder="例）1990"
-          suffix="年"
+          placeholder={t('profile.yearExample')}
+          suffix={t('profile.yearSuffix')}
           value={draft.birthYear}
           disabled={disabled}
           onValueChange={(value) => onFieldChange({ field: 'birthYear', value })}
         />
         <NumberInputField
-          label="生まれた月"
+          label={t('profile.birthMonth')}
           inputMode="numeric"
           min="1"
           max="12"
-          placeholder="例）4"
-          suffix="月"
+          placeholder={t('profile.monthExample')}
+          suffix={t('profile.monthSuffix')}
           value={draft.birthMonth}
           disabled={disabled}
           onValueChange={(value) => onFieldChange({ field: 'birthMonth', value })}
@@ -147,7 +154,7 @@ function BirthSheet({
       </div>
       {error ? (
         <p className={styles.fieldError} role="alert">
-          {error}
+          {message(error, { min: 1900, max: currentYear })}
         </p>
       ) : null}
     </>
@@ -170,10 +177,12 @@ function GenderSheet({
   disabled: boolean
   onChoose: (value: Gender) => void
 }) {
+  const { t, language } = useTranslation()
+
   return (
     <>
-      <p className={styles.question}>{PAGE_TITLES.gender}</p>
-      <p className={styles.note}>年代・都道府県とあわせて、声に添えて公開します。</p>
+      <p className={styles.question}>{t(PAGE_TITLES.gender)}</p>
+      <p className={styles.note}>{t('onboarding.genderPrivacy')}</p>
       <div className={styles.choices}>
         {GENDERS.map((option, order) => (
           <button
@@ -185,7 +194,7 @@ function GenderSheet({
             disabled={disabled}
             onClick={() => onChoose(option.value)}
           >
-            {option.label}
+            {genderLabel(option.value, language)}
           </button>
         ))}
       </div>
@@ -202,14 +211,19 @@ function RegionSheet({
   disabled: boolean
   onFieldChange: (update: OnboardingFieldUpdate) => void
 }) {
+  const { t, language } = useTranslation()
+
   return (
     <>
-      <p className={styles.question}>あなたのいる地域を教えてください。</p>
-      <p className={styles.note}>都道府県だけで大丈夫です。くわしい住所は聞きません。</p>
+      <p className={styles.question}>{t('onboarding.region')}</p>
+      <p className={styles.note}>{t('onboarding.regionPrivacy')}</p>
       <SelectField
-        label="地域"
+        label={t('common.region')}
         value={draft.regionCode}
-        options={REGION_OPTIONS.map(([value, label]) => ({ value, label }))}
+        options={REGION_OPTIONS.map(([value]) => ({
+          value,
+          label: regionLabel(value, language) ?? value,
+        }))}
         disabled={disabled}
         onChange={(value) => onFieldChange({ field: 'regionCode', value })}
       />
@@ -224,9 +238,11 @@ function RegionSheet({
  * ここに絵を置かないのは、絵より先に自分の書いたものを見てほしいため。
  */
 function DoneSheet({ slips }: { slips: OnboardingSlip[] }) {
+  const { t } = useTranslation()
+
   return (
     <>
-      <p className={styles.question}>{PAGE_TITLES.done}</p>
+      <p className={styles.question}>{t(PAGE_TITLES.done)}</p>
       <ul className={styles.nameplate}>
         {slips.map((slip, order) => (
           <li
@@ -243,7 +259,7 @@ function DoneSheet({ slips }: { slips: OnboardingSlip[] }) {
           </li>
         ))}
       </ul>
-      <p className={styles.note}>あとから「設定」でいつでも書き直せます。</p>
+      <p className={styles.note}>{t('onboarding.editHint')}</p>
     </>
   )
 }
@@ -391,6 +407,8 @@ function OnboardingActions({
   onBack,
   onSubmit,
 }: OnboardingActionsProps) {
+  const { t, message } = useTranslation()
+
   return (
     <div className={styles.actions}>
       {page === 'cover' ? (
@@ -399,7 +417,8 @@ function OnboardingActions({
           className={`${actionStyles.primary} ${styles.coverButton}`}
           onClick={onNext}
         >
-          ひらいてみる <span aria-hidden="true">→</span>
+          {t('onboarding.open')}
+          <span aria-hidden="true">→</span>
         </button>
       ) : null}
       {page === 'birth' || page === 'region' ? (
@@ -409,22 +428,24 @@ function OnboardingActions({
           disabled={!canGoNext}
           onClick={onNext}
         >
-          つぎへ <span aria-hidden="true">→</span>
+          {t('onboarding.next')}
+          <span aria-hidden="true">→</span>
         </button>
       ) : null}
       {page === 'done' ? (
         <button type="button" className={actionStyles.primary} disabled={saving} onClick={onSubmit}>
-          {saving ? '書き込んでいます…' : 'はじめる'}
+          {saving ? t('onboarding.saving') : t('onboarding.start')}
         </button>
       ) : null}
       {error ? (
         <p className={styles.submitError} role="alert">
-          {error}
+          {message(error)}
         </p>
       ) : null}
       {canGoBack ? (
         <button type="button" className={actionStyles.text} onClick={onBack}>
-          <span aria-hidden="true">←</span> ひとつ前へ
+          <span aria-hidden="true">←</span>
+          {t('onboarding.previous')}
         </button>
       ) : null}
     </div>
@@ -439,6 +460,8 @@ function OnboardingActions({
  * 登録の手続きではなく、自分の本の1ページ目を書く時間にするため。
  */
 export function OnboardingPage() {
+  const { t, language } = useTranslation()
+
   const { state: runtime } = useRuntime()
   const { status: authStatus, user } = useAuth()
   const notebook = useOnboardingNotebook()
@@ -466,12 +489,12 @@ export function OnboardingPage() {
 
   if (runtime.status !== 'ready') return null
   if (runtime.mode === 'browser') return <OpenInLiffGuide />
-  if (authStatus === 'initializing') return <LoadingState label="ログイン状態を確認しています…" />
+  if (authStatus === 'initializing') return <LoadingState label={t('auth.checking')} />
   if (authStatus === 'anonymous') return <LoginGuide />
   // 書き終えた人には見せない。戻ってきても、読む画面へそのまま通す。
   if (user?.profileCompleted) return <Navigate to="/" replace />
 
-  const slips = onboardingSlips(draft)
+  const slips = onboardingSlips(draft, language)
 
   return (
     <div className={styles.page}>
@@ -484,7 +507,7 @@ export function OnboardingPage() {
         onTouchCancel={swipe.handleTouchCancel}
       >
         <h1 id="onboarding-title" className={styles.srOnly}>
-          はじめの1ページを書く
+          {t('onboarding.title')}
         </h1>
         <OnboardingStack
           facePage={facePage}
@@ -512,7 +535,7 @@ export function OnboardingPage() {
         onSubmit={() => void submit()}
       />
       <p className={styles.srOnly} aria-live="polite">
-        {PAGE_TITLES[currentPage]}
+        {t(PAGE_TITLES[currentPage])}
       </p>
     </div>
   )

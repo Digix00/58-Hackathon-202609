@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../i18n/translate'
 import { apiClient } from '../../lib/api'
 import type { PostFormInput, PostResult } from './postTypes'
 
@@ -23,7 +24,7 @@ export async function createConcern(input: PostFormInput): Promise<CreateConcern
     ok: false,
     status: response.status,
     code: body?.error.code ?? 'UNKNOWN_ERROR',
-    message: body?.error.message ?? '投稿に失敗しました。時間をおいて再度お試しください',
+    message: apiErrorMessage(body?.error?.code, 'error.post'),
   }
 }
 

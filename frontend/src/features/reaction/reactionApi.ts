@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../i18n/translate'
 import { apiClient } from '../../lib/api'
 import type { ConcernReactionResponse } from '../../lib/api'
 
@@ -26,14 +27,14 @@ export async function registerConcernReaction(
       ok: false,
       status: response.status,
       code: body?.error.code ?? 'UNKNOWN_ERROR',
-      message: body?.error.message ?? 'リアクションに失敗しました。時間をおいて再度お試しください',
+      message: apiErrorMessage(body?.error?.code, 'error.reaction'),
     }
   } catch {
     return {
       ok: false,
       status: 0,
       code: 'NETWORK_ERROR',
-      message: '通信に失敗しました。ネットワークを確認して再度お試しください',
+      message: 'error.network',
     }
   }
 }
