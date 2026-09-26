@@ -10,6 +10,7 @@ import type { HealthHandler } from "../presentation/health.handler";
 import type { HistoryHandler } from "../presentation/history.handler";
 import type { LineHandler } from "../presentation/line.handler";
 import type { QuizHandler } from "../presentation/quiz.handler";
+import type { ReactionDigestHandler } from "../presentation/reaction-digest.handler";
 import type { SpeechHandler } from "../presentation/speech.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -29,6 +30,7 @@ export interface ApplicationDependencies {
   historyHandler: HistoryHandler;
   lineHandler?: LineHandler;
   quizHandler: QuizHandler;
+  reactionDigestHandler?: ReactionDigestHandler;
   speechHandler: SpeechHandler;
   userHandler: UserHandler;
 }
@@ -42,6 +44,7 @@ type AppEnvironment = {
 
 type DependenciesWithLineHandler = ApplicationDependencies & {
   lineHandler: LineHandler;
+  reactionDigestHandler: ReactionDigestHandler;
 };
 
 /** DI済みの画面向けハンドラーをルートへ接続する。 */
@@ -113,6 +116,7 @@ function createPublicApp({
  */
 function createAppWithLineHandler({
   lineHandler,
+  reactionDigestHandler,
   ...dependencies
 }: DependenciesWithLineHandler) {
   const app = createPublicApp(dependencies)
@@ -126,6 +130,17 @@ function createAppWithLineHandler({
       requireCloudflareAccess,
       requireAllowedAdminOrigin,
       ...lineHandler.adminTrigger,
+    )
+    .get(
+      "/api/v1/admin/line/notifications/reaction-digest",
+      requireCloudflareAccess,
+      ...reactionDigestHandler.adminStatus,
+    )
+    .post(
+      "/api/v1/admin/line/notifications/reaction-digest",
+      requireCloudflareAccess,
+      requireAllowedAdminOrigin,
+      ...reactionDigestHandler.adminTrigger,
     );
 
   // Hono は同じインスタンスへルートを追加する。戻り値を app に代入しないことで、
@@ -135,6 +150,10 @@ function createAppWithLineHandler({
     .post(
       "/api/v1/line/broadcasts/daily-quiz",
       ...lineHandler.internalBroadcast,
+    )
+    .post(
+      "/api/v1/line/notifications/reaction-digest",
+      ...reactionDigestHandler.internalRun,
     );
 
   return app;
@@ -144,14 +163,18 @@ export function createApp(
   dependencies: DependenciesWithLineHandler,
 ): ReturnType<typeof createAppWithLineHandler>;
 export function createApp(
-  dependencies: Omit<ApplicationDependencies, "lineHandler">,
+  dependencies: Omit<
+    ApplicationDependencies,
+    "lineHandler" | "reactionDigestHandler"
+  >,
 ): ReturnType<typeof createPublicApp>;
 /** DI済みのハンドラーをルートへ接続し、Honoアプリケーションを構築する。 */
 export function createApp(dependencies: ApplicationDependencies) {
-  if (dependencies.lineHandler) {
+  if (dependencies.lineHandler && dependencies.reactionDigestHandler) {
     return createAppWithLineHandler({
       ...dependencies,
       lineHandler: dependencies.lineHandler,
+      reactionDigestHandler: dependencies.reactionDigestHandler,
     });
   }
 

@@ -375,4 +375,31 @@ export const hiraganaMessages = {
     'APIのおうとうをよみとれませんでした。Cloudflare Accessのろぐいんじょうたいをかくにんしてください。',
   'broadcast.noResponse': 'APIのおうとうをかくにんできませんでした。',
   'broadcast.network': 'APIへせつぞくできませんでした。',
+  'digest.title': 'よりそいつうち',
+  'digest.schedule':
+    'まいにち 20:00 JST に、まえの おしらせの あとに よりそいが とどいた ひとへ LINEで しらせます。ぼたんから いつでも おくれます。',
+  'digest.latest': 'さいしんの じっこう',
+  'digest.none': 'まだ じっこうされていません',
+  'digest.pending': 'おくりまちが のこっています',
+  'digest.running': 'そうしんちゅう',
+  'digest.succeeded': 'そうしんかんりょう',
+  'digest.partiallyFailed': 'いちぶの そうしんに しっぱいしました',
+  'digest.failed': 'そうしんに しっぱいしました',
+  'digest.counts':
+    'たいしょう {target}にん・そうしん {sent}にん・しっぱい {failed}にん・たいしょうがい {skipped}にん・のこり {remaining}にん',
+  'digest.cron': 'ていき じっこう',
+  'digest.manual': 'しゅどう じっこう',
+  'digest.requested': 'かいし:',
+  'digest.send': 'いますぐ よりそいつうちを おくる',
+  'digest.simulate': 'よりそいつうちを もぎそうしんする',
+  'digest.continue': 'のこりを おくる',
+  'digest.sending': 'そうしんしています…',
+  'digest.inProgress':
+    'べつの そうしんしょりが じっこうちゅうです。しばらく してから じょうきょうを こうしんしてください。',
+  'digest.statusFailed': 'よりそいつうちの じょうきょうを しゅとくできませんでした。',
+  'digest.history': 'さいきんの じっこう',
+  'digest.note':
+    'おくるのは LINEの ともだちで、あたらしい よりそいが あった ひとだけです。おくりさきや こじんの しゅうけいは ひょうじしません。',
+  'digest.simulationNote':
+    'かいはつようの しみゅれーしょんです。LINEへは おくらず、おくりさきの しゅうけいと じょうたいの きろくだけを おこないます。',
 } as const satisfies Record<MessageKey, string>

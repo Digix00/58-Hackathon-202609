@@ -630,6 +630,46 @@ export const messages = {
     'Unable to verify the API response.',
   ],
   'broadcast.network': ['APIへ接続できませんでした。', 'Unable to connect to the API.'],
+  'digest.title': ['寄りそい通知', 'Reaction digest'],
+  'digest.schedule': [
+    '毎日 20:00 JST に、前回の通知以降に寄りそいが届いた投稿者へLINEで知らせます。ボタンからいつでも送信できます。',
+    'Every day at 20:00 JST, posters who received new reactions since their last notice are told on LINE. You can also send it now.',
+  ],
+  'digest.latest': ['最新の実行', 'Latest run'],
+  'digest.none': ['まだ実行されていません', 'No runs yet'],
+  'digest.pending': ['送信待ちが残っています', 'Deliveries remaining'],
+  'digest.running': ['送信中', 'Sending'],
+  'digest.succeeded': ['送信完了', 'Completed'],
+  'digest.partiallyFailed': ['一部の送信に失敗しました', 'Some deliveries failed'],
+  'digest.failed': ['送信に失敗しました', 'Delivery failed'],
+  'digest.counts': [
+    '対象 {target}人・送信 {sent}人・失敗 {failed}人・対象外 {skipped}人・残り {remaining}人',
+    'Targets {target} · Sent {sent} · Failed {failed} · Skipped {skipped} · Remaining {remaining}',
+  ],
+  'digest.cron': ['定期実行', 'Scheduled'],
+  'digest.manual': ['手動実行', 'Manual'],
+  'digest.requested': ['開始:', 'Started:'],
+  'digest.send': ['今すぐ寄りそい通知を送る', 'Send reaction digest now'],
+  'digest.simulate': ['寄りそい通知を模擬送信する', 'Simulate reaction digest'],
+  'digest.continue': ['残りを送る', 'Send remaining'],
+  'digest.sending': ['送信しています…', 'Sending…'],
+  'digest.inProgress': [
+    '別の送信処理が実行中です。しばらくしてから状況を更新してください。',
+    'Another run is in progress. Refresh the status later.',
+  ],
+  'digest.statusFailed': [
+    '寄りそい通知の状況を取得できませんでした。',
+    'Unable to load reaction digest status.',
+  ],
+  'digest.history': ['最近の実行', 'Recent runs'],
+  'digest.note': [
+    '送信するのはLINE公式アカウントの友だちで、新しい寄りそいがあった人だけです。送信先や個人の集計値は表示しません。',
+    'Only LINE friends with new reactions are notified. Recipients and individual counts are not shown.',
+  ],
+  'digest.simulationNote': [
+    '開発用シミュレーションです。LINEへは送信せず、送信対象の集計と状態の記録だけを行います。',
+    'Development simulation: recipients are counted and recorded, but nothing is sent to LINE.',
+  ],
 } as const satisfies Record<string, readonly [string, string]>
 
 export type MessageKey = keyof typeof messages

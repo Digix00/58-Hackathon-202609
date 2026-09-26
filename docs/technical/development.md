@@ -75,6 +75,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `AI` (Workers AI binding) | Workers AI 推論 | `backend/wrangler.jsonc` |
 | `CONCERN_VECTOR_INDEX` | 投稿Embeddingの近傍照合・upsert | `backend/wrangler.jsonc`（本番）/ `backend/wrangler.vectorize.dev.jsonc`（開発用Vectorize接続） |
 | `CONCERN_CLUSTER_SIMILARITY_THRESHOLD` | 既存クラスタを採用する最小類似度 | 本番はGitHub Actions Variable（未設定時 `0.8`）、開発は`wrangler.vectorize.dev.jsonc` |
+| `REACTION_DIGEST_MAX_PER_RUN` | 寄りそい通知の1回の実行で送る上限件数 | 本番はGitHub Actions Variable（未設定時 `40`）、開発は既定値 |
 | `CONCERN_VECTOR_INDEX_VERSION` | 投稿Embeddingの登録先index version | `wrangler.jsonc`（本番）/ `wrangler.vectorize.dev.jsonc`（開発用）。index再作成時に更新 |
 | `CONCERN_PROCESSING_QUEUE` | 投稿後のAI処理Queue producer | `backend/wrangler.jsonc` |
 | `LINE_CHANNEL_SECRET` | LINE webhookの署名検証 | Worker環境変数またはSecret |

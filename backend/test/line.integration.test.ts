@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app/create-app";
 import type { ClaimDailyBroadcastInput } from "../src/application/repository/line.repository";
 import { LineUseCase } from "../src/application/usecase/line.usecase";
+import { ReactionDigestUseCase } from "../src/application/usecase/reaction-digest.usecase";
 import { D1LineRepository } from "../src/infrastructure/database/d1-line.repository";
+import { D1ReactionDigestRepository } from "../src/infrastructure/database/d1-reaction-digest.repository";
 import {
   concerns,
   quizOptions,
@@ -15,8 +17,10 @@ import {
   users,
 } from "../src/infrastructure/database/schema";
 import { HmacLineSignatureVerifier } from "../src/infrastructure/line/hmac-line-signature.verifier";
+import { LocalLinePushSender } from "../src/infrastructure/line/local-line-push.sender";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { LineHandler } from "../src/presentation/line.handler";
+import { ReactionDigestHandler } from "../src/presentation/reaction-digest.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
@@ -65,6 +69,13 @@ function createTestApp() {
       }),
     }),
     lineHandler: new LineHandler(lineUseCase),
+    reactionDigestHandler: new ReactionDigestHandler(
+      new ReactionDigestUseCase(
+        new D1ReactionDigestRepository(env.DB),
+        new LocalLinePushSender(),
+        "1234567890-AbcdEfgh",
+      ),
+    ),
   });
   return { app, getSendCount: () => sendCount };
 }

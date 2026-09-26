@@ -14,6 +14,7 @@ import type {
   RecordQuizAnswerInput,
 } from "../repository/quiz.repository";
 import { generateId } from "../shared/id-generator";
+import { toTokyoDate } from "../shared/tokyo-date";
 
 export interface AnswerQuizInput {
   quizId: string;
@@ -45,7 +46,7 @@ export class QuizUseCase implements IQuizUseCase {
   }
 
   readonly getToday = (userId: string): Promise<Quiz | null> =>
-    this.repository.findPublishedByDate(toTokyoQuizDate(this.now()), userId);
+    this.repository.findPublishedByDate(toTokyoDate(this.now()), userId);
 
   readonly getById = (quizId: string, userId: string): Promise<Quiz | null> =>
     this.repository.findPublishedById(quizId, userId);
@@ -248,19 +249,4 @@ function validateMatches(
       "matches must contain each participant and concern exactly once",
     );
   }
-}
-
-function toTokyoQuizDate(date: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-  }).formatToParts(date);
-  const values = new Map(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
 }
