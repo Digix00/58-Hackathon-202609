@@ -118,6 +118,7 @@ export const hiraganaMessages = {
   'feed.unreadTheme': 'みどくのてーま',
   'feed.newTheme': 'あたらしいてーま',
   'feed.regionDiversity': 'ちいきのかたよりをさけて',
+  'feed.ownPost': 'あなたのとうこう',
   'feed.newest': 'しんちゃく',
   'feed.newestFirst': 'しんちゃくじゅん',
   'reaction.support': 'そっとよりそう',

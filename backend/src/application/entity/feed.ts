@@ -15,6 +15,7 @@ export const RECOMMENDATION_REASON_CODES = [
   "unread_cluster",
   "new_cluster",
   "region_diversity",
+  "own_post",
   "newest",
   "fallback_newest",
 ] as const;

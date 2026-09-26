@@ -163,7 +163,7 @@ describe("rankConcernFeedCandidates", () => {
 
     expect(ranked.map((item) => item.concern.id)).toEqual(["other", "own"]);
     expect(ranked[0]?.recommendation.reasonCode).toBe("unread_cluster");
-    expect(ranked[1]?.recommendation.reasonCode).toBe("new_cluster");
+    expect(ranked[1]?.recommendation.reasonCode).toBe("own_post");
     expect(ranked[1]?.viewed).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ export const RECOMMENDATION_REASON_LABELS = {
   unread_cluster: 'history.unreadTheme',
   new_cluster: 'feed.newTheme',
   region_diversity: 'feed.regionDiversity',
+  own_post: 'feed.ownPost',
   newest: 'feed.newest',
   fallback_newest: 'feed.newestFirst',
 } as const

@@ -199,6 +199,7 @@ export const messages = {
   'feed.unreadTheme': ['未読のテーマ', 'An unread theme'],
   'feed.newTheme': ['新しいテーマ', 'A new theme'],
   'feed.regionDiversity': ['地域の偏りを避けて', 'Voices from different regions'],
+  'feed.ownPost': ['あなたの投稿', 'Your post'],
   'feed.newest': ['新着', 'New'],
   'feed.newestFirst': ['新着順', 'Newest first'],
   'reaction.support': ['そっと寄りそう', 'Send support'],

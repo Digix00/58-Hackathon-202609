@@ -11,7 +11,8 @@ export const RECOMMENDATION_ALGORITHM_VERSION = "v3";
  * 新着順で取得した候補を、既読状況・クラスタ・都道府県の分散で並べ替える。
  * 未読候補や閲覧履歴にないクラスタを優先しつつ、直前と同じクラスタが連続しないように
  * 候補を1件ずつ選出する。異なるクラスタが残っていない場合は、同じクラスタも選出する。
- * 閲覧者自身の投稿も候補に含めるが、本人は内容を知っているため未読として加点しない。
+ * 閲覧者自身の投稿も候補に含めるが、本人は内容を知っているため未読として加点せず、
+ * 推薦理由は own_post とする。
  * AIや個人情報には依存せず、同じ候補と履歴なら同じ結果になる決定的な処理とする。
  */
 export function rankConcernFeedCandidates(
@@ -28,6 +29,7 @@ export function rankConcernFeedCandidates(
   );
   const remaining = candidates.map((candidate, index) => ({
     candidate,
+    own: isOwnConcern(candidate, viewerUserId),
     unread: !candidate.viewed && !isOwnConcern(candidate, viewerUserId),
     originalIndex: index,
   }));
@@ -92,16 +94,18 @@ export function rankConcernFeedCandidates(
     const { candidate } = next;
     const clusterId = candidate.cluster?.id;
     const regionCode = candidate.concern.regionCode;
-    const reasonCode = getReasonCode(
-      candidate,
-      next.unread,
-      viewedClusterIds,
-      viewedRegionCodes,
-      {
-        selectedClusterIds,
-        selectedRegionCodes,
-      },
-    );
+    const reasonCode = next.own
+      ? ("own_post" as const)
+      : getReasonCode(
+          candidate,
+          next.unread,
+          viewedClusterIds,
+          viewedRegionCodes,
+          {
+            selectedClusterIds,
+            selectedRegionCodes,
+          },
+        );
     ranked.push({
       ...candidate,
       recommendation: {

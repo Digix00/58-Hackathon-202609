@@ -808,12 +808,16 @@ describe("GET /api/v1/concerns", () => {
       { headers: { Cookie: cookie } },
       env,
     );
-    const body = await response.json<{ items: Array<{ id: string }> }>();
+    const body = await response.json<{
+      items: Array<{ id: string; recommendation: { reasonCode: string } }>;
+    }>();
     const ids = body.items.map((item) => item.id);
+    const ownItem = body.items.find((item) => item.id === ownConcernId);
 
     expect(response.status).toBe(200);
     expect(ids).toContain(ownConcernId);
     expect(ids).toContain(otherConcernId);
+    expect(ownItem?.recommendation.reasonCode).toBe("own_post");
   });
 
   it("does not skip candidates across recommended pages", async () => {
