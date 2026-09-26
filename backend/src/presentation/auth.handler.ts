@@ -1,7 +1,8 @@
+import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import { getSessionCookieSettings } from "../app/auth-cookie";
 import { getRequestId } from "../app/request-id";
 import type { User } from "../application/entity/user";
 import {
@@ -21,6 +22,7 @@ const devLoginRequest = z.object({
 });
 
 const factory = createFactory<{ Bindings: Bindings }>();
+type AuthContext = Context<{ Bindings: Bindings }>;
 
 export class AuthHandler {
   private readonly authUseCase: IAuthUseCase;
@@ -56,7 +58,7 @@ export class AuthHandler {
     try {
       const result = await this.authUseCase.authenticateWithLine(
         parsed.data.idToken,
-        getCookie(c, SESSION_COOKIE_NAME),
+        getSessionToken(c),
       );
       if (result.token) {
         setSessionCookie(c, result.token, this.sessionMaxAgeSeconds);
@@ -123,7 +125,7 @@ export class AuthHandler {
 
     const result = await this.authUseCase.authenticateWithIdentity(
       { lineUserId: `dev:${parsed.data.userKey}` },
-      getCookie(c, SESSION_COOKIE_NAME),
+      getSessionToken(c),
     );
     if (result.token) {
       setSessionCookie(c, result.token, this.sessionMaxAgeSeconds);
@@ -135,7 +137,7 @@ export class AuthHandler {
   readonly session = factory.createHandlers(async (c) => {
     setRequestId(c);
     const result = await this.authUseCase.getOrCreateSession(
-      getCookie(c, SESSION_COOKIE_NAME),
+      getSessionToken(c),
     );
     if (result.token) {
       setSessionCookie(c, result.token, this.sessionMaxAgeSeconds);
@@ -146,8 +148,9 @@ export class AuthHandler {
 
   readonly logout = factory.createHandlers(async (c) => {
     setRequestId(c);
-    await this.authUseCase.logout(getCookie(c, SESSION_COOKIE_NAME));
-    deleteCookie(c, SESSION_COOKIE_NAME, { path: "/", secure: true });
+    await this.authUseCase.logout(getSessionToken(c));
+    const cookie = getSessionCookieSettings(c.req.url, c.env);
+    deleteCookie(c, cookie.name, cookie.options);
     return c.json({ authenticated: false, user: null });
   });
 }
@@ -161,16 +164,14 @@ function setRequestId(c: {
   return requestId;
 }
 
-function setSessionCookie(
-  c: Parameters<typeof setCookie>[0],
-  token: string,
-  maxAge: number,
-): void {
-  setCookie(c, SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax",
-    path: "/",
+function getSessionToken(c: AuthContext): string | undefined {
+  return getCookie(c, getSessionCookieSettings(c.req.url, c.env).name);
+}
+
+function setSessionCookie(c: AuthContext, token: string, maxAge: number): void {
+  const cookie = getSessionCookieSettings(c.req.url, c.env);
+  setCookie(c, cookie.name, token, {
+    ...cookie.options,
     maxAge,
   });
 }

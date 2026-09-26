@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
-import { registerConcernReaction } from './reactionApi'
+import { registerConcernReaction, removeConcernReaction } from './reactionApi'
 
 export type ConcernReactionStatus = 'idle' | 'submitting' | 'succeeded' | 'failed'
+
+/** 送信が確定したあとの、その投稿の集計と寄りそい済み。 */
+export interface ConcernReactionChange {
+  concernId: string
+  reactionCount: number
+  reacted: boolean
+}
 
 export interface UseConcernReactionInput {
   concernId: string
   initialReactionCount: number
   initialReacted: boolean
+  /**
+   * 送信が成功したときに呼ぶ。一覧を持つ側が初期値を更新しないと、
+   * 別の投稿へ移って戻ったときに送信前の状態へ巻き戻る。
+   */
+  onChanged?: (change: ConcernReactionChange) => void
 }
 
 export interface UseConcernReactionResult {
@@ -16,6 +28,8 @@ export interface UseConcernReactionResult {
   reacted: boolean
   error: string | null
   react: () => Promise<void>
+  unreact: () => Promise<void>
+  toggle: () => Promise<void>
 }
 
 interface ReactionState {
@@ -77,17 +91,18 @@ function reactionReducer(state: ReactionState, action: ReactionAction): Reaction
 
 /**
  * Intent: 1件の投稿へのリアクション送信と結果状態を局所化する。
- * Boundary: 投稿IDと初期値を受け取り、表示用状態と react 操作だけを公開する。
+ * Boundary: 投稿IDと初期値を受け取り、表示用状態とリアクションの切替操作を公開する。
  * State modeling: 送信状態・集計値・送信済み状態・エラーを reducer で同時に更新し、入力変更後の古いレスポンスも入力キーで無視する。
- * Update surface: react。
+ * Update surface: react / unreact / toggle。
  * Hidden complexity: 同一投稿への二重送信を防ぎ、投稿が切り替わったときに前の投稿の状態を持ち越さない。
  * Composition: フィードや投稿詳細の表示コンポーネントから利用する。
- * Test notes: 初期値、送信中、成功、失敗、二重送信、投稿切り替え後の古いレスポンスを確認する。
+ * Test notes: 初期値、送信中、成功、失敗、二重送信、投稿切り替え後の古いレスポンス、onChangedの通知を確認する。
  */
 export function useConcernReaction({
   concernId,
   initialReactionCount,
   initialReacted,
+  onChanged,
 }: UseConcernReactionInput): UseConcernReactionResult {
   const input = { concernId, initialReactionCount, initialReacted }
   const inputKey = reactionInputKey(input)
@@ -103,35 +118,57 @@ export function useConcernReaction({
 
   const currentState = state.inputKey === inputKey ? state : initialState(input)
 
-  const react = useCallback(async (): Promise<void> => {
-    if (currentState.reacted || inFlightConcernIds.current.has(concernId)) {
-      return
-    }
-
-    inFlightConcernIds.current.add(concernId)
-    dispatch({ type: 'submitStarted', inputKey })
-
-    try {
-      const result = await registerConcernReaction(concernId)
-      if (result.ok) {
-        dispatch({
-          type: 'submitSucceeded',
-          inputKey,
-          reactionCount: result.reaction.reactionCount,
-          reacted: result.reaction.reacted,
-        })
+  const changeReaction = useCallback(
+    async (nextReacted: boolean): Promise<void> => {
+      if (currentState.reacted === nextReacted || inFlightConcernIds.current.has(concernId)) {
         return
       }
 
-      dispatch({
-        type: 'submitFailed',
-        inputKey,
-        error: result.message,
-      })
-    } finally {
-      inFlightConcernIds.current.delete(concernId)
-    }
-  }, [concernId, currentState.reacted, inputKey])
+      inFlightConcernIds.current.add(concernId)
+      dispatch({ type: 'submitStarted', inputKey })
+
+      try {
+        const result = nextReacted
+          ? await registerConcernReaction(concernId)
+          : await removeConcernReaction(concernId)
+        if (result.ok) {
+          dispatch({
+            type: 'submitSucceeded',
+            inputKey,
+            reactionCount: result.reaction.reactionCount,
+            reacted: result.reaction.reacted,
+          })
+          onChanged?.({
+            concernId,
+            reactionCount: result.reaction.reactionCount,
+            reacted: result.reaction.reacted,
+          })
+          return
+        }
+
+        dispatch({
+          type: 'submitFailed',
+          inputKey,
+          error: result.message,
+        })
+      } finally {
+        inFlightConcernIds.current.delete(concernId)
+      }
+    },
+    [concernId, currentState.reacted, inputKey, onChanged],
+  )
+
+  const react = useCallback(async (): Promise<void> => {
+    await changeReaction(true)
+  }, [changeReaction])
+
+  const unreact = useCallback(async (): Promise<void> => {
+    await changeReaction(false)
+  }, [changeReaction])
+
+  const toggle = useCallback(async (): Promise<void> => {
+    await changeReaction(!currentState.reacted)
+  }, [changeReaction, currentState.reacted])
 
   return {
     status: currentState.status,
@@ -139,5 +176,7 @@ export function useConcernReaction({
     reacted: currentState.reacted,
     error: currentState.error,
     react,
+    unreact,
+    toggle,
   }
 }

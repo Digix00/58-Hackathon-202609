@@ -35,9 +35,9 @@
 
 ### 起動・フォールバック
 
-現行実装では `VITE_LINE_LIFF_ID` が設定され、開発用の強制LIFFモードでなければLIFFを初期化する。外部ブラウザでもこの初期化を通る。未設定なら通常Webとして始まり、LIFF初期化用の起動画面は出さない。
+現行実装では `VITE_LINE_LIFF_ID` が設定され、開発用の強制LIFFモードでなければLIFFを初期化する。外部ブラウザでもこの初期化を通る。未設定なら通常Webとして始まる。
 
-起動画面はLIFFの初期化と退場演出までを担当し、Cookieセッションの確認待ちは各画面で表示する。初期化が早く終わっても絵を途中で切り替えず、動きを減らす設定では完成形を表示する。詳細は[起動の画面設計](../requirements/screens/entry.md)を参照する。
+専用の起動画面は表示しない。フィード・クイズは初期化とCookieセッション確認中から表紙を表示し、開く操作後だけ待機中の文言を表示する。準備後は自動で開く。LIFF初期化中は下部ナビを操作不可にしてURLを維持する。クイズの表紙表示は利用許可を意味せず、API取得・本文表示には従来の認証とプロフィール確認を必要とする。詳細は[画面設計](../requirements/screens.md)を参照する。
 
 初期化が失敗すると `browser` と `liffInitializationFailed: true` へ切り替わる。公開閲覧を続け、失敗案内とLINEで開き直す導線を表示する。投稿などの操作用URLを開いていた場合も、操作を実行せず通常Webと同じ案内を表示する。
 
@@ -73,10 +73,11 @@ LINE側の制約として、初期化は登録したエンドポイントURLと�
 プロジェクト仕様はスマートフォン向け1カラムで、360px幅を基本の確認対象とする。LINE側のヘッダーや端末の安全領域を含めて確認し、ブラウザのスクリーンショットだけで操作可能と判断しない。
 
 - 現行の [AppShell](../../frontend/src/app/AppShell.module.css) は高さ `100svh` の2行Grid。本文領域が縦スクロールし、その下に5項目のナビを置く。ナビを本文へ重ねる固定配置に変える場合は、入力欄・主要操作が隠れないことを確認する。
-- 上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` を使用する。[index.html](../../frontend/index.html) のviewportには現在 `viewport-fit=cover` がない。CSS変数が常に期待した余白を返すと仮定せず、ノッチ・ホームインジケーター・横向きで実測する。
+- [index.html](../../frontend/index.html) のviewportに `viewport-fit=cover` を指定し、上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom, 0px)` を使用する。下部ナビは通常の12pxに端末の下側安全領域を加算し、ホームインジケーターと操作を離す。安全領域が0なら12pxを維持する。[WebKit公式の方式](https://webkit.org/blog/7929/designing-websites-for-iphone-x/)に従うが、LINE内のWebViewが返す値は実機で確認し、ノッチ・ホームインジケーター・横向きで重なりがないことを実測する。
 - LINE公式は縦向きと横向きで異なるセーフエリアを案内している。既存の余白へ固定値を無条件に加算せず、表示領域との重複を確認する。[公式: LINEミニアプリのセーフエリア](https://developers.line.biz/ja/docs/line-mini-app/design/landscape/)
 - ソフトウェアキーボードを開閉し、本文入力・初期登録・設定の入力欄と送信操作へ到達できることを確認する。画面高が不足した場合は、文字を縮めず本文領域の縦スクロールを許容する。
 - 横めくりと縦スクロールを両立させる。[useNotebookSwipe](../../frontend/src/shared/hooks/useNotebookSwipe.ts) は縦方向のジェスチャーをめくりにせず、スワイプ後のリンク誤作動を防ぐ。入力欄では左右キーをめくりに使わない。
+- クイズのしおりはタップで選び、差し込むアニメーションで結果を示す。LINEの下方向スワイプによる最小化と競合しないよう、タッチ・ペンでのドラッグ配置は行わない。移動や `pointercancel` で中断した操作は回答に反映せず、マウスのドラッグとキーボード選択は維持する。配置済みのしおりを押すと選び直せる。[公式: LIFFブラウザの最小化](https://developers.line.biz/ja/docs/liff/minimizing-liff-browser/)
 - 「大きく表示」、OS・ブラウザの拡大、`prefers-reduced-motion`、キーボード操作を確認する。文字サイズ・スクロールの詳細は[デザイン指針](../requirements/design-guidelines.md)に従う。
 - クレヨン輪郭のSVGフィルタは [CrayonFilters](../../frontend/src/shared/components/CrayonFilters.tsx) を同一DOMに配置し、`url(#crayon-edge)` などで参照する。現行コードはiOSでの描画互換性を理由にこの構成を採用している。外部SVG・data URIへの移動は実機で検証してから行う。
 

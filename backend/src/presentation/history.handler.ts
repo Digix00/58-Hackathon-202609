@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
+import type { HistoryConcernEntry } from "../application/entity/history";
 import type { IHistoryUseCase } from "../application/usecase/history.usecase";
 import { HistoryUserDeletedError } from "../application/usecase/history.usecase";
 import type { Bindings } from "../types";
@@ -13,11 +14,20 @@ import {
   getRegionName,
 } from "../util/attribute-name";
 import {
+  getConcernRepresentationState,
+  selectConcernText,
+} from "../util/concern-text";
+import {
   DISPLAY_LANGUAGES,
   type DisplayLanguage,
   resolveDisplayLanguage,
 } from "../util/display-language";
-import { decodeHistoryCursor, encodeHistoryCursor } from "./history-cursor";
+import {
+  decodeHistoryConcernCursor,
+  decodeHistoryCursor,
+  encodeHistoryConcernCursor,
+  encodeHistoryCursor,
+} from "./history-cursor";
 
 const summaryQuery = z
   .object({ language: z.enum(DISPLAY_LANGUAGES).optional() })
@@ -27,6 +37,14 @@ const quizAnswersQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(50).default(20),
     cursor: z.string().min(1).max(512).optional(),
+  })
+  .strict();
+
+const concernHistoryQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+    cursor: z.string().min(1).max(512).optional(),
+    language: z.enum(DISPLAY_LANGUAGES).optional(),
   })
   .strict();
 
@@ -86,17 +104,7 @@ export class HistoryHandler {
       ? decodeHistoryCursor(parsed.data.cursor)
       : null;
     if (parsed.data.cursor && !cursor) {
-      return c.json(
-        {
-          error: {
-            code: "INVALID_CURSOR",
-            message: "履歴の続き位置を確認してください",
-            details: [{ field: "cursor", reason: "invalid" }],
-            requestId,
-          },
-        },
-        400,
-      );
+      return invalidCursor(c, requestId);
     }
 
     try {
@@ -118,6 +126,120 @@ export class HistoryHandler {
       throw error;
     }
   });
+
+  /** 自分が書いた声を新しい順に返す。公開前・非公開も本人には見せる。 */
+  readonly getConcerns = factory.createHandlers(async (c) => {
+    return this.listConcernHistory(c, (userId, limit, cursor) =>
+      this.historyUseCase.listOwnConcerns(userId, limit, cursor),
+    );
+  });
+
+  /** 自分が寄りそった声を、寄りそった順に返す。 */
+  readonly getReactions = factory.createHandlers(async (c) => {
+    return this.listConcernHistory(c, (userId, limit, cursor) =>
+      this.historyUseCase.listReactedConcerns(userId, limit, cursor),
+    );
+  });
+
+  private async listConcernHistory(
+    c: HistoryContext,
+    list: (
+      userId: string,
+      limit: number,
+      cursor: ReturnType<typeof decodeHistoryConcernCursor>,
+    ) => ReturnType<IHistoryUseCase["listOwnConcerns"]>,
+  ) {
+    const requestId = setRequestId(c);
+    const user = c.var.auth?.user;
+    if (!user) return authenticationRequired(c, requestId);
+
+    const parsed = concernHistoryQuery.safeParse(c.req.query());
+    if (!parsed.success) {
+      return invalidRequest(c, requestId, parsed.error.issues);
+    }
+
+    const cursor = parsed.data.cursor
+      ? decodeHistoryConcernCursor(parsed.data.cursor)
+      : null;
+    if (parsed.data.cursor && !cursor) {
+      return invalidCursor(c, requestId);
+    }
+
+    try {
+      const result = await list(user.id, parsed.data.limit, cursor);
+      const language = resolveDisplayLanguage(
+        parsed.data.language,
+        user.displayLanguage,
+      );
+      return c.json({
+        items: result.items.map((item) =>
+          toConcernHistoryResponse(item, language),
+        ),
+        nextCursor: result.nextCursor
+          ? encodeHistoryConcernCursor(result.nextCursor)
+          : null,
+      });
+    } catch (error) {
+      if (error instanceof HistoryUserDeletedError) {
+        return userDeleted(c, requestId);
+      }
+      throw error;
+    }
+  }
+}
+
+/**
+ * 履歴一覧の1件を応答へ変換する。投稿者IDは持たせず、
+ * 表示言語の選択と翻訳状態の扱いはフィードと同じ規則にそろえる。
+ */
+function toConcernHistoryResponse(
+  entry: HistoryConcernEntry,
+  language: DisplayLanguage,
+) {
+  const concern = entry.concern;
+  const selectedText = selectConcernText(
+    concern.body,
+    concern.representations,
+    language,
+  );
+
+  return {
+    id: concern.id,
+    body: selectedText.body,
+    language: selectedText.language,
+    attributes: {
+      ageGroup: concern.ageGroup ?? undefined,
+      ageGroupName: getAgeGroupName(concern.ageGroup, language),
+      gender: concern.gender ?? undefined,
+      genderName: getGenderName(concern.gender, language),
+      regionCode: concern.regionCode ?? undefined,
+      regionName: getRegionName(concern.regionCode, language),
+    },
+    representations: {
+      jaHira: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "ja-Hira",
+      ),
+      en: getConcernRepresentationState(
+        concern.representations,
+        concern.processingStatus,
+        "en",
+      ),
+    },
+    cluster: entry.cluster
+      ? {
+          id: entry.cluster.id,
+          label: entry.cluster.label,
+          summary: entry.cluster.summary,
+        }
+      : null,
+    reactionCount: entry.reactionCount,
+    visibilityStatus: concern.visibilityStatus,
+    processingStatus: concern.processingStatus,
+    reactedAt: entry.reactedAt,
+    createdAt: concern.createdAt,
+  };
 }
 
 /** 集計の属性コードに、表示形式に合わせたマスタ上の名称を添える。 */
@@ -186,6 +308,20 @@ function userDeleted(c: HistoryContext, requestId: string) {
       },
     },
     403,
+  );
+}
+
+function invalidCursor(c: HistoryContext, requestId: string) {
+  return c.json(
+    {
+      error: {
+        code: "INVALID_CURSOR",
+        message: "履歴の続き位置を確認してください",
+        details: [{ field: "cursor", reason: "invalid" }],
+        requestId,
+      },
+    },
+    400,
   );
 }
 

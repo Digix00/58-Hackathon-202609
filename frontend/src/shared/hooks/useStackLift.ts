@@ -17,6 +17,13 @@ const LIFT_MS = 560
  *
  * 上がりきったら onLifted で知らせる。押し上げとめくりを重ねず、
  * 紙束が落ち着いてから表紙をめくるため。
+ * Intent: 表紙を開いたときの紙束の位置補正を局所化する。
+ * Boundary: 開閉・完了通知・時間を受け取り、DOM参照と位置記録操作を返す。
+ * State Modeling: 描画に不要な直前位置はrefで保持する。
+ * Update Surface: rememberStackPosition。
+ * Hidden Complexity: 移動前後の計測、transition完了、動きを減らす設定を扱う。
+ * Composition: 各featureの紙送りHookが開く直前に位置を記録する。
+ * Test Notes: 位置差なし、動きの省略、完了通知、unmount時の購読解除を確認する。
  */
 export function useStackLift(open: boolean, onLifted: () => void, duration = LIFT_MS) {
   const stackRef = useRef<HTMLDivElement | null>(null)
