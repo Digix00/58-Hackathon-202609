@@ -22,7 +22,16 @@ import type {
   ListPublishedConcernsInput,
   RecommendedConcernCursor,
 } from "../repository/concern.repository";
+import { deriveAgeGroup } from "../shared/age-group";
 import { generateId } from "../shared/id-generator";
+
+/** 投稿時に属性が未指定の場合のフォールバック元となる、認証済みユーザーのプロフィール。 */
+export interface CreateConcernUserProfile {
+  birthYear: number | null;
+  birthMonth: number | null;
+  gender: Gender | null;
+  regionCode: string | null;
+}
 
 export interface CreateConcernInput {
   userId: string;
@@ -30,6 +39,7 @@ export interface CreateConcernInput {
   ageGroup?: AgeGroup;
   gender?: Gender;
   regionCode?: string;
+  userProfile?: CreateConcernUserProfile;
 }
 
 export interface ListFeedInput extends ListConcernFeedInput {
@@ -85,13 +95,22 @@ export class ConcernUseCase implements IConcernUseCase {
   }
 
   readonly create = async (input: CreateConcernInput): Promise<Concern> => {
+    const profile = input.userProfile;
     const concern = new Concern({
       id: this.createId(),
       userId: input.userId,
       body: input.body,
-      ageGroup: input.ageGroup,
-      gender: input.gender,
-      regionCode: input.regionCode,
+      ageGroup:
+        input.ageGroup ??
+        (profile
+          ? (deriveAgeGroup(
+              profile.birthYear,
+              profile.birthMonth,
+              this.now(),
+            ) ?? undefined)
+          : undefined),
+      gender: input.gender ?? profile?.gender ?? undefined,
+      regionCode: input.regionCode ?? profile?.regionCode ?? undefined,
       createdAt: this.now().toISOString(),
     });
 
