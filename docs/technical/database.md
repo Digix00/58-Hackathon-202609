@@ -273,7 +273,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
 | concern_views | concern_id, actor_key, viewed_at | 既読記録。concern_id と actor_key の組で一意 |
 | learning_events | id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at | view, reaction, quiz_answer などの学習イベントを保存 |
-| feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認用。fallback で新着順にした場合も strategy に記録 |
+| feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認と見飽き判定用。fallback で新着順にした場合も strategy に記録。投稿を開いた（既読APIが呼ばれた）ときに、その利用者・投稿の未開封行へ opened_at を記録する |
 
 concerns の processing_status は次の概要値とする。
 

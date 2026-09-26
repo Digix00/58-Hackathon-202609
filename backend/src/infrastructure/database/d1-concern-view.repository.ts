@@ -6,7 +6,10 @@ import type { LearningEvent } from "../../application/entity/learning-event";
 import type { ConcernViewRepository } from "../../application/repository/concern-view.repository";
 import { concerns, concernViews } from "./schema";
 
-/** D1で公開中の投稿に対する既読を一度だけ記録するAdapter。 */
+/**
+ * D1で公開中の投稿に対する既読を一度だけ記録するAdapter。
+ * 同時に、その投稿の未開封の推薦表示履歴（feed_impressions）を開封済みにする。
+ */
 export class D1ConcernViewRepository implements ConcernViewRepository {
   private readonly db: ReturnType<typeof drizzle>;
   private readonly database: D1Database;
@@ -47,6 +50,14 @@ export class D1ConcernViewRepository implements ConcernViewRepository {
           event.occurredAt,
           view.concernId,
         ),
+      // 推薦の開封率を評価できるよう、未開封の表示履歴に開いた時刻を記録する。
+      // 既読が記録済みの再閲覧でも、その後に表示された分を開封済みにする。
+      this.database
+        .prepare(
+          "UPDATE feed_impressions SET opened_at = ? " +
+            "WHERE user_id = ? AND concern_id = ? AND opened_at IS NULL",
+        )
+        .bind(view.viewedAt, view.actorKey, view.concernId),
     ]);
 
     const row = await this.db
