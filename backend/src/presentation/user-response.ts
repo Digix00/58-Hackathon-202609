@@ -6,6 +6,7 @@ export function toUserResponse(user: User) {
   return {
     id: user.id,
     displayLanguage: user.displayLanguage,
+    fontSize: user.fontSize,
     birthYear: user.birthYear,
     birthMonth: user.birthMonth,
     gender: user.gender,

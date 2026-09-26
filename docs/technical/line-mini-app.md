@@ -88,7 +88,7 @@ LINE側では利用履歴から開き直した際に、状態を保持した再�
 現行実装の保持範囲は次のとおり。
 
 - 投稿本文は [usePostDraft](../../frontend/src/features/post/usePostDraft.ts) のメモリ内状態。送信失敗時の保持と、画面離脱・再読み込み後の復元は別であり、後者は実装していない。
-- 文字サイズなどの表示設定は [DisplaySettingsProvider](../../frontend/src/app/providers/DisplaySettingsProvider.tsx) のメモリ内状態。表示言語の保存は [SettingsPage](../../frontend/src/features/settings/SettingsPage.tsx) のAPI処理が担当する。すべての設定が端末に永続保存されるとは扱わない。
+- 文字サイズなどの表示設定は [DisplaySettingsProvider](../../frontend/src/app/providers/DisplaySettingsProvider.tsx) のメモリ内状態。ログイン済みの場合、表示言語と文字サイズは [SettingsPage](../../frontend/src/features/settings/SettingsPage.tsx) のAPI処理でアカウント（D1）へ保存し、ログイン後のセッションから復元する。すべての設定が端末に永続保存されるとは扱わない。
 - 詳細表示時の既読は [useConcernViewOnDisplay](../../frontend/src/features/concern-detail/useConcernViewOnDisplay.ts) がLIFF内かつアプリ認証済みの場合だけ記録する。Hook内のSetによる重複抑止は再マウントをまたぐ保証ではない。
 
 編集時は、バックグラウンドからの復帰、セッション切れ、通信切断後の再操作を確認する。投稿・回答の自動再送を追加して二重送信を起こさない。下書きの永続化を追加する場合は、本文の保存場所・削除時期・アカウント切り替え時の扱いも仕様化する。

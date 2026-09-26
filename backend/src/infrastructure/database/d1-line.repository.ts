@@ -62,6 +62,7 @@ export class D1LineRepository implements LineRepository {
           id: sql<string>`${userId}`.as("id"),
           lineUserId: sql<string>`${event.lineUserId}`.as("lineUserId"),
           displayLanguage: sql<string>`'original'`.as("displayLanguage"),
+          fontSize: sql<string>`'normal'`.as("fontSize"),
           birthYear: sql<number | null>`null`.as("birthYear"),
           birthMonth: sql<number | null>`null`.as("birthMonth"),
           genderCode: sql<string | null>`null`.as("genderCode"),

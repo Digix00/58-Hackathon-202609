@@ -24,6 +24,7 @@ export const users = sqliteTable(
     id: text("id").primaryKey(),
     lineUserId: text("line_user_id").notNull(),
     displayLanguage: text("display_language").notNull().default("original"),
+    fontSize: text("font_size").notNull().default("normal"),
     birthYear: integer("birth_year"),
     birthMonth: integer("birth_month"),
     genderCode: text("gender_code"),
@@ -41,6 +42,10 @@ export const users = sqliteTable(
     displayLanguageCheck: check(
       "users_display_language_check",
       sql`${table.displayLanguage} in ('original', 'jaHira', 'en')`,
+    ),
+    fontSizeCheck: check(
+      "users_font_size_check",
+      sql`${table.fontSize} in ('normal', 'large')`,
     ),
   }),
 );

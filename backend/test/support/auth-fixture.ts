@@ -13,7 +13,7 @@ export function createAuthDependencies() {
       updateProfile: async () => {
         throw new Error("auth fixture is not used by this test");
       },
-      updateDisplayLanguage: async () => {
+      updateDisplaySettings: async () => {
         throw new Error("auth fixture is not used by this test");
       },
     },

@@ -191,6 +191,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -266,6 +267,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -289,6 +291,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -358,6 +361,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
@@ -378,6 +382,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
@@ -458,6 +463,123 @@ describe("authentication routes", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       error: { code: "INVALID_REQUEST" },
+    });
+  });
+
+  async function loginAs(app: ReturnType<typeof createTestApp>) {
+    const anonymous = await app.request("/api/v1/auth/session", {}, env);
+    const login = await app.request(
+      "/api/v1/auth/line",
+      {
+        method: "POST",
+        headers: {
+          Cookie: cookieFrom(anonymous),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ idToken: "valid-id-token" }),
+      },
+      env,
+    );
+    return cookieFrom(login);
+  }
+
+  it("updates only the specified display settings and restores them", async () => {
+    const app = createTestApp("line_font_size_test_user");
+    const cookie = await loginAs(app);
+    const updateSettings = (body: Record<string, string>) =>
+      app.request(
+        "/api/v1/users/me/display-language",
+        {
+          method: "PUT",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        env,
+      );
+
+    const language = await updateSettings({ displayLanguage: "en" });
+    expect(language.status).toBe(200);
+    expect(await language.json()).toMatchObject({
+      user: { displayLanguage: "en", fontSize: "normal" },
+    });
+
+    const fontSize = await updateSettings({ fontSize: "large" });
+    expect(fontSize.status).toBe(200);
+    expect(await fontSize.json()).toMatchObject({
+      authenticated: true,
+      user: { displayLanguage: "en", fontSize: "large" },
+    });
+
+    const restored = await app.request(
+      "/api/v1/auth/session",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await restored.json()).toMatchObject({
+      authenticated: true,
+      user: { displayLanguage: "en", fontSize: "large" },
+    });
+  });
+
+  it("rejects an unsupported font size", async () => {
+    const app = createTestApp("line_font_size_invalid_test_user");
+    const cookie = await loginAs(app);
+
+    const response = await app.request(
+      "/api/v1/users/me/display-language",
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ fontSize: "huge" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST",
+        details: [{ field: "fontSize", reason: "invalid" }],
+      },
+    });
+  });
+
+  it("rejects display settings updates without any setting", async () => {
+    const app = createTestApp("line_display_settings_empty_test_user");
+    const cookie = await loginAs(app);
+
+    const response = await app.request(
+      "/api/v1/users/me/display-language",
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+  });
+
+  it("rejects font size updates without an authenticated user", async () => {
+    const app = createTestApp("line_font_size_auth_required_test_user");
+
+    const response = await app.request(
+      "/api/v1/users/me/display-language",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fontSize: "large" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({
+      error: { code: "AUTHENTICATION_REQUIRED" },
     });
   });
 });

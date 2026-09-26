@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `font_size` text DEFAULT 'normal' NOT NULL CHECK (`font_size` in ('normal', 'large'));
