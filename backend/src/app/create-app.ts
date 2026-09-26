@@ -83,6 +83,7 @@ function createPublicApp({
       "/api/v1/users/me/display-language",
       ...userHandler.updateDisplayLanguage,
     )
+    .put("/api/v1/users/me/font-size", ...userHandler.updateFontSize)
     .get("/api/v1/history/summary", ...historyHandler.getSummary)
     .get("/api/v1/history/quiz-answers", ...historyHandler.getQuizAnswers)
     .get("/api/v1/concerns", ...concernHandler.list)

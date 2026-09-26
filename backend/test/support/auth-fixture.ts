@@ -16,6 +16,9 @@ export function createAuthDependencies() {
       updateDisplayLanguage: async () => {
         throw new Error("auth fixture is not used by this test");
       },
+      updateFontSize: async () => {
+        throw new Error("auth fixture is not used by this test");
+      },
     },
     {
       insert: async () => {

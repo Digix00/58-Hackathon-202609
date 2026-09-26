@@ -31,6 +31,24 @@ export function validateDisplayLanguage(value: string): DisplayLanguage {
   return value as DisplayLanguage;
 }
 
+export const FONT_SIZES = ["normal", "large"] as const;
+export type FontSize = (typeof FONT_SIZES)[number];
+
+export class FontSizeValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FontSizeValidationError";
+  }
+}
+
+export function validateFontSize(value: string): FontSize {
+  if (!FONT_SIZES.includes(value as FontSize)) {
+    throw new FontSizeValidationError("fontSize is invalid");
+  }
+
+  return value as FontSize;
+}
+
 export interface UserProfile {
   birthYear: number;
   birthMonth: number;
@@ -115,6 +133,7 @@ export interface User {
   id: string;
   lineUserId: string;
   displayLanguage: DisplayLanguage;
+  fontSize: FontSize;
   birthYear: number | null;
   birthMonth: number | null;
   gender: Gender | null;

@@ -1,8 +1,10 @@
 import {
   type DisplayLanguage,
+  type FontSize,
   type User,
   type UserProfileInput,
   validateDisplayLanguage,
+  validateFontSize,
   validateUserProfile,
 } from "../entity/user";
 import type { UserRepository } from "../repository/auth.repository";
@@ -10,6 +12,7 @@ import type { UserRepository } from "../repository/auth.repository";
 export interface IUserUseCase {
   updateProfile(userId: string, input: UserProfileInput): Promise<User>;
   updateDisplayLanguage(userId: string, value: string): Promise<User>;
+  updateFontSize(userId: string, value: string): Promise<User>;
 }
 
 export class UserUseCase implements IUserUseCase {
@@ -29,5 +32,10 @@ export class UserUseCase implements IUserUseCase {
   async updateDisplayLanguage(userId: string, value: string): Promise<User> {
     const displayLanguage: DisplayLanguage = validateDisplayLanguage(value);
     return this.users.updateDisplayLanguage(userId, displayLanguage);
+  }
+
+  async updateFontSize(userId: string, value: string): Promise<User> {
+    const fontSize: FontSize = validateFontSize(value);
+    return this.users.updateFontSize(userId, fontSize);
   }
 }

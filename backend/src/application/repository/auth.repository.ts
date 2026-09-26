@@ -1,5 +1,10 @@
 import type { Session } from "../entity/session";
-import type { DisplayLanguage, User, UserProfile } from "../entity/user";
+import type {
+  DisplayLanguage,
+  FontSize,
+  User,
+  UserProfile,
+} from "../entity/user";
 
 export interface UserRepository {
   selectOrCreateByLineUserId(lineUserId: string, userId: string): Promise<User>;
@@ -9,6 +14,7 @@ export interface UserRepository {
     userId: string,
     displayLanguage: DisplayLanguage,
   ): Promise<User>;
+  updateFontSize(userId: string, fontSize: FontSize): Promise<User>;
 }
 
 export interface SessionRepository {

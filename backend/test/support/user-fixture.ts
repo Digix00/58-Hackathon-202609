@@ -9,6 +9,9 @@ export function createUserDependencies() {
       updateDisplayLanguage: async () => {
         throw new Error("user fixture is not used by this test");
       },
+      updateFontSize: async () => {
+        throw new Error("user fixture is not used by this test");
+      },
     }),
   };
 }

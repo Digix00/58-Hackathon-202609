@@ -96,6 +96,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -171,6 +172,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -194,6 +196,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: null,
         birthMonth: null,
         gender: null,
@@ -263,6 +266,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
@@ -283,6 +287,7 @@ describe("authentication routes", () => {
       user: {
         id: expect.any(String),
         displayLanguage: "original",
+        fontSize: "normal",
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
@@ -363,6 +368,96 @@ describe("authentication routes", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       error: { code: "INVALID_REQUEST" },
+    });
+  });
+
+  async function loginAs(app: ReturnType<typeof createTestApp>) {
+    const anonymous = await app.request("/api/v1/auth/session", {}, env);
+    const login = await app.request(
+      "/api/v1/auth/line",
+      {
+        method: "POST",
+        headers: {
+          Cookie: cookieFrom(anonymous),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ idToken: "valid-id-token" }),
+      },
+      env,
+    );
+    return cookieFrom(login);
+  }
+
+  it("updates and restores the authenticated user's font size", async () => {
+    const app = createTestApp("line_font_size_test_user");
+    const cookie = await loginAs(app);
+
+    const update = await app.request(
+      "/api/v1/users/me/font-size",
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ fontSize: "large" }),
+      },
+      env,
+    );
+
+    expect(update.status).toBe(200);
+    expect(await update.json()).toMatchObject({
+      authenticated: true,
+      user: { fontSize: "large", displayLanguage: "original" },
+    });
+
+    const restored = await app.request(
+      "/api/v1/auth/session",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await restored.json()).toMatchObject({
+      authenticated: true,
+      user: { fontSize: "large" },
+    });
+  });
+
+  it("rejects an unsupported font size", async () => {
+    const app = createTestApp("line_font_size_invalid_test_user");
+    const cookie = await loginAs(app);
+
+    const response = await app.request(
+      "/api/v1/users/me/font-size",
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ fontSize: "huge" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: "INVALID_REQUEST",
+        details: [{ field: "fontSize", reason: "invalid" }],
+      },
+    });
+  });
+
+  it("rejects font size updates without an authenticated user", async () => {
+    const app = createTestApp("line_font_size_auth_required_test_user");
+
+    const response = await app.request(
+      "/api/v1/users/me/font-size",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fontSize: "large" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({
+      error: { code: "AUTHENTICATION_REQUIRED" },
     });
   });
 });

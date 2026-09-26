@@ -5,6 +5,7 @@ import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
   DisplayLanguageValidationError,
+  FontSizeValidationError,
   type UserProfileInput,
   UserProfileValidationError,
 } from "../application/entity/user";
@@ -20,6 +21,9 @@ const updateUserProfileRequest = z.object({
 });
 const updateDisplayLanguageRequest = z.object({
   displayLanguage: z.string(),
+});
+const updateFontSizeRequest = z.object({
+  fontSize: z.string(),
 });
 
 const factory = createFactory<{
@@ -145,6 +149,64 @@ export class UserHandler {
               code: "INVALID_REQUEST",
               message: "表示形式を確認してください",
               details: [{ field: "displayLanguage", reason: "invalid" }],
+              requestId,
+            },
+          },
+          400,
+        );
+      }
+      throw error;
+    }
+  });
+
+  readonly updateFontSize = factory.createHandlers(async (c) => {
+    const requestId = setRequestId(c);
+    const auth = c.var.auth;
+    if (!auth?.user) {
+      return c.json(
+        {
+          error: {
+            code: "AUTHENTICATION_REQUIRED",
+            message: "文字サイズの更新にはLINEログインが必要です",
+            requestId,
+          },
+        },
+        401,
+      );
+    }
+
+    const parsed = updateFontSizeRequest.safeParse(await readJson(c.req.raw));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "文字サイズを確認してください",
+            details: parsed.error.issues.map((issue) => ({
+              field: issue.path.join(".") || "body",
+              reason: issue.code,
+            })),
+            requestId,
+          },
+        },
+        400,
+      );
+    }
+
+    try {
+      const user = await this.userUseCase.updateFontSize(
+        auth.user.id,
+        parsed.data.fontSize,
+      );
+      return c.json({ authenticated: true, user: toUserResponse(user) });
+    } catch (error) {
+      if (error instanceof FontSizeValidationError) {
+        return c.json(
+          {
+            error: {
+              code: "INVALID_REQUEST",
+              message: "文字サイズを確認してください",
+              details: [{ field: "fontSize", reason: "invalid" }],
               requestId,
             },
           },

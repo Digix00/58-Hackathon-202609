@@ -4,6 +4,7 @@ import type { RegionCode } from "../../application/entity/region-code";
 import type { Session } from "../../application/entity/session";
 import type {
   DisplayLanguage,
+  FontSize,
   Gender,
   User,
   UserProfile,
@@ -18,6 +19,7 @@ const userColumns = {
   id: users.id,
   lineUserId: users.lineUserId,
   displayLanguage: users.displayLanguage,
+  fontSize: users.fontSize,
   birthYear: users.birthYear,
   birthMonth: users.birthMonth,
   gender: users.genderCode,
@@ -111,6 +113,21 @@ export class D1UserRepository implements UserRepository {
     return updated;
   }
 
+  async updateFontSize(userId: string, fontSize: FontSize): Promise<User> {
+    await this.db
+      .update(users)
+      .set({ fontSize, updatedAt: new Date().toISOString() })
+      .where(eq(users.id, userId))
+      .run();
+
+    const updated = await this.selectById(userId);
+    if (!updated) {
+      throw new Error("failed to update user font size");
+    }
+
+    return updated;
+  }
+
   private async selectByLineUserId(lineUserId: string): Promise<User | null> {
     const user = await this.db
       .select(userColumns)
@@ -126,6 +143,7 @@ function toUser(user: {
   id: string;
   lineUserId: string;
   displayLanguage: string;
+  fontSize: string;
   birthYear: number | null;
   birthMonth: number | null;
   gender: string | null;
@@ -134,6 +152,7 @@ function toUser(user: {
   return {
     ...user,
     displayLanguage: user.displayLanguage as DisplayLanguage,
+    fontSize: user.fontSize as FontSize,
     gender: user.gender as Gender | null,
     regionCode: user.regionCode as RegionCode | null,
   };
