@@ -60,6 +60,16 @@ const UNRESOLVED_DELIVERY_STATUSES: readonly ReactionDigestDeliveryStatus[] = [
  */
 const MANUAL_RUN_ATTEMPTS = 2;
 
+/**
+ * 起点を戻す幅。
+ * concern_reactions.created_at はアプリ側で採番するため、採番から書き込みが見えるまでに間がある。
+ * その間に集計が走ると、締め時刻より前の created_at を持つ寄りそいが集計の後にコミットされ、
+ * 起点が締め時刻まで進むことで次回以降も対象から外れてしまう。
+ * 起点をこの幅だけ戻し、集計と同時にコミットされた寄りそいを次の実行で拾う。
+ * 同じ寄りそいを二度数える可能性はあるが、届いた寄りそいを知らせないほうが損失が大きい。
+ */
+const WINDOW_START_MARGIN_SECONDS = 5;
+
 /** 条件に合う delivery の件数。left join なので、delivery が無い run でも 0 を返す。 */
 function countDeliveriesWhere(condition: SQL): SQL<number> {
   return sql<number>`coalesce(sum(${condition}), 0)`.mapWith(Number);
@@ -345,7 +355,8 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 
   /**
-   * 受信者ごとの集計。起点は「最後に送信成功した delivery の締め時刻」で、
+   * 受信者ごとの集計。起点は「最後に送信成功した delivery の締め時刻」を
+   * WINDOW_START_MARGIN_SECONDS だけ戻した時刻で、
    * 未確定の delivery を持つ人は、別の run で二重に送らないよう除外する。
    */
   private recipientAggregate(runId: string) {
@@ -355,7 +366,11 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         userId: users.id,
         regionCode: users.regionCode,
         windowStart: sql<string | null>`(
-          select max(${reactionDigestDeliveries.windowEnd})
+          select strftime(
+            '%Y-%m-%dT%H:%M:%fZ',
+            max(${reactionDigestDeliveries.windowEnd}),
+            ${`-${WINDOW_START_MARGIN_SECONDS} seconds`}
+          )
           from ${reactionDigestDeliveries}
           where ${eq(reactionDigestDeliveries.userId, users.id)}
             and ${eq(reactionDigestDeliveries.status, "sent")}

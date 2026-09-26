@@ -91,17 +91,25 @@ sequenceDiagram
 
 ## 5. 「前回送信から」の起点
 
-ユーザーごとの起点（`window_start`）は、そのユーザーの **最後に送信成功した delivery の `window_end`** とする。
+ユーザーごとの起点（`window_start`）は、そのユーザーの **最後に送信成功した delivery の `window_end` を 5 秒戻した時刻** とする。
 
 - 初回（成功 delivery がない人）は起点を持たず、今回の締め時刻までの全寄りそいを対象にする
 - 送信に失敗した delivery は起点にならない。次回の実行では前回成功時点から集計し直すため、取りこぼしが起きない
 - 未確定（`pending` / `started`）の delivery がある人は、その delivery が確定するまで新しい run の対象から外す。結果不明の `started` は同じ Retry Key で再送して確定させる
 - `users` に「最終通知時刻」列を追加する方式も考えられるが、送信結果と起点がずれる恐れがあるため、delivery の履歴を正とする
 
+### 起点を 5 秒戻す理由
+
+`concern_reactions.created_at` はアプリ側で採番するため、採番から書き込みが他のクエリに見えるまでに間がある（Workers の時刻は直前の I/O で止まるので、少なくとも D1 への 1 往復分は開く）。この間に集計が走ると、締め時刻より前の `created_at` を持つ寄りそいが集計の後にコミットされ、起点が締め時刻まで進むことで次回以降も対象から外れてしまう。
+
+起点を採番と書き込みのずれの分だけ戻し、集計と同時にコミットされた寄りそいを次の実行で拾う。同じ寄りそいを二度数える可能性（前回の締め時刻の直前 5 秒に届いた寄りそいだけ）は残るが、届いた寄りそいを知らせないほうが損失が大きいため、取りこぼしよりも重複を選ぶ。
+
+D1 側の時刻で `created_at` を採番すればコミット順と一致するが、`created_at` は投稿や学習履歴でも使う値で、テストは `now` の注入で時刻を制御している。集計の都合でアプリ全体の時刻の採番を DB 任せにはしない。
+
 集計条件:
 
 ```sql
-concern_reactions.created_at >  window_start   -- 起点がある場合のみ
+concern_reactions.created_at >  window_start   -- 起点がある場合のみ（= 前回の window_end - 5 秒）
 concern_reactions.created_at <= run.cutoff_at
 concerns.user_id = 受信者
 concerns.visibility_status = 'published'
@@ -138,7 +146,7 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 | id | TEXT PK | delivery ID |
 | run_id | TEXT FK | reaction_digest_runs.id |
 | user_id | TEXT FK | 受信者の users.id（LINE user ID は保存しない。送信時に users から引く） |
-| window_start | TEXT NULL | 集計の起点（排他的）。初回は NULL |
+| window_start | TEXT NULL | 集計の起点（排他的）。前回の `window_end` を 5 秒戻した時刻。初回は NULL |
 | window_end | TEXT | 集計の終点（= run.cutoff_at） |
 | reactor_count | INTEGER | 新しく寄りそった人の実人数 |
 | same_region_count | INTEGER | うち受信者と同じ都道府県の人からの数 |
@@ -272,6 +280,7 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 ## 11. テスト観点
 
 - 前回成功時点より後の寄りそいだけが数えられる。失敗した delivery は起点にならない
+- 集計の後にコミットされた寄りそい（締め時刻の直前に採番されたもの）が次の実行で数えられる
 - 自分の寄りそい、非公開投稿への寄りそい、締め時刻より後の寄りそいは数えない
 - 同じ日の Cron 二重起動で run が 1 つしか作られない
 - 手動実行中に別の手動実行を行うと 409 になる

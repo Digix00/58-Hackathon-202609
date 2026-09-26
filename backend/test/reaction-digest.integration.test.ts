@@ -207,6 +207,28 @@ describe("ReactionDigestUseCase", () => {
     expect(sent[1].text).toContain("1人がそっと寄りそいました。");
   });
 
+  it("counts a reaction that became visible after the aggregation", async () => {
+    const recipient = await seedUser();
+    const reactor = await seedUser();
+    const raceReactor = await seedUser();
+    const concernId = await seedConcern(recipient.id);
+    await react(concernId, reactor.id, "2026-09-26T01:00:00.000Z");
+
+    let now = new Date("2026-09-26T11:00:00.000Z");
+    const { useCase, sent } = createDigest({ now: () => now });
+    await useCase.runManual();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("1人がそっと寄りそいました。");
+
+    // 締め時刻の直前に created_at を採番された寄りそいが、集計の後にコミットされた状況。
+    await react(concernId, raceReactor.id, "2026-09-26T10:59:59.000Z");
+
+    now = new Date("2026-09-26T12:00:00.000Z");
+    await useCase.runManual();
+    expect(sent).toHaveLength(2);
+    expect(sent[1].text).toContain("1人がそっと寄りそいました。");
+  });
+
   it("recounts from the last success after a rejected push", async () => {
     const recipient = await seedUser();
     const first = await seedUser();
