@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react'
+import type { MessageKey } from '../../i18n/messages'
 import { listThemes, type ThemeItem } from './clusterApi'
 import type { FeedFilter } from './feedViewModel'
 
@@ -8,11 +9,11 @@ type ThemeState = {
   nextCursor: string | null
   cursors: Array<string | undefined>
   attempt: number
-  error: string | null
+  error: MessageKey | null
 }
 type ThemeAction =
   | { type: 'loaded'; items: ThemeItem[]; nextCursor: string | null }
-  | { type: 'failed'; message: string }
+  | { type: 'failed'; message: MessageKey }
   | { type: 'next' | 'previous' | 'retry' }
 
 function reducer(state: ThemeState, action: ThemeAction): ThemeState {

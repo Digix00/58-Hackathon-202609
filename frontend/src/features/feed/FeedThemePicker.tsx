@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
+import { useTranslation } from '../../i18n/useTranslation'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import type { FeedTheme } from './clusterApi'
@@ -20,31 +21,34 @@ export function FeedThemePicker({
   onClose: () => void
 }) {
   const themes = useFeedThemes(filter)
+  const { t, message, language } = useTranslation()
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     heading.current?.focus()
   }, [themes.cursors.length])
-  const condition = activeFeedFilterLabel(filter)
+  const condition = activeFeedFilterLabel(filter, language)
   return (
     <section className={`${screen.page} ${styles.picker}`} aria-labelledby="themes-title">
       <button className={actionStyles.text} type="button" onClick={onClose}>
-        ← 読んでいた声に戻る
+        {t('feed.themes.back')}
       </button>
       <header className={screen.heading}>
-        <p className={screen.eyebrow}>声のもくじ</p>
+        <p className={screen.eyebrow}>{t('feed.themes.eyebrow')}</p>
         <h1 id="themes-title" ref={heading} tabIndex={-1}>
-          テーマでえらぶ
+          {t('feed.themes.title')}
         </h1>
-        <p className={screen.muted}>気になるテーマから、誰かの声を読んでみませんか。</p>
-        {condition ? <p className={screen.meta}>条件：{condition}</p> : null}
+        <p className={screen.muted}>{t('feed.themes.description')}</p>
+        {condition ? (
+          <p className={screen.meta}>{t('feed.themes.condition', { condition })}</p>
+        ) : null}
       </header>
       <button type="button" className={actionStyles.secondary} onClick={() => onSelect(null)}>
-        テーマをしぼらず読む
+        {t('feed.themes.readAll')}
       </button>
-      {themes.status === 'loading' ? <LoadingState label="テーマを読み込んでいます…" /> : null}
+      {themes.status === 'loading' ? <LoadingState label={t('feed.themes.loading')} /> : null}
       {themes.status === 'error' ? (
         <ErrorState
-          description={themes.error ?? 'テーマを読み込めませんでした。'}
+          description={message(themes.error ?? 'error.loadThemes')}
           onRetry={() => themes.dispatch({ type: 'retry' })}
         />
       ) : null}
@@ -52,10 +56,10 @@ export function FeedThemePicker({
         <>
           {themes.items.length === 0 ? (
             <p role="status" className={screen.muted}>
-              この条件のテーマは、まだありません。テーマをしぼらずに声を読めます。
+              {t('feed.themes.empty')}
             </p>
           ) : null}
-          <ul className={styles.list} aria-label="読むテーマ">
+          <ul className={styles.list} aria-label={t('feed.themes.listLabel')}>
             {themes.items.map((theme) => (
               <li key={theme.id}>
                 <button
@@ -67,7 +71,8 @@ export function FeedThemePicker({
                   <span className={styles.label}>{theme.label}</span>
                   <span className={styles.summary}>{theme.summary}</span>
                   <span className={styles.count}>
-                    {theme.concernCount}件の声{selectedId === theme.id ? ' · 選択中' : ''} →
+                    {t('feed.themes.count', { count: theme.concernCount })}
+                    {selectedId === theme.id ? t('feed.themes.selected') : ''} →
                   </span>
                 </button>
               </li>
@@ -75,7 +80,7 @@ export function FeedThemePicker({
           </ul>
         </>
       ) : null}
-      <nav className={styles.paging} aria-label="テーマのページ">
+      <nav className={styles.paging} aria-label={t('feed.themes.pages')}>
         {themes.cursors.length > 1 ? (
           <button
             className={actionStyles.text}
@@ -83,7 +88,7 @@ export function FeedThemePicker({
             disabled={themes.status === 'loading'}
             onClick={() => themes.dispatch({ type: 'previous' })}
           >
-            ← 前のテーマ
+            {t('feed.themes.previous')}
           </button>
         ) : null}
         {themes.status === 'success' && themes.nextCursor ? (
@@ -92,7 +97,7 @@ export function FeedThemePicker({
             type="button"
             onClick={() => themes.dispatch({ type: 'next' })}
           >
-            ほかのテーマ →
+            {t('feed.themes.more')}
           </button>
         ) : null}
       </nav>
