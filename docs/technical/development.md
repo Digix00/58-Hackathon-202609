@@ -1,4 +1,4 @@
-# 目安箱 開発・運用方針
+# Qiite 開発・運用方針
 
 ローカル開発、デプロイ、CI、運用、実装前の確認事項、ロードマップを定義する。
 
@@ -34,6 +34,13 @@ LINEログインなしで認証が必要な機能を確認する場合は、`fro
 フロントエンドは`POST /api/v1/auth/dev`から通常のHttpOnly Cookieセッションを取得し、`VITE_DEV_USER`（`demo-a`〜`demo-c`）に対応する開発用ユーザーとしてローカルAPIへ接続する。
 `make dev`はマイグレーション後にこの認証用データとサンプルデータを投入する。
 開発用認証エンドポイントは`wrangler.dev.jsonc`と`wrangler.vectorize.dev.jsonc`でのみ有効で、本番設定では無効である。
+
+ローカルHTTP（`localhost`、`127.0.0.1`、`[::1]`）では、`DEV_AUTH_ENABLED=true` の場合だけ
+Secure属性なしのHttpOnly Cookie `dev-session` を使う。SafariなどでSecure Cookieが保存されず、
+開発ログインは200でも履歴・クイズAPIが401になる問題を避けるためである。HTTPSや本番設定は
+従来のSecure属性付き `__Host-session` を使う。
+更新後は画面を再読み込みして開発用セッションを取得し直す。フロントエンドとAPIは同じホスト名
+（既定は両方とも`localhost`）に揃え、`localhost`と`127.0.0.1`を混在させない。
 
 実際のLINE認証を確認する場合は、`.env.local`の`VITE_DEV_LIFF_MODE`を`false`、`VITE_DEV_AUTH_MODE`を空にし、`VITE_LINE_LIFF_ID`へLIFF IDを設定してから開発サーバーを再起動する。
 

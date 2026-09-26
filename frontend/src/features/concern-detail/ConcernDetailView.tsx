@@ -1,26 +1,22 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import { Link } from 'react-router'
 import { LoginGuide } from '../../app/router'
-import type { ConcernDetail } from './concernDetailTypes'
-import {
-  ageGroupLabel,
-  createdLabel,
-  genderLabel,
-  regionLabel,
-} from '../../shared/concernPresentation'
+import type { ConcernReactionStatus } from '../reaction/useConcernReaction'
+import type { ConcernDetailViewModel } from './concernDetailViewModel'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
 
 type ConcernDetailViewProps = {
-  concern: ConcernDetail
+  concern: ConcernDetailViewModel
   isLiff: boolean
   showLogin: boolean
   reaction: {
     reactionCount: number
     reacted: boolean
     submitting: boolean
+    status: ConcernReactionStatus
     error: string | null
   }
   onReact: () => void
@@ -33,14 +29,7 @@ export function ConcernDetailView({
   reaction,
   onReact,
 }: ConcernDetailViewProps) {
-  const { t, message, language } = useTranslation()
-
-  const attributes = [
-    ageGroupLabel(concern.attributes.ageGroup, language),
-    genderLabel(concern.attributes.gender, language),
-    concern.attributes.regionName ?? regionLabel(concern.attributes.regionCode, language),
-    createdLabel(concern.createdAt, language),
-  ].filter(Boolean)
+  const { t, message } = useTranslation()
 
   return (
     <div className={screen.page}>
@@ -48,25 +37,22 @@ export function ConcernDetailView({
         {t('common.backToFeedArrow')}
       </Link>
       <article className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}>
-        <p className={screen.meta}>{attributes.join(' · ')}</p>
-        <h1 className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
+        <p className={screen.meta}>{concern.attributesLabel}</p>
+        <h1 className={screen.body} lang={concern.bodyLanguage}>
           {concern.body}
         </h1>
-        <TranslationNotice
-          actualLanguage={concern.language}
-          status={language === 'original' ? undefined : concern.representations[language]}
-        />
+        <TranslationNotice actualLanguage={concern.language} status={concern.translationStatus} />
         {isLiff ? (
           <>
             <button
               type="button"
               className={actionStyles.secondary}
               onClick={onReact}
-              disabled={reaction.reacted || reaction.submitting}
+              disabled={reaction.submitting}
               aria-pressed={reaction.reacted}
               aria-busy={reaction.submitting}
             >
-              {reaction.reacted ? t('reaction.supported') : t('reaction.support')} ·{' '}
+              {reaction.reacted ? t('reaction.remove') : t('reaction.support')} ·{' '}
               {t('common.count', { count: reaction.reactionCount })}
             </button>
             {reaction.error ? (
@@ -78,7 +64,11 @@ export function ConcernDetailView({
         ) : null}
       </article>
       <p aria-live="polite" className={screen.muted}>
-        {reaction.reacted ? t('reaction.announcement', { count: reaction.reactionCount }) : ''}
+        {reaction.reacted
+          ? t('reaction.announcement', { count: reaction.reactionCount })
+          : reaction.status === 'succeeded'
+            ? t('reaction.removedAnnouncement', { count: reaction.reactionCount })
+            : ''}
       </p>
       {showLogin ? <LoginGuide /> : null}
       <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">

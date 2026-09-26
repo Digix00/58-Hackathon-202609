@@ -50,25 +50,26 @@
 /*
  * 題字。
  *
- * 表紙の題字（feed/FeedPage.module.css の .coverTitle）と同じ手で書く。
+ * 表紙の題字（feed/FeedPage.module.css の .coverTitle）と同じ絵を置く。
  * 起動画面だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
  * 違うのは波線だけで、こちらは引かれていく過程を見せるため線として持つ。
+ *
+ * 題字は書体ではなく絵なので、大きさは幅で決める。文字サイズの設定は
+ * ここへも通し、「大きく表示」では題字も一緒に大きくする。
  */
 .title {
   position: relative;
   z-index: 1;
+  width: calc(164px * var(--font-scale));
   margin: 0;
-  color: var(--color-purple-ink);
-  font-size: calc(27px * var(--font-scale));
-  font-family: var(--font-hand);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  line-height: 1.5;
-  text-shadow: 0.035em 0.045em 0 #e8dcb9;
-  white-space: nowrap;
   transform: rotate(-1.4deg);
   /* クレヨンが通った分だけ現れる。線より少し遅れて出て、先に書かれた字にしない。 */
   animation: titleWrite 720ms linear 240ms both;
+}
+
+/* 紙に落ちるクレヨンの影。表紙の題字の text-shadow と同じ向き・同じ色にそろえる。 */
+.titleLogo {
+  filter: drop-shadow(0.9px 1.2px 0 #e8dcb9);
 }
 
 @keyframes titleWrite {
@@ -92,8 +93,12 @@
   width: auto;
   height: auto;
   overflow: visible;
-  /* 字の下端のすぐ下へ上げる。行送りの余白のぶん、下がったままだと離れて見える。 */
-  margin-top: -0.32em;
+  /*
+   * 字の下端のすぐ下へ置く。題字が書体だったころは行送りの余白ぶん上げていたが、
+   * いまの題字は絵で、枠の下端が字の下端とほぼ同じ高さにある。上げると波の山が
+   * Q の輪と e に食い込むので、波の山のぶんだけ下げる。
+   */
+  margin-top: 0.07em;
   transform: rotate(-1.4deg);
 }
 
@@ -132,8 +137,8 @@
   width: 1.9em;
   /* 先を軸に傾ける。軸の真ん中で回すと、先が線から浮く。 */
   transform-origin: 50% 5%;
-  /* 絵の先端は上から約5%の位置にある。その先が波線に触れる高さへ上げる。 */
-  margin-top: -0.3em;
+  /* 絵の先端は上から約5%の位置にある。その先が波線に触れる高さへ下げる。 */
+  margin-top: 0.5em;
   animation: penDraw 1500ms both;
 }
 

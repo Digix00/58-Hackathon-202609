@@ -1,6 +1,6 @@
-# 目安箱 API仕様
+# Qiite API仕様
 
-WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の HTTP API 契約を定義する。
+WebブラウザとLINEミニアプリ（LIFF）から利用する、Qiite の HTTP API 契約を定義する。
 本書では、実装時に判断が分かれないよう、認証主体、入力値、レスポンス、状態遷移、重複操作、LINE連携の責務を固定する。
 
 本書は [プロダクト要件](../requirements/product.md) の API 境界を定義する文書であり、次の方針を前提とする。
@@ -260,6 +260,7 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
 | GET | /api/v1/concerns/:concernId | MVP | 不要（閲覧のみ） | 悩み詳細 |
 | POST | /api/v1/concerns/:concernId/reactions | MVP | LINEログイン（LIFF内のみ） | リアクション登録 |
+| DELETE | /api/v1/concerns/:concernId/reactions | MVP | LINEログイン（LIFF内のみ） | 本人のリアクション解除 |
 | POST | /api/v1/concerns/:concernId/views | MVP | LINEログイン（LIFF内のみ） | 既読登録 |
 | GET | /api/v1/clusters | デモ必須 | 不要（閲覧のみ） | 公開クラスタ一覧 |
 | GET | /api/v1/clusters/:clusterId/concerns | デモ必須 | 不要（閲覧のみ） | クラスタ内の悩み |
@@ -268,6 +269,8 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | POST | /api/v1/quizzes/:quizId/answers | デモ必須 | LINEログイン（LIFF内のみ） | 対応付け回答 |
 | GET | /api/v1/history/summary | デモ必須 | LINEログイン（LIFF内のみ） | 閲覧・クラスタ・都道府県・属性・クイズ集計 |
 | GET | /api/v1/history/quiz-answers | デモ必須 | LINEログイン（LIFF内のみ） | クイズ回答履歴 |
+| GET | /api/v1/history/concerns | デモ必須 | LINEログイン（LIFF内のみ） | 自分が書いた声の履歴 |
+| GET | /api/v1/history/reactions | デモ必須 | LINEログイン（LIFF内のみ） | 自分が寄りそった声の履歴 |
 | POST | /api/v1/speech/transcriptions | デモ必須 | LINEログイン（LIFF内のみ） | 音声の一時文字起こし |
 | POST | /api/v1/webhooks/line | デモ必須 | LINE 署名 | follow / unfollow（text messageは投稿に利用しない） |
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
@@ -279,6 +282,12 @@ userId を受け取る API、ユーザーごとに Push API を呼び出す配�
 `POST /api/v1/auth/dev` はローカル開発専用であり、本番のAPI契約には含めない。`DEV_AUTH_ENABLED=true` のWorkerだけが、
 サーバー側で定義した `demo-a`、`demo-b`、`demo-c` を受け付ける。任意の `userId`、LINE user ID、アクセストークンは受け付けず、
 発行するCookieと以降の認証処理はLINEログインと同じ経路を利用する。
+
+`DEV_AUTH_ENABLED=true` かつHTTPの `localhost`、`127.0.0.1`、`[::1]` に限り、セッションCookieは
+`dev-session; HttpOnly; SameSite=Lax; Path=/` とし、`Secure` を付けない。SafariなどでローカルHTTPの
+Secure Cookieが保存されず、開発ログイン成功直後の操作APIが401になることを防ぐ。
+発行・復元・認証middleware・ログアウトは同じCookie設定を使う。それ以外の環境では
+従来の `__Host-session; Secure; HttpOnly; SameSite=Lax; Path=/` を使い、`dev-session` は読み取らない。
 
 ### 2.1 PUT /api/v1/users/me
 
@@ -544,7 +553,28 @@ reasonCode の初期値は次のとおり。
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
-### 3.5 POST /api/v1/concerns/:concernId/views
+### 3.5 DELETE /api/v1/concerns/:concernId/reactions
+
+認証済みユーザー自身の `empathy` リアクションを解除する。リアクションが存在しない場合も成功として扱い、集計数は現在値を返す。
+
+#### Response: 200 OK
+
+~~~json
+{
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
+  "reactionType": "empathy",
+  "reactionCount": 12,
+  "reacted": false
+}
+~~~
+
+- hidden、deleted の悩み、存在しない concernId は 404 NOT_FOUND とする
+- LINEログイン済みセッションがない場合は 401 AUTHENTICATION_REQUIRED を返す
+- concern_reactions からは解決済みの認証主体の行だけを削除する
+- 解除したリアクションに対応する `learning_events` の reaction も削除する
+- 他ユーザーのリアクションは解除できない
+
+### 3.6 POST /api/v1/concerns/:concernId/views
 
 公開中の悩みをLINEログイン済みユーザーの既読として記録する。Request body は持たない。フロントエンドは本文の表示完了後に1回呼び出す。
 
@@ -804,6 +834,11 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~json
 {
   "viewedConcernCount": 24,
+  "contributions": {
+    "concernCount": 3,
+    "receivedReactionCount": 5,
+    "givenReactionCount": 8
+  },
   "nextSuggestion": {
     "kind": "theme",
     "label": "昼休み・食堂"
@@ -848,6 +883,9 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
+- contributions.concernCount は自分が書いた投稿のうち、削除済みを除いた件数。公開前・非公開も本人の件数には数える
+- contributions.receivedReactionCount は自分の投稿（削除済みを除く）が受け取った寄りそいの件数
+- contributions.givenReactionCount は自分が寄りそった投稿のうち、いま公開中のものの件数
 - nextSuggestion は本人以外の公開投稿の未読候補から、既読の公開投稿にまだ現れていないテーマまたは都道府県を1件返す。テーマ候補には処理完了済みの投稿と ready なラベル付きクラスタだけを使い、未読テーマを優先する。テーマ候補がない場合は未読の都道府県コードと表示名（`regionName`）を返し、該当する候補がない場合は null
 - clusters は既読履歴に現れた公開・処理完了済み投稿のうち、ready なラベル付きクラスタを集計する。`regions` は既読履歴に現れた公開投稿の都道府県コード別集計であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
@@ -886,6 +924,84 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 - 自分の quiz_attempts だけを返す
 - concernId、participantId、他ユーザーの情報は履歴一覧には含めない
 - 並びは answeredAt DESC, quizId DESC とする
+
+### 6.3 GET /api/v1/history/concerns
+
+自分が書いた声を新しい順に返す。
+
+#### Query
+
+| Param | 必須 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| limit | 任意 | 10 | 1〜50 |
+| cursor | 任意 | なし | opaque cursor。6.4 と同じ形式 |
+| language | 任意 | 1.8 の規則 | original、jaHira、en。本文の選択と属性の表示名に使う |
+
+#### Response
+
+~~~json
+{
+  "items": [
+    {
+      "id": "concern_01J...",
+      "body": "食堂が混んでいて昼休みに休めない",
+      "language": "original",
+      "attributes": {
+        "ageGroup": "20s",
+        "ageGroupName": "20代",
+        "gender": "female",
+        "genderName": "女性",
+        "regionCode": "osaka",
+        "regionName": "大阪府"
+      },
+      "representations": {
+        "jaHira": "ready",
+        "en": "pending"
+      },
+      "cluster": {
+        "id": "cluster_01J...",
+        "label": "昼休み・食堂",
+        "summary": "休憩場所が足りない声"
+      },
+      "reactionCount": 3,
+      "visibilityStatus": "published",
+      "processingStatus": "ready",
+      "reactedAt": null,
+      "createdAt": "2026-09-21T00:20:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+~~~
+
+- 自分の投稿だけを返す。削除済みだけを除き、公開前・非公開の投稿も本人には返す
+- `visibilityStatus` が published 以外の投稿は 3.3 の詳細 API では取得できないため、画面から詳細への導線は出さない
+- 本文と `language` の選び方、`representations` の状態は 3.2 のフィードと同じ規則にそろえる。`language` は original、jaHira、en のいずれかで、選んだ表現が ready でないときは original を返す
+- `visibilityStatus` は pending、published、hidden のいずれかとする。deleted の投稿は返さない。`processingStatus` は pending、processing、ready、failed のいずれかとする
+- reactedAt は常に null とする。並びは createdAt DESC, id DESC とする
+- 投稿者の内部 userId は返さない
+- LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+
+### 6.4 GET /api/v1/history/reactions
+
+自分が寄りそった声を、寄りそった順に返す。
+
+#### Query
+
+6.3 と同じ（limit は 1〜50、既定値 10）。
+
+#### Response
+
+6.3 と同じ形。`reactedAt` に寄りそった日時が入る。
+
+- いま公開中の投稿だけを返す。相手が非公開へ変えた投稿は履歴からも外す
+- 並びは reactedAt DESC, id DESC とする
+- 投稿者の内部 userId は返さない
+- LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
+
+### 6.5 履歴一覧の cursor
+
+6.3 と 6.4 の cursor は、並び順の基準日時（`sortedAt`）と投稿IDの組を base64url で包んだ opaque な値とする。復号できない cursor は 400 INVALID_CURSOR とする。cursor には userId を含めないため、書き換えても他人の履歴は読み出せない。
 
 ## 7. 音声 API
 

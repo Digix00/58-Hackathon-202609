@@ -61,6 +61,15 @@ export function LineBroadcastPage() {
   )
 }
 
+/**
+ * Intent: 配信状況の取得・ポーリングと配信開始の連携を局所化する。
+ * Boundary: 状況、取得中・開始中・エラーと再取得・開始操作を返す。
+ * State Modeling: 取得と開始の進行をuseStateで別に持ち、取得要求の共有はrefに保持する。
+ * Update Surface: refresh / trigger。
+ * Hidden Complexity: 取得要求の重複排除、実行中だけのポーリング、開始失敗後の状況再確認。
+ * Composition: 管理画面のContainerから表示部品へ状態と操作を渡す。
+ * Test Notes: 状況取得失敗、開始失敗、実行中のポーリングと終了を確認する。
+ */
 function useLineBroadcastPageState() {
   const [status, setStatus] = useState<DailyBroadcastStatus | null>(null)
   const [loading, setLoading] = useState(true)

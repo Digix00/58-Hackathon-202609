@@ -8,7 +8,7 @@ import { LoadingState } from '../../shared/components/AsyncStates'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import { NotebookOpening, NotebookStack } from '../../shared/components/NotebookStack'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -19,7 +19,6 @@ import { CoverStickers } from './CoverStickers'
 import { SheetDoodles } from './SheetDoodles'
 import { useOnboardingNotebook, type OnboardingTurn } from './useOnboardingNotebook'
 import {
-  COVER_BACK_COLOR,
   birthError,
   onboardingSlips,
   type OnboardingDraft,
@@ -30,12 +29,6 @@ import {
 import styles from './OnboardingPage.module.css'
 import type { MessageKey } from '../../i18n/messages'
 import { genderLabel, regionLabel } from '../../shared/concernPresentation'
-
-/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
-
-/** ページをめくっても紙の裏面が色変わりしないよう、裏面の色を固定する。 */
-const PAGE_BACK_COLOR = '#e3d8c0'
 
 const currentYear = new Date().getFullYear()
 
@@ -48,15 +41,9 @@ const PAGE_TITLES: Record<OnboardingPageName, MessageKey> = {
   done: 'onboarding.done',
 }
 
-/**
- * めくり直すたびにアニメーションを最初から流すための鍵。
- *
- * 同じ鍵を持つ要素が隣に並ぶと、Reactがどちらかを取り違えて作り直す。
- * めくり終わりの合図はめくる紙の animationend なので、取り違えられると
- * 合図が届かず、めくっている紙が立ったまま残る。役割ごとに別の鍵にする。
- */
-function turningKey(turning: OnboardingTurn, part: 'rear' | 'sheet') {
-  return `${part}-${turning.page}-${turning.direction}`
+/** めくり直すたびにアニメーションを最初から流すための鍵。 */
+function turningKey(turning: OnboardingTurn) {
+  return `${turning.page}-${turning.direction}`
 }
 
 /**
@@ -333,56 +320,40 @@ function OnboardingStack({
   ...sheetProps
 }: OnboardingStackProps) {
   return (
-    <div ref={stackRef} className={`${styles.stackMotion} ${opening ? styles.stackOpening : ''}`}>
-      <div className={styles.stack} style={notebookBindingStyle}>
-        {/*
-         * 本のまわりに出したままの文房具。大きい1本は紙の下へ潜り込み、
-         * はみ出した側だけが見える。紙より先に置くのは、そうしないと紙の上に
-         * 乗って問いより前に出るため。紙束の中に置くので、表紙が開くときは
-         * 本と一緒に大きくなる。表紙をめくりはじめたら、しまい終えたまま外す。
-         */}
-        {!opened ? <CoverStickers opening={opening} /> : null}
-        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-        {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-        <NotebookBinding part="rear" />
-        {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-        {opened ? (
-          <div className={turnStyles.turned} aria-hidden="true">
-            <div
-              className={`${turnStyles.back} ${crayonStyles.edge}`}
-              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <NotebookOpening ref={stackRef} opening={opening}>
+      <NotebookStack
+        opened={opened}
+        decoration={!opened ? <CoverStickers opening={opening} /> : null}
+        turning={
+          turning ? (
+            <NotebookTurn
+              key={turningKey(turning)}
+              variant={turning.page === 'cover' ? 'cover' : 'page'}
+              startAngle={turning.startAngle}
+              direction={turning.direction}
+              onFinish={onTurningFinished}
             >
-              <NotebookBinding part="holes" back />
-            </div>
-          </div>
-        ) : null}
-        {turning ? <NotebookBinding key={turningKey(turning, 'rear')} part="rear" between /> : null}
-        {turning ? (
-          <NotebookTurn
-            key={turningKey(turning, 'sheet')}
-            variant={turning.page === 'cover' ? 'cover' : 'page'}
-            startAngle={turning.startAngle}
-            direction={turning.direction}
-            backColor={turning.page === 'cover' ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
-            onFinish={onTurningFinished}
-          >
-            {/*
-             * めくられている紙は写し。指も読み上げも通さないが、入力欄は
-             * それだけでは focus が残るので、紙ごと inert にして外す。
-             */}
-            <div className={styles.frozen} inert>
-              <OnboardingSheet page={turning.page} index={turning.index} {...sheetProps} disabled />
-            </div>
-          </NotebookTurn>
-        ) : null}
+              {/*
+               * めくられている紙は写し。指も読み上げも通さないが、入力欄は
+               * それだけでは focus が残るので、紙ごと inert にして外す。
+               */}
+              <div className={styles.frozen} inert>
+                <OnboardingSheet
+                  page={turning.page}
+                  index={turning.index}
+                  {...sheetProps}
+                  disabled
+                />
+              </div>
+            </NotebookTurn>
+          ) : null
+        }
+      >
         <div key={`${facePage}-${faceIndex}`} className={styles.enter}>
           <OnboardingSheet page={facePage} index={faceIndex} swipeTarget {...sheetProps} />
         </div>
-        {/* 手前側の線は金具として動かさない。 */}
-        <NotebookBinding part="front" />
-      </div>
-    </div>
+      </NotebookStack>
+    </NotebookOpening>
   )
 }
 

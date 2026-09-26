@@ -69,9 +69,6 @@ const palettes: readonly OnboardingPalette[] = [
   { tint: '#fffdec', slip: '#f0e199', back: '#f2cf4e' },
 ]
 
-/** 表紙の裏。フィードの表紙と同じ色にして、同じノートとして扱う。 */
-export const COVER_BACK_COLOR = '#a894dd'
-
 export function paletteForIndex(index: number): OnboardingPalette {
   const slot = ((index % palettes.length) + palettes.length) % palettes.length
   return palettes[slot]

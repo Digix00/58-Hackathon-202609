@@ -1,17 +1,31 @@
-import type { QuizAnswerHistoryCursor } from "../application/entity/history";
+import type {
+  HistoryConcernCursor,
+  QuizAnswerHistoryCursor,
+} from "../application/entity/history";
 
 const CURSOR_VERSION = 1;
 const MAX_CURSOR_LENGTH = 512;
 const MAX_QUIZ_ID_LENGTH = 200;
+const MAX_CONCERN_ID_LENGTH = 200;
 
 interface EncodedHistoryCursor extends QuizAnswerHistoryCursor {
   version: typeof CURSOR_VERSION;
 }
 
 export function encodeHistoryCursor(cursor: QuizAnswerHistoryCursor): string {
-  const bytes = new TextEncoder().encode(
-    JSON.stringify({ version: CURSOR_VERSION, ...cursor }),
-  );
+  return encodeCursor({ version: CURSOR_VERSION, ...cursor });
+}
+
+export function decodeHistoryCursor(
+  value: string,
+): QuizAnswerHistoryCursor | null {
+  const parsed = decodeCursor(value);
+  if (!isEncodedHistoryCursor(parsed)) return null;
+  return { answeredAt: parsed.answeredAt, quizId: parsed.quizId };
+}
+
+function encodeCursor(payload: object): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary)
@@ -20,9 +34,7 @@ export function encodeHistoryCursor(cursor: QuizAnswerHistoryCursor): string {
     .replace(/=+$/, "");
 }
 
-export function decodeHistoryCursor(
-  value: string,
-): QuizAnswerHistoryCursor | null {
+function decodeCursor(value: string): unknown {
   if (!value || value.length > MAX_CURSOR_LENGTH) return null;
 
   try {
@@ -34,9 +46,7 @@ export function decodeHistoryCursor(
     const bytes = Uint8Array.from(binary, (character) =>
       character.charCodeAt(0),
     );
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!isEncodedHistoryCursor(parsed)) return null;
-    return { answeredAt: parsed.answeredAt, quizId: parsed.quizId };
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return null;
   }
@@ -52,5 +62,39 @@ function isEncodedHistoryCursor(value: unknown): value is EncodedHistoryCursor {
     typeof cursor.quizId === "string" &&
     cursor.quizId.length > 0 &&
     cursor.quizId.length <= MAX_QUIZ_ID_LENGTH
+  );
+}
+
+interface EncodedHistoryConcernCursor extends HistoryConcernCursor {
+  version: typeof CURSOR_VERSION;
+}
+
+/** 投稿・寄りそいの一覧は、並び順の基準日時と投稿IDで続きの位置を表す。 */
+export function encodeHistoryConcernCursor(
+  cursor: HistoryConcernCursor,
+): string {
+  return encodeCursor({ version: CURSOR_VERSION, ...cursor });
+}
+
+export function decodeHistoryConcernCursor(
+  value: string,
+): HistoryConcernCursor | null {
+  const parsed = decodeCursor(value);
+  if (!isEncodedHistoryConcernCursor(parsed)) return null;
+  return { sortedAt: parsed.sortedAt, concernId: parsed.concernId };
+}
+
+function isEncodedHistoryConcernCursor(
+  value: unknown,
+): value is EncodedHistoryConcernCursor {
+  if (typeof value !== "object" || value === null) return false;
+  const cursor = value as Record<string, unknown>;
+  return (
+    cursor.version === CURSOR_VERSION &&
+    typeof cursor.sortedAt === "string" &&
+    Number.isFinite(Date.parse(cursor.sortedAt)) &&
+    typeof cursor.concernId === "string" &&
+    cursor.concernId.length > 0 &&
+    cursor.concernId.length <= MAX_CONCERN_ID_LENGTH
   );
 }

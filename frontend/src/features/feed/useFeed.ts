@@ -16,6 +16,8 @@ export interface UseFeedResult {
   refresh: () => Promise<void>
   loadMore: () => Promise<void>
   retry: () => Promise<void>
+  /** 送信が終わったリアクションを一覧へ反映し、紙を戻ったときの巻き戻りを防ぐ。 */
+  applyReaction: (change: { concernId: string; reactionCount: number; reacted: boolean }) => void
 }
 
 type FeedState = {
@@ -31,6 +33,7 @@ type FeedAction =
   | { type: 'loadMoreStarted' }
   | { type: 'loadMoreSucceeded'; items: FeedItem[]; nextCursor: string | null }
   | { type: 'loadFailed'; message: string; preserveItems?: boolean }
+  | { type: 'reactionChanged'; concernId: string; reactionCount: number; reacted: boolean }
 
 const initialFeedState: FeedState = {
   status: 'idle',
@@ -67,6 +70,16 @@ function feedReducer(state: FeedState, action: FeedAction): FeedState {
         nextCursor: action.preserveItems ? state.nextCursor : null,
         error: action.message,
       }
+    case 'reactionChanged':
+      // 取得し直さずに、その1件の集計と寄りそい済みだけを差し替える。
+      return {
+        ...state,
+        items: state.items.map((item) =>
+          item.id === action.concernId
+            ? { ...item, reactionCount: action.reactionCount, reacted: action.reacted }
+            : item,
+        ),
+      }
   }
 }
 
@@ -74,10 +87,10 @@ function feedReducer(state: FeedState, action: FeedAction): FeedState {
  * Intent: 投稿一覧の取得と loading / success / error の遷移を局所化する。
  * Boundary: 一覧状態と再取得・追加取得操作だけを公開し、API DTOはHook内に閉じ込める。
  * State modeling: reducerで一覧・カーソル・状態・エラーを同時に更新し、不整合な組み合わせを防ぐ。
- * Update surface: refresh、loadMore、retry。
+ * Update surface: refresh、loadMore、retry、applyReaction。
  * Hidden complexity: 古いリクエストの結果を requestVersion で破棄する。
  * Composition: FeedのContainerから表示用状態として利用する。
- * Test notes: 初回取得、追加取得、成功、失敗、再試行、古いレスポンスの破棄を確認する。
+ * Test notes: 初回取得、追加取得、成功、失敗、再試行、古いレスポンスの破棄、リアクション反映を確認する。
  */
 export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
   const limit = typeof options === 'number' ? options : (options.limit ?? 20)
@@ -155,6 +168,13 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
 
   const retry = useCallback(() => refresh(), [refresh])
 
+  const applyReaction = useCallback(
+    (change: { concernId: string; reactionCount: number; reacted: boolean }) => {
+      dispatch({ type: 'reactionChanged', ...change })
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!enabled) return
 
@@ -179,5 +199,6 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     refresh,
     loadMore,
     retry,
+    applyReaction,
   }
 }
