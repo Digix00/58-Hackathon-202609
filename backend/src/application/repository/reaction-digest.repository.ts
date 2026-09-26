@@ -1,67 +1,43 @@
 import type {
+  ClaimedReactionDigestRun,
   ClaimReactionDigestRunResult,
   ReactionDigestDelivery,
   ReactionDigestRun,
-  ReactionDigestTrigger,
+  ReactionDigestRunRequest,
 } from "../entity/reaction-digest.entity";
 
-export interface ClaimReactionDigestRunInput {
-  trigger: ReactionDigestTrigger;
-  /**
-   * Cron は日付ごとのキーを渡し、同じ日の run を一つに限る。
-   * 手動実行は null を渡し、未完了の run があれば続きを、なければ新しい run を claim する。
-   */
-  idempotencyKey: string | null;
-  newRunId: string;
-  claimToken: string;
-  now: string;
-  leaseExpiresAt: string;
-}
-
-export interface DeliveryClaim {
-  runId: string;
-  claimToken: string;
-  deliveryId: string;
-}
-
-export interface FinishDeliveryInput extends DeliveryClaim {
-  httpStatus: number;
-  requestId: string | null;
-  finishedAt: string;
-}
-
+/**
+ * 寄りそい通知の run と delivery を永続化する Port。
+ * claim を必要とする操作は ClaimedReactionDigestRun を受け取り、claim を失った runner の書き込みを無視する。
+ */
 export interface ReactionDigestRepository {
   claimRun(
-    input: ClaimReactionDigestRunInput,
+    request: ReactionDigestRunRequest,
   ): Promise<ClaimReactionDigestRunResult>;
   /**
    * run の締め時刻までに届いた寄りそいを集計し、受信者ごとの delivery を作る。
    * 同じ run で二回呼ばれても作り直さない。
    */
   prepareDeliveries(
-    runId: string,
-    claimToken: string,
-    now: string,
+    claimed: ClaimedReactionDigestRun,
+    preparedAt: string,
   ): Promise<void>;
   listSendableDeliveries(
-    runId: string,
-    claimToken: string,
+    claimed: ClaimedReactionDigestRun,
     limit: number,
   ): Promise<ReactionDigestDelivery[]>;
-  /** 外部 API を呼ぶ前に Retry Key を保存する。claim を失っていれば false。 */
-  startDelivery(
-    input: DeliveryClaim & { retryKey: string; attemptedAt: string },
+  /**
+   * 状態遷移後の delivery を保存する。遷移元の状態でなくなっていた場合や、
+   * claim を失っていた場合は保存せず false を返す。
+   */
+  saveDelivery(
+    claimed: ClaimedReactionDigestRun,
+    delivery: ReactionDigestDelivery,
   ): Promise<boolean>;
-  completeDelivery(input: FinishDeliveryInput): Promise<void>;
-  failDelivery(
-    input: FinishDeliveryInput & { errorCode: string },
-  ): Promise<void>;
-  skipDelivery(input: DeliveryClaim & { finishedAt: string }): Promise<void>;
-  /** delivery の状態から run の集計値と状態を確定し、claim を解放する。 */
+  /** delivery の状態から run の状態を確定し、claim を解放する。 */
   finishRun(
-    runId: string,
-    claimToken: string,
-    now: string,
+    claimed: ClaimedReactionDigestRun,
+    finishedAt: string,
   ): Promise<ReactionDigestRun>;
   findRecentRuns(limit: number): Promise<ReactionDigestRun[]>;
 }

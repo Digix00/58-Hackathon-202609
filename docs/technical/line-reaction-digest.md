@@ -228,9 +228,9 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 
 | レイヤー | 追加するもの |
 | --- | --- |
-| Entity | `application/entity/reaction-digest.entity.ts`: run / delivery の状態、メッセージに使う集計値（`ReactionDigestSummary`） |
+| Entity | `application/entity/reaction-digest.entity.ts`: 実行要求（`ReactionDigestRunRequest`。Cron は日付ごとの冪等キー）、claim 済みの run（`ClaimedReactionDigestRun`）、状態遷移（`start` / `markSent` / `markFailed` / `skip`）を持つ `ReactionDigestDelivery`、メッセージに使う集計値（`ReactionDigestSummary`） |
 | Port | `application/port/line-push-sender.ts`: `sendPush(lineUserId, messages, retryKey)`。結果型はクイズの `LineBroadcastResult` と同じ形 |
-| Repository | `application/repository/reaction-digest.repository.ts`: claim、delivery の一括作成、pending の取得、結果記録、状態取得 |
+| Repository | `application/repository/reaction-digest.repository.ts`: 入出力は Entity のみ。claim、delivery の一括作成、未確定の delivery の取得、遷移後の delivery の保存（`saveDelivery`）、run の確定、状態取得 |
 | UseCase | `application/usecase/reaction-digest.usecase.ts`: `ReactionDigestUseCase`（`runScheduled` / `runManual` / `getRecentRuns`） |
 | 共有 | メッセージ文面の組み立て（表示言語別テンプレート） |
 | Adapter | `infrastructure/line/line-push.sender.ts`（Push API）、`infrastructure/line/local-line-push.sender.ts`（ローカル模擬）、`infrastructure/database/d1-reaction-digest.repository.ts` |

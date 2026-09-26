@@ -1,17 +1,14 @@
 import {
+  ClaimedReactionDigestRun,
   type ClaimReactionDigestRunResult,
-  type ReactionDigestDelivery,
+  ReactionDigestDelivery,
   type ReactionDigestRun,
+  type ReactionDigestRunRequest,
   type ReactionDigestRunStatus,
   ReactionDigestSummary,
   type ReactionDigestTrigger,
 } from "../../application/entity/reaction-digest.entity";
-import type {
-  ClaimReactionDigestRunInput,
-  DeliveryClaim,
-  FinishDeliveryInput,
-  ReactionDigestRepository,
-} from "../../application/repository/reaction-digest.repository";
+import type { ReactionDigestRepository } from "../../application/repository/reaction-digest.repository";
 import {
   DISPLAY_LANGUAGES,
   type DisplayLanguage,
@@ -34,8 +31,10 @@ interface RunRow {
 
 interface DeliveryRow {
   id: string;
+  run_id: string;
   status: string;
   line_retry_key: string | null;
+  attempted_at: string | null;
   reactor_count: number;
   same_region_count: number;
   region_count: number;
@@ -74,9 +73,9 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 
   async claimRun(
-    input: ClaimReactionDigestRunInput,
+    request: ReactionDigestRunRequest,
   ): Promise<ClaimReactionDigestRunResult> {
-    const runId = await this.findOrCreateTargetRun(input);
+    const runId = await this.findOrCreateTargetRun(request);
 
     await this.db
       .prepare(
@@ -85,7 +84,12 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
          where id = ?
            and (status = 'pending' or (status = 'running' and lease_expires_at <= ?))`,
       )
-      .bind(input.claimToken, input.leaseExpiresAt, runId, input.now)
+      .bind(
+        request.claimToken,
+        request.leaseExpiresAt,
+        runId,
+        request.requestedAt,
+      )
       .run();
 
     const row = await this.findRunRow(runId);
@@ -93,8 +97,11 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       throw new Error("reaction digest run disappeared after claim");
     }
     const run = toRun(row);
-    if (row.claim_token === input.claimToken) {
-      return { status: "claimed", run, claimToken: input.claimToken };
+    if (row.claim_token === request.claimToken) {
+      return {
+        status: "claimed",
+        claimed: new ClaimedReactionDigestRun(run, request.claimToken),
+      };
     }
     if (row.status === "running") {
       return { status: "in_progress", run };
@@ -103,10 +110,10 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 
   async prepareDeliveries(
-    runId: string,
-    claimToken: string,
-    now: string,
+    claimed: ClaimedReactionDigestRun,
+    preparedAt: string,
   ): Promise<void> {
+    const { runId, claimToken } = claimed;
     // 受信者の起点は「最後に送信成功した delivery の window_end」。
     // 未確定（pending/started）の delivery を持つ人は、別の run で二重に送らないよう除外する。
     const insertDeliveries = this.db
@@ -176,7 +183,7 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
            and run.deliveries_prepared_at is null
          on conflict do nothing`,
       )
-      .bind(now, runId, runId, claimToken);
+      .bind(preparedAt, runId, runId, claimToken);
 
     const markPrepared = this.db
       .prepare(
@@ -185,20 +192,20 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
          where id = ? and claim_token = ? and status = 'running'
            and deliveries_prepared_at is null`,
       )
-      .bind(now, runId, claimToken);
+      .bind(preparedAt, runId, claimToken);
 
     await this.db.batch([insertDeliveries, markPrepared]);
   }
 
   async listSendableDeliveries(
-    runId: string,
-    claimToken: string,
+    claimed: ClaimedReactionDigestRun,
     limit: number,
   ): Promise<ReactionDigestDelivery[]> {
+    const { runId, claimToken } = claimed;
     const { results } = await this.db
       .prepare(
         `select
-           d.id, d.status, d.line_retry_key,
+           d.id, d.run_id, d.status, d.line_retry_key, d.attempted_at,
            d.reactor_count, d.same_region_count, d.region_count, d.region_code_snapshot,
            u.line_user_id, u.display_language,
            (u.friend_status = 'active' and u.deleted_at is null) as is_reachable
@@ -216,100 +223,35 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     return results.map(toDelivery);
   }
 
-  async startDelivery(
-    input: DeliveryClaim & { retryKey: string; attemptedAt: string },
+  async saveDelivery(
+    claimed: ClaimedReactionDigestRun,
+    delivery: ReactionDigestDelivery,
   ): Promise<boolean> {
+    if (delivery.runId !== claimed.runId) {
+      return false;
+    }
+    const update = deliveryUpdate(delivery);
+    if (!update) {
+      return false;
+    }
     const result = await this.db
-      .prepare(
-        `update reaction_digest_deliveries
-         set status = 'started',
-             line_retry_key = coalesce(line_retry_key, ?),
-             attempted_at = ?
-         where id = ? and run_id = ?
-           and status in ('pending', 'started')
-           and ${HAS_CURRENT_CLAIM_SQL}`,
-      )
+      .prepare(update.sql)
       .bind(
-        input.retryKey,
-        input.attemptedAt,
-        input.deliveryId,
-        input.runId,
-        input.runId,
-        input.claimToken,
+        ...update.values,
+        delivery.id,
+        claimed.runId,
+        claimed.runId,
+        claimed.claimToken,
       )
       .run();
     return result.meta.changes > 0;
   }
 
-  async completeDelivery(input: FinishDeliveryInput): Promise<void> {
-    await this.db
-      .prepare(
-        `update reaction_digest_deliveries
-         set status = 'sent', http_status = ?, line_request_id = ?,
-             sent_at = ?, error_code = null
-         where id = ? and run_id = ? and status = 'started'
-           and ${HAS_CURRENT_CLAIM_SQL}`,
-      )
-      .bind(
-        input.httpStatus,
-        input.requestId,
-        input.finishedAt,
-        input.deliveryId,
-        input.runId,
-        input.runId,
-        input.claimToken,
-      )
-      .run();
-  }
-
-  async failDelivery(
-    input: FinishDeliveryInput & { errorCode: string },
-  ): Promise<void> {
-    await this.db
-      .prepare(
-        `update reaction_digest_deliveries
-         set status = 'failed', http_status = ?, line_request_id = ?,
-             error_code = ?
-         where id = ? and run_id = ? and status = 'started'
-           and ${HAS_CURRENT_CLAIM_SQL}`,
-      )
-      .bind(
-        input.httpStatus,
-        input.requestId,
-        input.errorCode,
-        input.deliveryId,
-        input.runId,
-        input.runId,
-        input.claimToken,
-      )
-      .run();
-  }
-
-  async skipDelivery(
-    input: DeliveryClaim & { finishedAt: string },
-  ): Promise<void> {
-    await this.db
-      .prepare(
-        `update reaction_digest_deliveries
-         set status = 'skipped', error_code = 'recipient_unreachable', attempted_at = ?
-         where id = ? and run_id = ? and status in ('pending', 'started')
-           and ${HAS_CURRENT_CLAIM_SQL}`,
-      )
-      .bind(
-        input.finishedAt,
-        input.deliveryId,
-        input.runId,
-        input.runId,
-        input.claimToken,
-      )
-      .run();
-  }
-
   async finishRun(
-    runId: string,
-    claimToken: string,
-    now: string,
+    claimed: ClaimedReactionDigestRun,
+    finishedAt: string,
   ): Promise<ReactionDigestRun> {
+    const { runId, claimToken } = claimed;
     await this.db
       .prepare(
         `update reaction_digest_runs
@@ -336,7 +278,7 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
          where id = ? and status <> 'pending' and status <> 'running'
            and finished_at is null`,
       )
-      .bind(now, runId)
+      .bind(finishedAt, runId)
       .run();
 
     const row = await this.findRunRow(runId);
@@ -360,15 +302,15 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 
   private async findOrCreateTargetRun(
-    input: ClaimReactionDigestRunInput,
+    request: ReactionDigestRunRequest,
   ): Promise<string> {
-    if (input.idempotencyKey) {
-      await this.insertRun(input, input.idempotencyKey);
+    if (request.idempotencyKey) {
+      await this.insertRun(request);
       const row = await this.db
         .prepare(
           "select id from reaction_digest_runs where idempotency_key = ?",
         )
-        .bind(input.idempotencyKey)
+        .bind(request.idempotencyKey)
         .first<{ id: string }>();
       if (!row) {
         throw new Error("reaction digest run was not created");
@@ -389,17 +331,11 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       return unfinished.id;
     }
 
-    await this.insertRun(
-      input,
-      `reaction-digest:${input.trigger}:${input.newRunId}`,
-    );
-    return input.newRunId;
+    await this.insertRun(request);
+    return request.newRunId;
   }
 
-  private async insertRun(
-    input: ClaimReactionDigestRunInput,
-    idempotencyKey: string,
-  ): Promise<void> {
+  private async insertRun(request: ReactionDigestRunRequest): Promise<void> {
     await this.db
       .prepare(
         `insert into reaction_digest_runs
@@ -407,7 +343,13 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
          values (?, ?, ?, 'pending', ?, ?)
          on conflict (idempotency_key) do nothing`,
       )
-      .bind(input.newRunId, input.trigger, idempotencyKey, input.now, input.now)
+      .bind(
+        request.newRunId,
+        request.trigger,
+        request.newRunIdempotencyKey,
+        request.requestedAt,
+        request.requestedAt,
+      )
       .run();
   }
 
@@ -419,11 +361,77 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
   }
 }
 
+/**
+ * 遷移後の状態ごとに、遷移元の状態を条件にした UPDATE を組み立てる。
+ * values の後ろに続く 4 つの bind は delivery ID、run ID、claim の run ID と claim token。
+ */
+function deliveryUpdate(
+  delivery: ReactionDigestDelivery,
+): { sql: string; values: (string | number | null)[] } | null {
+  const condition = (fromStatuses: string) => `
+    where id = ? and run_id = ? and status in (${fromStatuses})
+      and ${HAS_CURRENT_CLAIM_SQL}`;
+
+  switch (delivery.status) {
+    case "started":
+      return {
+        sql: `update reaction_digest_deliveries
+           set status = 'started',
+               line_retry_key = coalesce(line_retry_key, ?),
+               attempted_at = ?
+           ${condition("'pending', 'started'")}`,
+        values: [delivery.retryKey, delivery.attemptedAt],
+      };
+    case "sent":
+      return {
+        sql: `update reaction_digest_deliveries
+           set status = 'sent', http_status = ?, line_request_id = ?,
+               sent_at = ?, error_code = null
+           ${condition("'started'")}`,
+        values: [
+          delivery.response?.httpStatus ?? null,
+          delivery.response?.requestId ?? null,
+          delivery.sentAt,
+        ],
+      };
+    case "failed":
+      return {
+        sql: `update reaction_digest_deliveries
+           set status = 'failed', http_status = ?, line_request_id = ?,
+               error_code = ?
+           ${condition("'started'")}`,
+        values: [
+          delivery.response?.httpStatus ?? null,
+          delivery.response?.requestId ?? null,
+          delivery.errorCode,
+        ],
+      };
+    case "skipped":
+      return {
+        sql: `update reaction_digest_deliveries
+           set status = 'skipped', error_code = ?, attempted_at = ?
+           ${condition("'pending', 'started'")}`,
+        values: [delivery.errorCode, delivery.attemptedAt],
+      };
+    case "pending":
+      return null;
+  }
+}
+
+const RUN_TRIGGERS: readonly ReactionDigestTrigger[] = ["cron", "manual"];
+const RUN_STATUSES: readonly ReactionDigestRunStatus[] = [
+  "pending",
+  "running",
+  "succeeded",
+  "partially_failed",
+  "failed",
+];
+
 function toRun(row: RunRow): ReactionDigestRun {
   return {
     runId: row.id,
-    trigger: row.trigger as ReactionDigestTrigger,
-    status: row.status as ReactionDigestRunStatus,
+    trigger: parseEnum(RUN_TRIGGERS, row.trigger, "trigger"),
+    status: parseEnum(RUN_STATUSES, row.status, "run status"),
     cutoffAt: row.cutoff_at,
     requestedAt: row.requested_at,
     finishedAt: row.finished_at,
@@ -436,17 +444,23 @@ function toRun(row: RunRow): ReactionDigestRun {
 }
 
 function toDelivery(row: DeliveryRow): ReactionDigestDelivery {
-  return {
+  return new ReactionDigestDelivery({
     id: row.id,
-    status: row.status === "started" ? "started" : "pending",
+    runId: row.run_id,
+    // 送信対象として取り出すのは未確定（pending / started）の delivery だけ。
+    status: parseEnum(
+      ["pending", "started"] as const,
+      row.status,
+      "delivery status",
+    ),
     retryKey: row.line_retry_key,
+    attemptedAt: row.attempted_at,
+    sentAt: null,
+    response: null,
+    errorCode: null,
     recipient: {
       lineUserId: row.line_user_id,
-      displayLanguage: DISPLAY_LANGUAGES.includes(
-        row.display_language as DisplayLanguage,
-      )
-        ? (row.display_language as DisplayLanguage)
-        : "original",
+      displayLanguage: parseDisplayLanguage(row.display_language),
       isReachable: row.is_reachable === 1,
     },
     summary: new ReactionDigestSummary({
@@ -455,5 +469,22 @@ function toDelivery(row: DeliveryRow): ReactionDigestDelivery {
       regionCount: row.region_count,
       regionCode: row.region_code_snapshot,
     }),
-  };
+  });
+}
+
+/** DB の値が想定する列挙値のどれかであることを確かめてから、その型として扱う。 */
+function parseEnum<T extends string>(
+  values: readonly T[],
+  value: string,
+  name: string,
+): T {
+  const found = values.find((candidate) => candidate === value);
+  if (found === undefined) {
+    throw new Error(`unexpected ${name} in reaction digest data`);
+  }
+  return found;
+}
+
+function parseDisplayLanguage(value: string): DisplayLanguage {
+  return DISPLAY_LANGUAGES.find((language) => language === value) ?? "original";
 }

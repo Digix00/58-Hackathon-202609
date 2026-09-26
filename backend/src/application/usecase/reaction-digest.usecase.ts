@@ -1,14 +1,14 @@
-import type {
-  ReactionDigestDelivery,
-  ReactionDigestRun,
-  ReactionDigestTrigger,
+import {
+  type ClaimedReactionDigestRun,
+  type ReactionDigestDelivery,
+  type ReactionDigestRun,
+  ReactionDigestRunRequest,
 } from "../entity/reaction-digest.entity";
 import type { LinePushResult, LinePushSender } from "../port/line-push-sender";
 import type { ReactionDigestRepository } from "../repository/reaction-digest.repository";
 import { generateId } from "../shared/id-generator";
 import { createLiffUrl } from "../shared/liff-url";
 import { buildReactionDigestMessage } from "../shared/reaction-digest-message";
-import { toTokyoDate } from "../shared/tokyo-date";
 
 export class ReactionDigestConfigurationError extends Error {
   constructor() {
@@ -77,59 +77,62 @@ export class ReactionDigestUseCase {
   /** Cron から 1 日 1 回起動する。同じ日付の run は一つだけ作る。 */
   readonly runScheduled = async (
     at: Date = this.now(),
-  ): Promise<ReactionDigestExecution> =>
-    this.execute("cron", `reaction-digest:cron:${toTokyoDate(at)}`);
+  ): Promise<ReactionDigestExecution> => {
+    const linkUrl = this.requireLinkUrl();
+    return this.execute(
+      linkUrl,
+      ReactionDigestRunRequest.scheduled({
+        scheduledAt: at,
+        newRunId: this.createId(),
+        claimToken: this.createId(),
+        requestedAt: this.now(),
+        leaseMilliseconds: LEASE_MILLISECONDS,
+      }),
+    );
+  };
 
   /** 管理画面・内部 API から任意のタイミングで起動する。 */
-  readonly runManual = async (): Promise<ReactionDigestExecution> =>
-    this.execute("manual", null);
+  readonly runManual = async (): Promise<ReactionDigestExecution> => {
+    const linkUrl = this.requireLinkUrl();
+    return this.execute(
+      linkUrl,
+      ReactionDigestRunRequest.manual({
+        newRunId: this.createId(),
+        claimToken: this.createId(),
+        requestedAt: this.now(),
+        leaseMilliseconds: LEASE_MILLISECONDS,
+      }),
+    );
+  };
 
-  private async execute(
-    trigger: ReactionDigestTrigger,
-    idempotencyKey: string | null,
-  ): Promise<ReactionDigestExecution> {
-    const linkUrl = this.linkUrl;
-    if (!this.pushSender.isConfigured() || !linkUrl) {
+  private requireLinkUrl(): string {
+    if (!this.pushSender.isConfigured() || !this.linkUrl) {
       throw new ReactionDigestConfigurationError();
     }
+    return this.linkUrl;
+  }
 
-    const now = this.now();
-    const claimed = await this.repository.claimRun({
-      trigger,
-      idempotencyKey,
-      newRunId: this.createId(),
-      claimToken: this.createId(),
-      now: now.toISOString(),
-      leaseExpiresAt: new Date(
-        now.getTime() + LEASE_MILLISECONDS,
-      ).toISOString(),
-    });
-    if (claimed.status === "in_progress") {
-      return { status: "in_progress", run: claimed.run };
-    }
-    if (claimed.status === "finished") {
-      return { status: "finished", run: claimed.run };
+  private async execute(
+    linkUrl: string,
+    request: ReactionDigestRunRequest,
+  ): Promise<ReactionDigestExecution> {
+    const claimResult = await this.repository.claimRun(request);
+    if (claimResult.status !== "claimed") {
+      return claimResult;
     }
 
-    const { runId } = claimed.run;
-    const { claimToken } = claimed;
-    await this.repository.prepareDeliveries(
-      runId,
-      claimToken,
-      this.now().toISOString(),
-    );
+    const { claimed } = claimResult;
+    await this.repository.prepareDeliveries(claimed, this.now().toISOString());
     const deliveries = await this.repository.listSendableDeliveries(
-      runId,
-      claimToken,
+      claimed,
       this.maxPerRun,
     );
     for (const delivery of deliveries) {
-      await this.sendDelivery(runId, claimToken, delivery, linkUrl);
+      await this.sendDelivery(claimed, delivery, linkUrl);
     }
 
     const run = await this.repository.finishRun(
-      runId,
-      claimToken,
+      claimed,
       this.now().toISOString(),
     );
     return {
@@ -139,39 +142,34 @@ export class ReactionDigestUseCase {
   }
 
   private async sendDelivery(
-    runId: string,
-    claimToken: string,
+    claimed: ClaimedReactionDigestRun,
     delivery: ReactionDigestDelivery,
     linkUrl: string,
   ): Promise<void> {
-    const claim = { runId, claimToken, deliveryId: delivery.id };
     if (!delivery.recipient.isReachable) {
-      await this.repository.skipDelivery({
-        ...claim,
-        finishedAt: this.now().toISOString(),
-      });
+      await this.repository.saveDelivery(
+        claimed,
+        delivery.skip(this.now().toISOString()),
+      );
       return;
     }
 
+    // 結果不明で残った delivery は、保存済みの Retry Key で再送する。
     const retryKey = delivery.retryKey ?? this.createId();
-    const started = await this.repository.startDelivery({
-      ...claim,
-      retryKey,
-      attemptedAt: this.now().toISOString(),
-    });
-    if (!started) {
+    const started = delivery.start(retryKey, this.now().toISOString());
+    if (!(await this.repository.saveDelivery(claimed, started))) {
       return;
     }
 
     const text = buildReactionDigestMessage(
-      delivery.summary,
-      delivery.recipient.displayLanguage,
+      started.summary,
+      started.recipient.displayLanguage,
       linkUrl,
     );
     let response: LinePushResult;
     try {
       response = await this.pushSender.sendText(
-        delivery.recipient.lineUserId,
+        started.recipient.lineUserId,
         text,
         retryKey,
       );
@@ -184,29 +182,15 @@ export class ReactionDigestUseCase {
       return;
     }
 
-    const finishInput = {
-      ...claim,
+    const pushResponse = {
       httpStatus: response.httpStatus,
       requestId: response.requestId,
-      finishedAt: this.now().toISOString(),
     };
-    if (response.status === "accepted") {
-      await this.repository.completeDelivery(finishInput);
-      return;
-    }
-    await this.repository.failDelivery({
-      ...finishInput,
-      errorCode: pushErrorCode(response.httpStatus),
-    });
+    await this.repository.saveDelivery(
+      claimed,
+      response.status === "accepted"
+        ? started.markSent(pushResponse, this.now().toISOString())
+        : started.markFailed(pushResponse),
+    );
   }
-}
-
-function pushErrorCode(httpStatus: number): string {
-  if (httpStatus === 429) {
-    return "rate_limited";
-  }
-  if (httpStatus >= 500) {
-    return "upstream_unavailable";
-  }
-  return "upstream_rejected";
 }
