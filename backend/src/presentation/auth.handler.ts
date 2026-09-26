@@ -1,7 +1,11 @@
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie } from "hono/cookie";
 import { createFactory } from "hono/factory";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
+import {
+  DEFAULT_SESSION_MAX_AGE_SECONDS,
+  SESSION_COOKIE_NAME,
+  setSessionCookie,
+} from "../app/auth-cookie";
 import { getRequestId } from "../app/request-id";
 import { isUserProfileCompleted, type User } from "../application/entity/user";
 import {
@@ -11,7 +15,6 @@ import {
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
 
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
   idToken: z.string().min(1).max(4096),
 });
@@ -27,12 +30,12 @@ export class AuthHandler {
 
   constructor(
     authUseCase: IAuthUseCase,
-    sessionMaxAgeSeconds = SESSION_MAX_AGE_SECONDS,
+    sessionMaxAgeSeconds = DEFAULT_SESSION_MAX_AGE_SECONDS,
   ) {
     this.authUseCase = authUseCase;
     this.sessionMaxAgeSeconds = Number.isFinite(sessionMaxAgeSeconds)
       ? Math.max(60, Math.floor(sessionMaxAgeSeconds))
-      : SESSION_MAX_AGE_SECONDS;
+      : DEFAULT_SESSION_MAX_AGE_SECONDS;
   }
 
   readonly line = factory.createHandlers(async (c) => {
@@ -158,20 +161,6 @@ function setRequestId(c: {
   const requestId = getRequestId(c.req.raw);
   c.header("X-Request-Id", requestId);
   return requestId;
-}
-
-function setSessionCookie(
-  c: Parameters<typeof setCookie>[0],
-  token: string,
-  maxAge: number,
-): void {
-  setCookie(c, SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax",
-    path: "/",
-    maxAge,
-  });
 }
 
 function toResponse(result: { user: User | null }) {
