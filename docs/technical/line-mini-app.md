@@ -77,6 +77,7 @@ LINE側の制約として、初期化は登録したエンドポイントURLと�
 - LINE公式は縦向きと横向きで異なるセーフエリアを案内している。既存の余白へ固定値を無条件に加算せず、表示領域との重複を確認する。[公式: LINEミニアプリのセーフエリア](https://developers.line.biz/ja/docs/line-mini-app/design/landscape/)
 - ソフトウェアキーボードを開閉し、本文入力・初期登録・設定の入力欄と送信操作へ到達できることを確認する。画面高が不足した場合は、文字を縮めず本文領域の縦スクロールを許容する。
 - 横めくりと縦スクロールを両立させる。[useNotebookSwipe](../../frontend/src/shared/hooks/useNotebookSwipe.ts) は縦方向のジェスチャーをめくりにせず、スワイプ後のリンク誤作動を防ぐ。入力欄では左右キーをめくりに使わない。
+- クイズのしおりはタップで選び、差し込むアニメーションで結果を示す。LINEの下方向スワイプによる最小化と競合しないよう、タッチ・ペンでのドラッグ配置は行わない。移動や `pointercancel` で中断した操作は回答に反映せず、マウスのドラッグとキーボード選択は維持する。配置済みのしおりを押すと選び直せる。[公式: LIFFブラウザの最小化](https://developers.line.biz/ja/docs/liff/minimizing-liff-browser/)
 - 「大きく表示」、OS・ブラウザの拡大、`prefers-reduced-motion`、キーボード操作を確認する。文字サイズ・スクロールの詳細は[デザイン指針](../requirements/design-guidelines.md)に従う。
 - クレヨン輪郭のSVGフィルタは [CrayonFilters](../../frontend/src/shared/components/CrayonFilters.tsx) を同一DOMに配置し、`url(#crayon-edge)` などで参照する。現行コードはiOSでの描画互換性を理由にこの構成を採用している。外部SVG・data URIへの移動は実機で検証してから行う。
 

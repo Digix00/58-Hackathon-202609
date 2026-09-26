@@ -229,7 +229,7 @@ export const hiraganaMessages = {
   'quiz.writerDescription': '。かいたじょうけんは{attributes}',
   'quiz.placeHere': 'ここへ',
   'quiz.remove': 'じょうけんは{attributes}。このこえからはずす',
-  'quiz.matchQuestion': 'このこえは、どのじょうけん？',
+  'quiz.matchQuestion': 'しおりをたっぷしてえらぶ',
   'quiz.changeHint': 'ちがったら、しおりをおす',
   'quiz.open': 'てがみをひらく',
   'quiz.score': '3つのうち{score}つ、ことばからみつけられました。',

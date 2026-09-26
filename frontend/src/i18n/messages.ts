@@ -380,7 +380,7 @@ export const messages = {
   'quiz.writerDescription': ['。書いた条件は{attributes}', '. About the writer: {attributes}'],
   'quiz.placeHere': ['ここへ', 'Place here'],
   'quiz.remove': ['条件は{attributes}。この声から外す', '{attributes}. Remove this bookmark'],
-  'quiz.matchQuestion': ['この声は、どの条件？', 'Who wrote this voice?'],
+  'quiz.matchQuestion': ['しおりをタップして選ぶ', 'Tap a bookmark to choose the writer'],
   'quiz.changeHint': ['ちがったら、しおりを押す', 'Tap the bookmark to change your choice'],
   'quiz.open': ['手紙をひらく', 'Open the letters'],
   'quiz.score': [

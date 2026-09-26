@@ -1097,16 +1097,28 @@ function useQuizDrag(fit: (personId: string) => void) {
   }
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>, personId: string) {
-    if (event.button !== 0) return
+    if (event.button !== 0 || !event.isPrimary) return
+    // タッチでは下方向ドラッグを使わず、タップだけで選ぶ。
+    const canDrag = event.pointerType === 'mouse'
+    const pointerId = event.pointerId
+    let moved = false
     const tag = event.currentTarget.querySelector<HTMLElement>(`.${styles.tag}`)
     const rect = tag?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
     const offsetX = event.clientX - rect.left
     const offsetY = event.clientY - rect.top
     const from = { x: event.clientX, y: event.clientY }
     const size = { width: rect.width, height: rect.height }
-    setDrag({ personId, x: rect.left, y: rect.top, over: false, ...size })
+    if (canDrag) setDrag({ personId, x: rect.left, y: rect.top, over: false, ...size })
+
+    function trackMovement(pointerEvent: PointerEvent) {
+      moved ||=
+        Math.abs(pointerEvent.clientX - from.x) + Math.abs(pointerEvent.clientY - from.y) > TAP_SLOP
+    }
 
     function move(moveEvent: PointerEvent) {
+      if (moveEvent.pointerId !== pointerId) return
+      trackMovement(moveEvent)
+      if (!canDrag) return
       setDrag({
         personId,
         x: moveEvent.clientX - offsetX,
@@ -1117,14 +1129,16 @@ function useQuizDrag(fit: (personId: string) => void) {
     }
 
     function end(endEvent: PointerEvent) {
+      if (endEvent.pointerId !== pointerId) return
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', end)
       window.removeEventListener('pointercancel', end)
       setDrag(null)
-      const moved =
-        Math.abs(endEvent.clientX - from.x) + Math.abs(endEvent.clientY - from.y) > TAP_SLOP
-      // 切り欠きの上で離したとき、または運ばずに押しただけのときに差し込む。
-      if (!moved || isOverSlot(endEvent.clientX, endEvent.clientY)) fit(personId)
+      // LINEの最小化やスクロールに操作を引き渡した場合は確定しない。
+      if (endEvent.type === 'pointercancel') return
+      trackMovement(endEvent)
+      // タップで差し込む。マウスだけは従来のドラッグも利用できる。
+      if (!moved || (canDrag && isOverSlot(endEvent.clientX, endEvent.clientY))) fit(personId)
     }
 
     window.addEventListener('pointermove', move)
