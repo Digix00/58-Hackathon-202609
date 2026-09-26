@@ -60,12 +60,6 @@
   -moz-appearance: textfield;
 }
 
-/* 「ねん」「がつ」も入力欄の横で1行に保つ。 */
-.numberInput > span {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .numberInput input::-webkit-inner-spin-button,
 .numberInput input::-webkit-outer-spin-button {
   margin: 0;

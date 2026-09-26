@@ -1,4 +1,3 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import { Link } from 'react-router'
 import { LoginGuide } from '../../app/router'
 import type { UseConcernReactionResult } from '../reaction/useConcernReaction'
@@ -12,7 +11,6 @@ import {
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import { TranslationNotice } from '../../shared/components/TranslationNotice'
 
 type ConcernDetailViewProps = {
   concern: ConcernDetail
@@ -31,29 +29,21 @@ export function ConcernDetailView({
   reaction,
   onShowLogin,
 }: ConcernDetailViewProps) {
-  const { t, message, language } = useTranslation()
-
   const attributes = [
-    ageGroupLabel(concern.attributes.ageGroup, language),
-    genderLabel(concern.attributes.gender, language),
-    concern.attributes.regionName ?? regionLabel(concern.attributes.regionCode, language),
-    createdLabel(concern.createdAt, language),
+    ageGroupLabel(concern.attributes.ageGroup),
+    genderLabel(concern.attributes.gender),
+    concern.attributes.regionName ?? regionLabel(concern.attributes.regionCode),
+    createdLabel(concern.createdAt),
   ].filter(Boolean)
 
   return (
     <div className={screen.page}>
       <Link className={actionStyles.text} to="/">
-        {t('common.backToFeedArrow')}
+        ← フィードに戻る
       </Link>
       <article className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}>
         <p className={screen.meta}>{attributes.join(' · ')}</p>
-        <h1 className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
-          {concern.body}
-        </h1>
-        <TranslationNotice
-          actualLanguage={concern.language}
-          status={language === 'original' ? undefined : concern.representations[language]}
-        />
+        <h1 className={screen.body}>{concern.body}</h1>
         {isLiff ? (
           <>
             <button
@@ -70,23 +60,23 @@ export function ConcernDetailView({
               aria-pressed={reaction.reacted}
               aria-busy={reaction.status === 'submitting'}
             >
-              {reaction.reacted ? t('reaction.supported') : t('reaction.support')} ·{' '}
-              {t('common.count', { count: reaction.reactionCount })}
+              {reaction.reacted ? 'そっと寄りそいました' : 'そっと寄りそう'} ·{' '}
+              {reaction.reactionCount}件
             </button>
             {reaction.error ? (
               <p role="alert" className={screen.muted}>
-                {message(reaction.error)}
+                {reaction.error}
               </p>
             ) : null}
           </>
         ) : null}
       </article>
       <p aria-live="polite" className={screen.muted}>
-        {reaction.reacted ? t('reaction.announcement', { count: reaction.reactionCount }) : ''}
+        {reaction.reacted ? `そっと寄りそいました。現在${reaction.reactionCount}件` : ''}
       </p>
       {showLogin ? <LoginGuide /> : null}
       <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">
-        {t('detail.next')}
+        次の声を読む
       </Link>
     </div>
   )

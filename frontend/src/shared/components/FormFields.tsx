@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import styles from './FormFields.module.css'
-import { useTranslation } from '../../i18n/useTranslation'
 
 type FieldSize = 'regular' | 'compact'
 /** 下に開く余白がない場所（画面の下端など）では、選択肢を上へ開く。 */
@@ -57,17 +56,15 @@ export function SelectField<T extends string | number>({
   label,
   value,
   options,
-  placeholder,
+  placeholder = '選択してください',
   disabled = false,
   size = 'regular',
   placement = 'down',
   onChange,
 }: SelectFieldProps<T>) {
-  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const selectRef = useRef<HTMLDetailsElement>(null)
-  const selectedLabel =
-    options.find((option) => option.value === value)?.label ?? placeholder ?? t('common.select')
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder
 
   const isOpen = open && !disabled
 
@@ -105,7 +102,7 @@ export function SelectField<T extends string | number>({
           <span>{selectedLabel}</span>
           <span className={styles.chevron} aria-hidden="true" />
         </summary>
-        <div className={styles.menu} role="listbox" aria-label={t('common.selectLabel', { label })}>
+        <div className={styles.menu} role="listbox" aria-label={`${label}の選択`}>
           <div className={styles.options}>
             {options.map((option) => (
               <button

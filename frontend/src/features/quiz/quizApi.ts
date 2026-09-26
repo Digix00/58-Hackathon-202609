@@ -1,7 +1,5 @@
-import { apiErrorMessage } from '../../i18n/translate'
 import { ApiTimeoutError, apiClient, readApiError, withApiTimeout } from '../../lib/api'
 import type { QuizAnswerResponse, QuizByIdResponse, TodayQuizResponse } from '../../lib/api'
-import type { DisplayLanguage } from '../../app/providers/DisplaySettingsContext'
 
 export type QuizApiResult<T> =
   { ok: true; data: T } | { ok: false; status: number; code: string; message: string }
@@ -14,12 +12,10 @@ type QuizAnswerRequest = {
   json: { matches: QuizMatch[] }
 }
 
-export async function getTodayQuiz(
-  language: DisplayLanguage = 'original',
-): Promise<QuizApiResult<TodayQuizResponse>> {
+export async function getTodayQuiz(): Promise<QuizApiResult<TodayQuizResponse>> {
   try {
     const response = await withApiTimeout(() =>
-      apiClient.api.v1.quizzes.today.$get({ query: { language } }),
+      apiClient.api.v1.quizzes.today.$get({ query: { language: 'original' } }),
     )
 
     if (response.ok) return { ok: true, data: await response.json() }
@@ -29,25 +25,29 @@ export async function getTodayQuiz(
       ok: false,
       status: response.status,
       code: error?.code ?? 'UNKNOWN_ERROR',
-      message: apiErrorMessage(error?.code, 'error.todayQuiz'),
+      message:
+        error?.message ?? '今日のクイズを読み込めませんでした。時間をおいて再試行してください',
     }
   } catch (error) {
     return {
       ok: false,
       status: 0,
       code: error instanceof ApiTimeoutError ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
-      message: error instanceof ApiTimeoutError ? 'error.timeout' : 'error.todayQuiz',
+      message:
+        error instanceof ApiTimeoutError
+          ? '読み込みに時間がかかっています。時間をおいて再試行してください'
+          : '今日のクイズを読み込めませんでした。時間をおいて再試行してください',
     }
   }
 }
 
-export async function getQuizById(
-  quizId: string,
-  language: DisplayLanguage = 'original',
-): Promise<QuizApiResult<QuizByIdResponse>> {
+export async function getQuizById(quizId: string): Promise<QuizApiResult<QuizByIdResponse>> {
   try {
-    const request = { param: { quizId }, query: { language } }
-    const response = await withApiTimeout(() => apiClient.api.v1.quizzes[':quizId'].$get(request))
+    const response = await withApiTimeout(() =>
+      apiClient.api.v1.quizzes[':quizId'].$get({
+        param: { quizId },
+      }),
+    )
 
     if (response.ok) return { ok: true, data: await response.json() }
 
@@ -56,14 +56,17 @@ export async function getQuizById(
       ok: false,
       status: response.status,
       code: error?.code ?? 'UNKNOWN_ERROR',
-      message: apiErrorMessage(error?.code, 'error.quiz'),
+      message: error?.message ?? 'クイズを読み込めませんでした。時間をおいて再試行してください',
     }
   } catch (error) {
     return {
       ok: false,
       status: 0,
       code: error instanceof ApiTimeoutError ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
-      message: error instanceof ApiTimeoutError ? 'error.timeout' : 'error.quiz',
+      message:
+        error instanceof ApiTimeoutError
+          ? '読み込みに時間がかかっています。時間をおいて再試行してください'
+          : 'クイズを読み込めませんでした。時間をおいて再試行してください',
     }
   }
 }
@@ -91,14 +94,17 @@ export async function answerQuiz(
       ok: false,
       status: response.status,
       code: error?.code ?? 'UNKNOWN_ERROR',
-      message: apiErrorMessage(error?.code, 'error.answer'),
+      message: error?.message ?? '回答を送信できませんでした。時間をおいて再試行してください',
     }
   } catch (error) {
     return {
       ok: false,
       status: 0,
       code: error instanceof ApiTimeoutError ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
-      message: error instanceof ApiTimeoutError ? 'error.answerUnknown' : 'error.answer',
+      message:
+        error instanceof ApiTimeoutError
+          ? '送信結果を確認できません。時間をおいて再試行してください'
+          : '回答を送信できませんでした。時間をおいて再試行してください',
     }
   }
 }

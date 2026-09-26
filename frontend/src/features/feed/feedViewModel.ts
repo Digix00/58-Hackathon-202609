@@ -8,15 +8,12 @@ import {
 } from '../../shared/concernPresentation'
 import type { FeedItem } from './feedTypes'
 import { RECOMMENDATION_REASON_LABELS } from './feedTypes'
-import { translate } from '../../i18n/translate'
 
 export type FeedFilter = { gender: Gender | ''; region: RegionCode | '' }
 
 export type FeedConcern = {
   id: string
   body: string
-  language: DisplayLanguage
-  translationStatus?: 'pending' | 'ready' | 'failed'
   gender?: string
   ageGroup?: string
   region?: string
@@ -33,20 +30,18 @@ export type FeedFilterOption = { value: string; label: string }
 /** しぼりこみなしを表す選択肢の値。属性値とは衝突しない。 */
 export const ALL = '__all__'
 
-export function toFeedConcern(item: FeedItem, language: DisplayLanguage = 'original'): FeedConcern {
+export function toFeedConcern(item: FeedItem): FeedConcern {
   const reasonCode = item.recommendation?.reasonCode ?? 'newest'
   return {
     id: item.id,
     body: item.body,
-    language: item.language,
-    translationStatus: language === 'original' ? undefined : item.representations[language],
     genderCode: item.attributes.gender as Gender | undefined,
     regionCode: item.attributes.regionCode as RegionCode | undefined,
-    gender: genderLabel(item.attributes.gender, language),
-    ageGroup: ageGroupLabel(item.attributes.ageGroup, language),
-    region: item.attributes.regionName ?? regionLabel(item.attributes.regionCode, language),
-    createdLabel: createdLabel(item.createdAt, language),
-    reason: translate(language, RECOMMENDATION_REASON_LABELS[reasonCode]),
+    gender: genderLabel(item.attributes.gender),
+    ageGroup: ageGroupLabel(item.attributes.ageGroup),
+    region: item.attributes.regionName ?? regionLabel(item.attributes.regionCode),
+    createdLabel: createdLabel(item.createdAt),
+    reason: RECOMMENDATION_REASON_LABELS[reasonCode],
     reactionCount: item.reactionCount,
     reacted: item.reacted,
   }
@@ -58,14 +53,11 @@ export function buildFeedFilterOptions(language: DisplayLanguage = 'original'): 
 } {
   return {
     genderOptions: [
-      { value: ALL, label: translate(language, 'common.all') },
-      ...GENDERS.map((gender) => ({
-        value: gender,
-        label: genderLabel(gender, language) ?? gender,
-      })),
+      { value: ALL, label: 'すべて' },
+      ...GENDERS.map((gender) => ({ value: gender, label: genderLabel(gender) ?? gender })),
     ],
     regionOptions: [
-      { value: ALL, label: translate(language, 'common.all') },
+      { value: ALL, label: 'すべて' },
       ...REGION_CODES.map((region) => ({
         value: region,
         label: regionLabel(region, language) ?? region,
@@ -78,7 +70,7 @@ export function activeFeedFilterLabel(
   filter: FeedFilter,
   language: DisplayLanguage = 'original',
 ): string {
-  return [genderLabel(filter.gender, language), regionLabel(filter.region, language)]
+  return [genderLabel(filter.gender), regionLabel(filter.region, language)]
     .filter(Boolean)
     .join(' · ')
 }

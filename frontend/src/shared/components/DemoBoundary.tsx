@@ -1,4 +1,3 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import type { ReactNode } from 'react'
 import { EmptyState, ErrorState, LoadingState } from './AsyncStates'
 import { ComingSoonLabel } from './ComingSoonLabel'
@@ -13,13 +12,11 @@ export function DemoBoundary({
   emptyTitle: string
   emptyDescription: string
 }) {
-  const { t } = useTranslation()
-
   if (!import.meta.env.DEV) {
     return (
       <ErrorState
-        title={<ComingSoonLabel ariaLabel={t('demo.unavailable')} />}
-        description={t('demo.wait')}
+        title={<ComingSoonLabel ariaLabel="この画面は準備中です" />}
+        description="データの接続が完了していません。しばらくお待ちください。"
       />
     )
   }
@@ -32,7 +29,7 @@ export function DemoBoundary({
   if (scenario === 'error') {
     return (
       <ErrorState
-        description={t('demo.failed')}
+        description="開発用データを読み込めませんでした。"
         onRetry={() => window.location.assign(window.location.pathname)}
       />
     )

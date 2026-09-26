@@ -2,7 +2,6 @@ import type { ConcernDetailResponse, ListConcernsResponse } from '../../lib/api'
 import { RECOMMENDATION_REASON_LABELS } from '../feed/feedTypes'
 import type { Gender, RegionCode } from '../post/postTypes'
 import type { DemoConcern } from './demoStore'
-import { translate } from '../../i18n/translate'
 
 type ApiConcern = ListConcernsResponse['items'][number] | ConcernDetailResponse
 
@@ -98,7 +97,7 @@ export function toDemoConcern(item: ApiConcern): DemoConcern {
     regionCode: item.attributes.regionCode,
     createdLabel: formatCreatedLabel(item.createdAt),
     reason: recommendation
-      ? translate('original', RECOMMENDATION_REASON_LABELS[recommendation.reasonCode])
+      ? RECOMMENDATION_REASON_LABELS[recommendation.reasonCode]
       : '新しく届いた声です',
     reactionCount: item.reactionCount,
     reacted: item.reacted,

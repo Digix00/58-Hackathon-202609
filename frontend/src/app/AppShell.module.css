@@ -109,21 +109,6 @@
   text-decoration-skip-ink: none;
 }
 
-/* 英語は単語の幅を確保する。拡大で収まらないときは項目ごと次の行へ送る。 */
-.nav:lang(en) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding-inline: 8px;
-}
-
-.navLink:lang(en) {
-  flex: 1 0 auto;
-  min-width: 48px;
-  padding-inline: 2px;
-  overflow-wrap: normal;
-}
-
 /* 押している間だけ、紙を指で押し下げたぶん沈む。 */
 .navLink:active {
   transform: translateY(1px);
