@@ -1,7 +1,8 @@
 import { useTranslation } from '../i18n/useTranslation'
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { SplashScreen } from '../features/splash/SplashScreen'
 import { CrayonFilters } from '../shared/components/CrayonFilters'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
@@ -19,14 +20,31 @@ export function AppLayout() {
 
   const { state, liffUrl } = useRuntime()
   const location = useLocation()
+  /*
+   * 起動画面を出すかどうかは、最初の描画の時点で決める。
+   *
+   * 準備が終わってからも、絵が抜けきるまでは出したままにする必要があるので、
+   * 初期化中かどうかをそのまま条件にはできない。LIFF を初期化しない入口では
+   * 最初から準備が終わっているので、この値は false になり、起動画面は出ない。
+   */
+  const [booting, setBooting] = useState(() => state.status === 'initializing')
   const crayonFilters = <CrayonFilters key={location.key} />
   const liffTarget = liffUrl(location.pathname)
+
+  // 初期化中と、準備が終わって絵が抜けきるまでの両方で出す。
+  if (state.status === 'initializing' || booting) {
+    return (
+      <>
+        {crayonFilters}
+        <SplashScreen ready={state.status !== 'initializing'} onDone={() => setBooting(false)} />
+      </>
+    )
+  }
 
   return (
     <>
       {crayonFilters}
       <AppShell
-        initializing={state.status === 'initializing'}
         standalone={state.status === 'ready' && state.mode === 'browser'}
         notice={
           state.status === 'ready' && state.mode === 'browser' && state.liffInitializationFailed ? (
