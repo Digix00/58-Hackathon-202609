@@ -8,7 +8,6 @@ import { NumberInputField, SelectField } from '../../shared/components/FormField
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
-import { notebookAngleForDrag } from '../../shared/hooks/useNotebookSwipe'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -255,7 +254,7 @@ type SheetProps = {
   draft: OnboardingDraft
   slips: OnboardingSlip[]
   disabled: boolean
-  dragX?: number
+  swipeTarget?: boolean
   onFieldChange: (update: OnboardingFieldUpdate) => void
   onChooseGender: (value: Gender) => void
 }
@@ -265,7 +264,7 @@ function OnboardingSheet({
   draft,
   slips,
   disabled,
-  dragX = 0,
+  swipeTarget = false,
   onFieldChange,
   onChooseGender,
 }: SheetProps) {
@@ -273,14 +272,8 @@ function OnboardingSheet({
     <article
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${turnStyles.page} ${
         page === 'cover' ? styles.cover : ''
-      } ${page === 'region' ? styles.regionCard : ''} ${
-        dragX !== 0 ? turnStyles.pageDragging : ''
-      }`}
-      style={
-        {
-          transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
-        } as CSSProperties
-      }
+      } ${page === 'region' ? styles.regionCard : ''}`}
+      data-notebook-swipe-target={swipeTarget ? '' : undefined}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
@@ -302,14 +295,13 @@ function OnboardingSheet({
   )
 }
 
-type OnboardingStackProps = Omit<SheetProps, 'page' | 'index' | 'dragX'> & {
+type OnboardingStackProps = Omit<SheetProps, 'page' | 'index' | 'swipeTarget'> & {
   facePage: OnboardingPageName
   faceIndex: number
   opened: boolean
   /** 表紙を開きはじめたか。押し上げの時点から、本が広がりシールが散る。 */
   opening: boolean
   turning: OnboardingTurn | null
-  dragX: number
   stackRef: RefObject<HTMLDivElement | null>
   onTurningFinished: () => void
 }
@@ -320,7 +312,6 @@ function OnboardingStack({
   opened,
   opening,
   turning,
-  dragX,
   stackRef,
   onTurningFinished,
   ...sheetProps
@@ -370,7 +361,7 @@ function OnboardingStack({
           </NotebookTurn>
         ) : null}
         <div key={`${facePage}-${faceIndex}`} className={styles.enter}>
-          <OnboardingSheet page={facePage} index={faceIndex} dragX={dragX} {...sheetProps} />
+          <OnboardingSheet page={facePage} index={faceIndex} swipeTarget {...sheetProps} />
         </div>
         {/* 手前側の線は金具として動かさない。 */}
         <NotebookBinding part="front" />
@@ -501,7 +492,6 @@ export function OnboardingPage() {
           opened={opened}
           opening={opening}
           turning={turning}
-          dragX={swipe.dragX}
           stackRef={stackRef}
           onTurningFinished={onTurningFinished}
           draft={draft}

@@ -279,6 +279,13 @@
   resize: none;
 }
 
+/* 対応するWebKitではCSSに自動伸長を任せ、入力中のJavaScript計測を省く。 */
+@supports (field-sizing: content) {
+  .input {
+    field-sizing: content;
+  }
+}
+
 .input::placeholder {
   /* 入力済みの本文と区別できるよう、例文は一段薄く表示する。 */
   color: #aaa39a;
