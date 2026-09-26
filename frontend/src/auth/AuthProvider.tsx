@@ -1,4 +1,3 @@
-import { apiErrorMessage } from '../i18n/translate'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { apiClient, readApiError } from '../lib/api'
 import { getLineIdToken, initializeLiff, isLineLoggedIn, logoutLine, startLineLogin } from './liff'
@@ -74,7 +73,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const requestSession = useCallback(async (): Promise<AuthResponse> => {
     const response = await apiClient.api.v1.auth.session.$get()
     if (!response.ok) {
-      throw new Error('auth.session')
+      throw new Error('アプリのセッションを復元できませんでした')
     }
     return response.json()
   }, [])
@@ -85,7 +84,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         json: { idToken },
       })
       if (!response.ok) {
-        throw new Error('auth.lineFailed')
+        throw new Error('LINE認証に失敗しました')
       }
       applySession(await response.json())
     },
@@ -98,7 +97,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     })
     if (!response.ok) {
       const error = await readApiError(response)
-      throw new Error(apiErrorMessage(error?.code, 'auth.devFailed'))
+      throw new Error(error?.message ?? '開発用ログインに失敗しました')
     }
     applySession(await response.json())
   }, [applySession])
@@ -156,7 +155,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const liffInitialized = await initializeLiff()
       if (!liffInitialized) {
-        throw new Error('auth.noLiff')
+        throw new Error('VITE_LINE_LIFF_IDが設定されていません')
       }
 
       if (!isLineLoggedIn()) {
@@ -166,7 +165,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const idToken = getLineIdToken()
       if (!idToken) {
-        throw new Error('auth.noToken')
+        throw new Error('LINE ID tokenを取得できません')
       }
 
       dispatch({ type: 'loginStarted' })
@@ -181,7 +180,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const response = await apiClient.api.v1.auth.logout.$post()
       if (!response.ok) {
-        throw new Error('auth.logoutFailed')
+        throw new Error('ログアウトに失敗しました')
       }
       logoutLine()
       applySession({ authenticated: false, user: null })
@@ -203,5 +202,5 @@ export function AuthProvider({ children }: PropsWithChildren) {
 }
 
 function toErrorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : 'auth.failed'
+  return cause instanceof Error ? cause.message : '認証に失敗しました'
 }

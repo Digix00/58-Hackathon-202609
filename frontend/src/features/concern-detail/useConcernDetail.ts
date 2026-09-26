@@ -2,7 +2,6 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { getConcernDetail } from './concernDetailApi'
 import type { ConcernDetail, ConcernDetailStatus } from './concernDetailTypes'
 import { useConcernViewOnDisplay } from './useConcernViewOnDisplay'
-import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 
 export interface UseConcernDetailResult {
   status: ConcernDetailStatus
@@ -61,7 +60,6 @@ export function useConcernDetail(
   id: string | undefined,
   options: UseConcernDetailOptions = {},
 ): UseConcernDetailResult {
-  const { language } = useDisplaySettings()
   const enabled = options.enabled ?? true
   const trackView = options.trackView ?? true
   const authUserId = options.authUserId
@@ -79,12 +77,12 @@ export function useConcernDetail(
 
     const version = ++requestVersion.current
     if (!id) {
-      dispatch({ type: 'loadFailed', message: 'error.missingConcern' })
+      dispatch({ type: 'loadFailed', message: '投稿が指定されていません' })
       return
     }
 
     dispatch({ type: 'loadStarted' })
-    const result = await getConcernDetail(id, language)
+    const result = await getConcernDetail(id)
     if (version !== requestVersion.current) return
 
     if (!result.ok) {
@@ -93,7 +91,7 @@ export function useConcernDetail(
     }
 
     dispatch({ type: 'loadSucceeded', concern: result.data })
-  }, [enabled, id, language])
+  }, [enabled, id])
 
   useEffect(() => {
     if (!enabled) return

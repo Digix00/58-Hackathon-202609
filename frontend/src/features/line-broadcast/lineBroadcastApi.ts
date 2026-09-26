@@ -1,5 +1,4 @@
 import type { InferResponseType } from 'hono'
-import { apiErrorMessage } from '../../i18n/translate'
 import { ApiTimeoutError, apiClient, readApiError, withApiTimeout } from '../../lib/api'
 
 const dailyQuizBroadcast = apiClient.api.v1.admin.line.broadcasts['daily-quiz']
@@ -28,7 +27,7 @@ export async function getDailyBroadcastStatus(): Promise<DailyBroadcastStatus> {
     const error = await readApiError(response)
     throw new LineBroadcastApiError(
       error?.code ?? 'REQUEST_FAILED',
-      apiErrorMessage(error?.code, 'broadcast.requestFailed'),
+      error?.message ?? '処理に失敗しました。Cloudflare Accessのログイン状態を確認してください。',
     )
   }
   return readStatus(response)
@@ -44,7 +43,7 @@ export async function triggerDailyBroadcast(): Promise<void> {
     const error = await readApiError(response)
     throw new LineBroadcastApiError(
       error?.code ?? 'REQUEST_FAILED',
-      apiErrorMessage(error?.code, 'broadcast.requestFailed'),
+      error?.message ?? '処理に失敗しました。Cloudflare Accessのログイン状態を確認してください。',
     )
   }
 }
@@ -55,7 +54,10 @@ async function readStatus(response: {
   try {
     return await response.json()
   } catch {
-    throw new LineBroadcastApiError('INVALID_RESPONSE', 'broadcast.invalidResponse')
+    throw new LineBroadcastApiError(
+      'INVALID_RESPONSE',
+      'APIの応答を読み取れませんでした。Cloudflare Accessのログイン状態を確認してください。',
+    )
   }
 }
 
@@ -64,8 +66,8 @@ async function sendRequest<TResponse>(send: () => Promise<TResponse>): Promise<T
     return await withApiTimeout(send, 20_000)
   } catch (cause) {
     if (cause instanceof ApiTimeoutError) {
-      throw new LineBroadcastApiError('REQUEST_TIMEOUT', 'broadcast.noResponse')
+      throw new LineBroadcastApiError('REQUEST_TIMEOUT', 'APIの応答を確認できませんでした。')
     }
-    throw new LineBroadcastApiError('NETWORK_ERROR', 'broadcast.network')
+    throw new LineBroadcastApiError('NETWORK_ERROR', 'APIへ接続できませんでした。')
   }
 }

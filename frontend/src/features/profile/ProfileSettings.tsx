@@ -1,8 +1,7 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import { useCallback, useReducer } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
-import { genderLabel, regionLabel } from '../../shared/concernPresentation'
+import { regionLabel } from '../../shared/concernPresentation'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import settingsStyles from '../../shared/styles/Settings.module.css'
 import actionStyles from '../../shared/styles/Actions.module.css'
@@ -115,7 +114,7 @@ function useProfileSettings() {
       await refresh()
       dispatch({ type: 'saveSucceeded' })
     } catch {
-      dispatch({ type: 'saveFailed', message: 'error.profile' })
+      dispatch({ type: 'saveFailed', message: '設定を保存できませんでした' })
     }
   }, [canSaveProfile, effectiveProfile, refresh, state.status])
 
@@ -131,8 +130,6 @@ function useProfileSettings() {
 }
 
 export function ProfileSettings() {
-  const { t, message } = useTranslation()
-
   const { language } = useDisplaySettings()
   const {
     authStatus,
@@ -144,51 +141,47 @@ export function ProfileSettings() {
     saveProfile,
   } = useProfileSettings()
   const isSaving = profileStatus === 'saving'
-  const profileMessage =
-    profileStatus === 'saved' ? t('profile.saved') : profileError ? message(profileError) : null
+  const profileMessage = profileStatus === 'saved' ? '設定を保存しました。' : profileError
 
   return (
     <section className={settingsStyles.group} aria-labelledby="profile-title">
-      <h3 id="profile-title">{t('profile.title')}</h3>
+      <h3 id="profile-title">あなたの設定</h3>
       {authStatus !== 'authenticated' ? (
-        <p>{t('profile.loginHint')}</p>
+        <p>年代・性別・地域の設定は、LINEでログインすると保存できます。</p>
       ) : (
         <>
           <div className={styles.fields}>
             <NumberInputField
-              label={t('profile.birthYear')}
+              label="生まれた年"
               inputMode="numeric"
               min="1900"
               max={currentYear}
-              placeholder={t('profile.yearExample')}
+              placeholder="例）1990"
               value={effectiveProfile.birthYear}
-              suffix={t('profile.yearSuffix')}
+              suffix="年"
               disabled={isSaving}
               onValueChange={(value) => updateField({ field: 'birthYear', value })}
             />
             <NumberInputField
-              label={t('profile.birthMonth')}
+              label="生まれた月"
               inputMode="numeric"
               min="1"
               max="12"
-              placeholder={t('profile.monthExample')}
+              placeholder="例）4"
               value={effectiveProfile.birthMonth}
-              suffix={t('profile.monthSuffix')}
+              suffix="月"
               disabled={isSaving}
               onValueChange={(value) => updateField({ field: 'birthMonth', value })}
             />
             <SelectField
-              label={t('common.gender')}
+              label="性別"
               value={effectiveProfile.gender}
-              options={GENDERS.map(({ value }) => ({
-                value,
-                label: genderLabel(value, language) ?? value,
-              }))}
+              options={GENDERS}
               disabled={isSaving}
               onChange={(value) => updateField({ field: 'gender', value })}
             />
             <SelectField
-              label={t('common.region')}
+              label="地域"
               value={effectiveProfile.regionCode}
               options={REGION_OPTIONS.map(([value]) => ({
                 value,
@@ -204,7 +197,7 @@ export function ProfileSettings() {
             disabled={!canSaveProfile || isSaving}
             onClick={() => void saveProfile()}
           >
-            {isSaving ? t('common.saving') : t('profile.save')}
+            {isSaving ? '保存しています…' : '設定を保存する'}
           </button>
           {profileMessage ? (
             <p className={styles.feedback} aria-live="polite">

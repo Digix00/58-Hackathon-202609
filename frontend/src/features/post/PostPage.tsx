@@ -1,4 +1,3 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import {
   useEffect,
   useLayoutEffect,
@@ -43,13 +42,13 @@ const paperStyle = { '--paper-tint': PAPER_TINT } as CSSProperties
 
 /** 紙の上辺に挟むしおり。投稿はこの2枚で終わることを、めくる前に見せておく。 */
 const STEPS = [
-  { id: 'write', label: 'post.write' },
-  { id: 'confirm', label: 'post.review' },
+  { id: 'write', label: 'かく' },
+  { id: 'confirm', label: 'よみかえす' },
 ] as const
 type Step = (typeof STEPS)[number]['id']
 
 /** 例文。書き出しに迷ったときの手がかりなので、置く場所は書く面の中にする。 */
-const BODY_EXAMPLE = 'post.example'
+const BODY_EXAMPLE = '（たとえば）駅から家までの道が暗くて、帰りが遅い日は少し不安です。'
 
 /**
  * いまめくられている最中の1枚。
@@ -88,21 +87,17 @@ function CrayonStar() {
 }
 
 function StepTabs({ current }: { current: Step }) {
-  const { t } = useTranslation()
-
   return (
-    <ol className={styles.tabs} aria-label={t('post.steps')}>
+    <ol className={styles.tabs} aria-label="投稿の手順">
       {STEPS.map((step) => (
         <li
           key={step.id}
           className={`${styles.tab} ${step.id === current ? styles.tabCurrent : ''}`}
           aria-current={step.id === current ? 'step' : undefined}
         >
-          {t(step.label)}
+          {step.label}
           {/* いまの手順は紙から高く出して示す。読み上げには言葉で添える。 */}
-          {step.id === current ? (
-            <span className={styles.srOnly}>{t('post.currentStep')}</span>
-          ) : null}
+          {step.id === current ? <span className={styles.srOnly}>（いまここ）</span> : null}
         </li>
       ))}
     </ol>
@@ -154,8 +149,6 @@ function WriteSheet({
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
 }) {
-  const { t } = useTranslation()
-
   return (
     <article
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.writeCard}`}
@@ -167,9 +160,9 @@ function WriteSheet({
       <div className={styles.prompt}>
         {/* 紙の上の呼びかけが、そのまま入力欄のラベルを兼ねる。 */}
         <label className={styles.promptTitle} htmlFor="post-body">
-          {t('post.prompt')}
+          ここに、そっと書いてね。
         </label>
-        <p className={styles.promptLead}>{t('post.promptHint')}</p>
+        <p className={styles.promptLead}>うまくまとまっていなくても、大丈夫。</p>
       </div>
       <WriteFields
         initialBody={body}
@@ -193,7 +186,6 @@ function WriteFields({
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
 }) {
-  const { t, message } = useTranslation()
   const [body, setBody] = useState(initialBody)
   const tooLong = body.trim().length > POST_BODY_MAX_LENGTH
 
@@ -212,7 +204,7 @@ function WriteFields({
             setBody(nextBody)
             onBodyChange(nextBody)
           }}
-          placeholder={t(BODY_EXAMPLE)}
+          placeholder={BODY_EXAMPLE}
           maxLength={POST_BODY_MAX_LENGTH + 1}
           aria-invalid={Boolean(fieldError)}
           aria-describedby={`${fieldError ? 'post-body-error ' : ''}post-body-count`}
@@ -220,7 +212,7 @@ function WriteFields({
       </div>
       {fieldError ? (
         <p id="post-body-error" className={styles.error} role="alert">
-          {message(fieldError, { max: POST_BODY_MAX_LENGTH })}
+          {fieldError}
         </p>
       ) : null}
       <div className={styles.cardFoot}>
@@ -232,16 +224,17 @@ function WriteFields({
           aria-describedby="post-voice-note"
         >
           <CrayonMic />
-          {t('post.voice')}
+          話して書く
           <ComingSoonLabel
             id="post-voice-note"
             className={styles.voiceLabel}
-            ariaLabel={t('post.voiceSoon')}
+            ariaLabel="音声入力は準備中です"
           />
         </button>
         <p id="post-body-count" className={`${styles.count} ${tooLong ? styles.countOver : ''}`}>
-          {t('post.characterCount', { count: body.length, max: POST_BODY_MAX_LENGTH })}
-          {tooLong ? <span className={styles.srOnly}>{t('post.overLimit')}</span> : null}
+          <span className={styles.srOnly}>書いた文字数は</span>
+          {body.length} / {POST_BODY_MAX_LENGTH}文字
+          {tooLong ? <span className={styles.srOnly}>。上限を越えています</span> : null}
         </p>
       </div>
     </>
@@ -266,8 +259,6 @@ function ReadSheet({ body, step }: { body: string; step: Step }) {
 
 /** 置いていった紙。お礼と、これから進むことだけを載せる。 */
 function DoneSheet({ note }: { note: string }) {
-  const { t } = useTranslation()
-
   return (
     <article
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.doneCard}`}
@@ -277,9 +268,9 @@ function DoneSheet({ note }: { note: string }) {
       <div className={styles.doneInner} aria-live="polite">
         <CrayonStar />
         <p className={styles.doneTitle}>
-          {t('post.thanksLead')}
+          置いていってくれて、
           <br />
-          {t('post.thanks')}
+          ありがとう。
         </p>
         <p className={styles.doneLead}>{note}</p>
       </div>
@@ -373,8 +364,6 @@ function PostActions({
   onEdit: () => void
   onSubmit: () => void
 }) {
-  const { t, message } = useTranslation()
-
   if (view === 'write') {
     return (
       <div className={styles.actions}>
@@ -383,8 +372,7 @@ function PostActions({
           className={`${actionStyles.primary} ${styles.nextButton}`}
           onClick={onConfirm}
         >
-          {t('post.reviewAction')}
-          <span aria-hidden="true">→</span>
+          書けたら、読み返す <span aria-hidden="true">→</span>
         </button>
       </div>
     )
@@ -394,10 +382,12 @@ function PostActions({
     return (
       <div className={styles.actions}>
         {/* 匿名と安全の注意は、投稿を決める前に、省略せずここで読ませる。 */}
-        <p className={styles.caution}>{t('post.privacy')}</p>
+        <p className={styles.caution}>
+          投稿は匿名で公開され、LINEの名前や画像は他の人に表示されません。名前や連絡先など、個人が分かることは書かないでください。ここは緊急の相談窓口ではありません。
+        </p>
         {error ? (
           <p className={styles.submitError} role="alert">
-            {message(error)}
+            {error}
           </p>
         ) : null}
         <button
@@ -406,10 +396,10 @@ function PostActions({
           onClick={onSubmit}
           disabled={submitting}
         >
-          {submitting ? t('post.submitting') : error ? t('post.retry') : t('post.submit')}
+          {submitting ? '投稿しています…' : error ? 'もう一度投稿する' : 'この内容を匿名で投稿する'}
         </button>
         <button type="button" className={actionStyles.text} onClick={onEdit} disabled={submitting}>
-          {t('post.edit')}
+          書き直す
         </button>
       </div>
     )
@@ -418,16 +408,13 @@ function PostActions({
   return (
     <div className={styles.actions}>
       <Link className={`${actionStyles.primary} ${styles.nextButton}`} to="/">
-        {t('post.readOthers')}
-        <span aria-hidden="true">→</span>
+        ほかの声を読む <span aria-hidden="true">→</span>
       </Link>
     </div>
   )
 }
 
 export function PostPage() {
-  const { t } = useTranslation()
-
   const draft = usePostDraft()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const submission = usePostSubmit()
@@ -449,14 +436,14 @@ export function PostPage() {
     <div className={styles.page}>
       <section className={styles.stage} aria-labelledby="post-title">
         <h1 id="post-title" className={styles.srOnly}>
-          {t('post.title')}
+          悩みを書いて、匿名で投稿する
         </h1>
         <PostStack
           body={draft.body}
           view={view}
           turning={turning}
           fieldError={submission.fieldErrors.body}
-          doneNote={t('post.done')}
+          doneNote="あなたの紙は、このノートに挟みました。ひらがな・英語への言いかえや、テーマの整理は、あとから進みます。"
           inputRef={inputRef}
           onBodyChange={(value) => {
             draft.changeBody(value)

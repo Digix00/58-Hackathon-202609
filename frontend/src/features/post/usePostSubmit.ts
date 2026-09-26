@@ -81,7 +81,7 @@ export function usePostSubmit(): UsePostSubmitResult {
       } catch {
         dispatch({
           type: 'submitFailed',
-          error: 'error.post',
+          error: '投稿に失敗しました。時間をおいて再度お試しください',
         })
         return false
       } finally {

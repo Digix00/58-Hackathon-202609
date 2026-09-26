@@ -1,24 +1,22 @@
-import { useTranslation } from '../i18n/useTranslation'
 import { NavLink, Outlet } from 'react-router'
 import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { NavIcon, type NavIconName } from './NavIcons'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
 import styles from './AppShell.module.css'
-import type { MessageKey } from '../i18n/messages'
 
 /** 下部ナビは「クイズ・投稿・読む・履歴・設定」の順で表示する。 */
 const navigation: Array<{
   to: string
-  label: MessageKey
+  label: string
   icon: NavIconName
   end?: boolean
   variant?: 'read'
 }> = [
-  { to: '/quiz/today', label: 'nav.quiz', icon: 'quiz' },
-  { to: '/post', label: 'nav.post', icon: 'post' },
-  { to: '/', label: 'nav.read', icon: 'read', end: true, variant: 'read' },
-  { to: '/history', label: 'nav.history', icon: 'history' },
-  { to: '/settings', label: 'nav.settings', icon: 'settings' },
+  { to: '/quiz/today', label: 'クイズ', icon: 'quiz' },
+  { to: '/post', label: '投稿', icon: 'post' },
+  { to: '/', label: '読む', icon: 'read', end: true, variant: 'read' },
+  { to: '/history', label: '履歴', icon: 'history' },
+  { to: '/settings', label: '設定', icon: 'settings' },
 ]
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
@@ -26,8 +24,6 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 export function AppShell() {
-  const { t } = useTranslation()
-
   const { fontSize } = useDisplaySettings()
 
   return (
@@ -37,7 +33,7 @@ export function AppShell() {
       <main className={styles.content}>
         <Outlet />
       </main>
-      <nav className={styles.nav} aria-label={t('nav.label')}>
+      <nav className={styles.nav} aria-label="画面移動と設定">
         {navigation.map((item) =>
           item.variant === 'read' ? (
             <NavLink
@@ -48,12 +44,12 @@ export function AppShell() {
               }
             >
               <NavIcon name={item.icon} />
-              <span className={styles.navLabel}>{t(item.label)}</span>
+              <span className={styles.navLabel}>{item.label}</span>
             </NavLink>
           ) : (
             <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
               <NavIcon name={item.icon} />
-              <span className={styles.navLabel}>{t(item.label)}</span>
+              <span className={styles.navLabel}>{item.label}</span>
             </NavLink>
           ),
         )}

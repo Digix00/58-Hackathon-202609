@@ -1,4 +1,3 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import { useState } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
@@ -9,19 +8,17 @@ import styles from './SettingsPage.module.css'
 import { updateUserDisplayLanguage } from '../profile/profileApi'
 
 const languageOptions = [
-  { value: 'original', label: 'settings.original' },
-  { value: 'jaHira', label: 'settings.hiragana' },
-  { value: 'en', label: 'settings.english' },
+  { value: 'original', label: '原文' },
+  { value: 'jaHira', label: 'ひらがな' },
+  { value: 'en', label: '英語' },
 ] as const
 
 const fontSizeOptions = [
-  { value: 'normal', label: 'settings.normal' },
-  { value: 'large', label: 'settings.large' },
+  { value: 'normal', label: '標準' },
+  { value: 'large', label: '大きく表示' },
 ] as const
 
 export function SettingsPage() {
-  const { t, message } = useTranslation()
-
   const { status: authStatus, updateUser } = useAuth()
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
@@ -48,18 +45,18 @@ export function SettingsPage() {
       setLanguageStatus('saved')
     } catch {
       setLanguageStatus('failed')
-      setLanguageError('error.language')
+      setLanguageError('表示形式を保存できませんでした')
     }
   }
 
   return (
     <section className={styles.page} aria-labelledby="settings-title">
       <header className={styles.heading}>
-        <h1 id="settings-title">{t('nav.settings')}</h1>
+        <h1 id="settings-title">設定</h1>
       </header>
 
       <fieldset className={sharedStyles.group}>
-        <legend>{t('settings.fontSize')}</legend>
+        <legend>文字サイズ</legend>
         <div className={sharedStyles.choiceRow}>
           {fontSizeOptions.map((option) => (
             <label key={option.value} className={sharedStyles.choice}>
@@ -69,7 +66,7 @@ export function SettingsPage() {
                 checked={fontSize === option.value}
                 onChange={() => setFontSize(option.value)}
               />
-              <span>{t(option.label)}</span>
+              <span>{option.label}</span>
             </label>
           ))}
         </div>
@@ -79,11 +76,11 @@ export function SettingsPage() {
         className={sharedStyles.group}
         disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
       >
-        <legend>{t('settings.language')}</legend>
+        <legend>表示することば</legend>
         {authStatus !== 'authenticated' ? (
-          <p>{t('settings.loginHint')}</p>
+          <p>LINEでログインすると、選んだ表記をアカウントに保存できます。</p>
         ) : (
-          <p>{t('settings.languageHint')}</p>
+          <p>選んだ表記で表示します。</p>
         )}
         <div className={sharedStyles.choiceRow}>
           {languageOptions.map((option) => (
@@ -94,13 +91,13 @@ export function SettingsPage() {
                 checked={language === option.value}
                 onChange={() => void selectLanguage(option.value)}
               />
-              <span>{t(option.label)}</span>
+              <span>{option.label}</span>
             </label>
           ))}
         </div>
-        {languageStatus === 'saving' ? <p role="status">{t('common.saving')}</p> : null}
-        {languageStatus === 'saved' ? <p role="status">{t('settings.saved')}</p> : null}
-        {languageError ? <p role="alert">{message(languageError)}</p> : null}
+        {languageStatus === 'saving' ? <p role="status">保存しています…</p> : null}
+        {languageStatus === 'saved' ? <p role="status">表示形式を保存しました。</p> : null}
+        {languageError ? <p role="alert">{languageError}</p> : null}
       </fieldset>
 
       <ProfileSettings />
@@ -108,17 +105,16 @@ export function SettingsPage() {
       {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
       <fieldset className={sharedStyles.group} disabled>
         <legend>
-          {t('settings.speech')}
-          <ComingSoonLabel ariaLabel={t('settings.speechSoon')} />
+          読み上げ <ComingSoonLabel ariaLabel="読み上げは準備中です" />
         </legend>
-        <p>{t('settings.speechUnavailable')}</p>
+        <p>読み上げは、まだお使いいただけません。</p>
         <label className={sharedStyles.toggle}>
           <input
             type="checkbox"
             checked={speechEnabled}
             onChange={(event) => setSpeechEnabled(event.target.checked)}
           />
-          <span>{t('settings.autoSpeech')}</span>
+          <span>投稿を開いたら読み上げる</span>
         </label>
       </fieldset>
     </section>

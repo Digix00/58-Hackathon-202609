@@ -1,9 +1,10 @@
-import { type Gender, type RegionCode, type UserProfileInput } from '../profile/profileApi'
 import {
-  genderLabel as displayGender,
-  regionLabel as displayRegion,
-} from '../../shared/concernPresentation'
-import { translate, type UiLanguage } from '../../i18n/translate'
+  GENDERS,
+  REGION_OPTIONS,
+  type Gender,
+  type RegionCode,
+  type UserProfileInput,
+} from '../profile/profileApi'
 
 /**
  * はじめの1ページに書くこと。
@@ -85,33 +86,35 @@ export type OnboardingSlip = {
   slip: string
 }
 
+function genderLabel(gender: Gender | ''): string {
+  return GENDERS.find((option) => option.value === gender)?.label ?? ''
+}
+
+function regionLabel(regionCode: RegionCode | ''): string {
+  return REGION_OPTIONS.find(([value]) => value === regionCode)?.[1] ?? ''
+}
+
 /**
  * 書けた項目の言葉。書けていない項目は空文字を返し、しおりを作らない。
  * 年月は確かめに通ったものだけを載せる。直してもらう値をしおりにすると、
  * 書き終えたものとして数えたことになる。
  */
-function slipLabel(page: QuestionPage, draft: OnboardingDraft, language: UiLanguage): string {
+function slipLabel(page: QuestionPage, draft: OnboardingDraft): string {
   switch (page) {
     case 'birth':
       return isBirthWritten(draft) && birthError(draft) === null
-        ? translate(language, 'onboarding.birthLabel', {
-            year: draft.birthYear,
-            month: draft.birthMonth,
-          })
+        ? `${draft.birthYear}年${draft.birthMonth}月`
         : ''
     case 'gender':
-      return displayGender(draft.gender, language) ?? ''
+      return genderLabel(draft.gender)
     case 'region':
-      return displayRegion(draft.regionCode, language) ?? ''
+      return regionLabel(draft.regionCode)
   }
 }
 
-export function onboardingSlips(
-  draft: OnboardingDraft,
-  language: UiLanguage = 'original',
-): OnboardingSlip[] {
+export function onboardingSlips(draft: OnboardingDraft): OnboardingSlip[] {
   return QUESTION_PAGES.flatMap((page) => {
-    const label = slipLabel(page, draft, language)
+    const label = slipLabel(page, draft)
     if (!label) return []
 
     const index = ONBOARDING_PAGES.indexOf(page)
@@ -139,13 +142,13 @@ export function birthError(draft: OnboardingDraft, now = new Date()): string | n
   const currentYear = now.getFullYear()
 
   if (year < MIN_BIRTH_YEAR || year > currentYear) {
-    return 'validation.birthYear'
+    return `生まれた年は${MIN_BIRTH_YEAR}年から${currentYear}年までで書いてください。`
   }
   if (month < 1 || month > 12) {
-    return 'validation.birthMonth'
+    return '生まれた月は1月から12月までで書いてください。'
   }
   if (year === currentYear && month > now.getMonth() + 1) {
-    return 'validation.futureBirth'
+    return 'これから来る月は選べません。'
   }
   return null
 }

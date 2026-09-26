@@ -87,7 +87,6 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
   const clusterId = typeof options === 'number' ? undefined : options.clusterId
   const enabled = typeof options === 'number' ? true : (options.enabled ?? true)
   const authUserId = typeof options === 'number' ? undefined : options.authUserId
-  const language = typeof options === 'number' ? 'original' : (options.language ?? 'original')
   const [state, dispatch] = useReducer(feedReducer, initialFeedState)
   const requestVersion = useRef(0)
   const isLoading = useRef(false)
@@ -101,7 +100,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     cursorRef.current = null
     dispatch({ type: 'loadStarted' })
 
-    const result = await listConcerns({ limit, sort, gender, regionCode, clusterId, language })
+    const result = await listConcerns({ limit, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -116,7 +115,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, enabled, gender, limit, regionCode, sort, language])
+  }, [clusterId, enabled, gender, limit, regionCode, sort])
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (!enabled) return
@@ -128,15 +127,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
     isLoading.current = true
     dispatch({ type: 'loadMoreStarted' })
 
-    const result = await listConcerns({
-      limit,
-      cursor,
-      sort,
-      gender,
-      regionCode,
-      clusterId,
-      language,
-    })
+    const result = await listConcerns({ limit, cursor, sort, gender, regionCode, clusterId })
     if (version !== requestVersion.current) return
 
     isLoading.current = false
@@ -151,7 +142,7 @@ export function useFeed(options: UseFeedOptions | number = {}): UseFeedResult {
       items: result.data.items,
       nextCursor: result.data.nextCursor,
     })
-  }, [clusterId, enabled, gender, limit, regionCode, sort, language])
+  }, [clusterId, enabled, gender, limit, regionCode, sort])
 
   const retry = useCallback(() => refresh(), [refresh])
 

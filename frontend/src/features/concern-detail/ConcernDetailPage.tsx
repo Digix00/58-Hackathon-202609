@@ -1,4 +1,3 @@
-import { useTranslation } from '../../i18n/useTranslation'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
@@ -11,8 +10,6 @@ import { ConcernDetailView } from './ConcernDetailView'
 import { useConcernDetail } from './useConcernDetail'
 
 export function ConcernDetailPage() {
-  const { t } = useTranslation()
-
   const { id } = useParams()
   const { state: runtime } = useRuntime()
   const { status: authStatus, user } = useAuth()
@@ -24,19 +21,22 @@ export function ConcernDetailPage() {
     initialReacted: concern?.reacted ?? false,
   })
   if (status === 'idle' || status === 'loading') {
-    return <LoadingState label={t('feed.loading')} />
+    return <LoadingState label="声を読み込んでいます…" />
   }
 
   if (status === 'error') {
-    return <ErrorState description={error ?? t('error.loadConcernShort')} onRetry={retry} />
+    return <ErrorState description={error ?? '投稿を読み込めませんでした。'} onRetry={retry} />
   }
 
   if (!concern) {
     return (
       <div className={screen.page}>
-        <EmptyState title={t('detail.unavailable')} description={t('detail.notFound')} />
+        <EmptyState
+          title="この声は現在読めません"
+          description="公開されていないか、見つかりませんでした。"
+        />
         <Link className={actionStyles.text} to="/">
-          {t('common.backToFeed')}
+          フィードに戻る
         </Link>
       </div>
     )
