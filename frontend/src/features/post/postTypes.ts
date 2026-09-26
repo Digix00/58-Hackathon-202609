@@ -91,19 +91,19 @@ export function validatePostInput(input: PostFormInput): PostFormFieldErrors {
 
   const trimmedBody = input.body.trim()
   if (trimmedBody.length === 0) {
-    fieldErrors.body = '悩みをひとこと入力してください'
+    fieldErrors.body = 'validation.bodyRequired'
   } else if (trimmedBody.length > POST_BODY_MAX_LENGTH) {
-    fieldErrors.body = `本文は${POST_BODY_MAX_LENGTH}文字以内で入力してください`
+    fieldErrors.body = 'validation.bodyLength'
   }
 
   if (input.ageGroup && !AGE_GROUPS.includes(input.ageGroup)) {
-    fieldErrors.ageGroup = '年代の選択が正しくありません'
+    fieldErrors.ageGroup = 'validation.age'
   }
   if (input.gender && !GENDERS.includes(input.gender)) {
-    fieldErrors.gender = '性別の選択が正しくありません'
+    fieldErrors.gender = 'validation.gender'
   }
   if (input.regionCode && !REGION_CODES.includes(input.regionCode)) {
-    fieldErrors.regionCode = '地域の選択が正しくありません'
+    fieldErrors.regionCode = 'validation.region'
   }
   return fieldErrors
 }
