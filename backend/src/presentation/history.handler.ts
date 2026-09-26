@@ -4,24 +4,23 @@ import { z } from "zod";
 
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
-import {
-  getAgeGroupName,
-  getGenderName,
-} from "../application/entity/attribute-name";
-import type { HistorySummary } from "../application/entity/history";
-import { getRegionName } from "../application/entity/region-name";
-import type { DisplayLanguage } from "../application/entity/user";
-import {
-  CONCERN_LANGUAGES,
-  resolveConcernLanguage,
-} from "../application/shared/concern-representation";
 import type { IHistoryUseCase } from "../application/usecase/history.usecase";
 import { HistoryUserDeletedError } from "../application/usecase/history.usecase";
 import type { Bindings } from "../types";
+import {
+  getAgeGroupName,
+  getGenderName,
+  getRegionName,
+} from "../util/attribute-name";
+import {
+  DISPLAY_LANGUAGES,
+  type DisplayLanguage,
+  resolveDisplayLanguage,
+} from "../util/display-language";
 import { decodeHistoryCursor, encodeHistoryCursor } from "./history-cursor";
 
 const summaryQuery = z
-  .object({ language: z.enum(CONCERN_LANGUAGES).optional() })
+  .object({ language: z.enum(DISPLAY_LANGUAGES).optional() })
   .strict();
 
 const quizAnswersQuery = z
@@ -62,7 +61,7 @@ export class HistoryHandler {
       return c.json(
         toSummaryResponse(
           summary,
-          resolveConcernLanguage(parsed.data.language, user.displayLanguage),
+          resolveDisplayLanguage(parsed.data.language, user.displayLanguage),
         ),
       );
     } catch (error) {
@@ -123,7 +122,7 @@ export class HistoryHandler {
 
 /** 集計の属性コードに、表示形式に合わせたマスタ上の名称を添える。 */
 function toSummaryResponse(
-  summary: HistorySummary,
+  summary: Awaited<ReturnType<IHistoryUseCase["getSummary"]>>,
   displayLanguage: DisplayLanguage,
 ) {
   return {

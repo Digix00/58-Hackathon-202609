@@ -5,28 +5,28 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
-  getAgeGroupName,
-  getGenderName,
-} from "../application/entity/attribute-name";
-import {
   type Quiz,
   QuizAlreadyAnsweredError,
   QuizNotAvailableError,
   QuizValidationError,
 } from "../application/entity/quiz";
-import { getRegionName } from "../application/entity/region-name";
-import {
-  CONCERN_LANGUAGES,
-  type ConcernLanguage,
-  resolveConcernLanguage,
-  selectConcernText,
-} from "../application/shared/concern-representation";
 import type { IQuizUseCase } from "../application/usecase/quiz.usecase";
 import type { Bindings } from "../types";
+import {
+  getAgeGroupName,
+  getGenderName,
+  getRegionName,
+} from "../util/attribute-name";
+import { selectConcernText } from "../util/concern-text";
+import {
+  DISPLAY_LANGUAGES,
+  type DisplayLanguage,
+  resolveDisplayLanguage,
+} from "../util/display-language";
 
 const quizQuery = z
   .object({
-    language: z.enum(CONCERN_LANGUAGES).optional(),
+    language: z.enum(DISPLAY_LANGUAGES).optional(),
   })
   .strict();
 
@@ -81,7 +81,7 @@ export class QuizHandler {
     return c.json(
       toResponse(
         quiz,
-        resolveConcernLanguage(parsed.data.language, auth.user.displayLanguage),
+        resolveDisplayLanguage(parsed.data.language, auth.user.displayLanguage),
       ),
     );
   });
@@ -111,7 +111,7 @@ export class QuizHandler {
     return c.json(
       toResponse(
         quiz,
-        resolveConcernLanguage(parsed.data.language, auth.user.displayLanguage),
+        resolveDisplayLanguage(parsed.data.language, auth.user.displayLanguage),
       ),
     );
   });
@@ -174,7 +174,7 @@ export class QuizHandler {
   });
 }
 
-function toResponse(quiz: Quiz, language: ConcernLanguage) {
+function toResponse(quiz: Quiz, language: DisplayLanguage) {
   const participants = shuffle(quiz.participants).map((participant, index) => {
     const ageGroup = participant.ageGroup ?? "no_answer";
     const gender = participant.gender ?? "no_answer";

@@ -227,7 +227,8 @@ representations.jaHira と representations.en は、作成 API では未生成�
 API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の3つの表示言語で返却内容を出し分ける。
 
 - 表示言語は、Query の `language` を指定した場合はその値、未指定の場合はログイン済みユーザーの `displayLanguage`、未ログインの場合は `original` の順で決める
-- 性別、年代、都道府県はコードを常に維持し、表示名（`genderName`、`ageGroupName`、`regionName`）をバックエンドのマスタデータ（`backend/src/application/entity/attribute-name.ts`、`region-name.ts`）で表示言語に合わせて変換して併せて返す。`no_answer` は全属性で「回答しない」「こたえない」「Prefer not to say」とする
+- 性別、年代、都道府県はコードを常に維持し、表示名（`genderName`、`ageGroupName`、`regionName`）をバックエンドのマスタデータ（`backend/src/util/attribute-name.ts`）で表示言語に合わせて変換して併せて返す。`no_answer` は全属性で「回答しない」「こたえない」「Prefer not to say」とする
+- 表示言語の決定は `backend/src/util/display-language.ts`、本文表現の選択は `backend/src/util/concern-text.ts` に集約する
 - 悩みの本文は、キュー処理で `concern_representations` に保存したひらがな・英語の表現を参照する。対象の表現が `ready` の場合だけ採用し、`pending`、`failed`、未生成の場合は原文へフォールバックする
 - クラスタの `label`、`summary` は現時点では翻訳テーブルがないため原文のまま返す
 
