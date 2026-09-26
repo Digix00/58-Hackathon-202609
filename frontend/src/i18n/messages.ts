@@ -344,14 +344,10 @@ export const messages = {
     'It’s okay if you haven’t found all the words yet.',
   ],
   'post.voice': ['話して書く', 'Speak to write'],
-  'speech.hint': [
-    '日本語で話してください。最大{seconds}秒で自動停止します。音声は文字起こしのためCloudflareへ送信します。',
-    'Speak in Japanese. Recording stops after {seconds} seconds. Audio is sent to Cloudflare for transcription.',
-  ],
   'speech.requesting': ['マイクの利用を許可してください。', 'Please allow microphone access.'],
   'speech.recording': [
-    '録音中です。話し終えたら停止してください。',
-    'Recording. Stop when you have finished speaking.',
+    '録音中です。日本語で話してください。',
+    'Recording. Please speak in Japanese.',
   ],
   'speech.elapsed': ['{seconds} / {max}秒', '{seconds} / {max} seconds'],
   'speech.transcribing': ['文字にしています…', 'Transcribing…'],

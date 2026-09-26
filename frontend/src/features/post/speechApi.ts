@@ -29,7 +29,12 @@ export async function transcribeSpeech(audio: File, signal: AbortSignal): Promis
       throw new SpeechInputError(messages[error?.code ?? ''] ?? 'speech.failed')
     }
     const result = await response.json()
-    if (typeof result !== 'object' || result === null || !('text' in result) || typeof result.text !== 'string') {
+    if (
+      typeof result !== 'object' ||
+      result === null ||
+      !('text' in result) ||
+      typeof result.text !== 'string'
+    ) {
       throw new SpeechInputError('speech.failed')
     }
     if (!result.text.trim()) throw new SpeechInputError('speech.empty')

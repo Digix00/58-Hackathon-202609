@@ -200,10 +200,8 @@ export const hiraganaMessages = {
   'post.prompt': 'ここに、そっとかいてね。',
   'post.promptHint': 'うまくまとまっていなくても、だいじょうぶ。',
   'post.voice': 'はなしてかく',
-  'speech.hint':
-    'にほんごではなしてください。さいだい{seconds}びょうでじどうていしします。おんせいはもじおこしのためCloudflareへそうしんします。',
   'speech.requesting': 'まいくのりようをきょかしてください。',
-  'speech.recording': 'ろくおんちゅうです。はなしおえたらていししてください。',
+  'speech.recording': 'ろくおんちゅうです。にほんごではなしてください。',
   'speech.elapsed': '{seconds} / {max}びょう',
   'speech.transcribing': 'もじにしています…',
   'speech.review': 'ききとったないようです。ほんぶんについかしてから、かきなおせます。',

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from '../../i18n/useTranslation'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import { RECORDING_LIMIT_SECONDS } from './speechRecording'
@@ -13,24 +14,25 @@ export function SpeechInputControls({
 }) {
   const { t } = useTranslation()
   const { state } = speech
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const previousStatus = useRef(state.status)
+  useEffect(() => {
+    if (previousStatus.current !== state.status) {
+      if (document.activeElement?.id !== 'post-body') {
+        actionsRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+      }
+      previousStatus.current = state.status
+    }
+  }, [state.status])
   return (
     <div className={styles.voiceControls}>
-      <p id="post-voice-note" className={styles.voiceNote}>
-        {t(speech.supported ? 'speech.hint' : 'speech.unsupported', {
-          seconds: RECORDING_LIMIT_SECONDS,
-        })}
-      </p>
-      <div role="status" aria-live="polite">
-        {state.status === 'requesting' ? t('speech.requesting') : null}
-        {state.status === 'recording' ? t('speech.recording') : null}
-        {state.status === 'transcribing' ? t('speech.transcribing') : null}
-        {state.status === 'review' ? t('speech.review') : null}
-      </div>
-      {state.status === 'recording' ? (
-        <p role="timer" className={styles.voiceNote}>
-          {t('speech.elapsed', { seconds: state.seconds, max: RECORDING_LIMIT_SECONDS })}
+      {/* 音声入力を使えない環境でだけ、手入力へ切り替える案内を残す。 */}
+      {speech.supported ? null : (
+        <p id="post-voice-note" className={styles.voiceNote}>
+          {t('speech.unsupported')}
         </p>
-      ) : null}
+      )}
+      <SpeechStatus state={state} />
       {state.status === 'error' ? (
         <p className={styles.error} role="alert">
           {t(state.message)}
@@ -41,13 +43,13 @@ export function SpeechInputControls({
           {state.text}
         </p>
       ) : null}
-      <div className={styles.voiceActions}>
+      <div ref={actionsRef} className={styles.voiceActions}>
         {state.status === 'idle' || state.status === 'error' ? (
           <button
             type="button"
             className={styles.voiceButton}
             disabled={!speech.supported}
-            aria-describedby="post-voice-note"
+            aria-describedby={speech.supported ? undefined : 'post-voice-note'}
             onClick={() => void speech.start()}
           >
             <svg className={styles.mic} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -74,5 +76,55 @@ export function SpeechInputControls({
         ) : null}
       </div>
     </div>
+  )
+}
+
+function SpeechStatus({ state }: { state: SpeechInput['state'] }) {
+  const { t } = useTranslation()
+  const labels = {
+    idle: null,
+    error: null,
+    requesting: 'speech.requesting',
+    recording: 'speech.recording',
+    transcribing: 'speech.transcribing',
+    review: 'speech.review',
+  } as const
+  const label = labels[state.status]
+  return (
+    <>
+      <div role="status" aria-live="polite">
+        {label ? t(label) : null}
+      </div>
+      {state.status === 'recording' ? <RecordingTime seconds={state.seconds} /> : null}
+    </>
+  )
+}
+
+/*
+ * 録音の残り。
+ * 紙にクレヨンで線を引きながら経過を示す。あと何秒話せるかを、数字を読み直さずに
+ * つかめるようにするため。線は添えるだけで、秒数の言葉は必ず並べて置く。
+ */
+function RecordingTime({ seconds }: { seconds: number }) {
+  const { t } = useTranslation()
+  const drawn = Math.min(seconds / RECORDING_LIMIT_SECONDS, 1) * 100
+  return (
+    <p role="timer" className={styles.recordTimer}>
+      <span className={styles.recordTrack} aria-hidden="true">
+        <span className={styles.recordInk} style={{ width: `${drawn}%` }} />
+      </span>
+      <span className={styles.recordElapsed}>
+        {/* 数え終わりの幅を先に取り、桁が増えても線の長さが動かないようにする。 */}
+        <span className={styles.recordElapsedWidest} aria-hidden="true">
+          {t('speech.elapsed', {
+            seconds: RECORDING_LIMIT_SECONDS,
+            max: RECORDING_LIMIT_SECONDS,
+          })}
+        </span>
+        <span className={styles.recordElapsedValue}>
+          {t('speech.elapsed', { seconds, max: RECORDING_LIMIT_SECONDS })}
+        </span>
+      </span>
+    </p>
   )
 }

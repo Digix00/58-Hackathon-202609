@@ -43,6 +43,14 @@ VITE_DEV_AUTH_MODE=
 
 QuizとHistoryはAPIへ接続している。HistoryはLINEログイン済みユーザー自身の学習履歴を表示する。Feed、詳細、投稿、リアクション、既読も実APIへ接続している。
 
+### 投稿の音声入力の確認
+
+`/post` で「話して書く」→マイク許可→「停止して文字にする」→「本文に追加」と操作する。既存本文は保持し、追加後に修正して投稿できる。最大59秒で自動停止する。権限拒否・録音非対応・通信失敗の場合も手入力を利用できる。
+
+通常の `pnpm --filter backend dev` は `[local-dev transcript]` という固定結果を返す。実際の日本語認識は [backend READMEの音声API確認手順](../backend/README.md#音声文字起こしapiの確認) に従い、`pnpm --filter backend dev:speech` と接続して確認する。LINE実機ではHTTPSのエンドポイントを使い、開発用認証フラグを無効にして確認する。
+
+録音の回帰テストは `pnpm --filter frontend test:speech`、翻訳辞書の確認は `pnpm --filter frontend test:i18n` を使う。
+
 ## コード整形
 
 フロントエンドのコード整形には Prettier を使用する。

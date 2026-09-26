@@ -111,7 +111,7 @@ LINE側では利用履歴から開き直した際に、状態を保持した再�
 - 実装指針はLIFF SDKを `infrastructure/liff/` に閉じ込める方針だが、現在は `auth/liff.ts` にも初期化・認証処理がある。RuntimeProviderとAuthProviderは別々のラッパーを利用し、初期化Promiseも共有していない。共通化済みと仮定せず、認証変更では両方を確認する。
 - [起動仕様](../requirements/screens/entry.md)はリアクション前にも初期登録を求めるが、ルートガードのプロフィール確認は `/post`・`/quiz/today`・`/history` が対象。公開画面内のリアクションを同じガードが保護するわけではない。関連操作を編集する際に、画面側の分岐と仕様を照合する。
 - プロダクト要件の任意属性と、初期登録仕様の必須入力には記述差がある。プロフィールの入力条件を変更する際は、[初期登録仕様](../requirements/screens/onboarding.md)・[API仕様](./api.md)・サーバー実装を確認し、既存のガードを見た目の都合で外さない。
-- [PostPage](../../frontend/src/features/post/PostPage.tsx)の音声入力とSettingsPageの読み上げは準備中で無効化されている。APIや設定値が存在するだけで、マイク権限・録音・再生が接続済みとは扱わない。実装時は権限拒否・非対応・中断からテキスト操作へ戻れることも確認する。
+- [PostPage](../../frontend/src/features/post/PostPage.tsx)の音声入力は文字起こしAPIへ接続している。権限拒否・非対応・中断時は手入力へ戻れる。ローカルの疎通だけでLINE実機のマイク利用を保証せず、iOS/Androidで権限・バックグラウンド復帰も確認する。SettingsPageの読み上げは引き続き準備中で無効化されている。
 - LINE Developers Consoleの実設定、iOS/AndroidのLINE実機動作は、この文書作成時には確認していない。対応OS・LINEバージョンの一律保証はしない。
 
 ## 8. 編集後の確認項目

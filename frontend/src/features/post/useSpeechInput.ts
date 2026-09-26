@@ -21,6 +21,8 @@ function speechReducer(state: SpeechState, next: SpeechState): SpeechState {
   ) {
     return state
   }
+  if (next.status === 'recording' && state.status === 'recording' && next.seconds === state.seconds)
+    return state
   return next
 }
 
@@ -87,8 +89,10 @@ export function useSpeechInput() {
       const session = await startSpeechRecording(controller.signal, (seconds) => {
         if (!controller.signal.aborted) dispatch({ status: 'recording', seconds })
       })
-      recording.current = session
-      if (!controller.signal.aborted) dispatch({ status: 'recording', seconds: 0 })
+      if (!controller.signal.aborted) {
+        recording.current = session
+        dispatch({ status: 'recording', seconds: 0 })
+      }
       const audio = await session.audio
       controller.signal.throwIfAborted()
       recording.current = null
