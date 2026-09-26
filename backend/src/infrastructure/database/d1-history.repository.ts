@@ -1,4 +1,6 @@
+import { and, desc, eq, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 
 import {
   type AgeGroup,
@@ -22,6 +24,7 @@ import type {
 } from "../../application/entity/history";
 import type { HistoryRepository } from "../../application/repository/history.repository";
 import { loadConcernRepresentations } from "./concern-representation.reader";
+import { concernClusters, concernReactions, concerns } from "./schema";
 
 interface CountRow {
   count: number;
@@ -70,15 +73,34 @@ interface NextSuggestionRow {
 }
 
 /** 履歴一覧が読み出す投稿の列。自分の投稿と寄りそった投稿で共通に使う。 */
-const CONCERN_COLUMNS =
-  "concerns.id AS id, concerns.body AS body, concerns.age_group AS ageGroup, " +
-  "concerns.gender_code AS genderCode, concerns.region_code AS regionCode, " +
-  "concerns.cluster_id AS clusterId, concerns.visibility_status AS visibilityStatus, " +
-  "concerns.processing_status AS processingStatus, concerns.created_at AS createdAt, " +
-  "concern_clusters.label AS clusterLabel, concern_clusters.summary AS clusterSummary, " +
-  "concern_clusters.status AS clusterStatus, " +
-  "(SELECT COUNT(*) FROM concern_reactions " +
-  "WHERE concern_reactions.concern_id = concerns.id) AS reactionCount";
+const CONCERN_FIELDS = {
+  id: concerns.id,
+  body: concerns.body,
+  ageGroup: concerns.ageGroup,
+  genderCode: concerns.genderCode,
+  regionCode: concerns.regionCode,
+  clusterId: concerns.clusterId,
+  visibilityStatus: concerns.visibilityStatus,
+  processingStatus: concerns.processingStatus,
+  createdAt: concerns.createdAt,
+  clusterLabel: concernClusters.label,
+  clusterSummary: concernClusters.summary,
+  clusterStatus: concernClusters.status,
+} as const;
+
+/** その投稿に寄りそった人数。一覧の1行ごとに数える。 */
+const REACTION_COUNT = sql<number>`(SELECT COUNT(*) FROM ${concernReactions} WHERE ${concernReactions.concernId} = ${concerns.id})`;
+
+/**
+ * 続きの位置より後ろだけに絞る。並び順の基準列が同じ値のときは、
+ * 並びの第2キーである投稿IDで比べる。
+ */
+function afterCursor(sortedAt: SQLiteColumn, cursor: HistoryConcernCursor) {
+  return or(
+    lt(sortedAt, cursor.sortedAt),
+    and(eq(sortedAt, cursor.sortedAt), lt(concerns.id, cursor.concernId)),
+  );
+}
 
 /** D1上の既読・投稿・寄りそい・クイズ結果を使って学習履歴を読み出すAdapter。 */
 export class D1HistoryRepository implements HistoryRepository {
@@ -279,20 +301,27 @@ export class D1HistoryRepository implements HistoryRepository {
     cursor: HistoryConcernCursor | null,
   ): Promise<HistoryConcernPage> {
     // 削除済みだけを隠し、公開前・非公開の投稿も本人には見えるようにする。
-    const statement =
-      `SELECT ${CONCERN_COLUMNS}, NULL AS reactedAt, concerns.created_at AS sortedAt ` +
-      "FROM concerns " +
-      "LEFT JOIN concern_clusters ON concern_clusters.id = concerns.cluster_id " +
-      "WHERE concerns.user_id = ? AND concerns.visibility_status <> 'deleted'" +
-      (cursor
-        ? " AND (concerns.created_at < ? OR (concerns.created_at = ? AND concerns.id < ?))"
-        : "") +
-      " ORDER BY concerns.created_at DESC, concerns.id DESC LIMIT ?";
-    const bindings = cursor
-      ? [userId, cursor.sortedAt, cursor.sortedAt, cursor.concernId, limit + 1]
-      : [userId, limit + 1];
+    const rows = await this.db
+      .select({
+        ...CONCERN_FIELDS,
+        reactionCount: REACTION_COUNT,
+        reactedAt: sql<string | null>`NULL`,
+        sortedAt: concerns.createdAt,
+      })
+      .from(concerns)
+      .leftJoin(concernClusters, eq(concernClusters.id, concerns.clusterId))
+      .where(
+        and(
+          eq(concerns.userId, userId),
+          ne(concerns.visibilityStatus, "deleted"),
+          cursor ? afterCursor(concerns.createdAt, cursor) : undefined,
+        ),
+      )
+      .orderBy(desc(concerns.createdAt), desc(concerns.id))
+      .limit(limit + 1)
+      .all();
 
-    return this.readConcernPage(statement, bindings, limit);
+    return this.readConcernPage(rows, limit);
   }
 
   async listReactedConcerns(
@@ -301,46 +330,45 @@ export class D1HistoryRepository implements HistoryRepository {
     cursor: HistoryConcernCursor | null,
   ): Promise<HistoryConcernPage> {
     // 寄りそった順に読み返す。相手が非公開へ変えた投稿は履歴からも外す。
-    const statement =
-      `SELECT ${CONCERN_COLUMNS}, concern_reactions.created_at AS reactedAt, ` +
-      "concern_reactions.created_at AS sortedAt " +
-      "FROM concern_reactions " +
-      "INNER JOIN concerns ON concerns.id = concern_reactions.concern_id " +
-      "LEFT JOIN concern_clusters ON concern_clusters.id = concerns.cluster_id " +
-      "WHERE concern_reactions.user_id = ? " +
-      "AND concerns.visibility_status = 'published'" +
-      (cursor
-        ? " AND (concern_reactions.created_at < ? OR " +
-          "(concern_reactions.created_at = ? AND concerns.id < ?))"
-        : "") +
-      " ORDER BY concern_reactions.created_at DESC, concerns.id DESC LIMIT ?";
-    const bindings = cursor
-      ? [userId, cursor.sortedAt, cursor.sortedAt, cursor.concernId, limit + 1]
-      : [userId, limit + 1];
+    const rows = await this.db
+      .select({
+        ...CONCERN_FIELDS,
+        reactionCount: REACTION_COUNT,
+        reactedAt: sql<string | null>`${concernReactions.createdAt}`,
+        sortedAt: concernReactions.createdAt,
+      })
+      .from(concernReactions)
+      .innerJoin(concerns, eq(concerns.id, concernReactions.concernId))
+      .leftJoin(concernClusters, eq(concernClusters.id, concerns.clusterId))
+      .where(
+        and(
+          eq(concernReactions.userId, userId),
+          eq(concerns.visibilityStatus, "published"),
+          cursor ? afterCursor(concernReactions.createdAt, cursor) : undefined,
+        ),
+      )
+      .orderBy(desc(concernReactions.createdAt), desc(concerns.id))
+      .limit(limit + 1)
+      .all();
 
-    return this.readConcernPage(statement, bindings, limit);
+    return this.readConcernPage(rows, limit);
   }
 
-  /** 一覧SQLの結果に本文の表現行を足し、次ページの位置を決める。 */
+  /** 一覧クエリの結果に本文の表現行を足し、次ページの位置を決める。 */
   private async readConcernPage(
-    statement: string,
-    bindings: readonly (string | number)[],
+    rows: HistoryConcernRow[],
     limit: number,
   ): Promise<HistoryConcernPage> {
-    const result = await this.database
-      .prepare(statement)
-      .bind(...bindings)
-      .all<HistoryConcernRow>();
-    const hasMore = result.results.length > limit;
-    const rows = result.results.slice(0, limit);
+    const hasMore = rows.length > limit;
+    const pageRows = rows.slice(0, limit);
     const representations = await loadConcernRepresentations(
       this.db,
-      rows.map((row) => row.id),
+      pageRows.map((row) => row.id),
     );
-    const lastRow = rows.at(-1);
+    const lastRow = pageRows.at(-1);
 
     return {
-      items: rows.map((row) =>
+      items: pageRows.map((row) =>
         toHistoryConcernEntry(row, representations.get(row.id)),
       ),
       nextCursor:
