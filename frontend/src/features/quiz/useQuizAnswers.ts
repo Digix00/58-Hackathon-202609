@@ -20,7 +20,8 @@ export function useQuizAnswers(
 ) {
   const [draft, setDraft] = useState<Answers>({})
   const answers = result ? assignmentsFromResult(result) : draft
-  const remaining = people.filter((person) => !Object.values(answers).includes(person.id))
+  const answeredPersonIds = new Set(Object.values(answers))
+  const remaining = people.filter((person) => !answeredPersonIds.has(person.id))
   const complete = letters.every((letter) => Boolean(answers[letter.id])) && remaining.length === 0
 
   const place = useCallback(
