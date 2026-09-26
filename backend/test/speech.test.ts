@@ -213,6 +213,29 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts AAC MP4 whose verified edit list trims sample padding to 60 seconds", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [
+            createMp4Audio(60, 60, undefined, {}, undefined, 1, 1, [
+              { segmentDurationSeconds: 60, mediaTimeSeconds: 0 },
+            ]),
+          ],
+          "voice.m4a",
+          { type: "audio/mp4" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transcribe).toHaveBeenCalledOnce();
+  });
+
   it("accepts MP3 audio with an ID3v2.4 footer", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
@@ -305,6 +328,32 @@ describe("POST /api/v1/speech/transcriptions", () => {
         audio: new File(
           [createWebmAudio(1, 1, 0, undefined, { opusHead: invalidOpusHead })],
           "invalid-opus.webm",
+          { type: "audio/webm" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("rejects WebM with a forged CodecDelay before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [
+            createWebmAudio(70, 1, 0, undefined, {
+              codecDelayNs: 10_000_000_000,
+            }),
+          ],
+          "forged-delay.webm",
           { type: "audio/webm" },
         ),
       }),

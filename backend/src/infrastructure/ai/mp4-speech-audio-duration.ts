@@ -39,6 +39,9 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     let lastPresentationTime = Number.NEGATIVE_INFINITY;
     let samplesPerAccessUnit: number | undefined;
     let sampleRate: number | undefined;
+    let mediaTimescale: number | undefined;
+    let movieTimescale: number | undefined;
+    let trackEdits: Mp4Edit[] | undefined;
     let fragmented = false;
     let settled = false;
 
@@ -77,6 +80,9 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
 
       const audioTrack = info.audioTracks[0]!;
       fragmented = info.isFragmented;
+      trackEdits = audioTrack.edits;
+      mediaTimescale = audioTrack.timescale;
+      movieTimescale = audioTrack.movie_timescale;
       if (audioTrack.codec !== "mp4a.40.2" || !audioTrack.audio) {
         failInvalid("MP4 must use AAC-LC audio");
         return;
@@ -139,9 +145,8 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             failInvalid("MP4 AAC configuration is unavailable");
             return;
           }
-          const startSeconds = sample.dts / sample.timescale;
-          const endSeconds =
-            (sample.dts + Math.max(0, sample.duration)) / sample.timescale;
+          const startSeconds = sample.cts / sample.timescale;
+          const endSeconds = (sample.cts + sample.duration) / sample.timescale;
           if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)) {
             failInvalid("MP4 audio sample timing is invalid");
             return;
@@ -153,8 +158,10 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             (sampleCount * samplesPerAccessUnit) / sampleRate;
           const timelineDuration = lastPresentationTime - firstPresentationTime;
           if (
-            sampleCountDuration > MAX_AUDIO_DURATION_SECONDS ||
-            timelineDuration > MAX_AUDIO_DURATION_SECONDS
+            (trackEdits === undefined &&
+              sampleCountDuration > MAX_AUDIO_DURATION_SECONDS) ||
+            (trackEdits === undefined &&
+              timelineDuration > MAX_AUDIO_DURATION_SECONDS)
           ) {
             failTooLong(true);
             return;
@@ -197,15 +204,105 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     const sampleCountDuration =
       (sampleCount * samplesPerAccessUnit) / sampleRate;
     const timelineDuration = lastPresentationTime - firstPresentationTime;
-    const duration = Math.max(sampleCountDuration, timelineDuration);
+    const encodedDuration = Math.max(sampleCountDuration, timelineDuration);
+    let duration: number;
+    if (trackEdits === undefined) {
+      duration = encodedDuration;
+    } else {
+      try {
+        duration = getEditedPlaybackDuration(
+          trackEdits,
+          movieTimescale,
+          mediaTimescale,
+          firstPresentationTime,
+          lastPresentationTime,
+        );
+      } catch (error) {
+        failInvalid(
+          error instanceof Error ? error.message : "Invalid MP4 edit list",
+        );
+        return;
+      }
+    }
     if (!Number.isFinite(duration) || duration <= 0) {
       failInvalid("MP4 audio duration is invalid");
+      return;
+    }
+    if (duration > MAX_AUDIO_DURATION_SECONDS) {
+      failTooLong(false);
       return;
     }
 
     settled = true;
     resolve(duration);
   });
+}
+
+type Mp4Edit = {
+  segment_duration: number;
+  media_time: number;
+  media_rate_integer: number;
+  media_rate_fraction: number;
+};
+
+function getEditedPlaybackDuration(
+  edits: Mp4Edit[],
+  movieTimescale: number | undefined,
+  mediaTimescale: number | undefined,
+  firstSampleTimeSeconds: number,
+  lastSampleEndSeconds: number,
+): number {
+  if (
+    edits.length === 0 ||
+    !Number.isSafeInteger(movieTimescale) ||
+    movieTimescale! <= 0 ||
+    !Number.isSafeInteger(mediaTimescale) ||
+    mediaTimescale! <= 0
+  ) {
+    throw new TypeError("Invalid MP4 edit list timescale");
+  }
+
+  let durationSeconds = 0;
+  let hasMediaEdit = false;
+  const mediaBoundaryTolerance = 1 / mediaTimescale! + 1 / movieTimescale!;
+  for (const edit of edits) {
+    if (
+      !Number.isSafeInteger(edit.segment_duration) ||
+      edit.segment_duration < 0 ||
+      !Number.isSafeInteger(edit.media_time) ||
+      edit.media_rate_integer !== 1 ||
+      edit.media_rate_fraction !== 0
+    ) {
+      throw new TypeError("Invalid MP4 edit list entry");
+    }
+
+    const segmentDurationSeconds = edit.segment_duration / movieTimescale!;
+    durationSeconds += segmentDurationSeconds;
+    if (edit.media_time === -1) {
+      continue;
+    }
+    if (edit.media_time < 0) {
+      throw new TypeError("Invalid MP4 edit list media time");
+    }
+    if (segmentDurationSeconds === 0) {
+      continue;
+    }
+
+    const mediaStartSeconds = edit.media_time / mediaTimescale!;
+    const mediaEndSeconds = mediaStartSeconds + segmentDurationSeconds;
+    if (
+      mediaStartSeconds < firstSampleTimeSeconds - mediaBoundaryTolerance ||
+      mediaEndSeconds > lastSampleEndSeconds + mediaBoundaryTolerance
+    ) {
+      throw new TypeError("MP4 edit list exceeds the verified audio samples");
+    }
+    hasMediaEdit = true;
+  }
+
+  if (!hasMediaEdit || !Number.isFinite(durationSeconds)) {
+    throw new TypeError("MP4 edit list contains no playable audio");
+  }
+  return durationSeconds;
 }
 
 function readAacConfig(description: object): {
@@ -356,6 +453,9 @@ function visitMp4Boxes(
       visitBoxEntryTable(audio, payloadStart, boxEnd, budget, type);
     } else if (type === "elst") {
       const version = audio[payloadStart];
+      if (payloadStart + 8 > boxEnd || version! > 1) {
+        throw new TypeError("Unsupported MP4 edit list version");
+      }
       visitCountedTable(
         audio,
         payloadStart,

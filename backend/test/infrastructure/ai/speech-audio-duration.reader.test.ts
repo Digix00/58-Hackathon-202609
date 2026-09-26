@@ -127,7 +127,6 @@ describe("VerifiedSpeechAudioDurationReader", () => {
       0,
       Uint8Array.of(0x80),
       {
-        codecDelayNs: 3_000_000_000,
         fixedLacingPacketsPerBlock: 256,
       },
     );
@@ -135,6 +134,16 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     await expect(
       reader.getDurationSeconds(audio, "audio/webm"),
     ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
+  it("rejects a WebM CodecDelay that does not match OpusHead pre-skip", async () => {
+    const audio = createWebmAudio(1, 1, 0, undefined, {
+      codecDelayNs: 10_000_000_000,
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow("WebM Opus CodecDelay does not match OpusHead pre-skip");
   });
 
   it.each([
@@ -497,6 +506,26 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     await expect(
       reader.getDurationSeconds(createMp4Audio(65, 1), "audio/mp4"),
     ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
+  it("uses a verified MP4 edit list to measure trimmed playback duration", async () => {
+    const audio = createMp4Audio(60, 60, undefined, {}, undefined, 1, 1, [
+      { segmentDurationSeconds: 60, mediaTimeSeconds: 0 },
+    ]);
+
+    await expect(reader.getDurationSeconds(audio, "audio/mp4")).resolves.toBe(
+      60,
+    );
+  });
+
+  it("rejects an MP4 edit list that points beyond verified audio samples", async () => {
+    const audio = createMp4Audio(60, 60, undefined, {}, undefined, 1, 1, [
+      { segmentDurationSeconds: 60, mediaTimeSeconds: 2 },
+    ]);
+
+    await expect(reader.getDurationSeconds(audio, "audio/mp4")).rejects.toThrow(
+      "MP4 edit list exceeds the verified audio samples",
+    );
   });
 
   it("rejects a WebM Opus stream as soon as its verified duration exceeds 60 seconds", async () => {

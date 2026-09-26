@@ -2,8 +2,8 @@ import { SpeechAudioDurationLimitExceededError } from "../../application/port/sp
 import { readAscii } from "./audio-binary";
 
 export const MAX_WEBM_EBML_ELEMENT_VISITS = 100_000;
-// 25,000 packets bound 2.5 ms Opus frames to 62.5 seconds plus codec delay.
-export const MAX_WEBM_OPUS_PACKETS = 25_000;
+// The 60-second limit allows at most 24,000 packets of minimum-size 2.5 ms frames.
+export const MAX_WEBM_OPUS_PACKETS = 24_000;
 const MAX_AUDIO_DURATION_SECONDS = 60;
 // Avoid rejecting exactly 60 seconds due to accumulated floating-point error.
 const DURATION_COMPARISON_TOLERANCE_SECONDS = 0.000001;
@@ -89,14 +89,25 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
             ) {
               throw new TypeError("Invalid WebM Opus track configuration");
             }
-            validateOpusHeadChannelMapping(audio, opusHead);
+            const preSkipSamples = validateOpusHeadChannelMapping(
+              audio,
+              opusHead,
+            );
             const codecDelay = findEbmlChild(audio, trackEntry, 0x56aa, budget);
-            if (codecDelay) {
-              codecDelayNs =
-                codecDelay.dataStart === codecDelay.dataEnd
-                  ? 0
-                  : readEbmlUnsigned(audio, codecDelay);
+            const trackCodecDelayNs = codecDelay
+              ? codecDelay.dataStart === codecDelay.dataEnd
+                ? 0
+                : readEbmlUnsigned(audio, codecDelay)
+              : 0;
+            const expectedCodecDelayNs = Math.round(
+              (preSkipSamples * 1_000_000_000) / 48_000,
+            );
+            if (Math.abs(trackCodecDelayNs - expectedCodecDelayNs) > 1) {
+              throw new TypeError(
+                "WebM Opus CodecDelay does not match OpusHead pre-skip",
+              );
             }
+            codecDelayNs = trackCodecDelayNs;
           }
           audioTrackCount += 1;
           if (audioTrackCount > 1) {
@@ -236,17 +247,18 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
 function validateOpusHeadChannelMapping(
   audio: Uint8Array,
   opusHead: EbmlElement,
-): void {
+): number {
   const dataLength = opusHead.dataEnd - opusHead.dataStart;
   const offset = opusHead.dataStart;
   const channels = audio[offset + 9]!;
   const mappingFamily = audio[offset + 18]!;
+  const preSkipSamples = audio[offset + 10]! | (audio[offset + 11]! << 8);
 
   if (mappingFamily === 0) {
     if (channels > 2) {
       throw new TypeError("Invalid WebM Opus channel mapping");
     }
-    return;
+    return preSkipSamples;
   }
 
   if (mappingFamily === 1 && channels > 8) {
@@ -275,6 +287,7 @@ function validateOpusHeadChannelMapping(
       throw new TypeError("Invalid WebM Opus channel mapping");
     }
   }
+  return preSkipSamples;
 }
 
 type EbmlElement = {

@@ -156,7 +156,25 @@ export function createWebmAudio(
         options.opusHead ??
           concat(
             ascii("OpusHead"),
-            Uint8Array.of(1, 1, 0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0),
+            (() => {
+              const preSkipSamples =
+                options.codecDelayNs === undefined
+                  ? 0
+                  : Math.round((options.codecDelayNs * 48_000) / 1_000_000_000);
+              return Uint8Array.of(
+                1,
+                1,
+                preSkipSamples & 0xff,
+                (preSkipSamples >> 8) & 0xff,
+                0x80,
+                0xbb,
+                0,
+                0,
+                0,
+                0,
+                0,
+              );
+            })(),
           ),
       ),
       ...(options.codecDelayNs === undefined
@@ -276,6 +294,10 @@ export function createMp4Audio(
   sampleGroupDescription?: Mp4SampleGroupDescriptionOptions,
   sampleDescriptionCount = 1,
   sampleDescriptionIndex = 1,
+  editList?: Array<{
+    segmentDurationSeconds: number;
+    mediaTimeSeconds: number | null;
+  }>,
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -577,6 +599,28 @@ export function createMp4Audio(
       atom("url ", concat(Uint8Array.of(0, 0, 0, 1))),
     ),
   );
+  const editListBox = editList
+    ? atom(
+        "edts",
+        atom(
+          "elst",
+          concat(
+            new Uint8Array(4),
+            u32be(editList.length),
+            ...editList.flatMap((edit) => [
+              u32be(Math.round(edit.segmentDurationSeconds * movieTimescale)),
+              u32be(
+                edit.mediaTimeSeconds === null
+                  ? -1
+                  : Math.round(edit.mediaTimeSeconds * audioTimescale),
+              ),
+              u16be(1),
+              u16be(0),
+            ]),
+          ),
+        ),
+      )
+    : new Uint8Array();
   const sampleTable = (offset: number) =>
     atom(
       "stbl",
@@ -608,7 +652,10 @@ export function createMp4Audio(
         mediaInformation,
       ),
     );
-    const track = atom("trak", concat(atom("tkhd", trackHeader), media));
+    const track = atom(
+      "trak",
+      concat(atom("tkhd", trackHeader), editListBox, media),
+    );
     return atom("moov", concat(atom("mvhd", movieHeader), track));
   };
   const fileType = atom(
