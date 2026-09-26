@@ -99,6 +99,12 @@ features/feed/
 
 `shared/` には複数featureで再利用され、特定の業務用語を持たないUI部品だけを置く。特定の画面や悩み・クイズなどの業務概念を持つ部品は、再利用される場合もfeature内に置く。再利用実績のない部品を先回りして共通化しない。
 
+### ノートの共通描画
+
+- フィード、投稿、初期登録、クイズの紙束は `shared/components/NotebookStack.tsx` を使う。下敷きの紙、前後のリング、左に残る紙、回転軸と重なり順は共通側が管理し、各画面は本文・表紙・しおり・装飾を渡す。
+- 表紙の開閉とページめくりは `NotebookTurn` が担当する。めくり中の紙と左に伏せた紙は同じ裏面部品を使い、表紙・本文とも裏面は `--color-surface` に統一する。画面別の裏面色は指定しない。めくり中の写しは `inert` にして操作・フォーカス対象から外す。
+- フィードと初期登録の表紙を開く拡大は `NotebookOpening`、位置の押し上げは既存の `useStackLift`、スワイプと左右キーは `useNotebookSwipe` を使う。クイズ固有の閉じた表紙の縮尺、回答や入力内容、ページを進められる条件は各featureに残す。
+
 ## CSS の構成と依存方向
 
 グローバル CSS は `src/styles/` に置き、トークン、リセット、全画面共通のフォーカス表示などに限定する。アプリ起動時に `styles/index.css` から一度だけ読み込む。
@@ -189,6 +195,10 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 - URLには投稿IDやクイズIDなど、共有・復元が必要な識別子だけを持たせる。フォーム入力値、LINE認証情報、画面内だけで完結する状態はURLへ置かない。
 - APIレスポンスはfeatureのHookまたはContainerで管理する。カーソルページング、再取得、楽観更新、複数画面での同じサーバー状態の共有が複雑になった場合に限り、TanStack Queryなどのサーバー状態ライブラリの導入を検討する。導入時もDTOからViewModelへの変換境界は維持する。
 - Custom Hookの責務分割、境界、状態モデリングの詳細は [React Custom Hooks スタイルガイド](./react-hooks-style-guide.md) に従う。
+- クイズの取得は `useTodayQuiz`、対応の編集は `useQuizAnswers`、送信と結果の照会は `useQuizSubmit`、紙の位置は `useQuizNotebook`、アニメーションは `useQuizAnimation` が担当する。`useQuizNavigation` はこれらの操作を合成し、Viewへreducerのdispatchを渡さない。
+- 初期登録は `useOnboardingDraft`、`useOnboardingPages`、`useOnboardingSubmit` に入力・紙送り・保存を分け、`useOnboardingNotebook` が入力条件と保存成功後の遷移を接続する。
+- フィードの表示位置と取得条件の接続は `useFeedReader` に閉じる。投稿詳細はContainerで `toConcernDetailViewModel` を通し、属性・日時の表示と翻訳状態を整えてからViewへ渡す。
+- 各Custom Hookの設計記録は関数直前のコメントに置く。状態遷移・対応編集・ViewModel境界の回帰確認には `pnpm --filter frontend test:hooks` を使う。
 - 色だけで状態を伝えず、文言・ARIA属性・ボタン状態を組み合わせる。
 - 送信結果、エラー、リアクション結果は `aria-live` で通知する。
 - 主要操作はキーボードだけで完了できるようにする。

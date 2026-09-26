@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, exists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 
 import type { ConcernReaction } from "../../application/entity/concern-reaction";
@@ -6,8 +6,9 @@ import type { LearningEvent } from "../../application/entity/learning-event";
 import type {
   ConcernReactionRepository,
   InsertConcernReactionResult,
+  RemoveConcernReactionResult,
 } from "../../application/repository/concern-reaction.repository";
-import { concernReactions, concerns } from "./schema";
+import { concernReactions, concerns, learningEvents } from "./schema";
 
 /** D1/Drizzleを使ったConcernReactionRepositoryの実装。 */
 export class D1ConcernReactionRepository implements ConcernReactionRepository {
@@ -104,6 +105,81 @@ export class D1ConcernReactionRepository implements ConcernReactionRepository {
 
     return {
       created: inserted.meta.changes > 0,
+      reactionCount: aggregate?.reactionCount ?? 0,
+    };
+  }
+
+  async remove(
+    reaction: ConcernReaction,
+  ): Promise<RemoveConcernReactionResult | null> {
+    const publishedConcern = await this.db
+      .select({ id: concerns.id })
+      .from(concerns)
+      .where(
+        and(
+          eq(concerns.id, reaction.concernId),
+          eq(concerns.visibilityStatus, "published"),
+        ),
+      )
+      .limit(1)
+      .get();
+
+    if (!publishedConcern) {
+      return null;
+    }
+
+    // 非公開へ変わった投稿は履歴から外れて読み返せないため、取り消しの対象にしない。
+    const removable = and(
+      eq(concernReactions.concernId, reaction.concernId),
+      eq(concernReactions.userId, reaction.userId),
+      eq(concernReactions.reactionType, reaction.reactionType),
+      exists(
+        this.db
+          .select({ id: concerns.id })
+          .from(concerns)
+          .where(
+            and(
+              eq(concerns.id, reaction.concernId),
+              eq(concerns.visibilityStatus, "published"),
+            ),
+          ),
+      ),
+    );
+
+    /*
+     * 学習イベントを先に消す。あとに回すと、消す相手の寄りそいがすでに無く、
+     * 「取り消せたときだけ消す」という条件をクエリに書けない。
+     */
+    const [, removedReactions] = await this.db.batch([
+      this.db
+        .delete(learningEvents)
+        .where(
+          and(
+            eq(learningEvents.userId, reaction.userId),
+            eq(learningEvents.eventType, "reaction"),
+            eq(learningEvents.concernId, reaction.concernId),
+            exists(
+              this.db
+                .select({ concernId: concernReactions.concernId })
+                .from(concernReactions)
+                .where(removable),
+            ),
+          ),
+        ),
+      this.db
+        .delete(concernReactions)
+        .where(removable)
+        .returning({ concernId: concernReactions.concernId }),
+    ]);
+
+    const aggregate = await this.db
+      .select({ reactionCount: count() })
+      .from(concernReactions)
+      .where(eq(concernReactions.concernId, reaction.concernId))
+      .get();
+
+    return {
+      removed: removedReactions.length > 0,
       reactionCount: aggregate?.reactionCount ?? 0,
     };
   }

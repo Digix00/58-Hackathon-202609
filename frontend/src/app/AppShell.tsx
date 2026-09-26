@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from '../i18n/useTranslation'
 import { NavLink, Outlet } from 'react-router'
 import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { NavIcon, type NavIconName } from './NavIcons'
 import { useDisplaySettings } from './providers/DisplaySettingsContext'
 import styles from './AppShell.module.css'
+import layoutStyles from './router.module.css'
 import type { MessageKey } from '../i18n/messages'
 
 /** 下部ナビは「クイズ・投稿・読む・履歴・設定」の順で表示する。 */
@@ -25,19 +27,33 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   return `${styles.navLink}${isActive ? ` ${styles.active}` : ''}`
 }
 
-export function AppShell() {
+export function AppShell({
+  initializing = false,
+  standalone = false,
+  notice,
+}: {
+  initializing?: boolean
+  standalone?: boolean
+  notice?: ReactNode
+}) {
   const { t } = useTranslation()
 
   const { fontSize } = useDisplaySettings()
 
   return (
     <div
-      className={`${styles.shell} ${notebookBackground.grid} ${fontSize === 'large' ? styles.large : ''}`}
+      className={`${standalone ? '' : styles.shell} ${notebookBackground.grid} ${fontSize === 'large' ? styles.large : ''}`}
     >
-      <main className={styles.content}>
+      <main className={standalone ? layoutStyles.standalonePage : styles.content}>
+        {notice}
         <Outlet />
       </main>
-      <nav className={styles.nav} aria-label={t('nav.label')}>
+      <nav
+        hidden={standalone}
+        inert={initializing || standalone}
+        className={styles.nav}
+        aria-label={t('nav.label')}
+      >
         {navigation.map((item) =>
           item.variant === 'read' ? (
             <NavLink

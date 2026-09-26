@@ -57,6 +57,101 @@ function cookieFrom(response: Response): string {
 }
 
 describe("authentication routes", () => {
+  it.each(["localhost", "127.0.0.1", "[::1]"])(
+    "ローカルHTTP (%s) で開発ログイン・認証API・ログアウトを継続できる",
+    async (hostname) => {
+      const app = createTestApp();
+      const devEnv = { ...env, DEV_AUTH_ENABLED: "true" };
+      const baseUrl = `http://${hostname}:8787`;
+      const login = await app.request(
+        `${baseUrl}/api/v1/auth/dev`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userKey: "demo-a" }),
+        },
+        devEnv,
+      );
+      expect(login.status).toBe(200);
+      const setCookie = login.headers.get("set-cookie");
+      expect(setCookie).toContain("dev-session=");
+      expect(setCookie).toContain("HttpOnly");
+      expect(setCookie).toContain("SameSite=Lax");
+      expect(setCookie).toContain("Path=/");
+      expect(setCookie).not.toContain("Secure");
+      const cookie = cookieFrom(login);
+
+      const restored = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        { headers: { Cookie: cookie } },
+        devEnv,
+      );
+      expect(await restored.json()).toMatchObject({ authenticated: true });
+
+      // Handlerだけでなく認証middlewareも同じCookieを読むことを確認する。
+      const profile = await app.request(
+        `${baseUrl}/api/v1/users/me/display-language`,
+        {
+          method: "PUT",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify({ displayLanguage: "original" }),
+        },
+        devEnv,
+      );
+      expect(profile.status).toBe(200);
+
+      // 有効な開発用Cookieでも、フラグなしの環境では認証に使わない。
+      const productionSession = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      expect(await productionSession.json()).toMatchObject({
+        authenticated: false,
+      });
+
+      const logout = await app.request(
+        `${baseUrl}/api/v1/auth/logout`,
+        { method: "POST", headers: { Cookie: cookie } },
+        devEnv,
+      );
+      expect(logout.status).toBe(200);
+      expect(logout.headers.get("set-cookie")).toContain("dev-session=");
+      expect(logout.headers.get("set-cookie")).toContain("Max-Age=0");
+      expect(logout.headers.get("set-cookie")).not.toContain("Secure");
+      const afterLogout = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        { headers: { Cookie: cookie } },
+        devEnv,
+      );
+      expect(await afterLogout.json()).toMatchObject({ authenticated: false });
+    },
+  );
+
+  it.each([
+    ["http://localhost:8787", undefined],
+    ["http://localhost:8787", "false"],
+    ["https://localhost:8787", "true"],
+    ["http://example.com", "true"],
+    ["http://localhost.example.com", "true"],
+    ["https://example.com", "true"],
+  ])(
+    "開発用HTTP以外ではSecure Cookieを維持する (%s, %s)",
+    async (baseUrl, enabled) => {
+      const app = createTestApp();
+      const response = await app.request(
+        `${baseUrl}/api/v1/auth/session`,
+        {},
+        { ...env, DEV_AUTH_ENABLED: enabled },
+      );
+      const cookie = response.headers.get("set-cookie");
+      expect(cookie).toContain("__Host-session=");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).not.toContain("Domain=");
+    },
+  );
+
   it("does not expose development authentication when disabled", async () => {
     const app = createTestApp();
 
@@ -106,7 +201,7 @@ describe("authentication routes", () => {
         profileCompleted: false,
       },
     });
-    expect(cookieFrom(response)).toContain("__Host-session=");
+    expect(cookieFrom(response)).toContain("dev-session=");
   });
 
   it("accepts only the fixed development user keys", async () => {

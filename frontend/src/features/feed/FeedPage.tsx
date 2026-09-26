@@ -16,7 +16,8 @@ import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import { NotebookOpening, NotebookStack } from '../../shared/components/NotebookStack'
+import { QiiteLogo } from '../../shared/components/QiiteLogo'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -33,23 +34,12 @@ import {
   type FeedConcern,
   type FeedFilter,
   type FeedFilterOption,
-  toFeedConcern,
 } from './feedViewModel'
-import { useFeedReaderNavigation, useFeedReaderState } from './useFeedReader'
+import { useFeedReader } from './useFeedReader'
 import type { TurningPage } from './useFeedReader'
-import { useFeed } from './useFeed'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
-
-/** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
-const COVER_BACK_COLOR = '#a894dd'
-
-/** ページをめくっても紙の裏面が色変わりしないよう、裏面の色を固定する。 */
-const PAGE_BACK_COLOR = '#e3d8c0'
-
-/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
@@ -127,9 +117,9 @@ function FeedReaction({
         sparked ? styles.sparked : ''
       }`}
       onClick={() => {
-        if (onReact?.()) setSparked(true)
+        if (onReact?.()) setSparked(!reacted)
       }}
-      disabled={reacted || submitting}
+      disabled={submitting}
       aria-pressed={reacted}
       aria-busy={submitting}
     >
@@ -137,9 +127,7 @@ function FeedReaction({
         <CrayonHeart />
         {sparked ? <ReactionSpark /> : null}
       </span>
-      <span className={styles.label}>
-        {reacted ? t('reaction.supportedShort') : t('reaction.support')}
-      </span>
+      <span className={styles.label}>{reacted ? t('reaction.remove') : t('reaction.support')}</span>
       <span className={styles.count} aria-label={t('reaction.count', { count: reactionCount })}>
         {reactionCount}
       </span>
@@ -250,7 +238,7 @@ function FeedCover() {
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
       <CoverArt />
-      <p className={styles.coverTitle}>{t('app.name')}</p>
+      <QiiteLogo className={styles.coverTitle} />
       <p className={styles.coverLead}>
         {t('feed.coverLead')}
         <br />
@@ -261,7 +249,7 @@ function FeedCover() {
 }
 
 type FeedStackProps = {
-  concern: FeedConcern
+  concern: FeedConcern | undefined
   stackRef: RefObject<HTMLDivElement | null>
   index: number
   position: number
@@ -292,55 +280,34 @@ function FeedStack({
   reactionError,
 }: FeedStackProps) {
   return (
-    <div
-      ref={stackRef}
-      className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
-    >
-      <div className={styles.stack} style={notebookBindingStyle}>
-        {/*
-         * 本の下に敷いたシール。大きい1枚は紙の下へ潜り込み、はみ出した側だけが見える。
-         * 紙より先に置くのは、そうしないと紙の上に貼られて本文より前に出るため。
-         * 紙束の中に置くので、表紙が開くときは本と一緒に大きくなる。
-         * 表紙が開ききったら、散り終えたまま外す。
-         */}
-        {!coverOpened ? <CoverStickers scattering={coverOpening} /> : null}
-        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-        {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-        <NotebookBinding part="rear" />
-        {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-        {coverOpened ? (
-          <div className={turnStyles.turned} aria-hidden="true">
-            <div
-              className={`${turnStyles.back} ${crayonStyles.edge}`}
-              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <NotebookOpening ref={stackRef} opening={coverOpening}>
+      <NotebookStack
+        className={styles.stack}
+        opened={coverOpened}
+        decoration={!coverOpened ? <CoverStickers scattering={coverOpening} /> : null}
+        turning={
+          turning ? (
+            <NotebookTurn
+              key={turningKey(turning)}
+              variant={turning.kind === 'cover' ? 'cover' : 'page'}
+              startAngle={turning.startAngle}
+              direction={turning.kind === 'concern' ? turning.direction : 1}
+              onFinish={onTurningFinished}
             >
-              <NotebookBinding part="holes" back />
-            </div>
-          </div>
-        ) : null}
-        {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
-        {turning ? (
-          <NotebookTurn
-            key={turningKey(turning)}
-            variant={turning.kind === 'cover' ? 'cover' : 'page'}
-            startAngle={turning.startAngle}
-            direction={turning.kind === 'concern' ? turning.direction : 1}
-            backColor={turning.kind === 'concern' ? PAGE_BACK_COLOR : COVER_BACK_COLOR}
-            onFinish={onTurningFinished}
-          >
-            {turning.kind === 'concern' ? (
-              <FeedCard concern={turning.concern} page={turning.page} />
-            ) : (
-              <FeedCover />
-            )}
-          </NotebookTurn>
-        ) : null}
+              {turning.kind === 'concern' ? (
+                <FeedCard concern={turning.concern} page={turning.page} />
+              ) : (
+                <FeedCover />
+              )}
+            </NotebookTurn>
+          ) : null
+        }
+      >
         {/*
-         * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
+         * 表紙自身で紙束の高さを確保し、取得前後で位置を変えない。
          * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
          */}
-        {coverOpened ? (
+        {coverOpened && concern ? (
           <div key={`${concern.id}-${index}`} className={styles.enter}>
             <FeedCard
               concern={concern}
@@ -354,19 +321,12 @@ function FeedStack({
             />
           </div>
         ) : (
-          <>
-            <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
-              <FeedCard concern={concern} page={position + 1} showTabs={false} />
-            </div>
-            <div className={styles.coverLayer}>
-              <FeedCover />
-            </div>
-          </>
+          <div className={styles.coverStandalone}>
+            <FeedCover />
+          </div>
         )}
-        {/* 手前側の線は金具として動かさない。 */}
-        <NotebookBinding part="front" />
-      </div>
-    </div>
+      </NotebookStack>
+    </NotebookOpening>
   )
 }
 
@@ -415,12 +375,18 @@ function FeedStage({
       <h1 id="feed-title" className={styles.srOnly}>
         {t('feed.start')}
       </h1>
-      {concern ? <FeedStack concern={concern} {...stackProps} /> : <FeedEmpty onReset={onReset} />}
+      {concern || !stackProps.coverOpened ? (
+        <FeedStack concern={concern} {...stackProps} />
+      ) : (
+        <FeedEmpty onReset={onReset} />
+      )}
     </section>
   )
 }
 
 type FeedActionsProps = {
+  coverOpened: boolean
+  waiting: boolean
   showLogin: boolean
   concern: FeedConcern | undefined
   filtersOpen: boolean
@@ -434,6 +400,8 @@ type FeedActionsProps = {
 }
 
 function FeedActions({
+  coverOpened,
+  waiting,
   showLogin,
   concern,
   filtersOpen,
@@ -450,16 +418,19 @@ function FeedActions({
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {concern ? (
+      {concern || !coverOpened ? (
         <div className={styles.coverOpenSlot}>
           <button
             type="button"
             className={`${actionStyles.primary} ${styles.coverButton}`}
             onClick={onNext}
+            disabled={waiting}
+            aria-busy={waiting}
           >
             {t('feed.next')}
             <span aria-hidden="true">→</span>
           </button>
+          <p role="status">{waiting ? t('feed.loading') : ''}</p>
         </div>
       ) : null}
       <details
@@ -521,11 +492,15 @@ function FeedPageView({
 
   return (
     <div className={styles.page}>
-      {showInitialLoading ? <LoadingState label={t('feed.loading')} /> : null}
+      {showInitialLoading && stageProps.coverOpened ? (
+        <LoadingState label={t('feed.loading')} />
+      ) : null}
       {showInitialError ? (
         <ErrorState description={initialError ?? t('error.loadConcernShort')} onRetry={onRetry} />
       ) : null}
-      {!showInitialLoading && !showInitialError ? <FeedStage {...stageProps} /> : null}
+      {!showInitialError && (!showInitialLoading || !stageProps.coverOpened) ? (
+        <FeedStage {...stageProps} />
+      ) : null}
       <FeedActions {...actionsProps} />
       {loadingMore ? <LoadingState label={t('feed.loadingNext')} /> : null}
       {showPaginationError ? (
@@ -543,24 +518,17 @@ export function FeedPage() {
   const { state: runtime } = useRuntime()
   const { language } = useDisplaySettings()
   const { status: authStatus, user } = useAuth()
-  const [reader, dispatch] = useFeedReaderState()
   const feedContext = resolveFeedContext(runtime, authStatus)
-  const feed = useFeed({
+  const readerView = useFeedReader({
     language,
     enabled: feedContext.enabled,
     sort: feedContext.sort,
-    gender: reader.filter.gender || undefined,
-    regionCode: reader.filter.region || undefined,
     authUserId: user?.id,
   })
-  const concerns = feed.items.map((item) => toFeedConcern(item, language))
-  const readerView = useFeedReaderNavigation({
-    state: reader,
-    dispatch,
-    concerns,
-    feed,
-  })
   const {
+    showInitialLoading,
+    showInitialError,
+    waitingToOpen,
     filter,
     index,
     coverOpened,
@@ -578,19 +546,17 @@ export function FeedPage() {
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
+    applyReaction,
   } = readerView
   const { genderOptions, regionOptions } = buildFeedFilterOptions(language)
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',
     initialReactionCount: concern?.reactionCount ?? 0,
     initialReacted: concern?.reacted ?? false,
+    onChanged: applyReaction,
   })
   useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
   const activeFilter = activeFeedFilterLabel(filter, language)
-
-  const showInitialLoading =
-    feed.status === 'idle' || (feed.status === 'loading' && concerns.length === 0)
-  const showInitialError = feed.status === 'error' && concerns.length === 0
 
   const stageProps: FeedStageProps = {
     concern,
@@ -621,7 +587,7 @@ export function FeedPage() {
                 onLoginVisibilityChange(true)
                 return false
               }
-              void reaction.react()
+              void reaction.toggle()
               return true
             },
           }
@@ -629,6 +595,8 @@ export function FeedPage() {
     reactionError: reaction.error,
   }
   const actionsProps: FeedActionsProps = {
+    coverOpened: coverOpened || showInitialError,
+    waiting: waitingToOpen,
     showLogin,
     concern,
     filtersOpen,
@@ -645,15 +613,19 @@ export function FeedPage() {
     <FeedPageView
       showInitialLoading={showInitialLoading}
       showInitialError={showInitialError}
-      initialError={feed.error}
+      initialError={readerView.feedError}
       stageProps={stageProps}
       actionsProps={actionsProps}
-      loadingMore={feed.status === 'loadingMore'}
-      showPaginationError={feed.status === 'error' && concerns.length > 0}
-      paginationError={feed.error}
-      onRetry={feed.retry}
+      loadingMore={readerView.feedStatus === 'loadingMore'}
+      showPaginationError={readerView.feedStatus === 'error' && readerView.total > 0}
+      paginationError={readerView.feedError}
+      onRetry={readerView.retry}
       reactionAnnouncement={
-        reaction.reacted ? t('reaction.announcementFull', { count: reaction.reactionCount }) : ''
+        reaction.reacted
+          ? t('reaction.announcementFull', { count: reaction.reactionCount })
+          : reaction.status === 'succeeded'
+            ? t('reaction.removedAnnouncement', { count: reaction.reactionCount })
+            : ''
       }
     />
   )

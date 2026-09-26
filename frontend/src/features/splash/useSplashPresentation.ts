@@ -75,6 +75,9 @@ function speedUp(root: HTMLElement | null) {
  *   準備が終わったから退場する、を状態遷移として持つと、描き切る前に
  *   準備が終わった回で、描いている途中から退場へ飛べてしまう。
  * Hidden complexity: 最低表示時間の保証、残り時間の早送り、退場の待ち合わせ。
+ * Update Surface: なし。終了時にonDoneを通知する。
+ * Composition: SplashScreenが準備完了を渡し、退場完了後に親へ通知する。
+ * Test Notes: 準備が早い・遅い場合、動きの省略、unmountでのタイマー解除を確認する。
  */
 export function useSplashPresentation(ready: boolean, onDone: () => void) {
   const rootRef = useRef<HTMLDivElement | null>(null)

@@ -18,6 +18,10 @@ export const RuntimeContext = createContext<RuntimeContextValue | null>(null)
  * Intent: 通常WebとLIFFの実行環境を画面から参照する。
  * Boundary: RuntimeProviderが確定した状態と、LIFF導線の生成操作だけを公開する。
  * State modeling: 初期化中・利用可能・初期化失敗後の読み取り専用fallbackを判別可能にする。
+ * Update Surface: 状態更新は公開せず、liffUrlで導線を生成する。
+ * Hidden Complexity: Provider外での利用を拒否する。
+ * Composition: RuntimeProviderからルートガードと各Containerへ伝播する。
+ * Test Notes: 初期化中・通常Web・LIFF・失敗時の参照を確認する。
  */
 export function useRuntime() {
   const context = useContext(RuntimeContext)

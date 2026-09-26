@@ -85,12 +85,18 @@ function createPublicApp({
     )
     .get("/api/v1/history/summary", ...historyHandler.getSummary)
     .get("/api/v1/history/quiz-answers", ...historyHandler.getQuizAnswers)
+    .get("/api/v1/history/concerns", ...historyHandler.getConcerns)
+    .get("/api/v1/history/reactions", ...historyHandler.getReactions)
     .get("/api/v1/concerns", ...concernHandler.list)
     .post("/api/v1/concerns", ...concernHandler.create)
     .get("/api/v1/concerns/:concernId", ...concernHandler.detail)
     .post(
       "/api/v1/concerns/:concernId/reactions",
       ...concernReactionHandler.register,
+    )
+    .delete(
+      "/api/v1/concerns/:concernId/reactions",
+      ...concernReactionHandler.remove,
     )
     .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record)
     .get("/api/v1/quizzes/today", ...quizHandler.getToday)

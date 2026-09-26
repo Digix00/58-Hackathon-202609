@@ -5,7 +5,6 @@ import { NotebookBinding } from './NotebookBinding'
 
 type NotebookTurnProps = {
   children: ReactNode
-  backColor: string
   variant?: 'page' | 'cover'
   startAngle?: number
   /**
@@ -24,32 +23,49 @@ function coverStyle(direction: 1 | -1) {
 /** 紙そのものを金具の軸で回す。リングは静止した NotebookBinding が描く。 */
 export function NotebookTurn({
   children,
-  backColor,
   variant = 'page',
   startAngle = 0,
   direction = 1,
   onFinish,
 }: NotebookTurnProps) {
   return (
-    <div
-      className={`${direction === 1 ? styles.turning : styles.turningBack} ${
-        variant === 'cover' ? coverStyle(direction) : ''
-      }`}
-      style={
-        {
-          '--turn-start': `${startAngle}deg`,
-          '--turn-back-color': backColor,
-        } as CSSProperties
-      }
-      aria-hidden="true"
-      onAnimationEnd={(event) => {
-        if (event.target === event.currentTarget) onFinish()
-      }}
-    >
-      <div className={styles.face}>{children}</div>
-      <div className={`${styles.back} ${crayonStyles.edge}`}>
-        <NotebookBinding part="holes" back />
+    <>
+      <NotebookBinding part="rear" between />
+      <div
+        className={`${direction === 1 ? styles.turning : styles.turningBack} ${
+          variant === 'cover' ? coverStyle(direction) : ''
+        }`}
+        style={
+          {
+            '--turn-start': `${startAngle}deg`,
+          } as CSSProperties
+        }
+        aria-hidden="true"
+        inert
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget) onFinish()
+        }}
+      >
+        <div className={styles.face}>{children}</div>
+        <NotebookPageBack />
       </div>
+    </>
+  )
+}
+
+/** めくり中も左に伏せた後も、同じ無地の紙を描く。 */
+function NotebookPageBack() {
+  return (
+    <div className={`${styles.back} ${crayonStyles.edge}`}>
+      <NotebookBinding part="holes" back />
+    </div>
+  )
+}
+
+export function NotebookTurnedPage() {
+  return (
+    <div className={styles.turned} aria-hidden="true">
+      <NotebookPageBack />
     </div>
   )
 }

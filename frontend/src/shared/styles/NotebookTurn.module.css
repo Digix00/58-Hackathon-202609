@@ -197,11 +197,8 @@
 
 .back {
   border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  /*
-   * 裏は一色で塗りつぶす。表よりひと段濃くして、めくった面だと分かるようにする。
-   * グラデーションにすると、リングの左に覗く小口だけ色が変わって紙に見えない。
-   */
-  background: var(--turn-back-color, #e3d8c0);
+  /* 表紙も本文も、裏面には色を付けず通常の紙色を使う。 */
+  background: var(--color-surface);
   transform: rotateY(180deg);
 }
 

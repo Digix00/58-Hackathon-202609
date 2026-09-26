@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useReducer, type Dispatch } from 'react'
+import { useCallback, useEffect, useEffectEvent, useReducer } from 'react'
 import { prefersReducedMotion, useNotebookSwipe } from '../../shared/hooks/useNotebookSwipe'
 import { useStackLift } from '../../shared/hooks/useStackLift'
-import type { FeedStatus } from './feedTypes'
+import { useFeed, type UseFeedOptions } from './useFeed'
+import { toFeedConcern } from './feedViewModel'
 import type { FeedConcern, FeedFilter } from './feedViewModel'
 
 const COVER_LIFT_DURATION_MS = 760
@@ -19,10 +20,12 @@ export type TurningPage =
   | { kind: 'cover'; startAngle: number }
   | { kind: 'concern'; concern: FeedConcern; page: number; startAngle: number; direction: 1 | -1 }
 
-export type FeedReaderState = {
+type FeedReaderState = {
   filter: FeedFilter
   index: number
   direction: 1 | -1
+  /** 取得中に開く操作を受け付けたか。取得後に自動で開く。 */
+  openRequested: boolean
   /** 表紙を押し上げている最中か。紙束が上がりきってからめくりはじめる。 */
   coverLifting: boolean
   /** 表紙をめくり終えたか。最初の1枚は声ではなく表紙。 */
@@ -32,7 +35,8 @@ export type FeedReaderState = {
   turning: TurningPage | null
 }
 
-export type FeedReaderAction =
+type FeedReaderAction =
+  | { type: 'openRequested' }
   | { type: 'coverLifting' }
   | { type: 'coverTurned'; turning: TurningPage | null }
   | { type: 'next'; turning: TurningPage | null }
@@ -47,6 +51,7 @@ const initialFeedReaderState: FeedReaderState = {
   filter: { gender: '', region: '' },
   index: 0,
   direction: 1,
+  openRequested: false,
   coverLifting: false,
   coverOpened: false,
   showLogin: false,
@@ -66,6 +71,8 @@ function settledIndex(state: FeedReaderState) {
 
 function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): FeedReaderState {
   switch (action.type) {
+    case 'openRequested':
+      return { ...state, openRequested: true }
     case 'coverLifting':
       // まだ表紙のまま。ふもとの表紙操作が消える準備をして、紙束を上げる。
       return { ...state, coverLifting: true }
@@ -108,35 +115,23 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
   }
 }
 
-export function useFeedReaderState() {
-  return useReducer(feedReaderReducer, initialFeedReaderState)
-}
-
-type FeedNavigationData = {
-  hasMore: boolean
-  status: FeedStatus
-  loadMore: () => Promise<void>
-}
-
-type UseFeedReaderNavigationOptions = {
-  state: FeedReaderState
-  dispatch: Dispatch<FeedReaderAction>
-  concerns: FeedConcern[]
-  feed: FeedNavigationData
-}
-
 /**
  * Intent: 紙めくり、表紙のアニメーション、フィードの位置操作を局所化する。
- * Boundary: フィードの表示用投稿と追加取得操作を受け取り、読者UIの状態と操作を返す。
+ * Boundary: 取得条件を受け取り、読者用の表示値・操作と通信状態を返す。reducerは公開しない。
  * State modeling: reducerの状態遷移と、めくり・スワイプの副作用を画面本体から分離する。
- * Composition: FeedPageから利用し、API取得と表示部品の間をつなぐ。
+ * Update surface: 次へ、めくり完了、フィルタ変更・初期化、ログイン案内・フィルタの開閉、リアクション反映。
+ * Hidden complexity: 表紙の待ち合わせ、戻り位置の確定、フィルタ変更時の取得を隠す。
+ * Composition: useFeedの取得結果と紙めくりを合成し、FeedPageへ渡す。
+ * Test notes: 取得中の開く操作、前後移動、フィルタ変更、追加取得失敗を確認する。
  */
-export function useFeedReaderNavigation({
-  state,
-  dispatch,
-  concerns,
-  feed,
-}: UseFeedReaderNavigationOptions) {
+export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCode'>) {
+  const [state, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
+  const feed = useFeed({
+    ...options,
+    gender: state.filter.gender || undefined,
+    regionCode: state.filter.region || undefined,
+  })
+  const concerns = feed.items.map((item) => toFeedConcern(item, options.language ?? 'original'))
   const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = state
   const { hasMore, status: feedStatus, loadMore } = feed
   const coverOpening = coverLifting || coverOpened
@@ -162,6 +157,13 @@ export function useFeedReaderNavigation({
 
   const goNext = useCallback(
     (startAngle = 0) => {
+      if (
+        !coverOpened &&
+        (feedStatus === 'idle' || feedStatus === 'loading' || feedStatus === 'error')
+      ) {
+        dispatch({ type: 'openRequested' })
+        return
+      }
       // 表紙が残っているうちは、めくる相手は声ではなく表紙。
       if (!coverOpened) {
         if (prefersReducedMotion()) {
@@ -211,6 +213,11 @@ export function useFeedReaderNavigation({
       total,
     ],
   )
+
+  const openWhenReady = useEffectEvent(() => goNext())
+  useEffect(() => {
+    if (state.openRequested && !coverOpening && feedStatus === 'success') openWhenReady()
+  }, [state.openRequested, coverOpening, feedStatus])
 
   const goPrev = useCallback(() => {
     // 戻るときは、伏せてあった前の紙を拾い上げ、いま読んでいる紙の上へ降ろす。
@@ -264,7 +271,17 @@ export function useFeedReaderNavigation({
     [dispatch],
   )
 
+  const showInitialLoading = feedStatus === 'idle' || (feedStatus === 'loading' && total === 0)
+  const showInitialError =
+    feedStatus === 'error' && total === 0 && (state.openRequested || coverOpened)
+
   return {
+    feedStatus: feed.status,
+    feedError: feed.error,
+    retry: feed.retry,
+    showInitialLoading,
+    showInitialError,
+    waitingToOpen: state.openRequested && showInitialLoading,
     filter,
     index,
     coverLifting,
@@ -284,5 +301,6 @@ export function useFeedReaderNavigation({
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
+    applyReaction: feed.applyReaction,
   }
 }

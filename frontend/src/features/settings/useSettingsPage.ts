@@ -1,65 +1,78 @@
-import { useState } from 'react'
+import { useReducer, useRef } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import { updateUserDisplaySettings } from '../profile/profileApi'
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
+type SaveState =
+  { status: 'idle' | 'saving' | 'saved'; error: null } | { status: 'failed'; error: string }
 
+const saveReducer = (_state: SaveState, next: SaveState) => next
+const initialSaveState: SaveState = { status: 'idle', error: null }
+
+/**
+ * Intent: 表示設定の参照と、表示言語・文字サイズの保存・反映順序を局所化する。
+ * Boundary: 設定値、保存状態、設定変更操作だけを公開する。
+ * State Modeling: 保存状態とエラーをreducerで一括更新し、失敗時だけエラーを持つ。
+ * Update Surface: selectLanguage / selectFontSize / setSpeechEnabled。
+ * Hidden Complexity: 認証の確認、同時保存の抑止、成功後だけ共有言語を更新する順序。
+ * Composition: AuthとDisplaySettingsを接続し、SettingsPageへ表示用の状態を渡す。
+ * Test Notes: 保存失敗時の言語維持、再試行成功時のエラー解除、連続操作を確認する。
+ */
 export function useSettingsPage() {
   const { status: authStatus, updateUser } = useAuth()
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
-  const [languageStatus, setLanguageStatus] = useState<SaveStatus>('idle')
-  const [languageError, setLanguageError] = useState<string | null>(null)
-  const [fontSizeStatus, setFontSizeStatus] = useState<SaveStatus>('idle')
-  const [fontSizeError, setFontSizeError] = useState<string | null>(null)
+  const [save, transition] = useReducer(saveReducer, initialSaveState)
+  const inFlight = useRef(false)
+  const [fontSizeSave, transitionFontSize] = useReducer(saveReducer, initialSaveState)
+  const fontSizeInFlight = useRef(false)
 
   const selectLanguage = async (value: typeof language) => {
-    if (authStatus !== 'authenticated' || value === language || languageStatus === 'saving') return
+    if (authStatus !== 'authenticated' || value === language || inFlight.current) return
 
-    setLanguageStatus('saving')
-    setLanguageError(null)
+    inFlight.current = true
+    transition({ status: 'saving', error: null })
     try {
       const result = await updateUserDisplaySettings({ displayLanguage: value }, 'error.language')
       if (!result.ok) {
-        setLanguageStatus('failed')
-        setLanguageError(result.message)
+        transition({ status: 'failed', error: result.message })
         return
       }
 
       updateUser(result.user)
       setLanguage(result.user.displayLanguage)
-      setLanguageStatus('saved')
+      transition({ status: 'saved', error: null })
     } catch {
-      setLanguageStatus('failed')
-      setLanguageError('error.language')
+      transition({ status: 'failed', error: 'error.language' })
+    } finally {
+      inFlight.current = false
     }
   }
 
   // 未ログインでは端末内の表示だけを切り替え、ログイン済みならアカウントへ保存してから反映する。
   const selectFontSize = async (value: typeof fontSize) => {
-    if (value === fontSize || fontSizeStatus === 'saving') return
+    if (value === fontSize || fontSizeInFlight.current) return
     if (authStatus !== 'authenticated') {
       setFontSize(value)
       return
     }
 
-    setFontSizeStatus('saving')
-    setFontSizeError(null)
+    fontSizeInFlight.current = true
+    transitionFontSize({ status: 'saving', error: null })
     try {
       const result = await updateUserDisplaySettings({ fontSize: value }, 'error.fontSize')
       if (!result.ok) {
-        setFontSizeStatus('failed')
-        setFontSizeError(result.message)
+        transitionFontSize({ status: 'failed', error: result.message })
         return
       }
 
       updateUser(result.user)
       setFontSize(result.user.fontSize)
-      setFontSizeStatus('saved')
+      transitionFontSize({ status: 'saved', error: null })
     } catch {
-      setFontSizeStatus('failed')
-      setFontSizeError('error.fontSize')
+      transitionFontSize({ status: 'failed', error: 'error.fontSize' })
+    } finally {
+      fontSizeInFlight.current = false
     }
   }
 
@@ -68,10 +81,10 @@ export function useSettingsPage() {
     fontSize,
     language,
     speechEnabled,
-    languageStatus,
-    languageError,
-    fontSizeStatus,
-    fontSizeError,
+    languageStatus: save.status,
+    languageError: save.error,
+    fontSizeStatus: fontSizeSave.status,
+    fontSizeError: fontSizeSave.error,
     setSpeechEnabled,
     selectLanguage,
     selectFontSize,
