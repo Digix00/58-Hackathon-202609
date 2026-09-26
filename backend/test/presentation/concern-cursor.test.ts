@@ -21,6 +21,7 @@ const recommendationCursor: RecommendedConcernCursor = {
   },
   pendingConcernIds: ["pending-1", "pending-2"],
   lastClusterId: "cluster-last",
+  nextSlot: 2,
   candidateWindowCursor: {
     createdAt: "2026-09-20T00:00:00.000Z",
     id: "window-start",
@@ -41,6 +42,19 @@ describe("concern cursor", () => {
       algorithmVersion: RECOMMENDATION_ALGORITHM_VERSION,
     });
   });
+
+  it.each([-1, 3, 1.5, "1", null, undefined])(
+    "不正な推薦順序 %s を拒否する",
+    (nextSlot) => {
+      const payload = decodeCursorPayload(
+        encodeConcernCursor(recommendationCursor, context),
+      );
+      payload.nextSlot = nextSlot;
+      expect(
+        decodeConcernCursor(encodeCursorPayload(payload), context),
+      ).toBeNull();
+    },
+  );
 
   it("rejects a recommendation cursor from another algorithm version", () => {
     const encoded = encodeConcernCursor(recommendationCursor, context);

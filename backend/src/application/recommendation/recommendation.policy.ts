@@ -2,184 +2,97 @@ import type {
   ConcernFeedCandidate,
   RankedConcernFeedItem,
   RecommendationHistory,
+  RecommendationReasonCode,
 } from "../entity/feed";
 
-/** 推薦アルゴリズムのバージョン。表示履歴を後から評価できるように保存する。 */
-export const RECOMMENDATION_ALGORITHM_VERSION = "v2";
+/** 推薦の意味とカーソルの互換性を識別する。 */
+export const RECOMMENDATION_ALGORITHM_VERSION = "v3";
+export const RECOMMENDATION_CYCLE_LENGTH = 3;
 
 /**
- * 新着順で取得した候補を、既読状況・クラスタ・都道府県の分散で並べ替える。
- * 未読候補や閲覧履歴にないクラスタを優先しつつ、直前と同じクラスタが連続しないように
- * 候補を1件ずつ選出する。異なるクラスタが残っていない場合は、同じクラスタも選出する。
- * AIや個人情報には依存せず、同じ候補と履歴なら同じ結果になる決定的な処理とする。
+ * 身近なテーマ、未知のテーマ、届く機会の少ない声を順に選ぶ。
+ * 分類や属性の入力状況では未読の重みを変えず、同じ候補・履歴なら同じ結果にする。
+ * startSlotでページをまたいでも推薦の流れを継続する。
  */
 export function rankConcernFeedCandidates(
   candidates: ConcernFeedCandidate[],
   history: RecommendationHistory[],
   previousClusterId?: string | null,
+  startSlot = 0,
 ): RankedConcernFeedItem[] {
   const viewedClusterIds = new Set(
     history.flatMap((entry) => (entry.clusterId ? [entry.clusterId] : [])),
   );
-  const viewedRegionCodes = new Set(
-    history.flatMap((entry) => (entry.regionCode ? [entry.regionCode] : [])),
-  );
-  const remaining = candidates.map((candidate, index) => ({
-    candidate,
-    originalIndex: index,
-  }));
-  const selectedClusterIds = new Set<string>();
-  const selectedRegionCodes = new Set<string>();
+  const remaining = [...candidates];
   const ranked: RankedConcernFeedItem[] = [];
-  let lastSelectedClusterId = previousClusterId ?? null;
+  let lastClusterId = previousClusterId ?? null;
 
   while (remaining.length > 0) {
-    const selectable = lastSelectedClusterId
-      ? remaining.filter(
-          ({ candidate }) => candidate.cluster?.id !== lastSelectedClusterId,
-        )
+    // 異なるテーマがあれば連続を避ける。未分類は一つのテーマにまとめない。
+    const differentCluster = lastClusterId
+      ? remaining.filter((candidate) => candidate.cluster?.id !== lastClusterId)
       : remaining;
-    const rankingPool = selectable.length > 0 ? selectable : remaining;
+    const diversePool =
+      differentCluster.length > 0 ? differentCluster : remaining;
+    const unread = diversePool.filter((candidate) => !candidate.viewed);
+    const pool = unread.length > 0 ? unread : diversePool;
+    const slot = (startSlot + ranked.length) % RECOMMENDATION_CYCLE_LENGTH;
+    let preferred = pool;
+    let reasonCode: RecommendationReasonCode | undefined;
 
-    rankingPool.sort((left, right) => {
-      const scoreDifference =
-        scoreCandidate(
-          right.candidate,
-          viewedClusterIds,
-          viewedRegionCodes,
-          selectedClusterIds,
-          selectedRegionCodes,
-        ) -
-        scoreCandidate(
-          left.candidate,
-          viewedClusterIds,
-          viewedRegionCodes,
-          selectedClusterIds,
-          selectedRegionCodes,
-        );
-      if (scoreDifference !== 0) {
-        return scoreDifference;
-      }
-
-      const createdAtDifference =
-        right.candidate.concern.createdAt.localeCompare(
-          left.candidate.concern.createdAt,
-        );
-      if (createdAtDifference !== 0) {
-        return createdAtDifference;
-      }
-
-      const idDifference = right.candidate.concern.id.localeCompare(
-        left.candidate.concern.id,
+    if (slot === 0) {
+      const familiar = pool.filter(
+        (candidate) =>
+          candidate.cluster && viewedClusterIds.has(candidate.cluster.id),
       );
-      return idDifference !== 0
-        ? idDifference
-        : left.originalIndex - right.originalIndex;
+      if (familiar.length > 0) {
+        preferred = familiar;
+        reasonCode = "familiar_theme";
+      }
+    } else if (slot === 1) {
+      const discovery = pool.filter(
+        (candidate) =>
+          !candidate.cluster || !viewedClusterIds.has(candidate.cluster.id),
+      );
+      if (discovery.length > 0) {
+        preferred = discovery;
+        reasonCode = "discovery";
+      }
+    } else {
+      reasonCode = "less_heard";
+    }
+
+    preferred.sort((left, right) => {
+      if (slot === 2) {
+        const readershipDifference =
+          (left.readerCount ?? 0) - (right.readerCount ?? 0);
+        if (readershipDifference !== 0) return readershipDifference;
+        // 同じ閲覧者数なら、長く待っている投稿にも機会を作る。
+        const ageDifference = left.concern.createdAt.localeCompare(
+          right.concern.createdAt,
+        );
+        if (ageDifference !== 0) return ageDifference;
+      }
+      return (
+        right.concern.createdAt.localeCompare(left.concern.createdAt) ||
+        right.concern.id.localeCompare(left.concern.id)
+      );
     });
 
-    const next = rankingPool[0];
-    if (!next) {
-      break;
-    }
-    const nextIndex = remaining.indexOf(next);
-    remaining.splice(nextIndex, 1);
-
-    const { candidate } = next;
-    const clusterId = candidate.cluster?.id;
-    const regionCode = candidate.concern.regionCode;
-    const reasonCode = getReasonCode(
-      candidate,
-      viewedClusterIds,
-      viewedRegionCodes,
-      {
-        selectedClusterIds,
-        selectedRegionCodes,
-      },
-    );
+    const next = preferred[0];
+    if (!next) break;
+    remaining.splice(remaining.indexOf(next), 1);
     ranked.push({
-      ...candidate,
+      ...next,
       recommendation: {
         strategy: "recommended",
-        reasonCode,
+        reasonCode:
+          reasonCode ??
+          (!next.viewed && next.cluster ? "unread_cluster" : "newest"),
       },
     });
-
-    if (clusterId) {
-      selectedClusterIds.add(clusterId);
-    }
-    if (regionCode) {
-      selectedRegionCodes.add(regionCode);
-    }
-    lastSelectedClusterId = clusterId ?? null;
+    lastClusterId = next.cluster?.id ?? null;
   }
 
   return ranked;
-}
-
-/**
- * 候補の推薦スコアを計算する。未読（クラスタあり1,000点、なし100点）、
- * 閲覧履歴にないクラスタ（250点）、今回のページで未選択のクラスタ（75点）、
- * 都道府県の分散（65点、既読地域なら25点）を加点し、選出順を決める。
- */
-function scoreCandidate(
-  candidate: ConcernFeedCandidate,
-  viewedClusterIds: Set<string>,
-  viewedRegionCodes: Set<string>,
-  selectedClusterIds: Set<string>,
-  selectedRegionCodes: Set<string>,
-): number {
-  const clusterId = candidate.cluster?.id;
-  const regionCode = candidate.concern.regionCode;
-  let score = 0;
-
-  if (!candidate.viewed) {
-    score += clusterId ? 1_000 : 100;
-  }
-  if (clusterId && !viewedClusterIds.has(clusterId)) {
-    score += 250;
-  }
-  if (clusterId && !selectedClusterIds.has(clusterId)) {
-    score += 75;
-  }
-  if (regionCode && !selectedRegionCodes.has(regionCode)) {
-    score += viewedRegionCodes.has(regionCode) ? 25 : 65;
-  }
-
-  return score;
-}
-
-/**
- * 候補を選出した理由をレスポンス用のコードに変換する。
- * 未読クラスタ、未閲覧クラスタ、都道府県の分散、クラスタの分散の順に判定し、
- * いずれにも該当しない場合は新着順として扱う。
- */
-function getReasonCode(
-  candidate: ConcernFeedCandidate,
-  viewedClusterIds: Set<string>,
-  viewedRegionCodes: Set<string>,
-  selected: {
-    selectedClusterIds: Set<string>;
-    selectedRegionCodes: Set<string>;
-  },
-) {
-  const clusterId = candidate.cluster?.id;
-  const regionCode = candidate.concern.regionCode;
-
-  if (!candidate.viewed && clusterId) {
-    return "unread_cluster" as const;
-  }
-  if (clusterId && !viewedClusterIds.has(clusterId)) {
-    return "new_cluster" as const;
-  }
-  if (
-    regionCode &&
-    !selected.selectedRegionCodes.has(regionCode) &&
-    !viewedRegionCodes.has(regionCode)
-  ) {
-    return "region_diversity" as const;
-  }
-  if (clusterId && !selected.selectedClusterIds.has(clusterId)) {
-    return "new_cluster" as const;
-  }
-  return "newest" as const;
 }

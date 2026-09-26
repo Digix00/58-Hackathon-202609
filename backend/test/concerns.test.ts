@@ -4,6 +4,8 @@ import { drizzle } from "drizzle-orm/d1";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app/create-app";
+import { ConcernView } from "../src/application/entity/concern-view";
+import { LearningEvent } from "../src/application/entity/learning-event";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
 import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
 import { ConcernReactionUseCase } from "../src/application/usecase/concern-reaction.usecase";
@@ -13,11 +15,13 @@ import {
 } from "../src/infrastructure/database/d1-auth.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
 import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-concern-reaction.repository";
+import { D1ConcernViewRepository } from "../src/infrastructure/database/d1-concern-view.repository";
 import {
   concernClusters,
   concernReactions,
   concernRepresentations,
   concerns,
+  concernViews,
   learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
@@ -741,7 +745,7 @@ describe("GET /api/v1/concerns", () => {
     const cookie = await loginCookie(app);
 
     const response = await app.request(
-      "/api/v1/concerns?sort=recommended&limit=10",
+      `/api/v1/concerns?sort=recommended&limit=10&clusterId=${encodeURIComponent(clusterId)}`,
       { headers: { Cookie: cookie } },
       env,
     );
@@ -1371,5 +1375,139 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
     expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
     expect(body.error.requestId).toBe(response.headers.get("X-Request-Id"));
     expect(body.error.requestId).toBe("reaction-auth");
+  });
+});
+
+describe("推薦に使う実際の閲覧機会", () => {
+  it("APIの先読みと投稿者自身を数えず、重複閲覧を一人として数える", async () => {
+    const id = await seedConcern({
+      body: "閲覧機会の確認",
+      createdAt: "2026-09-26T00:00:00.000Z",
+    });
+    const db = drizzle(env.DB);
+    const row = await db
+      .select()
+      .from(concerns)
+      .where(eq(concerns.id, id))
+      .get();
+    if (!row) throw new Error("投稿が必要");
+    const app = createTestApp(`reader-${crypto.randomUUID()}`);
+    const cookie = await loginCookie(app);
+    const repository = new D1ConcernRepository(env.DB);
+    await app.request(
+      "/api/v1/concerns?sort=recommended",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect((await repository.findPublishedFeedCandidate(id))?.readerCount).toBe(
+      0,
+    );
+    // 投稿者の既読だけでは、他の人に届いたことにしない。
+    await db
+      .insert(concernViews)
+      .values({ concernId: id, actorKey: row.userId, viewedAt: row.createdAt })
+      .run();
+    expect((await repository.findPublishedFeedCandidate(id))?.readerCount).toBe(
+      0,
+    );
+    const otherUserId = `actual-reader-${crypto.randomUUID()}`;
+    await db
+      .insert(users)
+      .values({
+        id: otherUserId,
+        lineUserId: otherUserId,
+        createdAt: row.createdAt,
+        updatedAt: row.createdAt,
+      })
+      .run();
+    const views = new D1ConcernViewRepository(env.DB);
+    for (let i = 0; i < 2; i++) {
+      await views.insert(
+        new ConcernView({
+          concernId: id,
+          actorKey: otherUserId,
+          viewedAt: row.createdAt,
+        }),
+        new LearningEvent({
+          id: crypto.randomUUID(),
+          userId: otherUserId,
+          eventType: "view",
+          concernId: id,
+          occurredAt: row.createdAt,
+        }),
+      );
+    }
+    expect((await repository.findPublishedFeedCandidate(id))?.readerCount).toBe(
+      1,
+    );
+    expect(
+      (await repository.listFeedByIds({ ids: [id] }))[0]?.readerCount,
+    ).toBe(1);
+    const response = await app.request(`/api/v1/concerns/${id}`, {}, env);
+    expect(await response.json()).not.toHaveProperty("readerCount");
+  });
+
+  it("limit=1でも3件目に届いていない声を選び、先読み候補を欠落させない", async () => {
+    const clusterId = await seedCluster({});
+    const ids: string[] = [];
+    for (let day = 4; day >= 1; day--) {
+      ids.push(
+        await seedConcern({
+          body: "推薦の順序確認",
+          clusterId,
+          processingStatus: "ready",
+          createdAt: `2026-09-0${day}T00:00:00.000Z`,
+        }),
+      );
+    }
+    const db = drizzle(env.DB);
+    const readerId = `reader-${crypto.randomUUID()}`;
+    await db
+      .insert(users)
+      .values({
+        id: readerId,
+        lineUserId: readerId,
+        createdAt: "2026-09-26",
+        updatedAt: "2026-09-26",
+      })
+      .run();
+    for (const concernId of ids.slice(0, 3)) {
+      await db
+        .insert(concernViews)
+        .values({ concernId, actorKey: readerId, viewedAt: "2026-09-26" })
+        .run();
+    }
+    const app = createTestApp(`pagination-reader-${crypto.randomUUID()}`);
+    const cookie = await loginCookie(app);
+    let cursor: string | null = null;
+    const returned: string[] = [];
+    for (let page = 0; page < 4; page++) {
+      const query = new URLSearchParams({
+        sort: "recommended",
+        limit: "1",
+        clusterId,
+      });
+      if (cursor) query.set("cursor", cursor);
+      const response = await app.request(
+        `/api/v1/concerns?${query}`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      expect(response.status).toBe(200);
+      const body = await response.json<{
+        items: Array<{ id: string; recommendation: { reasonCode: string } }>;
+        nextCursor: string | null;
+      }>();
+      const item = body.items[0];
+      expect(item).not.toHaveProperty("readerCount");
+      returned.push(item!.id);
+      if (page === 2) {
+        expect(item?.id).toBe(ids[3]);
+        expect(item?.recommendation.reasonCode).toBe("less_heard");
+      }
+      cursor = body.nextCursor;
+    }
+    expect(cursor).toBeNull();
+    expect(new Set(returned)).toEqual(new Set(ids));
   });
 });

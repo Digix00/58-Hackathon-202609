@@ -12,6 +12,9 @@ export const RECOMMENDATION_STRATEGIES = [
 export type RecommendationStrategy = (typeof RECOMMENDATION_STRATEGIES)[number];
 
 export const RECOMMENDATION_REASON_CODES = [
+  "familiar_theme",
+  "discovery",
+  "less_heard",
   "unread_cluster",
   "new_cluster",
   "region_diversity",
@@ -25,6 +28,8 @@ export interface ConcernFeedCandidate {
   concern: Concern;
   cluster: ConcernCluster | null;
   viewed: boolean;
+  /** 実際に表示したログイン済み利用者数。投稿者自身を除き、公開APIには返さない。 */
+  readerCount?: number;
   reactionCount?: number;
   reacted?: boolean;
 }

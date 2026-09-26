@@ -15,6 +15,7 @@ export interface RecommendedConcernCursor {
   sourceCursor: ConcernListCursor | null;
   pendingConcernIds: string[];
   lastClusterId: string | null;
+  nextSlot: number;
   candidateWindowCursor: ConcernListCursor | null;
   returnedConcernIds: string[];
 }

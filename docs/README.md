@@ -7,6 +7,7 @@
 - [システムアーキテクチャ](./technical/architecture.md)
 - [API仕様](./technical/api.md)
 - [データモデル](./technical/data.md)
+- [推薦設計](./technical/recommendation.md)
 - [SQLiteデータベース設計](./technical/database.md)
 - [フロントエンド実装指針](./technical/frontend.md)
 - [LINEミニアプリ固有の挙動とフロントエンド編集ガイド](./technical/line-mini-app.md)
