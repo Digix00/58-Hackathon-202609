@@ -159,6 +159,7 @@ function FeedCard({
   concern,
   page,
   onNext,
+  selectedClusterId,
   articleRef,
   swipeTarget = false,
   onLinkClick,
@@ -170,6 +171,8 @@ function FeedCard({
   page: number
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
+  /** 選択中のテーマだけを詳細画面の戻り先へ引き継ぐ。 */
+  selectedClusterId: string | null
   articleRef?: RefCallback<HTMLElement>
   swipeTarget?: boolean
   onLinkClick?: (event: MouseEvent) => void
@@ -202,7 +205,7 @@ function FeedCard({
         className={styles.storyLink}
         to={{
           pathname: `/concerns/${encodeURIComponent(concern.id)}`,
-          search: concern.theme ? `?clusterId=${encodeURIComponent(concern.theme.id)}` : '',
+          search: selectedClusterId ? `?clusterId=${encodeURIComponent(selectedClusterId)}` : '',
         }}
         aria-label={t('feed.details', { body: concern.body })}
         onClick={onLinkClick}
@@ -266,6 +269,7 @@ type FeedStackProps = {
   turning: TurningPage | null
   coverOpened: boolean
   coverOpening: boolean
+  selectedClusterId: string | null
   articleRef?: RefCallback<HTMLElement>
   onNext: () => void
   onLinkClick: (event: MouseEvent) => void
@@ -282,6 +286,7 @@ function FeedStack({
   turning,
   coverOpened,
   coverOpening,
+  selectedClusterId,
   articleRef,
   onNext,
   onLinkClick,
@@ -305,7 +310,11 @@ function FeedStack({
               onFinish={onTurningFinished}
             >
               {turning.kind === 'concern' ? (
-                <FeedCard concern={turning.concern} page={turning.page} />
+                <FeedCard
+                  concern={turning.concern}
+                  page={turning.page}
+                  selectedClusterId={selectedClusterId}
+                />
               ) : (
                 <FeedCover />
               )}
@@ -322,6 +331,7 @@ function FeedStack({
             <FeedCard
               concern={concern}
               page={position + 1}
+              selectedClusterId={selectedClusterId}
               onNext={onNext}
               articleRef={articleRef}
               swipeTarget
@@ -603,6 +613,7 @@ export function FeedPage() {
     turning,
     coverOpened,
     coverOpening,
+    selectedClusterId: theme?.id ?? null,
     articleRef: undefined,
     onNext: goNext,
     onLinkClick: swipe.handleLinkClick,
