@@ -1,3 +1,4 @@
+import { LearningEvent } from "../entity/learning-event";
 import {
   hasDistinctQuizAttributes,
   Quiz,
@@ -48,6 +49,21 @@ export class QuizUseCase implements IQuizUseCase {
 
   readonly getById = (quizId: string, userId: string): Promise<Quiz | null> =>
     this.repository.findPublishedById(quizId, userId);
+
+  readonly ensureDailyQuiz = async (
+    quizDate: string,
+  ): Promise<{ id: string; quizDate: string } | null> => {
+    const existing = await this.repository.findAvailableByDate(quizDate);
+    if (existing) {
+      return { id: existing.id, quizDate: existing.quizDate };
+    }
+
+    await this.generate(quizDate);
+    const published = await this.repository.findAvailableByDate(quizDate);
+    return published
+      ? { id: published.id, quizDate: published.quizDate }
+      : null;
+  };
 
   /**
    * 当日取得とは分離したクイズ生成処理。
@@ -140,7 +156,16 @@ export class QuizUseCase implements IQuizUseCase {
       })),
     };
 
-    const recorded = await this.repository.recordAnswer(recordInput);
+    const recorded = await this.repository.recordAnswer(
+      recordInput,
+      new LearningEvent({
+        id: this.createId(),
+        userId: input.userId,
+        eventType: "quiz_answer",
+        quizId: quiz.id,
+        occurredAt: answeredAt,
+      }),
+    );
     if (recorded.status === "already_answered") {
       throw new QuizAlreadyAnsweredError();
     }

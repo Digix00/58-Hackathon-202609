@@ -1,4 +1,5 @@
 import type { ConcernReaction } from "../entity/concern-reaction";
+import type { LearningEvent } from "../entity/learning-event";
 
 export interface InsertConcernReactionResult {
   created: boolean;
@@ -12,5 +13,6 @@ export interface InsertConcernReactionResult {
 export interface ConcernReactionRepository {
   insert(
     reaction: ConcernReaction,
+    event: LearningEvent,
   ): Promise<InsertConcernReactionResult | null>;
 }

@@ -39,6 +39,12 @@ export function isInLineClient() {
   return initialized && liff.isInClient()
 }
 
+export function closeLineWindow() {
+  if (!isInLineClient()) return false
+  liff.closeWindow()
+  return true
+}
+
 export function getLineIdToken() {
   return initialized ? (liff.getIDToken() ?? null) : null
 }

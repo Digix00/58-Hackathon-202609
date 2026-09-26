@@ -12,6 +12,7 @@ import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createSpeechDependencies } from "./support/speech-fixture";
 
 function createTestApp(lineUserId = "line_auth_test_user") {
@@ -34,6 +35,7 @@ function createTestApp(lineUserId = "line_auth_test_user") {
     authUseCase,
     ...createConcernDependencies(),
     ...createSpeechDependencies(),
+    ...createHistoryDependencies(),
     userHandler: new UserHandler(new UserUseCase(userRepository)),
     healthHandler: new HealthHandler({
       execute: async () => ({

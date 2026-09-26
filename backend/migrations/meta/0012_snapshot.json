@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "acf534bf-57c3-4bf2-bb3c-22cc94eab4f7",
+  "id": "66d0bde3-4883-48c0-bcc7-f58ce4613844",
   "prevId": "2dd5866c-1859-43b6-a758-a0dd98ca697b",
   "tables": {
     "concern_clusters": {
@@ -644,6 +644,347 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "line_broadcast_attempts": {
+      "name": "line_broadcast_attempts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "broadcast_id": {
+          "name": "broadcast_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "http_status": {
+          "name": "http_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_request_id": {
+          "name": "line_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_accepted_request_id": {
+          "name": "line_accepted_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "line_retry_key": {
+          "name": "line_retry_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_broadcast_attempts_number_idx": {
+          "name": "line_broadcast_attempts_number_idx",
+          "columns": [
+            "broadcast_id",
+            "attempt_number"
+          ],
+          "isUnique": true
+        },
+        "line_broadcast_attempts_retry_key_idx": {
+          "name": "line_broadcast_attempts_retry_key_idx",
+          "columns": [
+            "line_retry_key"
+          ],
+          "isUnique": true
+        },
+        "line_broadcast_attempts_status_attempted_idx": {
+          "name": "line_broadcast_attempts_status_attempted_idx",
+          "columns": [
+            "status",
+            "attempted_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_broadcast_attempts_broadcast_id_line_broadcasts_id_fk": {
+          "name": "line_broadcast_attempts_broadcast_id_line_broadcasts_id_fk",
+          "tableFrom": "line_broadcast_attempts",
+          "tableTo": "line_broadcasts",
+          "columnsFrom": [
+            "broadcast_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_broadcast_attempts_status_check": {
+          "name": "line_broadcast_attempts_status_check",
+          "value": "\"line_broadcast_attempts\".\"status\" in ('started', 'succeeded', 'failed')"
+        },
+        "line_broadcast_attempts_number_check": {
+          "name": "line_broadcast_attempts_number_check",
+          "value": "\"line_broadcast_attempts\".\"attempt_number\" > 0"
+        }
+      }
+    },
+    "line_broadcasts": {
+      "name": "line_broadcasts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiz_id": {
+          "name": "quiz_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_broadcasts_quiz_idx": {
+          "name": "line_broadcasts_quiz_idx",
+          "columns": [
+            "quiz_id"
+          ],
+          "isUnique": true
+        },
+        "line_broadcasts_idempotency_idx": {
+          "name": "line_broadcasts_idempotency_idx",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "line_broadcasts_status_requested_idx": {
+          "name": "line_broadcasts_status_requested_idx",
+          "columns": [
+            "status",
+            "requested_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_broadcasts_quiz_id_quizzes_id_fk": {
+          "name": "line_broadcasts_quiz_id_quizzes_id_fk",
+          "tableFrom": "line_broadcasts",
+          "tableTo": "quizzes",
+          "columnsFrom": [
+            "quiz_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_broadcasts_status_check": {
+          "name": "line_broadcasts_status_check",
+          "value": "\"line_broadcasts\".\"status\" in ('pending', 'running', 'succeeded', 'failed')"
+        },
+        "line_broadcasts_lease_check": {
+          "name": "line_broadcasts_lease_check",
+          "value": "(\"line_broadcasts\".\"status\" = 'running' and \"line_broadcasts\".\"claim_token\" is not null and \"line_broadcasts\".\"lease_expires_at\" is not null) or (\"line_broadcasts\".\"status\" <> 'running' and \"line_broadcasts\".\"claim_token\" is null and \"line_broadcasts\".\"lease_expires_at\" is null)"
+        }
+      }
+    },
+    "line_webhook_events": {
+      "name": "line_webhook_events",
+      "columns": {
+        "webhook_event_id": {
+          "name": "webhook_event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "line_webhook_events_user_received_idx": {
+          "name": "line_webhook_events_user_received_idx",
+          "columns": [
+            "user_id",
+            "received_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "line_webhook_events_user_id_users_id_fk": {
+          "name": "line_webhook_events_user_id_users_id_fk",
+          "tableFrom": "line_webhook_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "line_webhook_events_status_check": {
+          "name": "line_webhook_events_status_check",
+          "value": "\"line_webhook_events\".\"status\" in ('received', 'processed', 'ignored', 'failed')"
+        }
+      }
+    },
     "quiz_answers": {
       "name": "quiz_answers",
       "columns": {
@@ -1243,67 +1584,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "speech_transcription_rate_limit_events": {
-      "name": "speech_transcription_rate_limit_events",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "speech_transcription_rate_limit_user_created_idx": {
-          "name": "speech_transcription_rate_limit_user_created_idx",
-          "columns": [
-            "user_id",
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "speech_transcription_rate_limit_created_idx": {
-          "name": "speech_transcription_rate_limit_created_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "speech_transcription_rate_limit_events_user_id_users_id_fk": {
-          "name": "speech_transcription_rate_limit_events_user_id_users_id_fk",
-          "tableFrom": "speech_transcription_rate_limit_events",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "users": {
       "name": "users",
       "columns": {
@@ -1352,6 +1632,34 @@
         },
         "region_code": {
           "name": "region_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "friend_status": {
+          "name": "friend_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "unfollowed_at": {
+          "name": "unfollowed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

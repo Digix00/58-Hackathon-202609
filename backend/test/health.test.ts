@@ -7,6 +7,7 @@ import { D1HealthRepository } from "../src/infrastructure/database/d1-health.rep
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
@@ -18,6 +19,7 @@ describe("GET /health", () => {
       ...createAuthDependencies(),
       ...createConcernDependencies(),
       ...createSpeechDependencies(),
+      ...createHistoryDependencies(),
       ...createUserDependencies(),
       healthHandler: new HealthHandler(useCase),
     });
@@ -57,6 +59,7 @@ describe("GET /health", () => {
         ...createAuthDependencies(),
         ...createConcernDependencies(),
         ...createSpeechDependencies(),
+        ...createHistoryDependencies(),
         ...createUserDependencies(),
         healthHandler,
       });
@@ -101,6 +104,7 @@ describe("GET /health", () => {
         ...createAuthDependencies(),
         ...createConcernDependencies(),
         ...createSpeechDependencies(),
+        ...createHistoryDependencies(),
         ...createUserDependencies(),
         healthHandler,
       });

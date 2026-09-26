@@ -1,0 +1,207 @@
+/*
+ * 本の下に敷いたシール。
+ *
+ * 紙より先に置いた層に貼り、紙の下へ潜らせる。層は紙と同じ大きさなので、
+ * 貼る場所は紙そのものに対する割合で指す。紙の外に出した側と、
+ * ふもとの「めくってみる」のまわりが、大きなシールの見える場所になる。
+ * 紙束の中にあるので、表紙が開いて本が広がるとき、シールも一緒に大きくなる。
+ * 紙に隠れる側は隠れたままでよい。全部が見えていると、貼った紙ではなく
+ * 背景の模様に見える。装飾なので指も読み上げも通さない。
+ */
+.layer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * 1枚のシール。
+ *
+ * 貼った場所（この要素）・散る動き（この要素のアニメーション）・
+ * 待っている間の揺れ（.float）・貼られた瞬間の弾み（.art）を層で分ける。
+ * ひとつの要素に重ねると、あとから流れる動きが前の位置を打ち消す。
+ */
+.sticker {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  display: block;
+  width: var(--size);
+  transform: translate(-50%, -50%) rotate(var(--tilt));
+}
+
+/*
+ * 貼ったまま、ずっと少しだけ動いている。
+ *
+ * 振れ幅・周期・位相は1枚ずつ変える。同じ揺れを同じ間で繰り返すと、
+ * 11枚が一斉に動く列になり、貼り紙が風で揺れているようにしか見えない。
+ * 揺れの値は貼る場所ではなく枚数の順から作る。表を手で埋めると、
+ * 1枚足すたびに全部を組み直すことになる。
+ */
+.float {
+  display: block;
+  animation: stickerSway var(--beat) ease-in-out var(--phase) infinite alternate;
+}
+
+/*
+ * きらりとほしは、揺れるかわりにときどき光る。
+ * 全部を同じように揺らすと、絵の違いが動きに出ない。
+ */
+.twinkles {
+  animation-name: stickerTwinkle;
+  animation-direction: normal;
+}
+
+/*
+ * クレヨンの目。表紙の絵と同じ砂目を、線にも塗りにもかける。
+ * シールは絵より小さいので、目は絵（110px）より細かくして、
+ * 短い線が点線に割れないようにする。
+ */
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 84px 84px;
+  mask-size: 84px 84px;
+  /* 貼られた順に一枚ずつ現れる。最初の1枚が題字より先に目に入らない速さにする。 */
+  animation: stickerIn 520ms cubic-bezier(0.3, 1.32, 0.5, 1) both;
+  animation-delay: var(--in-delay);
+}
+
+.fill {
+  opacity: 0.92;
+}
+
+.line {
+  fill: none;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 表紙をめくるとき。
+ *
+ * いちど本へ吸い寄せられてから、貼った場所の外側へまっすぐ抜ける。
+ * ためを作らずに飛ばすと、はじけたのではなく画面から消えただけに見える。
+ * 本が大きく開くのと同じ時間で終わらせ、めくり終わりに飛び残さない。
+ */
+.scattering .sticker {
+  animation: stickerScatter 720ms cubic-bezier(0.17, 0.72, 0.3, 1) both;
+  animation-delay: var(--delay);
+}
+
+/* 散っている間は揺れを止める。揺れたまま飛ぶと、飛ぶ向きが鈍る。 */
+.scattering .float {
+  animation: none;
+}
+
+@keyframes stickerIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes stickerSway {
+  from {
+    transform: translate(calc(var(--drift) * -1), var(--bob)) rotate(calc(var(--swing) * -1));
+  }
+  to {
+    transform: translate(var(--drift), calc(var(--bob) * -1)) rotate(var(--swing));
+  }
+}
+
+/* ひと回りの終わりで一度ふくらむ。戻りぎわを少し小さくして、弾んだ跡を残す。 */
+@keyframes stickerTwinkle {
+  0% {
+    transform: rotate(calc(var(--swing) * -1)) scale(1);
+  }
+  42% {
+    transform: rotate(var(--swing)) scale(1);
+  }
+  58% {
+    transform: rotate(calc(var(--swing) * 0.4)) scale(1.22);
+  }
+  70% {
+    transform: rotate(0deg) scale(0.93);
+  }
+  82% {
+    transform: rotate(calc(var(--swing) * -0.4)) scale(1.07);
+  }
+  100% {
+    transform: rotate(calc(var(--swing) * -1)) scale(1);
+  }
+}
+
+@keyframes stickerScatter {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--tilt)) scale(1);
+  }
+  /* ためは一瞬だけ。長く持つと、広がってくる紙に追い越されて飲み込まれる。 */
+  9% {
+    opacity: 1;
+    transform: translate(calc(-50% - var(--fly-x) * 0.08), calc(-50% - var(--fly-y) * 0.08))
+      rotate(calc(var(--tilt) - var(--spin) * 0.1)) scale(1.16);
+  }
+  /* 色が消えるのは飛びきってから。早く薄めると、散らずに消えたように見える。 */
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--fly-x)), calc(-50% + var(--fly-y)))
+      rotate(calc(var(--tilt) + var(--spin))) scale(0.58);
+  }
+}
+
+/*
+ * 画面がせまいほど、本のまわりに空く余白もせまい。シールごと小さく貼る。
+ * 背の低い端末の指定をあとに置くのは、どちらにも当てはまる端末で
+ * 小さいほうを採らせるため。
+ */
+@media (max-width: 359px) {
+  .layer {
+    font-size: 0.84em;
+  }
+}
+
+@media (max-height: 700px) {
+  .layer {
+    font-size: 0.78em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .art {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .art g {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * 動きを控える設定では、貼ってあるだけのシールにする。
+   * 表紙も回さずに切り替わるので、散る動きは持たせない。
+   */
+  .art,
+  .float,
+  .scattering .sticker {
+    animation: none;
+  }
+}

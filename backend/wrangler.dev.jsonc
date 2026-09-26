@@ -8,6 +8,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  },
   "observability": {
     "enabled": true
   },
@@ -17,7 +20,10 @@
   "vars": {
     "CONCERN_CLUSTER_SIMILARITY_THRESHOLD": "0.8",
     "CORS_ORIGIN": "http://localhost:5173",
+    "LINE_LIFF_ID": "local-development",
     "DEV_AUTH_ENABLED": "true",
+    "DEV_ACCESS_BYPASS": "true",
+    "DEV_LINE_BROADCAST_SIMULATION": "true",
     "LOCAL_SPEECH_RECOGNIZER_ENABLED": "true"
   },
   "queues": {

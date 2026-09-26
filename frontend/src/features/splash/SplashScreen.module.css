@@ -1,0 +1,423 @@
+/*
+ * 起動画面。
+ *
+ * 待たせていることを知らせる画面ではなく、「いま誰かがこの本の題字を書いている」
+ * 時間として見せる。第1幕でクレヨンが波線を引きながら渡り、第2幕で色が入って
+ * シールが貼られ、第3幕は描き終えた絵のまま待つ。時間の割りは
+ * useSplashPresentation.ts の DRAW_MS と合わせてある。
+ *
+ * 紙の地色と方眼は NotebookBackground.module.css から借りる。退場で絵だけが
+ * 抜け、この紙が残ることで、続けて現れるフィードの本が同じ机の上に見える。
+ */
+/*
+ * 文字サイズの設定。AppShell の .large と同じ倍率を使う。
+ * この画面は下部ナビを持つ器の外にあるので、倍率を自分で持つ必要がある。
+ */
+.large {
+  --font-scale: 1.25;
+}
+
+.screen {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(1em, 3vh, 1.6em);
+  width: min(100%, var(--content-width));
+  min-height: 100svh;
+  padding: 26px 18px;
+  margin: 0 auto;
+}
+
+/*
+ * 題字の組み。
+ *
+ * 波線・クレヨン・シールは、この組みを中心に外へ置く。題字の幅にそろえるので、
+ * 幅は内容なりに決める。em はこの要素の字送りを基準にするため、
+ * 貼る場所と大きさは題字の大きさ（27px）ではなく本文の大きさ（16px）で数える。
+ */
+.mark {
+  position: relative;
+  width: fit-content;
+  /*
+   * クレヨンとシールは題字の組みの下へ垂れる。その分をここで取っておく。
+   * 下の余白を .screen の間隔だけに任せると、待機の文字がクレヨンの足へ重なる。
+   * padding では .rule と .pen の top: 100% がこの分だけ下がるので、margin で取る。
+   */
+  margin-bottom: 3.2em;
+}
+
+/*
+ * 題字。
+ *
+ * 表紙の題字（feed/FeedPage.module.css の .coverTitle）と同じ手で書く。
+ * 起動画面だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
+ * 違うのは波線だけで、こちらは引かれていく過程を見せるため線として持つ。
+ */
+.title {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-size: calc(27px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-shadow: 0.035em 0.045em 0 #e8dcb9;
+  white-space: nowrap;
+  transform: rotate(-1.4deg);
+  /* クレヨンが通った分だけ現れる。線より少し遅れて出て、先に書かれた字にしない。 */
+  animation: titleWrite 440ms linear 140ms both;
+}
+
+@keyframes titleWrite {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/*
+ * 題字の下の波線。表紙の text-decoration と同じ色・同じ太さの見えにそろえる。
+ * pathLength を100に正規化してあるので、実際の長さを測らずに dash で引ける。
+ */
+.rule {
+  position: absolute;
+  top: 100%;
+  right: -0.06em;
+  left: -0.06em;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  /* 字の下端のすぐ下へ上げる。行送りの余白のぶん、下がったままだと離れて見える。 */
+  margin-top: -0.32em;
+  transform: rotate(-1.4deg);
+}
+
+.rulePath {
+  fill: none;
+  stroke: var(--color-underline);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: ruleDraw 490ms cubic-bezier(0.34, 0.1, 0.5, 1) 110ms both;
+}
+
+@keyframes ruleDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/*
+ * クレヨン。
+ *
+ * 移動と傾き（この要素）・待つ間の息（.penBreath）・絵（.penArt）を層で分ける。
+ * ひとつの要素に重ねると、あとから流れる動きが前の位置を打ち消す。
+ *
+ * left を動かすのは、題字の幅ぶんを渡らせるため。割合は親の幅で決まるので、
+ * 題字が何文字でも線の端から端まで渡る。動くのはこの1要素だけなので、
+ * 版面を組み直すことにはならない。
+ */
+.pen {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 2;
+  display: block;
+  width: 1.9em;
+  /* 先を軸に傾ける。軸の真ん中で回すと、先が線から浮く。 */
+  transform-origin: 50% 5%;
+  /* 絵の先端は上から約5%の位置にある。その先が波線に触れる高さへ上げる。 */
+  margin-top: -0.3em;
+  animation: penDraw 1000ms both;
+}
+
+/*
+ * 先を上に向けたクレヨンなので、傾きは負で軸が右下へ振れる。
+ * 正にすると軸が題字へ倒れ込み、字を隠す。
+ *
+ * left から先の位置（幅の半分）を引くのは、動かしているのが要素の左端だから。
+ * 引かずに動かすと、先が線の先端より幅の半分だけ前に出て、引いていない場所を
+ * なぞる絵になる。時刻も波線（110ms から 600ms）にそろえる。
+ */
+@keyframes penDraw {
+  0% {
+    left: calc(-45% - 0.95em);
+    opacity: 0;
+    transform: rotate(-30deg) translateY(0.5em);
+    animation-timing-function: cubic-bezier(0.32, 0.12, 0.42, 1);
+  }
+  /* 線の引きはじめに着く。ここから先は線と同じ速さで渡る。 */
+  11% {
+    left: calc(0% - 0.95em);
+    opacity: 1;
+    transform: rotate(-26deg) translateY(0.12em);
+    animation-timing-function: cubic-bezier(0.34, 0.1, 0.5, 1);
+  }
+  /* 線を引き終える。ここから先は、置かれるまでの余韻。 */
+  60% {
+    left: calc(100% - 0.95em);
+    transform: rotate(-18deg) translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 1.4, 0.55, 1);
+  }
+  82% {
+    left: calc(106% - 0.95em);
+    transform: rotate(-5deg) translateY(-0.34em);
+  }
+  100% {
+    left: calc(104% - 0.95em);
+    transform: rotate(-12deg) translateY(-0.12em);
+  }
+}
+
+.penBreath {
+  display: block;
+  /* 置いたまま、ごくわずかに息をする。引き終えてから始める。 */
+  animation: penBreathe 3.8s ease-in-out 1000ms infinite alternate;
+}
+
+@keyframes penBreathe {
+  from {
+    transform: translateY(0.05em) rotate(-0.8deg);
+  }
+  to {
+    transform: translateY(-0.09em) rotate(1deg);
+  }
+}
+
+/*
+ * クレヨンの目。表紙の絵と同じ砂目を、線にも塗りにもかける。
+ * 絵（110px）より細かくするのは、クレヨンが表紙の絵より小さく、
+ * 粗い目だと巻紙の短い線が点線に割れて、かすれではなく欠けに見えるため。
+ */
+.penArt,
+.stickerArt {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 84px 84px;
+  mask-size: 84px 84px;
+}
+
+.line {
+  fill: none;
+  stroke: #8d7cc4;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 塗り。
+ *
+ * 線を引き終えてから色が入る。線画に色が入るのは、この画面だけの演出ではなく
+ * 「そっと寄りそう」のハートと同じ作法で、押された・描き終えたことを色で返す。
+ */
+.fill {
+  opacity: 0;
+  animation: fillIn 280ms ease-out 600ms both;
+}
+
+@keyframes fillIn {
+  to {
+    opacity: 0.92;
+  }
+}
+
+/*
+ * 軸の色。線（#8d7cc4）より薄くする。近い濃さで塗ると、線と塗りが溶けて
+ * ひと塊の影になり、クレヨンではなく黒い棒に見える。
+ */
+.bodyFill {
+  fill: #bcaee2;
+}
+
+.labelFill {
+  fill: #fffdf5;
+}
+
+/*
+ * シール。貼った場所は inline style で指す。3枚しかなく、置く場所は
+ * クレヨンの抜ける右下を避けるという1つの理由で決まるため、表にしない。
+ */
+.sticker {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  width: var(--size);
+  transform: rotate(var(--tilt));
+}
+
+.stickerFloat {
+  display: block;
+  animation: stickerSway var(--beat) ease-in-out var(--phase) infinite alternate;
+}
+
+@keyframes stickerSway {
+  from {
+    transform: translateY(0.1em) rotate(-1.4deg);
+  }
+  to {
+    transform: translateY(-0.1em) rotate(1.4deg);
+  }
+}
+
+.stickerArt {
+  /* 貼られた順に1枚ずつ。遅れは貼る順から作るので inline style で渡す。 */
+  animation: stickerIn 300ms cubic-bezier(0.3, 1.32, 0.5, 1) var(--delay) both;
+}
+
+@keyframes stickerIn {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/*
+ * 待っていることを言う文字。
+ *
+ * 場所は最初から取っておく。文字が入ってから場所を作ると、題字が押し上げられる。
+ * 間が長くなったときだけ入るので、入る瞬間だけ静かに現れる。
+ */
+.hint {
+  min-height: 1.7em;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(15px * var(--font-scale));
+  line-height: 1.7;
+  text-align: center;
+}
+
+.hintText {
+  animation: hintIn 320ms ease-out both;
+}
+
+@keyframes hintIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * 退場。
+ *
+ * 絵とシールだけが持ち上がって抜け、方眼の紙が残る。紙を切り替えないので、
+ * 続けて現れるフィードの本が、同じ机の上に置かれたように見える。
+ * ここで本を開かないのは、ノートを開く動作がフィードの表紙の見せ場だから。
+ */
+.leaving .mark {
+  animation: markOut 320ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
+}
+
+/* 抜けるあいだ、引く・貼る・息をするの動きは止める。残すと抜ける向きが鈍る。 */
+.leaving .rulePath,
+.leaving .stickerArt,
+.leaving .stickerFloat,
+.leaving .penBreath,
+.leaving .fill {
+  animation: none;
+}
+
+/* 止めた線と塗りは、消える前の姿のまま残す。 */
+.leaving .rulePath {
+  stroke-dashoffset: 0;
+}
+
+.leaving .fill {
+  opacity: 0.92;
+}
+
+/* クレヨンだけは、紙から離れる向きへもう一段持ち上げる。 */
+.leaving .pen {
+  animation: penOut 320ms cubic-bezier(0.4, 0, 0.7, 0.6) both;
+}
+
+@keyframes markOut {
+  to {
+    opacity: 0;
+    transform: translateY(-0.5em);
+  }
+}
+
+@keyframes penOut {
+  from {
+    left: calc(104% - 0.95em);
+    transform: rotate(-12deg) translateY(-0.12em);
+  }
+  to {
+    left: calc(110% - 0.95em);
+    transform: rotate(-30deg) translateY(-1.6em);
+  }
+}
+
+/* 画面がせまいほど、題字のまわりに空く余白もせまい。絵ごと小さく置く。 */
+@media (max-width: 359px) {
+  .mark {
+    font-size: 0.88em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .penArt,
+  .stickerArt {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .penArt g,
+  .stickerArt g {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * 動きを控える設定では、描き終えた一枚の絵として出す。
+   * 引く過程も貼る動きも持たない。退場も待たずに次の画面へ移るので、
+   * 抜けていく動きも持たせない。
+   */
+  .title,
+  .rulePath,
+  .pen,
+  .penBreath,
+  .stickerArt,
+  .stickerFloat,
+  .fill,
+  .hintText,
+  .leaving .mark,
+  .leaving .pen {
+    animation: none;
+  }
+
+  .rulePath {
+    stroke-dashoffset: 0;
+  }
+
+  .fill {
+    opacity: 0.92;
+  }
+
+  /* クレヨンは引き終えた位置へ置く。 */
+  .pen {
+    left: calc(104% - 0.95em);
+    transform: rotate(-12deg);
+  }
+}

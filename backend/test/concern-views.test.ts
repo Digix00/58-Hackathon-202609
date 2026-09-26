@@ -19,6 +19,7 @@ import { D1ConcernViewRepository } from "../src/infrastructure/database/d1-conce
 import {
   concerns,
   concernViews,
+  learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
@@ -28,6 +29,7 @@ import { ConcernViewHandler } from "../src/presentation/concern-view.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createSpeechDependencies } from "./support/speech-fixture";
 
 function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
@@ -48,6 +50,7 @@ function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
   return createApp({
     ...createConcernDependencies(),
     ...createSpeechDependencies(),
+    ...createHistoryDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     concernHandler: new ConcernHandler(
@@ -196,6 +199,14 @@ describe("POST /api/v1/concerns/:concernId/views", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].actorKey).not.toBe(lineUserId);
     expect(rows[0].viewedAt).toBe(firstBody.viewedAt);
+
+    const events = await drizzle(env.DB)
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe("view");
+    expect(events[0].userId).toBe(rows[0].actorKey);
   });
 
   it("keeps separate records for different actors", async () => {

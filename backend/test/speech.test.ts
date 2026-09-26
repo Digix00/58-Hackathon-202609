@@ -21,6 +21,7 @@ import {
   createWebmAudio,
 } from "./support/audio-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -55,6 +56,7 @@ function createTestApp(
 
   return createApp({
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     ...createUserDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,

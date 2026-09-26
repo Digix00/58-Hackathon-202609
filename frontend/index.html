@@ -3,8 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" href="/crayon-grain.svg" as="image" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>目安箱</title>
+    <style>
+      /*
+       * 起動直後の下地。
+       *
+       * JSが読み込まれるまでの数百msに白い画面を出さないため、アプリと同じ
+       * 温かい白の紙と約5mmの方眼を、ここで先に塗る。
+       *
+       * この段ではクレヨンの表現を使えない。#crayon-edge は React が置く定義で、
+       * /crayon-grain.svg はまだ取得が終わっていない。塗るのは色と方眼だけにする。
+       * 値は styles/tokens.css と NotebookBackground.module.css に合わせる。
+       *
+       * :empty で当てるのは、React が中身を描いた時点でこの指定を降ろすため。
+       * 起動の一瞬だけの下地であり、画面の見た目を二重に持たない。
+       */
+      html,
+      body {
+        margin: 0;
+        background: #fff6e4;
+      }
+
+      #root:empty {
+        width: min(100%, 430px);
+        min-height: 100svh;
+        margin: 0 auto;
+        background-color: #fffdf7;
+        background-image:
+          linear-gradient(to right, rgb(126 117 181 / 8%) 1px, transparent 1px),
+          linear-gradient(to bottom, rgb(126 117 181 / 8%) 1px, transparent 1px);
+        background-size: 19px 19px;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
