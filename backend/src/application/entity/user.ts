@@ -9,8 +9,12 @@ export const GENDERS = [
 ] as const;
 export type Gender = (typeof GENDERS)[number];
 
-export const DISPLAY_LANGUAGES = ["original", "jaHira", "en"] as const;
-export type DisplayLanguage = (typeof DISPLAY_LANGUAGES)[number];
+import {
+  DISPLAY_LANGUAGES,
+  type DisplayLanguage,
+} from "../../util/display-language";
+
+export { DISPLAY_LANGUAGES, type DisplayLanguage };
 
 export class DisplayLanguageValidationError extends Error {
   constructor(message: string) {

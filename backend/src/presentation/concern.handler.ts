@@ -12,16 +12,22 @@ import {
 } from "../application/entity/concern";
 import type { RankedConcernFeedItem } from "../application/entity/feed";
 import { REGION_CODES } from "../application/entity/region-code";
-import { getRegionName } from "../application/entity/region-name";
-import type { DisplayLanguage } from "../application/entity/user";
-import {
-  CONCERN_LANGUAGES,
-  type ConcernLanguage,
-  getConcernRepresentationState,
-  selectConcernText,
-} from "../application/shared/concern-representation";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
 import type { Bindings } from "../types";
+import {
+  getAgeGroupName,
+  getGenderName,
+  getRegionName,
+} from "../util/attribute-name";
+import {
+  getConcernRepresentationState,
+  selectConcernText,
+} from "../util/concern-text";
+import {
+  DISPLAY_LANGUAGES,
+  type DisplayLanguage,
+  resolveDisplayLanguage,
+} from "../util/display-language";
 import { decodeConcernCursor, encodeConcernCursor } from "./concern-cursor";
 
 // 構造（型・必須項目）の検証だけをここで行う。本文長さや属性値の妥当性といった
@@ -43,11 +49,11 @@ const listConcernQuery = z
     clusterId: z.string().min(1).optional(),
     gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
-    language: z.enum(CONCERN_LANGUAGES).default("original"),
+    language: z.enum(DISPLAY_LANGUAGES).optional(),
   })
   .strict();
 const concernLanguageQuery = z
-  .object({ language: z.enum(CONCERN_LANGUAGES).default("original") })
+  .object({ language: z.enum(DISPLAY_LANGUAGES).optional() })
   .strict();
 
 const factory = createFactory<{
@@ -202,8 +208,10 @@ export class ConcernHandler {
           toFeedResponse(
             item,
             true,
-            auth?.user?.displayLanguage ?? "original",
-            parsed.data.language,
+            resolveDisplayLanguage(
+              parsed.data.language,
+              auth?.user?.displayLanguage,
+            ),
           ),
         ),
         nextCursor,
@@ -224,8 +232,10 @@ export class ConcernHandler {
         toFeedResponse(
           concern,
           true,
-          auth?.user?.displayLanguage ?? "original",
-          parsed.data.language,
+          resolveDisplayLanguage(
+            parsed.data.language,
+            auth?.user?.displayLanguage,
+          ),
         ),
       ),
       nextCursor,
@@ -278,8 +288,10 @@ export class ConcernHandler {
       toFeedResponse(
         item,
         false,
-        c.var.auth?.user?.displayLanguage ?? "original",
-        parsed.data.language,
+        resolveDisplayLanguage(
+          parsed.data.language,
+          c.var.auth?.user?.displayLanguage,
+        ),
       ),
     );
   });
@@ -289,12 +301,7 @@ function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
   return {
     id: concern.id,
     body: concern.body,
-    attributes: {
-      ageGroup: concern.ageGroup ?? undefined,
-      gender: concern.gender ?? undefined,
-      regionCode: concern.regionCode ?? undefined,
-      regionName: getRegionName(concern.regionCode, displayLanguage),
-    },
+    attributes: toAttributesResponse(concern, displayLanguage),
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
     representations: { jaHira: null, en: null },
@@ -307,8 +314,7 @@ function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
-  displayLanguage: DisplayLanguage,
-  language: ConcernLanguage = "original",
+  language: DisplayLanguage,
 ) {
   const candidate = isFeedItem(source)
     ? source
@@ -330,12 +336,7 @@ function toFeedResponse(
     id: concern.id,
     body: selectedText.body,
     language: selectedText.language,
-    attributes: {
-      ageGroup: concern.ageGroup ?? undefined,
-      gender: concern.gender ?? undefined,
-      regionCode: concern.regionCode ?? undefined,
-      regionName: getRegionName(concern.regionCode, displayLanguage),
-    },
+    attributes: toAttributesResponse(concern, language),
     representations: {
       jaHira: getConcernRepresentationState(
         concern.representations,
@@ -369,6 +370,21 @@ function toFeedResponse(
         }
       : {}),
     createdAt: concern.createdAt,
+  };
+}
+
+/** 属性コードに、表示形式に合わせたマスタ上の名称を添える。 */
+function toAttributesResponse(
+  concern: Concern,
+  displayLanguage: DisplayLanguage,
+) {
+  return {
+    ageGroup: concern.ageGroup ?? undefined,
+    ageGroupName: getAgeGroupName(concern.ageGroup, displayLanguage),
+    gender: concern.gender ?? undefined,
+    genderName: getGenderName(concern.gender, displayLanguage),
+    regionCode: concern.regionCode ?? undefined,
+    regionName: getRegionName(concern.regionCode, displayLanguage),
   };
 }
 

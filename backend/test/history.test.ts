@@ -427,13 +427,13 @@ describe("learning history routes", () => {
       nextSuggestion: { kind: "theme", label: "まだ出会っていないテーマ" },
       clusters: [{ label: "仕事と生活", count: 2 }],
       regions: [
-        { regionCode: "osaka", count: 1 },
-        { regionCode: "shizuoka", count: 1 },
-        { regionCode: "tokyo", count: 1 },
+        { regionCode: "osaka", regionName: "大阪府", count: 1 },
+        { regionCode: "shizuoka", regionName: "静岡県", count: 1 },
+        { regionCode: "tokyo", regionName: "東京都", count: 1 },
       ],
       attributes: {
-        ageGroups: [{ ageGroup: "20s", count: 1 }],
-        genders: [{ gender: "female", count: 1 }],
+        ageGroups: [{ ageGroup: "20s", ageGroupName: "20代", count: 1 }],
+        genders: [{ gender: "female", genderName: "女性", count: 1 }],
       },
       quiz: {
         answeredCount: 3,
@@ -462,6 +462,28 @@ describe("learning history routes", () => {
     expect(regionSuggestion.nextSuggestion).toEqual({
       kind: "region",
       regionCode: "hyogo",
+      regionName: "兵庫県",
+    });
+
+    const englishSummaryResponse = await app.request(
+      "/api/v1/history/summary?language=en",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(englishSummaryResponse.status).toBe(200);
+    expect(await englishSummaryResponse.json()).toMatchObject({
+      nextSuggestion: {
+        kind: "region",
+        regionCode: "hyogo",
+        regionName: "Hyogo",
+      },
+      regions: expect.arrayContaining([
+        { regionCode: "osaka", regionName: "Osaka", count: 1 },
+      ]),
+      attributes: {
+        ageGroups: [{ ageGroup: "20s", ageGroupName: "20s", count: 1 }],
+        genders: [{ gender: "female", genderName: "Female", count: 1 }],
+      },
     });
 
     await db.insert(concernViews).values({
