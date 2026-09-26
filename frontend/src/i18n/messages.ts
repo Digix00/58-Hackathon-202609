@@ -1,6 +1,6 @@
 /** UIだけの辞書。属性のキー・地域マスター・投稿本文は既存のAPIと表示処理を使う。 */
 export const messages = {
-  'app.name': ['目安箱', 'Voice Notebook'],
+  'app.name': ['Qiite', 'Qiite'],
   'nav.quiz': ['クイズ', 'Quiz'],
   'nav.post': ['投稿', 'Write'],
   'nav.read': ['読む', 'Read'],

@@ -153,20 +153,21 @@
  * 表紙だけ字づかいが違うと、ここだけ別のアプリの画面に見える。
  * 表紙の題字なので、大きさと字間だけを見出しより広く取る。
  */
+/*
+ * 表紙の題字。
+ *
+ * 書体で組まず、クレヨンで書いた題字（shared/components/QiiteLogo）を置く。
+ * 波線は題字が自分で持っているので、ここで下線を引き直さない。
+ * 大きさは幅で決め、文字サイズの設定と紙の幅の小さいほうに合わせる。
+ */
 .coverTitle {
   position: relative;
   z-index: 1;
   align-self: end;
+  width: min(100%, calc(196px * var(--font-scale)));
   margin: 0;
-  color: var(--color-purple-ink);
-  font-size: calc(27px * var(--font-scale));
-  font-family: var(--font-hand);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  line-height: 1.5;
-  text-shadow: 0.035em 0.045em 0 #e8dcb9;
-  text-decoration: underline wavy var(--color-underline) 2px;
-  text-underline-offset: 0.2em;
+  /* 紙に落ちるクレヨンの影。向きと色は本文の題字と同じにそろえる。 */
+  filter: drop-shadow(1px 1.3px 0 #e8dcb9);
   transform: rotate(-1.4deg);
 }
 

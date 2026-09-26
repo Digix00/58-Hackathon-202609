@@ -16,6 +16,7 @@ import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
+import { QiiteLogo } from '../../shared/components/QiiteLogo'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
@@ -250,7 +251,7 @@ function FeedCover() {
     <article className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.cover}`}>
       <NotebookBinding part="holes" />
       <CoverArt />
-      <p className={styles.coverTitle}>{t('app.name')}</p>
+      <QiiteLogo className={styles.coverTitle} />
       <p className={styles.coverLead}>
         {t('feed.coverLead')}
         <br />

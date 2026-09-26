@@ -2,7 +2,8 @@ import type { MessageKey } from './messages'
 
 /** 固定文言だけを手書きで用意する。利用者の入力やAPIの原文は変換しない。 */
 export const hiraganaMessages = {
-  'app.name': 'めやすばこ',
+  /* 名前は読み替えない。ひらがな表示でも、アプリの名前は Qiite のまま出す。 */
+  'app.name': 'Qiite',
   'nav.quiz': 'くいず',
   'nav.post': 'とうこう',
   'nav.read': 'よむ',

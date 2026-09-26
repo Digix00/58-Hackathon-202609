@@ -1,6 +1,6 @@
-# 目安箱 API仕様
+# Qiite API仕様
 
-WebブラウザとLINEミニアプリ（LIFF）から利用する、目安箱の HTTP API 契約を定義する。
+WebブラウザとLINEミニアプリ（LIFF）から利用する、Qiite の HTTP API 契約を定義する。
 本書では、実装時に判断が分かれないよう、認証主体、入力値、レスポンス、状態遷移、重複操作、LINE連携の責務を固定する。
 
 本書は [プロダクト要件](../requirements/product.md) の API 境界を定義する文書であり、次の方針を前提とする。
