@@ -257,8 +257,9 @@
    */
   align-self: stretch;
   display: grid;
-  /* 本文は罫線の1行目から書きはじめる。中央に寄せると、文字の行が罫線のピッチから外れる。 */
+  /* 本文は罫線の2行目から書きはじめる。1行分空けて、文字と罫線のピッチを揃える。 */
   align-content: start;
+  padding-block-start: var(--story-line-height);
   isolation: isolate;
   color: inherit;
   text-decoration: none;
