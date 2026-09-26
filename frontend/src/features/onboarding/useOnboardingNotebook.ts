@@ -283,6 +283,8 @@ export function useOnboardingNotebook() {
     facePage,
     currentPage,
     opened,
+    /** 表紙を開きはじめたか。押し上げの時点から、本のまわりの飾りを動かす。 */
+    opening,
     turning,
     saving: status === 'saving',
     error,

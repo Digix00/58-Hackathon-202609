@@ -37,12 +37,21 @@
 /*
  * 紙束。「まだ先がある」ことを、残り枚数の数字ではなく
  * 下に控えた紙のふちで伝える。
+ *
+ * 表紙のあいだは少し小さく置き、開くときに本そのものが広がる。
+ * フィードの本と同じ手つきにそろえる。まわりに敷いたシールが見えるのも、
+ * 本が小さいあいだだけ。広がると紙の下へ入り、散って消える。
  */
 .stackMotion {
   width: 100%;
   min-width: 0;
-  transform: translateY(var(--lift, 0px));
+  transform: translateY(var(--lift, 0px)) scale(var(--stack-scale, 0.84));
+  transform-origin: center;
   transition: transform var(--lift-duration, 760ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.stackMotion.stackOpening {
+  --stack-scale: 1;
 }
 
 .stack {
@@ -111,10 +120,10 @@
   gap: clamp(0.7em, 1.8vh, 1em);
   /*
    * どの問いでも紙の大きさは変えない。めくる手応えを一定に保つため。
-   * 高さではなく下限にしておくのは、文字を大きくしたときに、
-   * 問いや選択肢を縮めず、紙のほうを伸ばして収めるため。
+   * 問いの内容で紙が伸び縮みすると、めくるたびに本の大きさが変わって見える。
+   * 文字を大きくしたときも、この高さの中で収まるように内容を組む。
    */
-  min-height: clamp(24em, 62vh, 36em);
+  height: clamp(24em, 62vh, 36em);
   /* 左はとじ代。リングの上に文字が乗らないよう、ふちより奥から書き始める。 */
   padding: clamp(1.55em, 5.5vw, 2em) clamp(1.55em, 7vw, 2em) clamp(1.55em, 5.5vw, 2em)
     calc(clamp(1.55em, 7vw, 2em) + 15px);
@@ -279,7 +288,8 @@
 /* 選択肢。しおりを1枚選ぶ形にして、選んだ手でそのまま紙がめくれる。 */
 .choices {
   display: grid;
-  gap: 0.6em;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75em;
   margin-top: 0.4em;
 }
 
@@ -295,7 +305,7 @@
   font: inherit;
   font-size: calc(16px * var(--font-scale));
   font-weight: 700;
-  text-align: start;
+  text-align: center;
   cursor: pointer;
   transform: rotate(var(--slip-tilt, 0deg));
   transition:
@@ -387,6 +397,35 @@
   min-height: 6.8em;
 }
 
+/*
+ * 表紙をひらく操作。ほかの紙の「つぎへ」と同じ紙のボタンにするが、
+ * 矢印だけがときどき先へ進む。本も操作も止まったままだと、
+ * 開けることに気づかれないまま表紙で止まる。
+ */
+.coverButton {
+  gap: 0.8em;
+  font-size: calc(16px * var(--font-scale));
+}
+
+.coverButton span {
+  font-size: calc(18px * var(--font-scale));
+  animation: nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%,
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  88% {
+    transform: translateX(1px);
+  }
+}
+
 .submitError {
   margin: 0;
   color: #9b333a;
@@ -424,5 +463,9 @@
   .stackMotion,
   .choice {
     transition: none;
+  }
+
+  .coverButton span {
+    animation: none;
   }
 }

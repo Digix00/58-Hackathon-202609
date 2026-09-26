@@ -4,6 +4,7 @@ import { LoginGuide, OpenInLiffGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { useAuth } from '../../auth/useAuth'
 import { LoadingState } from '../../shared/components/AsyncStates'
+import { CoverStickers } from '../../shared/components/CoverStickers'
 import { NumberInputField, SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
@@ -296,6 +297,8 @@ type OnboardingStackProps = Omit<SheetProps, 'page' | 'index' | 'dragX'> & {
   facePage: OnboardingPageName
   faceIndex: number
   opened: boolean
+  /** 表紙を開きはじめたか。押し上げの時点から、本が広がりシールが散る。 */
+  opening: boolean
   turning: OnboardingTurn | null
   dragX: number
   stackRef: RefObject<HTMLDivElement | null>
@@ -306,6 +309,7 @@ function OnboardingStack({
   facePage,
   faceIndex,
   opened,
+  opening,
   turning,
   dragX,
   stackRef,
@@ -313,8 +317,15 @@ function OnboardingStack({
   ...sheetProps
 }: OnboardingStackProps) {
   return (
-    <div ref={stackRef} className={styles.stackMotion}>
+    <div ref={stackRef} className={`${styles.stackMotion} ${opening ? styles.stackOpening : ''}`}>
       <div className={styles.stack} style={notebookBindingStyle}>
+        {/*
+         * 本の下に敷いたシール。大きい1枚は紙の下へ潜り込み、はみ出した側だけが見える。
+         * 紙より先に置くのは、そうしないと紙の上に貼られて問いより前に出るため。
+         * 紙束の中に置くので、表紙が開くときは本と一緒に大きくなる。
+         * 表紙をめくりはじめたら、散り終えたまま外す。
+         */}
+        {!opened ? <CoverStickers scattering={opening} /> : null}
         <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
         <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
         {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
@@ -337,9 +348,7 @@ function OnboardingStack({
             variant={turning.page === 'cover' ? 'cover' : 'page'}
             startAngle={turning.startAngle}
             direction={turning.direction}
-            backColor={
-              turning.page === 'cover' ? COVER_BACK_COLOR : PAGE_BACK_COLOR
-            }
+            backColor={turning.page === 'cover' ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
             onFinish={onTurningFinished}
           >
             {/*
@@ -385,7 +394,11 @@ function OnboardingActions({
   return (
     <div className={styles.actions}>
       {page === 'cover' ? (
-        <button type="button" className={actionStyles.primary} onClick={onNext}>
+        <button
+          type="button"
+          className={`${actionStyles.primary} ${styles.coverButton}`}
+          onClick={onNext}
+        >
           ひらいてみる <span aria-hidden="true">→</span>
         </button>
       ) : null}
@@ -435,6 +448,7 @@ export function OnboardingPage() {
     facePage,
     currentPage,
     opened,
+    opening,
     turning,
     saving,
     error,
@@ -476,6 +490,7 @@ export function OnboardingPage() {
           facePage={facePage}
           faceIndex={index}
           opened={opened}
+          opening={opening}
           turning={turning}
           dragX={swipe.dragX}
           stackRef={stackRef}

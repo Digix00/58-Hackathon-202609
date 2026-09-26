@@ -19,12 +19,23 @@
  * 横のスワイプだけを受け取り、縦スクロールは端末にまかせる。
  */
 .stage {
+  position: relative;
+  z-index: 2;
   display: grid;
   align-content: center;
   min-width: 0;
   min-height: 0;
   padding-block: clamp(0.75em, 2.5vh, 1.4em);
   touch-action: pan-y;
+}
+
+/* そっと寄りそうは、めくる操作とは分けて、読んだ紙の下側に置く。 */
+.cardActions {
+  display: grid;
+  justify-items: center;
+  gap: 0.55em;
+  width: 100%;
+  padding-inline: 8px;
 }
 
 /*
@@ -512,6 +523,8 @@
 }
 
 .actions {
+  position: relative;
+  z-index: 1;
   display: grid;
   justify-items: center;
   gap: 0.55em;

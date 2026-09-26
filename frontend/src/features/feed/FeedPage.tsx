@@ -12,6 +12,7 @@ import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
+import { CoverStickers } from '../../shared/components/CoverStickers'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
@@ -23,7 +24,6 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { useConcernViewOnDisplay } from '../concern-detail/useConcernViewOnDisplay'
 import { CoverArt } from './CoverArt'
-import { CoverStickers } from './CoverStickers'
 import { resolveFeedContext } from './feedContext'
 import {
   ALL,
@@ -98,19 +98,21 @@ function FeedTabs({ concern, showTabs }: { concern: FeedConcern; showTabs: boole
   )
 }
 
+type FeedReactionProps = {
+  canReact: boolean
+  reactionCount: number
+  reacted: boolean
+  submitting: boolean
+  onReact?: () => boolean
+}
+
 function FeedReaction({
   canReact,
   reactionCount,
   reacted,
   submitting,
   onReact,
-}: {
-  canReact: boolean
-  reactionCount: number
-  reacted: boolean
-  submitting: boolean
-  onReact?: () => boolean
-}) {
+}: FeedReactionProps) {
   const [sparked, setSparked] = useState(false)
 
   if (!canReact) return null
@@ -162,6 +164,8 @@ function FeedCard({
   dragX = 0,
   onLinkClick,
   showTabs = true,
+  reaction,
+  reactionError,
 }: {
   concern: FeedConcern
   page: number
@@ -172,6 +176,8 @@ function FeedCard({
   onLinkClick?: (event: MouseEvent) => void
   /** 表紙の下に控えているあいだは、上辺のインデックスを出さない。中身の先出しになる。 */
   showTabs?: boolean
+  reaction?: FeedReactionProps | null
+  reactionError?: string | null
 }) {
   const palette = paletteForPage(page)
 
@@ -202,6 +208,16 @@ function FeedCard({
       >
         <p className={screen.body}>{concern.body}</p>
       </Link>
+      {reaction?.canReact ? (
+        <div className={styles.cardActions}>
+          <FeedReaction {...reaction} />
+          {reactionError ? (
+            <p className={styles.submitError} role="alert">
+              {reactionError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
       <FeedNextCorner onNext={onNext} />
     </article>
@@ -246,6 +262,8 @@ type FeedStackProps = {
   onNext: () => void
   onLinkClick: (event: MouseEvent) => void
   onTurningFinished: () => void
+  reaction: FeedReactionProps | null
+  reactionError: string | null
 }
 
 function FeedStack({
@@ -261,6 +279,8 @@ function FeedStack({
   onNext,
   onLinkClick,
   onTurningFinished,
+  reaction,
+  reactionError,
 }: FeedStackProps) {
   return (
     <div
@@ -297,9 +317,7 @@ function FeedStack({
             variant={turning.kind === 'cover' ? 'cover' : 'page'}
             startAngle={turning.startAngle}
             direction={turning.kind === 'concern' ? turning.direction : 1}
-            backColor={
-              turning.kind === 'concern' ? PAGE_BACK_COLOR : COVER_BACK_COLOR
-            }
+            backColor={turning.kind === 'concern' ? PAGE_BACK_COLOR : COVER_BACK_COLOR}
             onFinish={onTurningFinished}
           >
             {turning.kind === 'concern' ? (
@@ -322,6 +340,8 @@ function FeedStack({
               articleRef={articleRef}
               dragX={dragX}
               onLinkClick={onLinkClick}
+              reaction={reaction}
+              reactionError={reactionError}
             />
           </div>
         ) : (
@@ -390,22 +410,12 @@ function FeedStage({
 type FeedActionsProps = {
   showLogin: boolean
   concern: FeedConcern | undefined
-  canReact: boolean
-  /** 表紙を開きはじめたか。表紙を開く操作を表示し終えた状態。 */
-  coverOpening: boolean
   filtersOpen: boolean
   activeFilter: string
   filter: FeedFilter
   genderOptions: FeedFilterOption[]
   regionOptions: FeedFilterOption[]
   onNext: () => void
-  reactionCount: number
-  reacted: boolean
-  reactionSubmitting: boolean
-  reactionError: string | null
-  isAuthenticated: boolean
-  onShowLogin: () => void
-  onReact: () => Promise<void>
   onFiltersToggle: (open: boolean) => void
   onFilterChange: (field: keyof FeedFilter, value: string) => void
 }
@@ -413,52 +423,19 @@ type FeedActionsProps = {
 function FeedActions({
   showLogin,
   concern,
-  canReact,
-  coverOpening,
   filtersOpen,
   activeFilter,
   filter,
   genderOptions,
   regionOptions,
   onNext,
-  reactionCount,
-  reacted,
-  reactionSubmitting,
-  reactionError,
-  isAuthenticated,
-  onShowLogin,
-  onReact,
   onFiltersToggle,
   onFilterChange,
 }: FeedActionsProps) {
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {concern && coverOpening ? (
-        <>
-          <FeedReaction
-            canReact={canReact}
-            reactionCount={reactionCount}
-            reacted={reacted}
-            submitting={reactionSubmitting}
-            onReact={() => {
-              if (!isAuthenticated) {
-                onShowLogin()
-                return false
-              }
-              if (!concern) return false
-              void onReact()
-              return true
-            }}
-          />
-          {reactionError ? (
-            <p className={styles.submitError} role="alert">
-              {reactionError}
-            </p>
-          ) : null}
-        </>
-      ) : null}
-      {concern && !coverOpening ? (
+      {concern ? (
         <div className={styles.coverOpenSlot}>
           <button
             type="button"
@@ -619,25 +596,34 @@ export function FeedPage() {
     onTouchMove: swipe.handleTouchMove,
     onTouchEnd: swipe.handleTouchEnd,
     onTouchCancel: swipe.handleTouchCancel,
+    reaction:
+      coverOpened && feedContext.isLiff
+        ? {
+            canReact: true,
+            reactionCount: reaction.reactionCount,
+            reacted: reaction.reacted,
+            submitting: reaction.status === 'submitting',
+            onReact: () => {
+              if (authStatus !== 'authenticated') {
+                onLoginVisibilityChange(true)
+                return false
+              }
+              void reaction.react()
+              return true
+            },
+          }
+        : null,
+    reactionError: reaction.error,
   }
   const actionsProps: FeedActionsProps = {
     showLogin,
     concern,
-    canReact: feedContext.isLiff,
-    coverOpening,
     filtersOpen,
     activeFilter,
     filter,
     genderOptions,
     regionOptions,
     onNext: goNext,
-    reactionCount: reaction.reactionCount,
-    reacted: reaction.reacted,
-    reactionSubmitting: reaction.status === 'submitting',
-    reactionError: reaction.error,
-    isAuthenticated: authStatus === 'authenticated',
-    onShowLogin: () => onLoginVisibilityChange(true),
-    onReact: reaction.react,
     onFiltersToggle,
     onFilterChange,
   }
