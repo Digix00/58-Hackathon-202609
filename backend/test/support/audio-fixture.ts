@@ -188,6 +188,8 @@ export function createMp4Audio(
   stszSampleCountOverride?: number,
   tableEntryCountOverrides: Record<string, number> = {},
   sampleGroupDescription?: Mp4SampleGroupDescriptionOptions,
+  sampleDescriptionCount = 1,
+  sampleDescriptionIndex = 1,
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -285,8 +287,8 @@ export function createMp4Audio(
     "stsd",
     concat(
       new Uint8Array(4),
-      u32be(tableEntryCountOverrides.stsd ?? 1),
-      audioSampleEntry,
+      u32be(tableEntryCountOverrides.stsd ?? sampleDescriptionCount),
+      ...Array.from({ length: sampleDescriptionCount }, () => audioSampleEntry),
     ),
   );
   const timeToSample = atom(
@@ -305,7 +307,7 @@ export function createMp4Audio(
       u32be(tableEntryCountOverrides.stsc ?? 1),
       u32be(1),
       u32be(sampleCount),
-      u32be(1),
+      u32be(sampleDescriptionIndex),
     ),
   );
   const compositionOffsets = atom(

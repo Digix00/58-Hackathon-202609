@@ -104,6 +104,14 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     );
   });
 
+  it("rejects MP4 audio that switches between sample descriptions", async () => {
+    const audio = createMp4Audio(1, 1, undefined, {}, undefined, 2, 2);
+
+    await expect(reader.getDurationSeconds(audio, "audio/mp4")).rejects.toThrow(
+      "MP4 audio track must contain exactly one sample description",
+    );
+  });
+
   it.each([
     [
       "version 1 fixed-length entries",

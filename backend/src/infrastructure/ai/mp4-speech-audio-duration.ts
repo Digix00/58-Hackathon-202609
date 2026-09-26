@@ -81,6 +81,13 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
         failInvalid("MP4 must use AAC-LC audio");
         return;
       }
+      const audioTrackData = file.getTrackById(audioTrack.id);
+      if (audioTrackData.mdia.minf.stbl.stsd.entries.length !== 1) {
+        failInvalid(
+          "MP4 audio track must contain exactly one sample description",
+        );
+        return;
+      }
       sampleRate = audioTrack.audio.sample_rate;
       if (
         !Number.isFinite(sampleRate) ||
@@ -104,6 +111,10 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
         }
 
         for (const sample of samples) {
+          if (sample.description_index !== 0) {
+            failInvalid("MP4 audio sample uses an unsupported description");
+            return;
+          }
           if (
             sample.size <= 0 ||
             !sample.data ||
