@@ -437,6 +437,7 @@ LIMIT ?
 
 - 既読は認証済みセッションの users.id を actor_key として concern_views に記録する。同じ投稿の再閲覧では viewed_at を維持する。
 - リアクションは INSERT ... ON CONFLICT DO NOTHING を使う。
+- リアクション解除は認証済みセッションの users.id に一致する行だけを削除し、対応する reaction の learning_events も削除する。
 - 集計数は concern_reactions の concern_id 件数から求める。必要になった場合だけ concerns に集計キャッシュを追加する。
 
 ### 推薦

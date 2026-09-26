@@ -117,9 +117,9 @@ function FeedReaction({
         sparked ? styles.sparked : ''
       }`}
       onClick={() => {
-        if (onReact?.()) setSparked(true)
+        if (onReact?.()) setSparked(!reacted)
       }}
-      disabled={reacted || submitting}
+      disabled={submitting}
       aria-pressed={reacted}
       aria-busy={submitting}
     >
@@ -128,7 +128,7 @@ function FeedReaction({
         {sparked ? <ReactionSpark /> : null}
       </span>
       <span className={styles.label}>
-        {reacted ? t('reaction.supportedShort') : t('reaction.support')}
+        {reacted ? t('reaction.remove') : t('reaction.support')}
       </span>
       <span className={styles.count} aria-label={t('reaction.count', { count: reactionCount })}>
         {reactionCount}
@@ -587,7 +587,7 @@ export function FeedPage() {
                 onLoginVisibilityChange(true)
                 return false
               }
-              void reaction.react()
+              void reaction.toggle()
               return true
             },
           }
@@ -621,7 +621,11 @@ export function FeedPage() {
       paginationError={readerView.feedError}
       onRetry={readerView.retry}
       reactionAnnouncement={
-        reaction.reacted ? t('reaction.announcementFull', { count: reaction.reactionCount }) : ''
+        reaction.reacted
+          ? t('reaction.announcementFull', { count: reaction.reactionCount })
+          : reaction.status === 'succeeded'
+            ? t('reaction.removedAnnouncement', { count: reaction.reactionCount })
+            : ''
       }
     />
   )

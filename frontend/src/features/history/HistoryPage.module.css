@@ -1,0 +1,386 @@
+/*
+ * 履歴は、ノートの後ろに綴じた索引のページとして扱う。
+ * 3枚の付箋で見出しを選び、選んだ面だけを1枚の紙に出す。
+ * 声そのものは抜粋にとどめ、読み返しは投稿詳細へ渡す。
+ */
+
+.notebook {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+/* 見出しの付箋。紙の上辺に貼り込み、選んだ1枚だけを持ち上げる。 */
+.tabs {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4em;
+  padding-inline: 0.35em;
+  margin-bottom: -0.5em;
+}
+
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.5em 0.3em 0.95em;
+  border: 2.5px solid var(--color-outline);
+  border-bottom: 0;
+  border-radius: 12px 14px 0 0 / 15px 12px 0 0;
+  color: var(--color-purple-ink);
+  background: #f5dca3;
+  font: inherit;
+  font-family: var(--font-hand);
+  font-size: calc(15px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  filter: saturate(0.8) brightness(0.99);
+  transform: translateY(0.3em) rotate(-0.7deg);
+  transition:
+    transform 160ms ease,
+    filter 160ms ease;
+}
+
+.tab:nth-child(2) {
+  background: #c8e3da;
+  transform: translateY(0.3em) rotate(0.5deg);
+}
+
+.tab:nth-child(3) {
+  background: #f3c9b8;
+  transform: translateY(0.3em) rotate(-0.3deg);
+}
+
+/* 選択は位置・太い波線・aria-selected で示し、色だけに頼らない。 */
+.tab[aria-selected='true'] {
+  filter: none;
+  text-decoration: underline wavy var(--color-underline) 2px;
+  text-underline-offset: 0.2em;
+  transform: translateY(0) rotate(0deg);
+}
+
+.tab:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 3px;
+}
+
+.sheet {
+  position: relative;
+  z-index: 1;
+}
+
+.panel {
+  display: grid;
+  min-width: 0;
+  gap: 0.9em;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-purple-ink);
+  font-family: var(--font-hand);
+  font-size: calc(16px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.block {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 0.55em;
+  padding-top: 0.95em;
+}
+
+/* 区切りは直線の罫線ではなく、輪郭と同じクレヨン風の線にする。 */
+.panel > .block::before,
+.panel > .fold::before {
+  position: absolute;
+  inset: 0 0 auto;
+  border-top: 2.5px solid #a9a093;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.6;
+  pointer-events: none;
+  content: '';
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-hand);
+  font-size: calc(15.5px * var(--font-scale));
+  font-weight: 700;
+}
+
+.sentence {
+  margin: 0;
+  line-height: 1.75;
+}
+
+/* 記録の欄。数字を4つ並べ、カードやグラフには分けない。 */
+.tallies {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tally {
+  display: grid;
+  gap: 0.1em;
+  padding: 0.6em 0.3em;
+  justify-items: center;
+}
+
+.tally:nth-child(odd) {
+  border-right: 2px dashed #e5dac0;
+}
+
+.tally:nth-child(-n + 2) {
+  border-bottom: 2px dashed #e5dac0;
+}
+
+.tallyValue {
+  color: var(--color-purple-ink);
+  font-family: var(--font-hand);
+  font-size: calc(30px * var(--font-scale));
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tallyLabel {
+  color: var(--color-muted);
+  font-size: calc(13px * var(--font-scale));
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 出会ったテーマ・地域のしおり。押せる要素ではなく記録の札として置く。 */
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  padding: 0.35em 0.65em;
+  border-radius: 6px 10px 5px 9px;
+  color: var(--color-ink);
+  background: #f3e8b7;
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.mark:nth-child(3n + 2) {
+  background: #d6e9e1;
+}
+
+.mark:nth-child(3n) {
+  background: #e4dbf6;
+}
+
+.markCount {
+  color: var(--color-subtle);
+  font-size: calc(12.5px * var(--font-scale));
+  font-weight: var(--font-weight-regular);
+}
+
+.records {
+  display: grid;
+  gap: 0.4em;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  justify-content: space-between;
+  padding: 0.6em 0.8em;
+  border-radius: 10px 8px 11px 9px;
+  background: #f8f2e7;
+}
+
+.recordScore {
+  color: var(--color-purple-ink);
+  font-weight: 700;
+}
+
+.fold {
+  position: relative;
+  min-width: 0;
+  padding-top: 0.95em;
+}
+
+.fold > summary {
+  display: list-item;
+  min-height: 44px;
+  padding: 0.45em 0;
+  color: #514c82;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fold > summary:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 2px;
+}
+
+.foldBody {
+  display: grid;
+  gap: 0.7em;
+  padding-bottom: 0.3em;
+}
+
+/* 声の索引。1件ずつ小さな紙片にし、フィードのように読ませない。 */
+.voices {
+  display: grid;
+  gap: 0.8em;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.voice {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 0.5em;
+  padding: 0.85em 0.95em;
+  border: 2px solid #ded2b8;
+  border-radius: 14px 12px 15px 11px / 12px 15px 11px 14px;
+  background: var(--color-paper-strip);
+  box-shadow: 3px 4px 0 #f1e3c6;
+}
+
+.voiceTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  margin: 0;
+}
+
+.themeMark {
+  padding: 0.28em 0.6em;
+  border-radius: 5px 9px 4px 8px;
+  color: var(--color-purple-ink);
+  background: #e4dbf6;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.tag {
+  padding: 0.28em 0.55em;
+  border-radius: 4px 8px 3px 7px;
+  color: var(--color-muted);
+  background: #f1e7cf;
+  font-size: calc(12.5px * var(--font-scale));
+}
+
+.voiceLink {
+  display: grid;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+/* 紙片のどこを押しても、その声を開ける。 */
+.voiceLink::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: '';
+}
+
+.voice:has(.voiceLink:focus-visible) {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 3px;
+}
+
+/* 抜粋は3行まで。続きは投稿詳細で読む。 */
+.voiceBody {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: calc(16px * var(--font-scale));
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.voiceOpen {
+  margin-inline-start: auto;
+  color: #514c82;
+  font-size: calc(13.5px * var(--font-scale));
+  font-weight: 700;
+  text-decoration: underline wavy var(--color-underline) 1px;
+  text-underline-offset: 5px;
+}
+
+.voiceMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em 0.8em;
+  align-items: baseline;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(13px * var(--font-scale));
+}
+
+.voiceSupport {
+  color: var(--color-purple-ink);
+  font-weight: 700;
+}
+
+.voiceNote {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 700;
+}
+
+.empty {
+  display: grid;
+  gap: 0.7em;
+  justify-items: start;
+}
+
+.error {
+  margin: 0;
+  color: #9b333a;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .panel > .block::before,
+  .panel > .fold::before {
+    filter: none;
+    opacity: 1;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

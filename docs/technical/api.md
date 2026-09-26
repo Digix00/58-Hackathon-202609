@@ -260,6 +260,7 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
 | GET | /api/v1/concerns/:concernId | MVP | 不要（閲覧のみ） | 悩み詳細 |
 | POST | /api/v1/concerns/:concernId/reactions | MVP | LINEログイン（LIFF内のみ） | リアクション登録 |
+| DELETE | /api/v1/concerns/:concernId/reactions | MVP | LINEログイン（LIFF内のみ） | 本人のリアクション解除 |
 | POST | /api/v1/concerns/:concernId/views | MVP | LINEログイン（LIFF内のみ） | 既読登録 |
 | GET | /api/v1/clusters | デモ必須 | 不要（閲覧のみ） | 公開クラスタ一覧 |
 | GET | /api/v1/clusters/:clusterId/concerns | デモ必須 | 不要（閲覧のみ） | クラスタ内の悩み |
@@ -550,7 +551,28 @@ reasonCode の初期値は次のとおり。
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
-### 3.5 POST /api/v1/concerns/:concernId/views
+### 3.5 DELETE /api/v1/concerns/:concernId/reactions
+
+認証済みユーザー自身の `empathy` リアクションを解除する。リアクションが存在しない場合も成功として扱い、集計数は現在値を返す。
+
+#### Response: 200 OK
+
+~~~json
+{
+  "concernId": "550e8400-e29b-41d4-a716-446655440001",
+  "reactionType": "empathy",
+  "reactionCount": 12,
+  "reacted": false
+}
+~~~
+
+- hidden、deleted の悩み、存在しない concernId は 404 NOT_FOUND とする
+- LINEログイン済みセッションがない場合は 401 AUTHENTICATION_REQUIRED を返す
+- concern_reactions からは解決済みの認証主体の行だけを削除する
+- 解除したリアクションに対応する `learning_events` の reaction も削除する
+- 他ユーザーのリアクションは解除できない
+
+### 3.6 POST /api/v1/concerns/:concernId/views
 
 公開中の悩みをLINEログイン済みユーザーの既読として記録する。Request body は持たない。フロントエンドは本文の表示完了後に1回呼び出す。
 

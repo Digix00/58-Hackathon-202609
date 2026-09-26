@@ -120,7 +120,8 @@ export function useNotebookSwipe({
 
     // 水平に払った後の click が、本文リンクを開かないようにする。
     swiped.current = true
-    if (dx <= -SWIPE_THRESHOLD && canGoNext) onNext(notebookAngleForDrag(dx))
+    // 指に追従した角度はプレビューだけに使い、確定後はタップと同じ0度からめくる。
+    if (dx <= -SWIPE_THRESHOLD && canGoNext) onNext(0)
     else if (dx >= SWIPE_THRESHOLD && canGoPrevious) onPrevious()
   }
 
