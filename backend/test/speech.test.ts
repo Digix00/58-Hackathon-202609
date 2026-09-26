@@ -234,6 +234,30 @@ describe("POST /api/v1/speech/transcriptions", () => {
     expect(transcribe).toHaveBeenCalledOnce();
   });
 
+  it("accepts gapless MP3 audio at the 60-second duration limit", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [
+            createMp3Audio(60, false, {
+              encoderDelaySamples: 1_105,
+              encoderPaddingSamples: 191,
+            }),
+          ],
+          "voice.mp3",
+          { type: "audio/mpeg" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(transcribe).toHaveBeenCalledOnce();
+  });
+
   it("accepts WebM audio containing a one-byte Opus DTX packet", async () => {
     const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
     const app = createTestApp({ transcribe });
@@ -255,6 +279,42 @@ describe("POST /api/v1/speech/transcriptions", () => {
       language: "ja",
     });
     expect(transcribe).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an invalid Opus channel mapping before calling the recognizer", async () => {
+    const transcribe = vi.fn(async (_audio: ArrayBuffer) => "recognized");
+    const app = createTestApp({ transcribe });
+    const invalidOpusHead = Uint8Array.from([
+      ...new TextEncoder().encode("OpusHead"),
+      1,
+      3,
+      0,
+      0,
+      0x80,
+      0xbb,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ]);
+
+    const response = await postTranscription(
+      app,
+      createAudioForm({
+        audio: new File(
+          [createWebmAudio(1, 1, 0, undefined, { opusHead: invalidOpusHead })],
+          "invalid-opus.webm",
+          { type: "audio/webm" },
+        ),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(transcribe).not.toHaveBeenCalled();
   });
 
   it("rejects an oversized Opus frame before calling the recognizer", async () => {

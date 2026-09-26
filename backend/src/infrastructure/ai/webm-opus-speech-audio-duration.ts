@@ -89,6 +89,7 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
             ) {
               throw new TypeError("Invalid WebM Opus track configuration");
             }
+            validateOpusHeadChannelMapping(audio, opusHead);
             const codecDelay = findEbmlChild(audio, trackEntry, 0x56aa, budget);
             if (codecDelay) {
               codecDelayNs =
@@ -230,6 +231,50 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
     throw new SpeechAudioDurationLimitExceededError();
   }
   return duration;
+}
+
+function validateOpusHeadChannelMapping(
+  audio: Uint8Array,
+  opusHead: EbmlElement,
+): void {
+  const dataLength = opusHead.dataEnd - opusHead.dataStart;
+  const offset = opusHead.dataStart;
+  const channels = audio[offset + 9]!;
+  const mappingFamily = audio[offset + 18]!;
+
+  if (mappingFamily === 0) {
+    if (channels > 2) {
+      throw new TypeError("Invalid WebM Opus channel mapping");
+    }
+    return;
+  }
+
+  if (mappingFamily === 1 && channels > 8) {
+    throw new TypeError("Invalid WebM Opus channel mapping");
+  }
+
+  const mappingTableLength = 2 + channels;
+  if (dataLength < 19 + mappingTableLength) {
+    throw new TypeError("Invalid WebM Opus channel mapping");
+  }
+
+  const streamCount = audio[offset + 19]!;
+  const coupledCount = audio[offset + 20]!;
+  const decodedChannelCount = streamCount + coupledCount;
+  if (
+    streamCount === 0 ||
+    coupledCount > streamCount ||
+    decodedChannelCount > 255
+  ) {
+    throw new TypeError("Invalid WebM Opus channel mapping");
+  }
+
+  for (let channel = 0; channel < channels; channel += 1) {
+    const mapping = audio[offset + 21 + channel]!;
+    if (mapping !== 255 && mapping >= decodedChannelCount) {
+      throw new TypeError("Invalid WebM Opus channel mapping");
+    }
+  }
 }
 
 type EbmlElement = {

@@ -60,6 +60,58 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     ).rejects.toThrow("Invalid ID3 footer");
   });
 
+  it("subtracts validated Xing/LAME encoder delay and padding from MP3 duration", async () => {
+    const audio = createMp3Audio(60, false, {
+      encoderDelaySamples: 1_105,
+      encoderPaddingSamples: 191,
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/mpeg"),
+    ).resolves.toBeCloseTo(60, 6);
+  });
+
+  it.each([
+    ["an unrecognized encoder marker", { encoderTag: "FAKE3.100" }],
+    ["an out-of-range encoder delay", { encoderDelaySamples: 3_001 }],
+  ])("ignores %s when calculating MP3 duration", async (_name, metadata) => {
+    const audio = createMp3Audio(60, false, {
+      encoderDelaySamples: 1_105,
+      encoderPaddingSamples: 191,
+      ...metadata,
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/mpeg"),
+    ).resolves.toBeGreaterThan(60);
+  });
+
+  it("accepts a complete nonzero Opus channel mapping table", async () => {
+    const audio = createWebmAudio(1, 1, 0, undefined, {
+      opusHead: createOpusHead(2, 1, [1, 1, 0, 1]),
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).resolves.toBeCloseTo(1, 2);
+  });
+
+  it.each([
+    ["three-channel family 0", createOpusHead(3, 0)],
+    ["a family 1 header without its channel map", createOpusHead(2, 1, [1, 1])],
+    [
+      "a family 1 map with an out-of-range channel",
+      createOpusHead(2, 1, [1, 1, 0, 2]),
+    ],
+    ["a family 1 map with no streams", createOpusHead(2, 1, [0, 0, 0, 1])],
+  ])("rejects %s", async (_name, opusHead) => {
+    const audio = createWebmAudio(1, 1, 0, undefined, { opusHead });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toThrow("Invalid WebM Opus channel mapping");
+  });
+
   it("rejects WebM with more EBML elements than the parser budget", async () => {
     const audio = createWebmAudio(1, 1, MAX_WEBM_EBML_ELEMENT_VISITS + 1);
 
@@ -503,4 +555,26 @@ function opusPacket(header: number[], payloadLength: number): Uint8Array {
   const packet = new Uint8Array(header.length + payloadLength);
   packet.set(header);
   return packet;
+}
+
+function createOpusHead(
+  channels: number,
+  mappingFamily: number,
+  mappingTable: number[] = [],
+): Uint8Array {
+  return Uint8Array.from([
+    ...Array.from("OpusHead", (character) => character.charCodeAt(0)),
+    1,
+    channels,
+    0,
+    0,
+    0x80,
+    0xbb,
+    0,
+    0,
+    0,
+    0,
+    mappingFamily,
+    ...mappingTable,
+  ]);
 }

@@ -45,18 +45,45 @@ export function createWavAudio(
 export function createMp3Audio(
   durationSeconds: number,
   includeId3v24Footer = false,
+  gaplessMetadata?: {
+    encoderDelaySamples: number;
+    encoderPaddingSamples: number;
+    encoderTag?: string;
+  },
 ): Uint8Array {
   const frameLength = 417;
   const samplesPerFrame = 1_152;
   const sampleRate = 44_100;
+  const trimSamples =
+    (gaplessMetadata?.encoderDelaySamples ?? 0) +
+    (gaplessMetadata?.encoderPaddingSamples ?? 0);
   const frameCount = Math.ceil(
-    (durationSeconds * sampleRate) / samplesPerFrame,
+    (durationSeconds * sampleRate + trimSamples) / samplesPerFrame,
   );
   const audio = new Uint8Array(frameCount * frameLength);
   const frameHeader = Uint8Array.of(0xff, 0xfb, 0x90, 0x64);
 
   for (let frame = 0; frame < frameCount; frame += 1) {
     audio.set(frameHeader, frame * frameLength);
+  }
+
+  if (gaplessMetadata) {
+    const firstFrame = audio.subarray(0, frameLength);
+    const xingOffset = 4 + 32;
+    firstFrame.set(ascii("Xing"), xingOffset);
+    writeUint32BigEndian(firstFrame, xingOffset + 4, 0x0f);
+    let tagOffset = xingOffset + 8;
+    writeUint32BigEndian(firstFrame, tagOffset, frameCount);
+    tagOffset += 4;
+    writeUint32BigEndian(firstFrame, tagOffset, audio.byteLength);
+    tagOffset += 4 + 100 + 4;
+    firstFrame.set(ascii(gaplessMetadata.encoderTag ?? "LAME3.100"), tagOffset);
+    const delayOffset = tagOffset + 21;
+    firstFrame[delayOffset] = gaplessMetadata.encoderDelaySamples >> 4;
+    firstFrame[delayOffset + 1] =
+      ((gaplessMetadata.encoderDelaySamples & 0x0f) << 4) |
+      (gaplessMetadata.encoderPaddingSamples >> 8);
+    firstFrame[delayOffset + 2] = gaplessMetadata.encoderPaddingSamples & 0xff;
   }
 
   if (!includeId3v24Footer) {
@@ -85,6 +112,7 @@ export function createWebmAudio(
     codecDelayNs?: number;
     discardPaddingNs?: number;
     fixedLacingPacketsPerBlock?: number;
+    opusHead?: Uint8Array;
   } = {},
 ): Uint8Array {
   const packetCount = Math.ceil(durationSeconds / 0.02);
@@ -125,10 +153,11 @@ export function createWebmAudio(
       ),
       ebmlElement(
         [0x63, 0xa2],
-        concat(
-          ascii("OpusHead"),
-          Uint8Array.of(1, 1, 0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0),
-        ),
+        options.opusHead ??
+          concat(
+            ascii("OpusHead"),
+            Uint8Array.of(1, 1, 0, 0, 0x80, 0xbb, 0, 0, 0, 0, 0),
+          ),
       ),
       ...(options.codecDelayNs === undefined
         ? []
@@ -598,6 +627,17 @@ function writeAscii(view: DataView, offset: number, value: string): void {
   for (let index = 0; index < value.length; index += 1) {
     view.setUint8(offset + index, value.charCodeAt(index));
   }
+}
+
+function writeUint32BigEndian(
+  audio: Uint8Array,
+  offset: number,
+  value: number,
+): void {
+  audio[offset] = value >>> 24;
+  audio[offset + 1] = value >>> 16;
+  audio[offset + 2] = value >>> 8;
+  audio[offset + 3] = value;
 }
 
 function ascii(value: string): Uint8Array {
