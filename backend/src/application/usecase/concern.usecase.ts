@@ -222,7 +222,6 @@ export class ConcernUseCase implements IConcernUseCase {
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
-          excludeUserId: input.userId,
         });
         candidateWindow = mergeFeedCandidates(
           pendingCandidates,
@@ -241,6 +240,7 @@ export class ConcernUseCase implements IConcernUseCase {
         candidateWindow,
         history,
         recommendationCursor?.lastClusterId,
+        input.userId,
       );
       const items = ranked.slice(0, input.limit);
       const result = {
@@ -270,7 +270,6 @@ export class ConcernUseCase implements IConcernUseCase {
           regionCode: input.regionCode,
           clusterId: input.clusterId,
           userId: input.userId,
-          excludeUserId: input.userId,
         });
         const returnedIds = new Set(returnedConcernIds);
         fallbackCandidates = fallback.items.filter(
@@ -329,7 +328,6 @@ export class ConcernUseCase implements IConcernUseCase {
       regionCode: input.regionCode,
       clusterId: input.clusterId,
       userId: input.userId,
-      excludeUserId: input.userId,
     });
     const candidatesById = new Map(
       candidates.map((candidate) => [candidate.concern.id, candidate]),

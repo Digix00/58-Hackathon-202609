@@ -444,6 +444,7 @@ LIMIT ?
 1. concern_views から未読投稿を除外する。
 2. 直近の cluster_id と都道府県の偏りを確認する。
 3. 新着・クラスタ分散・都道府県分散で候補を並べる。
+   閲覧者自身の投稿も候補に含めるが、未読としては加点しない。
 4. 各候補を feed_impressions に保存し、strategy と reason_code を返す。
 5. AI や推薦処理が使えない場合は strategy=fallback で新着順を返す。
 

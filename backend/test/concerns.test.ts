@@ -794,7 +794,7 @@ describe("GET /api/v1/concerns", () => {
     expect(item?.cluster).toBeNull();
   });
 
-  it("excludes the logged-in user's own post from the recommended feed", async () => {
+  it("includes the logged-in user's own post in the recommended feed", async () => {
     const app = createTestApp();
     const cookie = await loginCookie(app);
     const ownConcernId = await createConcern(app, cookie);
@@ -812,7 +812,7 @@ describe("GET /api/v1/concerns", () => {
     const ids = body.items.map((item) => item.id);
 
     expect(response.status).toBe(200);
-    expect(ids).not.toContain(ownConcernId);
+    expect(ids).toContain(ownConcernId);
     expect(ids).toContain(otherConcernId);
   });
 

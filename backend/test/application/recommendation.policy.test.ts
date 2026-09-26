@@ -133,4 +133,37 @@ describe("rankConcernFeedCandidates", () => {
 
     expect(ranked.map((item) => item.concern.id)).toEqual(["x-1", "x-2"]);
   });
+
+  it("includes the viewer's own post without the unread bonus", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        {
+          concern: concern({
+            id: "own",
+            clusterId: "cluster-own",
+            createdAt: "2026-09-02T00:00:00.000Z",
+          }),
+          cluster: cluster("cluster-own"),
+          viewed: false,
+        },
+        {
+          concern: concern({
+            id: "other",
+            clusterId: "cluster-other",
+            createdAt: "2026-09-01T00:00:00.000Z",
+          }),
+          cluster: cluster("cluster-other"),
+          viewed: false,
+        },
+      ],
+      [],
+      null,
+      "user-own",
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual(["other", "own"]);
+    expect(ranked[0]?.recommendation.reasonCode).toBe("unread_cluster");
+    expect(ranked[1]?.recommendation.reasonCode).toBe("new_cluster");
+    expect(ranked[1]?.viewed).toBe(false);
+  });
 });
