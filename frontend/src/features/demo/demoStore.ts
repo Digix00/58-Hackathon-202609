@@ -78,6 +78,10 @@ function subscribe(listener: () => void) {
  * Intent: デモ用の共有状態をReactの購読として画面へ伝播する。
  * Boundary: concerns、閲覧済みID、クイズ結果だけを返し、ストアの更新処理を隠す。
  * State modeling: 外部ストアのsnapshotをuseSyncExternalStoreで購読する。
+ * Update Surface: なし。ストア更新関数とは別に購読だけを担当する。
+ * Hidden Complexity: 購読の解除と同一snapshotの保持はストアに閉じる。
+ * Composition: デモのContainerが購読し、Viewへ表示値を渡す。
+ * Test Notes: 更新通知、購読解除、未更新時のsnapshotの同一性を確認する。
  */
 export function useDemoState() {
   return useSyncExternalStore(subscribe, () => state)

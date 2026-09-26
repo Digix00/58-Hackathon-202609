@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7cd844b2-4691-4412-82a9-0b65e40d66d4",
+  "id": "e9234ee2-0e83-41d9-94e3-56d8eb93a69b",
   "prevId": "c82cd720-0fb8-4669-89a7-b561c6f87ef7",
   "tables": {
     "concern_clusters": {
@@ -1629,319 +1629,6 @@
         }
       }
     },
-    "reaction_digest_deliveries": {
-      "name": "reaction_digest_deliveries",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "window_start": {
-          "name": "window_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "window_end": {
-          "name": "window_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reactor_count": {
-          "name": "reactor_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "same_region_count": {
-          "name": "same_region_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "region_count": {
-          "name": "region_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "region_code_snapshot": {
-          "name": "region_code_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "line_retry_key": {
-          "name": "line_retry_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "http_status": {
-          "name": "http_status",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "line_request_id": {
-          "name": "line_request_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "attempted_at": {
-          "name": "attempted_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_code": {
-          "name": "error_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "reaction_digest_deliveries_run_user_idx": {
-          "name": "reaction_digest_deliveries_run_user_idx",
-          "columns": [
-            "run_id",
-            "user_id"
-          ],
-          "isUnique": true
-        },
-        "reaction_digest_deliveries_retry_key_idx": {
-          "name": "reaction_digest_deliveries_retry_key_idx",
-          "columns": [
-            "line_retry_key"
-          ],
-          "isUnique": true
-        },
-        "reaction_digest_deliveries_user_status_window_idx": {
-          "name": "reaction_digest_deliveries_user_status_window_idx",
-          "columns": [
-            "user_id",
-            "status",
-            "window_end"
-          ],
-          "isUnique": false
-        },
-        "reaction_digest_deliveries_run_status_idx": {
-          "name": "reaction_digest_deliveries_run_status_idx",
-          "columns": [
-            "run_id",
-            "status"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "reaction_digest_deliveries_run_id_reaction_digest_runs_id_fk": {
-          "name": "reaction_digest_deliveries_run_id_reaction_digest_runs_id_fk",
-          "tableFrom": "reaction_digest_deliveries",
-          "tableTo": "reaction_digest_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "reaction_digest_deliveries_user_id_users_id_fk": {
-          "name": "reaction_digest_deliveries_user_id_users_id_fk",
-          "tableFrom": "reaction_digest_deliveries",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "reaction_digest_deliveries_status_check": {
-          "name": "reaction_digest_deliveries_status_check",
-          "value": "\"reaction_digest_deliveries\".\"status\" in ('pending', 'started', 'sent', 'failed', 'skipped')"
-        },
-        "reaction_digest_deliveries_retry_key_check": {
-          "name": "reaction_digest_deliveries_retry_key_check",
-          "value": "\"reaction_digest_deliveries\".\"status\" = 'pending' or \"reaction_digest_deliveries\".\"status\" = 'skipped' or \"reaction_digest_deliveries\".\"line_retry_key\" is not null"
-        },
-        "reaction_digest_deliveries_count_check": {
-          "name": "reaction_digest_deliveries_count_check",
-          "value": "\"reaction_digest_deliveries\".\"reactor_count\" > 0 and \"reaction_digest_deliveries\".\"same_region_count\" between 0 and \"reaction_digest_deliveries\".\"reactor_count\" and \"reaction_digest_deliveries\".\"region_count\" between 0 and \"reaction_digest_deliveries\".\"reactor_count\""
-        }
-      }
-    },
-    "reaction_digest_runs": {
-      "name": "reaction_digest_runs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "cutoff_at": {
-          "name": "cutoff_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "claim_token": {
-          "name": "claim_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "lease_expires_at": {
-          "name": "lease_expires_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "deliveries_prepared_at": {
-          "name": "deliveries_prepared_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "requested_at": {
-          "name": "requested_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "reaction_digest_runs_idempotency_idx": {
-          "name": "reaction_digest_runs_idempotency_idx",
-          "columns": [
-            "idempotency_key"
-          ],
-          "isUnique": true
-        },
-        "reaction_digest_runs_status_requested_idx": {
-          "name": "reaction_digest_runs_status_requested_idx",
-          "columns": [
-            "status",
-            "requested_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "reaction_digest_runs_trigger_check": {
-          "name": "reaction_digest_runs_trigger_check",
-          "value": "\"reaction_digest_runs\".\"trigger\" in ('cron', 'manual')"
-        },
-        "reaction_digest_runs_status_check": {
-          "name": "reaction_digest_runs_status_check",
-          "value": "\"reaction_digest_runs\".\"status\" in ('pending', 'running', 'succeeded', 'partially_failed', 'failed')"
-        },
-        "reaction_digest_runs_lease_check": {
-          "name": "reaction_digest_runs_lease_check",
-          "value": "(\"reaction_digest_runs\".\"status\" = 'running' and \"reaction_digest_runs\".\"claim_token\" is not null and \"reaction_digest_runs\".\"lease_expires_at\" is not null) or (\"reaction_digest_runs\".\"status\" <> 'running' and \"reaction_digest_runs\".\"claim_token\" is null and \"reaction_digest_runs\".\"lease_expires_at\" is null)"
-        }
-      }
-    },
     "sessions": {
       "name": "sessions",
       "columns": {
@@ -2109,6 +1796,14 @@
           "autoincrement": false,
           "default": "'original'"
         },
+        "font_size": {
+          "name": "font_size",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'normal'"
+        },
         "birth_year": {
           "name": "birth_year",
           "type": "integer",
@@ -2203,6 +1898,10 @@
         "users_display_language_check": {
           "name": "users_display_language_check",
           "value": "\"users\".\"display_language\" in ('original', 'jaHira', 'en')"
+        },
+        "users_font_size_check": {
+          "name": "users_font_size_check",
+          "value": "\"users\".\"font_size\" in ('normal', 'large')"
         }
       }
     }

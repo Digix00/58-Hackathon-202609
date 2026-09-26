@@ -1,0 +1,58 @@
+/*
+ * 題字の色と線。
+ *
+ * 色はトークンから取る。題字だけが別の紫だと、同じ画面の紙片やしおりと
+ * 並んだときに、あとから貼った絵に見える。
+ */
+.logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* 揺らぎで線が枠の外へ出る。切らずに出す。 */
+  overflow: visible;
+}
+
+.ink {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Q。名前の頭なので、続く4字より薄い紫にして先に目へ入れる。 */
+.head {
+  stroke: var(--color-purple-strong);
+  stroke-width: 13;
+}
+
+.headTail {
+  stroke: var(--color-purple-strong);
+  stroke-width: 12;
+}
+
+.stroke {
+  stroke: var(--color-purple-ink);
+  stroke-width: 12;
+}
+
+.dot {
+  fill: var(--color-purple-ink);
+  stroke: none;
+}
+
+/* 表紙の太陽の線（#e0a72f）と同じ山吹。装飾なので、これだけで意味は伝えない。 */
+.dotAccent {
+  fill: #e0a72f;
+  stroke: none;
+}
+
+.wave {
+  stroke: var(--color-underline);
+  stroke-width: 8;
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、かすれと揺らぎを外して形をはっきり出す。 */
+  .ink {
+    filter: none;
+  }
+}

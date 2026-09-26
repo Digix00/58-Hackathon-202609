@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { User } from "../../../src/application/entity/user";
-import { UserProfileValidationError } from "../../../src/application/entity/user";
+import {
+  FontSizeValidationError,
+  UserProfileValidationError,
+} from "../../../src/application/entity/user";
 import type { UserRepository } from "../../../src/application/repository/auth.repository";
 import { UserUseCase } from "../../../src/application/usecase/user.usecase";
 
@@ -9,6 +12,7 @@ const existingUser: User = {
   id: "user_1",
   lineUserId: "line_user_1",
   displayLanguage: "original",
+  fontSize: "normal",
   birthYear: null,
   birthMonth: null,
   gender: null,
@@ -31,8 +35,8 @@ function createRepository() {
       };
       return updated;
     },
-    updateDisplayLanguage: async (userId, displayLanguage) => {
-      updated = { ...existingUser, id: userId, displayLanguage };
+    updateDisplaySettings: async (userId, settings) => {
+      updated = { ...existingUser, id: userId, ...settings };
       return updated;
     },
   };
@@ -79,5 +83,30 @@ describe("UserUseCase", () => {
         regionCode: "hyogo",
       }),
     ).rejects.toBeInstanceOf(UserProfileValidationError);
+  });
+
+  it("persists a supported font size", async () => {
+    const { repository, getUpdated } = createRepository();
+    const useCase = new UserUseCase(repository);
+
+    const result = await useCase.updateDisplaySettings("user_1", {
+      fontSize: "large",
+    });
+
+    expect(result).toEqual(getUpdated());
+    expect(result).toMatchObject({
+      displayLanguage: "original",
+      fontSize: "large",
+    });
+  });
+
+  it("rejects an unsupported font size", async () => {
+    const { repository, getUpdated } = createRepository();
+    const useCase = new UserUseCase(repository);
+
+    await expect(
+      useCase.updateDisplaySettings("user_1", { fontSize: "huge" }),
+    ).rejects.toBeInstanceOf(FontSizeValidationError);
+    expect(getUpdated()).toBeUndefined();
   });
 });

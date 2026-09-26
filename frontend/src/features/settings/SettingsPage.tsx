@@ -1,12 +1,10 @@
 import { useTranslation } from '../../i18n/useTranslation'
-import { useState } from 'react'
-import { useAuth } from '../../auth/useAuth'
-import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
+import type { ReactNode } from 'react'
 import { ProfileSettings } from '../profile/ProfileSettings'
 import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import sharedStyles from '../../shared/styles/Settings.module.css'
 import styles from './SettingsPage.module.css'
-import { updateUserDisplayLanguage } from '../profile/profileApi'
+import { useSettingsPage } from './useSettingsPage'
 
 const languageOptions = [
   { value: 'original', label: 'settings.original' },
@@ -20,37 +18,26 @@ const fontSizeOptions = [
 ] as const
 
 export function SettingsPage() {
+  const settings = useSettingsPage()
+  return <SettingsPageView {...settings} profileSettings={<ProfileSettings />} />
+}
+
+function SettingsPageView({
+  authStatus,
+  fontSize,
+  language,
+  speechEnabled,
+  languageStatus,
+  languageError,
+  fontSizeStatus,
+  fontSizeError,
+  setSpeechEnabled,
+  selectLanguage,
+  selectFontSize,
+  profileSettings,
+}: ReturnType<typeof useSettingsPage> & { profileSettings: ReactNode }) {
   const { t, message } = useTranslation()
-
-  const { status: authStatus, updateUser } = useAuth()
-  const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
-    useDisplaySettings()
-  const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>(
-    'idle',
-  )
-  const [languageError, setLanguageError] = useState<string | null>(null)
-
-  const selectLanguage = async (value: (typeof languageOptions)[number]['value']) => {
-    if (authStatus !== 'authenticated' || value === language || languageStatus === 'saving') return
-
-    setLanguageStatus('saving')
-    setLanguageError(null)
-    try {
-      const result = await updateUserDisplayLanguage(value)
-      if (!result.ok) {
-        setLanguageStatus('failed')
-        setLanguageError(result.message)
-        return
-      }
-
-      updateUser(result.user)
-      setLanguage(result.user.displayLanguage)
-      setLanguageStatus('saved')
-    } catch {
-      setLanguageStatus('failed')
-      setLanguageError('error.language')
-    }
-  }
+  const saving = languageStatus === 'saving' || fontSizeStatus === 'saving'
 
   return (
     <section className={styles.page} aria-labelledby="settings-title">
@@ -58,8 +45,9 @@ export function SettingsPage() {
         <h1 id="settings-title">{t('nav.settings')}</h1>
       </header>
 
-      <fieldset className={sharedStyles.group}>
+      <fieldset className={sharedStyles.group} disabled={saving}>
         <legend>{t('settings.fontSize')}</legend>
+        {authStatus !== 'authenticated' ? <p>{t('settings.fontSizeLoginHint')}</p> : null}
         <div className={sharedStyles.choiceRow}>
           {fontSizeOptions.map((option) => (
             <label key={option.value} className={sharedStyles.choice}>
@@ -67,18 +55,18 @@ export function SettingsPage() {
                 type="radio"
                 name="font-size"
                 checked={fontSize === option.value}
-                onChange={() => setFontSize(option.value)}
+                onChange={() => void selectFontSize(option.value)}
               />
               <span>{t(option.label)}</span>
             </label>
           ))}
         </div>
+        {fontSizeStatus === 'saving' ? <p role="status">{t('common.saving')}</p> : null}
+        {fontSizeStatus === 'saved' ? <p role="status">{t('settings.fontSizeSaved')}</p> : null}
+        {fontSizeError ? <p role="alert">{message(fontSizeError)}</p> : null}
       </fieldset>
 
-      <fieldset
-        className={sharedStyles.group}
-        disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
-      >
+      <fieldset className={sharedStyles.group} disabled={authStatus !== 'authenticated' || saving}>
         <legend>{t('settings.language')}</legend>
         {authStatus !== 'authenticated' ? (
           <p>{t('settings.loginHint')}</p>
@@ -103,7 +91,7 @@ export function SettingsPage() {
         {languageError ? <p role="alert">{message(languageError)}</p> : null}
       </fieldset>
 
-      <ProfileSettings />
+      {profileSettings}
 
       {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
       <fieldset className={sharedStyles.group} disabled>

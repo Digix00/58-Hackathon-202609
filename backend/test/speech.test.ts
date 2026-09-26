@@ -41,6 +41,7 @@ const authenticatedSession: SessionView = {
     id: "speech-test-user",
     lineUserId: "line-speech-test-user",
     displayLanguage: "original",
+    fontSize: "normal",
     birthYear: null,
     birthMonth: null,
     gender: null,

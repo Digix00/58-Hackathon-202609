@@ -38,7 +38,7 @@ test('設定に応じて日英・ひらがなのUIを選ぶ', () => {
   assert.equal(translate('original', 'settings.language'), '表示することば')
   assert.equal(translate('jaHira', 'settings.language'), 'ひょうじすることば')
   assert.equal(translate('jaHira', 'nav.quiz'), 'くいず')
-  assert.equal(translate('jaHira', 'app.name'), 'めやすばこ')
+  assert.equal(translate('jaHira', 'app.name'), 'Qiite')
   assert.equal(translate('jaHira', 'guide.reopen'), 'LINEでひらきなおす')
 })
 

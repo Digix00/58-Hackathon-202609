@@ -1,4 +1,6 @@
 import type {
+  HistoryConcernCursor,
+  HistoryConcernPage,
   HistoryNextSuggestion,
   HistorySummaryStats,
   QuizAnswerHistoryCursor,
@@ -14,4 +16,14 @@ export interface HistoryRepository {
     limit: number,
     cursor: QuizAnswerHistoryCursor | null,
   ): Promise<QuizAnswerHistoryPage>;
+  listOwnConcerns(
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage>;
+  listReactedConcerns(
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage>;
 }

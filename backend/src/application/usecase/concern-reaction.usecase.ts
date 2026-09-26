@@ -15,10 +15,25 @@ export interface RegisterConcernReactionOutput {
   reactionCount: number;
 }
 
+export interface RemoveConcernReactionInput {
+  concernId: string;
+  userId: string;
+  reactionType: ReactionType;
+}
+
+export interface RemoveConcernReactionOutput {
+  reaction: ConcernReaction;
+  removed: boolean;
+  reactionCount: number;
+}
+
 export interface IConcernReactionUseCase {
   register(
     input: RegisterConcernReactionInput,
   ): Promise<RegisterConcernReactionOutput | null>;
+  remove(
+    input: RemoveConcernReactionInput,
+  ): Promise<RemoveConcernReactionOutput | null>;
 }
 
 /** 悩みへのリアクション登録と、その冪等な結果を組み立てる。 */
@@ -64,6 +79,28 @@ export class ConcernReactionUseCase implements IConcernReactionUseCase {
     return {
       reaction,
       created: result.created,
+      reactionCount: result.reactionCount,
+    };
+  };
+
+  readonly remove = async (
+    input: RemoveConcernReactionInput,
+  ): Promise<RemoveConcernReactionOutput | null> => {
+    const reaction = new ConcernReaction({
+      concernId: input.concernId,
+      userId: input.userId,
+      reactionType: input.reactionType,
+      createdAt: this.now().toISOString(),
+    });
+    const result = await this.repository.remove(reaction);
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      reaction,
+      removed: result.removed,
       reactionCount: result.reactionCount,
     };
   };

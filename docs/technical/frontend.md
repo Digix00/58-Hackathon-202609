@@ -99,6 +99,12 @@ features/feed/
 
 `shared/` には複数featureで再利用され、特定の業務用語を持たないUI部品だけを置く。特定の画面や悩み・クイズなどの業務概念を持つ部品は、再利用される場合もfeature内に置く。再利用実績のない部品を先回りして共通化しない。
 
+### ノートの共通描画
+
+- フィード、投稿、初期登録、クイズの紙束は `shared/components/NotebookStack.tsx` を使う。下敷きの紙、前後のリング、左に残る紙、回転軸と重なり順は共通側が管理し、各画面は本文・表紙・しおり・装飾を渡す。
+- 表紙の開閉とページめくりは `NotebookTurn` が担当する。めくり中の紙と左に伏せた紙は同じ裏面部品を使い、表紙・本文とも裏面は `--color-surface` に統一する。画面別の裏面色は指定しない。めくり中の写しは `inert` にして操作・フォーカス対象から外す。
+- フィードと初期登録の表紙を開く拡大は `NotebookOpening`、位置の押し上げは既存の `useStackLift`、スワイプと左右キーは `useNotebookSwipe` を使う。クイズ固有の閉じた表紙の縮尺、回答や入力内容、ページを進められる条件は各featureに残す。
+
 ## CSS の構成と依存方向
 
 グローバル CSS は `src/styles/` に置き、トークン、リセット、全画面共通のフォーカス表示などに限定する。アプリ起動時に `styles/index.css` から一度だけ読み込む。
@@ -140,6 +146,24 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 - 通信失敗時は投稿本文やクイズの選択内容を保持する。
 - LINE user IDやアクセストークンをフロントエンドのログへ出力しない。
 
+### 投稿の音声入力
+
+- `/post` の「話して書く」から `getUserMedia` と `MediaRecorder` を利用する。既存のLIFF・認証・プロフィールのルートガードを維持する。
+- 対応形式は実行環境で判定し、WebM Opus、AAC MP4の順に選ぶ。未対応・権限拒否・録音失敗時は手入力を案内する。
+- `speechRecording.ts` は録音デバイスとチャンクの収集を担当し、サーバーの60秒制限に末尾フレームの余裕を持たせて59秒で自動停止する。10 MiBを超えた場合は送信しない。
+- `useSpeechInput` は権限待ち・録音中・文字起こし中・結果確認・エラーをreducerで管理する。`speechApi.ts` はHono RPCの `form: { audio: File, language: 'ja' }` を使い、既存のCookieセッションを送る。Content-Typeはブラウザに任せる。
+- 録音の最終チャンクを待ってからAPIへ送信する。文字起こし通信は60秒で中断し、録音停止後のイベント待ちも5秒で打ち切る。キャンセル、画面離脱、非表示化でマイク・通信を解放し、古い結果は反映しない。権限要求中もキャンセルでき、後から許可されたマイクは即時解放する。
+- 文字起こし結果は別枠で確認し、「本文に追加」で入力中の本文の末尾へ改行して追加する。入力中の文章を上書き・切り詰めせず、追加後に編集できる。文字数超過は既存の投稿検証で扱う。
+- 音声処理と結果確認の間は投稿の確認画面へ進めない。失敗・破棄後も入力済み本文は保持する。生音声はメモリ内だけで扱い、永続保存・ログ出力・自動再送を行わない。
+- 音声認識はUIの表示言語にかかわらず日本語。録音前に送信先と利用目的を案内し、状態・エラーは日本語、ひらがな、英語で表示する。
+- 録音中の経過は、秒数の言葉とクレヨンで引く線の長さの両方で示す。線は `aria-hidden` の装飾とし、`role="timer"` が伝えるのは秒数だけにする。桁数の変化で線の長さが動かないよう、秒数の表示幅は上限秒数ぶんを先に確保する。`prefers-reduced-motion: reduce` では秒の間を補間せず、`prefers-contrast: more` では紙目の抜けを外す。
+- `pnpm --filter frontend test:speech` で録音終了・中断・形式選択・サイズ制限を確認する。ローカル認識器の固定値での疎通と、実際のWorkers AI・LINE実機の検証を区別する。
+
+### 文字サイズの保存
+
+- `DisplaySettingsProvider` の `fontSize` を唯一の文字サイズの状態とする。ログイン済みの場合は設定画面で表示言語と同じ `PUT /api/v1/users/me/display-language` に `fontSize` だけを送って保存し、成功後に反映する。保存に失敗した場合は現在の文字サイズを維持し、エラーを表示する。
+- 未ログインの場合はメモリ内の状態だけを切り替え、アカウントには保存しない。ログイン後はセッションの `user.fontSize` を復元し、未ログイン時に選んだ値より優先する。
+
 ### 表示言語とUI文言
 
 - `DisplaySettingsProvider` の `language` を唯一の表示言語の状態とする。設定保存とログイン後の復元には既存の `displayLanguage` APIを利用する。保存に失敗した場合は現在の言語を維持する。
@@ -171,6 +195,10 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 - URLには投稿IDやクイズIDなど、共有・復元が必要な識別子だけを持たせる。フォーム入力値、LINE認証情報、画面内だけで完結する状態はURLへ置かない。
 - APIレスポンスはfeatureのHookまたはContainerで管理する。カーソルページング、再取得、楽観更新、複数画面での同じサーバー状態の共有が複雑になった場合に限り、TanStack Queryなどのサーバー状態ライブラリの導入を検討する。導入時もDTOからViewModelへの変換境界は維持する。
 - Custom Hookの責務分割、境界、状態モデリングの詳細は [React Custom Hooks スタイルガイド](./react-hooks-style-guide.md) に従う。
+- クイズの取得は `useTodayQuiz`、対応の編集は `useQuizAnswers`、送信と結果の照会は `useQuizSubmit`、紙の位置は `useQuizNotebook`、アニメーションは `useQuizAnimation` が担当する。`useQuizNavigation` はこれらの操作を合成し、Viewへreducerのdispatchを渡さない。
+- 初期登録は `useOnboardingDraft`、`useOnboardingPages`、`useOnboardingSubmit` に入力・紙送り・保存を分け、`useOnboardingNotebook` が入力条件と保存成功後の遷移を接続する。
+- フィードの表示位置と取得条件の接続は `useFeedReader` に閉じる。投稿詳細はContainerで `toConcernDetailViewModel` を通し、属性・日時の表示と翻訳状態を整えてからViewへ渡す。
+- 各Custom Hookの設計記録は関数直前のコメントに置く。状態遷移・対応編集・ViewModel境界の回帰確認には `pnpm --filter frontend test:hooks` を使う。
 - 色だけで状態を伝えず、文言・ARIA属性・ボタン状態を組み合わせる。
 - 送信結果、エラー、リアクション結果は `aria-live` で通知する。
 - 主要操作はキーボードだけで完了できるようにする。

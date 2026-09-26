@@ -8,9 +8,9 @@ import { router } from './app/routes'
 import { translate } from './i18n/translate'
 import './styles/index.css'
 
-function SyncUserDisplayLanguage() {
+function SyncUserDisplaySettings() {
   const { status, user } = useAuth()
-  const { language, setLanguage } = useDisplaySettings()
+  const { language, setFontSize, setLanguage } = useDisplaySettings()
 
   useEffect(() => {
     document.documentElement.lang = language === 'en' ? 'en' : 'ja'
@@ -20,8 +20,9 @@ function SyncUserDisplayLanguage() {
   useEffect(() => {
     if (status === 'authenticated' && user) {
       setLanguage(user.displayLanguage)
+      setFontSize(user.fontSize)
     }
-  }, [setLanguage, status, user])
+  }, [setFontSize, setLanguage, status, user])
 
   return null
 }
@@ -30,7 +31,7 @@ export default function App() {
   return (
     <RuntimeProvider>
       <DisplaySettingsProvider>
-        <SyncUserDisplayLanguage />
+        <SyncUserDisplaySettings />
         <RouterProvider router={router} />
       </DisplaySettingsProvider>
     </RuntimeProvider>

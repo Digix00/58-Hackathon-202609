@@ -9,9 +9,10 @@ import screen from '../../shared/styles/Screen.module.css'
 import { useConcernReaction } from '../reaction/useConcernReaction'
 import { ConcernDetailView } from './ConcernDetailView'
 import { useConcernDetail } from './useConcernDetail'
+import { toConcernDetailViewModel } from './concernDetailViewModel'
 
 export function ConcernDetailPage() {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
 
   const { id } = useParams()
   const { state: runtime } = useRuntime()
@@ -44,12 +45,23 @@ export function ConcernDetailPage() {
 
   return (
     <ConcernDetailView
-      concern={concern}
+      concern={toConcernDetailViewModel(concern, language)}
       isLiff={runtime.status === 'ready' && runtime.mode === 'liff'}
-      isAuthenticated={authStatus === 'authenticated'}
       showLogin={showLogin}
-      reaction={reaction}
-      onShowLogin={() => setShowLogin(true)}
+      reaction={{
+        reactionCount: reaction.reactionCount,
+        reacted: reaction.reacted,
+        submitting: reaction.status === 'submitting',
+        status: reaction.status,
+        error: reaction.error,
+      }}
+      onReact={() => {
+        if (authStatus !== 'authenticated') {
+          setShowLogin(true)
+          return
+        }
+        void reaction.toggle()
+      }}
     />
   )
 }

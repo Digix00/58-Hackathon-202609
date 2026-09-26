@@ -1,6 +1,7 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import notebookBackground from '../../shared/styles/NotebookBackground.module.css'
+import { QiiteLogo } from '../../shared/components/QiiteLogo'
 import { CrayonMark } from './CrayonMark'
 import { SplashStickers } from './SplashStickers'
 import { useSplashPresentation } from './useSplashPresentation'
@@ -61,8 +62,13 @@ export function SplashScreen({ ready, onDone }: { ready: boolean; onDone: () => 
       aria-busy={!ready}
     >
       <div className={styles.mark}>
-        {/* 置くのは題字だけ。件数も一言も出さない。めくる前に中身を予告しない。 */}
-        <h1 className={styles.title}>{t('app.name')}</h1>
+        {/*
+         * 置くのは題字だけ。件数も一言も出さない。めくる前に中身を予告しない。
+         * 波線はこの画面が自分で持つので、題字には描かせない。
+         */}
+        <h1 className={styles.title}>
+          <QiiteLogo className={styles.titleLogo} wave={false} />
+        </h1>
         <TitleRule />
         {/* クレヨンは移動・息・絵を層で分ける。同じ要素に重ねると動きが打ち消し合う。 */}
         <span className={styles.pen} aria-hidden="true">

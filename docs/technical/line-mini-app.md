@@ -35,9 +35,9 @@
 
 ### 起動・フォールバック
 
-現行実装では `VITE_LINE_LIFF_ID` が設定され、開発用の強制LIFFモードでなければLIFFを初期化する。外部ブラウザでもこの初期化を通る。未設定なら通常Webとして始まり、LIFF初期化用の起動画面は出さない。
+現行実装では `VITE_LINE_LIFF_ID` が設定され、開発用の強制LIFFモードでなければLIFFを初期化する。外部ブラウザでもこの初期化を通る。未設定なら通常Webとして始まる。
 
-起動画面はLIFFの初期化と退場演出までを担当し、Cookieセッションの確認待ちは各画面で表示する。初期化が早く終わっても絵を途中で切り替えず、動きを減らす設定では完成形を表示する。詳細は[起動の画面設計](../requirements/screens/entry.md)を参照する。
+LIFFの初期化中は起動画面を表示し、初期化完了後も描画アニメーションが終わるまで表示する。動きを減らす設定では静止画として短時間表示してから遷移する。開発時に `VITE_DEV_LIFF_MODE=true` を指定した強制LIFFモードでも、実際のLIFF初期化を省略しつつ起動画面を表示する。フィード・クイズは起動画面の後に表紙を表示し、開く操作後だけ待機中の文言を表示する。準備後は自動で開く。LIFF初期化中は下部ナビを操作不可にしてURLを維持する。クイズの表紙表示は利用許可を意味せず、API取得・本文表示には従来の認証とプロフィール確認を必要とする。詳細は[画面設計](../requirements/screens.md)を参照する。
 
 初期化が失敗すると `browser` と `liffInitializationFailed: true` へ切り替わる。公開閲覧を続け、失敗案内とLINEで開き直す導線を表示する。投稿などの操作用URLを開いていた場合も、操作を実行せず通常Webと同じ案内を表示する。
 
@@ -73,10 +73,11 @@ LINE側の制約として、初期化は登録したエンドポイントURLと�
 プロジェクト仕様はスマートフォン向け1カラムで、360px幅を基本の確認対象とする。LINE側のヘッダーや端末の安全領域を含めて確認し、ブラウザのスクリーンショットだけで操作可能と判断しない。
 
 - 現行の [AppShell](../../frontend/src/app/AppShell.module.css) は高さ `100svh` の2行Grid。本文領域が縦スクロールし、その下に5項目のナビを置く。ナビを本文へ重ねる固定配置に変える場合は、入力欄・主要操作が隠れないことを確認する。
-- 上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` を使用する。[index.html](../../frontend/index.html) のviewportには現在 `viewport-fit=cover` がない。CSS変数が常に期待した余白を返すと仮定せず、ノッチ・ホームインジケーター・横向きで実測する。
+- [index.html](../../frontend/index.html) のviewportに `viewport-fit=cover` を指定し、上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom, 0px)` を使用する。下部ナビは通常の12pxに端末の下側安全領域を加算し、ホームインジケーターと操作を離す。安全領域が0なら12pxを維持する。[WebKit公式の方式](https://webkit.org/blog/7929/designing-websites-for-iphone-x/)に従うが、LINE内のWebViewが返す値は実機で確認し、ノッチ・ホームインジケーター・横向きで重なりがないことを実測する。
 - LINE公式は縦向きと横向きで異なるセーフエリアを案内している。既存の余白へ固定値を無条件に加算せず、表示領域との重複を確認する。[公式: LINEミニアプリのセーフエリア](https://developers.line.biz/ja/docs/line-mini-app/design/landscape/)
 - ソフトウェアキーボードを開閉し、本文入力・初期登録・設定の入力欄と送信操作へ到達できることを確認する。画面高が不足した場合は、文字を縮めず本文領域の縦スクロールを許容する。
 - 横めくりと縦スクロールを両立させる。[useNotebookSwipe](../../frontend/src/shared/hooks/useNotebookSwipe.ts) は縦方向のジェスチャーをめくりにせず、スワイプ後のリンク誤作動を防ぐ。入力欄では左右キーをめくりに使わない。
+- クイズのしおりはタップで選び、差し込むアニメーションで結果を示す。LINEの下方向スワイプによる最小化と競合しないよう、タッチ・ペンでのドラッグ配置は行わない。移動や `pointercancel` で中断した操作は回答に反映せず、マウスのドラッグとキーボード選択は維持する。配置済みのしおりを押すと選び直せる。[公式: LIFFブラウザの最小化](https://developers.line.biz/ja/docs/liff/minimizing-liff-browser/)
 - 「大きく表示」、OS・ブラウザの拡大、`prefers-reduced-motion`、キーボード操作を確認する。文字サイズ・スクロールの詳細は[デザイン指針](../requirements/design-guidelines.md)に従う。
 - クレヨン輪郭のSVGフィルタは [CrayonFilters](../../frontend/src/shared/components/CrayonFilters.tsx) を同一DOMに配置し、`url(#crayon-edge)` などで参照する。現行コードはiOSでの描画互換性を理由にこの構成を採用している。外部SVG・data URIへの移動は実機で検証してから行う。
 
@@ -87,7 +88,7 @@ LINE側では利用履歴から開き直した際に、状態を保持した再�
 現行実装の保持範囲は次のとおり。
 
 - 投稿本文は [usePostDraft](../../frontend/src/features/post/usePostDraft.ts) のメモリ内状態。送信失敗時の保持と、画面離脱・再読み込み後の復元は別であり、後者は実装していない。
-- 文字サイズなどの表示設定は [DisplaySettingsProvider](../../frontend/src/app/providers/DisplaySettingsProvider.tsx) のメモリ内状態。表示言語の保存は [SettingsPage](../../frontend/src/features/settings/SettingsPage.tsx) のAPI処理が担当する。すべての設定が端末に永続保存されるとは扱わない。
+- 文字サイズなどの表示設定は [DisplaySettingsProvider](../../frontend/src/app/providers/DisplaySettingsProvider.tsx) のメモリ内状態。ログイン済みの場合、表示言語と文字サイズは [SettingsPage](../../frontend/src/features/settings/SettingsPage.tsx) のAPI処理でアカウント（D1）へ保存し、ログイン後のセッションから復元する。すべての設定が端末に永続保存されるとは扱わない。
 - 詳細表示時の既読は [useConcernViewOnDisplay](../../frontend/src/features/concern-detail/useConcernViewOnDisplay.ts) がLIFF内かつアプリ認証済みの場合だけ記録する。Hook内のSetによる重複抑止は再マウントをまたぐ保証ではない。
 
 編集時は、バックグラウンドからの復帰、セッション切れ、通信切断後の再操作を確認する。投稿・回答の自動再送を追加して二重送信を起こさない。下書きの永続化を追加する場合は、本文の保存場所・削除時期・アカウント切り替え時の扱いも仕様化する。
@@ -111,7 +112,7 @@ LINE側では利用履歴から開き直した際に、状態を保持した再�
 - 実装指針はLIFF SDKを `infrastructure/liff/` に閉じ込める方針だが、現在は `auth/liff.ts` にも初期化・認証処理がある。RuntimeProviderとAuthProviderは別々のラッパーを利用し、初期化Promiseも共有していない。共通化済みと仮定せず、認証変更では両方を確認する。
 - [起動仕様](../requirements/screens/entry.md)はリアクション前にも初期登録を求めるが、ルートガードのプロフィール確認は `/post`・`/quiz/today`・`/history` が対象。公開画面内のリアクションを同じガードが保護するわけではない。関連操作を編集する際に、画面側の分岐と仕様を照合する。
 - プロダクト要件の任意属性と、初期登録仕様の必須入力には記述差がある。プロフィールの入力条件を変更する際は、[初期登録仕様](../requirements/screens/onboarding.md)・[API仕様](./api.md)・サーバー実装を確認し、既存のガードを見た目の都合で外さない。
-- [PostPage](../../frontend/src/features/post/PostPage.tsx)の音声入力とSettingsPageの読み上げは準備中で無効化されている。APIや設定値が存在するだけで、マイク権限・録音・再生が接続済みとは扱わない。実装時は権限拒否・非対応・中断からテキスト操作へ戻れることも確認する。
+- [PostPage](../../frontend/src/features/post/PostPage.tsx)の音声入力は文字起こしAPIへ接続している。権限拒否・非対応・中断時は手入力へ戻れる。ローカルの疎通だけでLINE実機のマイク利用を保証せず、iOS/Androidで権限・バックグラウンド復帰も確認する。SettingsPageの読み上げは引き続き準備中で無効化されている。
 - LINE Developers Consoleの実設定、iOS/AndroidのLINE実機動作は、この文書作成時には確認していない。対応OS・LINEバージョンの一律保証はしない。
 
 ## 8. 編集後の確認項目

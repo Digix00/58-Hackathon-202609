@@ -8,18 +8,18 @@ import {
   type RefObject,
 } from 'react'
 import { Link } from 'react-router'
-import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import { NotebookStack } from '../../shared/components/NotebookStack'
 import { prefersReducedMotion } from '../../shared/hooks/useNotebookSwipe'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import { POST_BODY_MAX_LENGTH } from './postTypes'
 import { usePostDraft } from './usePostDraft'
 import { usePostSubmit } from './usePostSubmit'
+import { SpeechInputControls } from './SpeechInputControls'
+import { useSpeechInput, type SpeechInput } from './useSpeechInput'
 import styles from './PostPage.module.css'
 
 /**
@@ -31,14 +31,6 @@ import styles from './PostPage.module.css'
 
 /** まだ誰も読んでいない一枚。フィードのページ色は当てず、生成りのまま置く。 */
 const PAPER_TINT = '#fffdf4'
-/**
- * めくったときに覗く裏面。
- * 下部ナビの「投稿」と同じ淡い紫にして、自分が書いた紙だと分かるようにする。
- */
-const TURN_BACK_COLOR = '#b3a5dd'
-/** 書き終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
-
 const paperStyle = { '--paper-tint': PAPER_TINT } as CSSProperties
 
 /** 紙の上辺に挟むしおり。投稿はこの2枚で終わることを、めくる前に見せておく。 */
@@ -59,21 +51,6 @@ const BODY_EXAMPLE = 'post.example'
  * どちらも紙に載っている言葉は同じなので、めくる紙は読む面で描く。
  */
 type TurningPage = { step: Step; direction: 1 | -1; key: number }
-
-/**
- * 手で描いたマイク。
- * 記号や既製のアイコンを置くと、この画面の中でここだけ定規で引いた線に見える。
- */
-function CrayonMic() {
-  return (
-    <svg className={styles.mic} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 3.3c1.8-.1 3.1 1.2 3.2 2.9v4.4c.1 1.8-1.3 3.2-3.1 3.2-1.8 0-3.2-1.3-3.2-3.1V6.4c0-1.7 1.3-3 3.1-3.1Z" />
-      <path d="M6.5 11.3c.2 2.9 2.6 5.3 5.6 5.3 3 0 5.4-2.3 5.5-5.2" />
-      <path d="M12 16.8c.1 1.2.1 2.3 0 3.4" />
-      <path d="M9.3 20.4c1.9-.2 3.7-.2 5.5 0" />
-    </svg>
-  )
-}
 
 /**
  * 置いていった紙に添える星。
@@ -118,6 +95,15 @@ function StepTabs({ current }: { current: Step }) {
  */
 const SUPPORTS_FIELD_SIZING = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
 
+/**
+ * Intent: 本文編集に追従する紙の高さ計測を局所化する。
+ * Boundary: textareaのrefと本文だけを受け取り、値や更新操作を公開しない。
+ * State Modeling: 前回本文は計測判断にだけ必要なのでrefで保持する。
+ * Update Surface: なし。本文変更後にDOMの高さを調整する。
+ * Hidden Complexity: field-sizingの対応判定、削除時の縮小、行送りへの丸め。
+ * Composition: 入力Viewが本文を渡し、表示の高さだけを調整する。
+ * Test Notes: 追記・削除・置換・CSS対応環境での計測省略を確認する。
+ */
 function useGrowingSheet(ref: RefObject<HTMLTextAreaElement | null>, body: string) {
   const previousBody = useRef(body)
 
@@ -148,11 +134,13 @@ function WriteSheet({
   fieldError,
   inputRef,
   onBodyChange,
+  speech,
 }: {
   body: string
   fieldError?: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
 }) {
   const { t } = useTranslation()
 
@@ -176,6 +164,7 @@ function WriteSheet({
         fieldError={fieldError}
         inputRef={inputRef}
         onBodyChange={onBodyChange}
+        speech={speech}
       />
     </article>
   )
@@ -187,11 +176,13 @@ function WriteFields({
   fieldError,
   inputRef,
   onBodyChange,
+  speech,
 }: {
   initialBody: string
   fieldError?: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
 }) {
   const { t, message } = useTranslation()
   const [body, setBody] = useState(initialBody)
@@ -223,22 +214,17 @@ function WriteFields({
           {message(fieldError, { max: POST_BODY_MAX_LENGTH })}
         </p>
       ) : null}
+      <SpeechInputControls
+        speech={speech}
+        onApply={(text) => {
+          const nextBody = body ? `${body}\n${text}` : text
+          setBody(nextBody)
+          onBodyChange(nextBody)
+          speech.cancel()
+          inputRef.current?.focus()
+        }}
+      />
       <div className={styles.cardFoot}>
-        {/* TODO: 音声入力と文字起こしを接続し、投稿前に結果を確認・修正できるようにする。 */}
-        <button
-          type="button"
-          className={styles.voiceButton}
-          disabled
-          aria-describedby="post-voice-note"
-        >
-          <CrayonMic />
-          {t('post.voice')}
-          <ComingSoonLabel
-            id="post-voice-note"
-            className={styles.voiceLabel}
-            ariaLabel={t('post.voiceSoon')}
-          />
-        </button>
         <p id="post-body-count" className={`${styles.count} ${tooLong ? styles.countOver : ''}`}>
           {t('post.characterCount', { count: body.length, max: POST_BODY_MAX_LENGTH })}
           {tooLong ? <span className={styles.srOnly}>{t('post.overLimit')}</span> : null}
@@ -299,6 +285,7 @@ function PostStack({
   doneNote,
   inputRef,
   onBodyChange,
+  speech,
   onTurningFinished,
 }: {
   body: string
@@ -308,36 +295,26 @@ function PostStack({
   doneNote: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
+  speech: SpeechInput
   onTurningFinished: () => void
 }) {
   return (
-    <div className={styles.stack} style={notebookBindingStyle}>
-      <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-      <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-      {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-      <NotebookBinding part="rear" />
-      {view === 'done' ? (
-        <div className={turnStyles.turned} aria-hidden="true">
-          <div
-            className={`${turnStyles.back} ${crayonStyles.edge}`}
-            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <NotebookStack
+      className={styles.stack}
+      opened={view === 'done'}
+      turning={
+        turning ? (
+          <NotebookTurn
+            key={turning.key}
+            startAngle={0}
+            direction={turning.direction}
+            onFinish={onTurningFinished}
           >
-            <NotebookBinding part="holes" back />
-          </div>
-        </div>
-      ) : null}
-      {turning ? <NotebookBinding key={turning.key} part="rear" between /> : null}
-      {turning ? (
-        <NotebookTurn
-          key={turning.key}
-          startAngle={0}
-          direction={turning.direction}
-          backColor={TURN_BACK_COLOR}
-          onFinish={onTurningFinished}
-        >
-          <ReadSheet body={body} step={turning.step} />
-        </NotebookTurn>
-      ) : null}
+            <ReadSheet body={body} step={turning.step} />
+          </NotebookTurn>
+        ) : null
+      }
+    >
       <div className={styles.enter}>
         {view === 'write' ? (
           <WriteSheet
@@ -345,6 +322,7 @@ function PostStack({
             fieldError={fieldError}
             inputRef={inputRef}
             onBodyChange={onBodyChange}
+            speech={speech}
           />
         ) : view === 'confirm' ? (
           <ReadSheet body={body} step="confirm" />
@@ -352,9 +330,7 @@ function PostStack({
           <DoneSheet note={doneNote} />
         )}
       </div>
-      {/* 手前側の線は金具として動かさない。 */}
-      <NotebookBinding part="front" />
-    </div>
+    </NotebookStack>
   )
 }
 
@@ -362,6 +338,7 @@ function PostActions({
   view,
   error,
   submitting,
+  voiceBusy,
   onConfirm,
   onEdit,
   onSubmit,
@@ -369,6 +346,7 @@ function PostActions({
   view: Step | 'done'
   error: string | null
   submitting: boolean
+  voiceBusy: boolean
   onConfirm: () => void
   onEdit: () => void
   onSubmit: () => void
@@ -382,6 +360,7 @@ function PostActions({
           type="button"
           className={`${actionStyles.primary} ${styles.nextButton}`}
           onClick={onConfirm}
+          disabled={voiceBusy}
         >
           {t('post.reviewAction')}
           <span aria-hidden="true">→</span>
@@ -429,6 +408,7 @@ export function PostPage() {
   const { t } = useTranslation()
 
   const draft = usePostDraft()
+  const speech = useSpeechInput()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const submission = usePostSubmit()
   /** めくり直すたびにアニメーションを最初から流すため、鍵を増やしながら持つ。 */
@@ -453,6 +433,7 @@ export function PostPage() {
         </h1>
         <PostStack
           body={draft.body}
+          speech={speech}
           view={view}
           turning={turning}
           fieldError={submission.fieldErrors.body}
@@ -469,7 +450,9 @@ export function PostPage() {
         view={view}
         error={submission.error}
         submitting={submission.status === 'submitting'}
+        voiceBusy={speech.busy}
         onConfirm={() => {
+          if (speech.busy) return
           // 進めない本文のときは、送信の検証にエラーの文言を出させる。
           if (!draft.confirm()) {
             void submission.submit({ body: draft.getBody() })

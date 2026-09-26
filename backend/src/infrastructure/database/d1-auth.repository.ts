@@ -4,6 +4,8 @@ import type { RegionCode } from "../../application/entity/region-code";
 import type { Session } from "../../application/entity/session";
 import type {
   DisplayLanguage,
+  DisplaySettings,
+  FontSize,
   Gender,
   User,
   UserProfile,
@@ -18,6 +20,7 @@ const userColumns = {
   id: users.id,
   lineUserId: users.lineUserId,
   displayLanguage: users.displayLanguage,
+  fontSize: users.fontSize,
   birthYear: users.birthYear,
   birthMonth: users.birthMonth,
   gender: users.genderCode,
@@ -93,19 +96,19 @@ export class D1UserRepository implements UserRepository {
     return updated;
   }
 
-  async updateDisplayLanguage(
+  async updateDisplaySettings(
     userId: string,
-    displayLanguage: DisplayLanguage,
+    settings: DisplaySettings,
   ): Promise<User> {
     await this.db
       .update(users)
-      .set({ displayLanguage, updatedAt: new Date().toISOString() })
+      .set({ ...settings, updatedAt: new Date().toISOString() })
       .where(eq(users.id, userId))
       .run();
 
     const updated = await this.selectById(userId);
     if (!updated) {
-      throw new Error("failed to update user display language");
+      throw new Error("failed to update user display settings");
     }
 
     return updated;
@@ -126,6 +129,7 @@ function toUser(user: {
   id: string;
   lineUserId: string;
   displayLanguage: string;
+  fontSize: string;
   birthYear: number | null;
   birthMonth: number | null;
   gender: string | null;
@@ -134,6 +138,7 @@ function toUser(user: {
   return {
     ...user,
     displayLanguage: user.displayLanguage as DisplayLanguage,
+    fontSize: user.fontSize as FontSize,
     gender: user.gender as Gender | null,
     regionCode: user.regionCode as RegionCode | null,
   };

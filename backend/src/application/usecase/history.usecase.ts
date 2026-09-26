@@ -1,4 +1,6 @@
 import type {
+  HistoryConcernCursor,
+  HistoryConcernPage,
   HistorySummary,
   QuizAnswerHistoryCursor,
   QuizAnswerHistoryPage,
@@ -12,6 +14,16 @@ export interface IHistoryUseCase {
     limit: number,
     cursor: QuizAnswerHistoryCursor | null,
   ): Promise<QuizAnswerHistoryPage>;
+  listOwnConcerns(
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage>;
+  listReactedConcerns(
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage>;
 }
 
 export class HistoryUserDeletedError extends Error {
@@ -52,6 +64,24 @@ export class HistoryUseCase implements IHistoryUseCase {
   ): Promise<QuizAnswerHistoryPage> => {
     await this.assertUserCanRead(userId);
     return this.repository.listQuizAnswers(userId, limit, cursor);
+  };
+
+  readonly listOwnConcerns = async (
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage> => {
+    await this.assertUserCanRead(userId);
+    return this.repository.listOwnConcerns(userId, limit, cursor);
+  };
+
+  readonly listReactedConcerns = async (
+    userId: string,
+    limit: number,
+    cursor: HistoryConcernCursor | null,
+  ): Promise<HistoryConcernPage> => {
+    await this.assertUserCanRead(userId);
+    return this.repository.listReactedConcerns(userId, limit, cursor);
   };
 
   private async assertUserCanRead(userId: string): Promise<void> {

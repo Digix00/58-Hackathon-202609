@@ -234,6 +234,8 @@ WranglerのCron Triggerは毎日 `0 0 * * *` UTC（09:00 JST）に起動する�
 `wrangler.dev.jsonc` と `wrangler.vectorize.dev.jsonc` では `DEV_AUTH_ENABLED=true` が設定され、
 `POST /api/v1/auth/dev` で `demo-a`、`demo-b`、`demo-c` の開発ユーザーへログインできる。
 このエンドポイントは固定キーをサーバー側で開発用IDへ変換し、LINEログインと同じHttpOnly Cookieセッションを発行する。
+`DEV_AUTH_ENABLED=true` のローカルHTTP（`localhost`、`127.0.0.1`、`[::1]`）だけは、Safariでも保持できる
+Secure属性なしの `dev-session` Cookieを使う。HTTPSや本番設定では `__Host-session` とSecure属性を維持する。
 本番用 `wrangler.jsonc` にはこの変数がないため、開発用認証は404となる。
 
 `make dev` ではローカルD1へのマイグレーション後に、開発用ユーザー、サンプル投稿、当日クイズを投入する。

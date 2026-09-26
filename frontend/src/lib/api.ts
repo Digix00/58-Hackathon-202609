@@ -33,6 +33,16 @@ export type ConcernReactionResponse = Extract<
   }
 >
 
+export type RemoveConcernReactionResponse = Extract<
+  InferResponseType<(typeof apiClient.api.v1.concerns)[':concernId']['reactions']['$delete'], 200>,
+  {
+    concernId: string
+    reactionType: 'empathy'
+    reactionCount: number
+    reacted: false
+  }
+>
+
 export type TodayQuizResponse = InferResponseType<typeof apiClient.api.v1.quizzes.today.$get, 200>
 
 export type QuizByIdResponse = InferResponseType<
@@ -52,6 +62,17 @@ export type HistorySummaryResponse = InferResponseType<
 
 export type QuizAnswerHistoryResponse = InferResponseType<
   (typeof apiClient.api.v1.history)['quiz-answers']['$get'],
+  200
+>
+
+/** 自分が書いた声の履歴。寄りそった声の履歴と同じ形で返る。 */
+export type HistoryConcernsResponse = InferResponseType<
+  typeof apiClient.api.v1.history.concerns.$get,
+  200
+>
+
+export type HistoryReactionsResponse = InferResponseType<
+  typeof apiClient.api.v1.history.reactions.$get,
   200
 >
 

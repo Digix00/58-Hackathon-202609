@@ -31,6 +31,49 @@ export function validateDisplayLanguage(value: string): DisplayLanguage {
   return value as DisplayLanguage;
 }
 
+export const FONT_SIZES = ["normal", "large"] as const;
+export type FontSize = (typeof FONT_SIZES)[number];
+
+export class FontSizeValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FontSizeValidationError";
+  }
+}
+
+export function validateFontSize(value: string): FontSize {
+  if (!FONT_SIZES.includes(value as FontSize)) {
+    throw new FontSizeValidationError("fontSize is invalid");
+  }
+
+  return value as FontSize;
+}
+
+export interface DisplaySettingsInput {
+  displayLanguage?: string;
+  fontSize?: string;
+}
+
+/** 表示設定のうち、更新を指定された項目だけを持つ。 */
+export interface DisplaySettings {
+  displayLanguage?: DisplayLanguage;
+  fontSize?: FontSize;
+}
+
+/** 表示設定の入力値のうち、指定された項目だけを検証して返す。 */
+export function validateDisplaySettings(
+  input: DisplaySettingsInput,
+): DisplaySettings {
+  return {
+    ...(input.displayLanguage !== undefined && {
+      displayLanguage: validateDisplayLanguage(input.displayLanguage),
+    }),
+    ...(input.fontSize !== undefined && {
+      fontSize: validateFontSize(input.fontSize),
+    }),
+  };
+}
+
 export interface UserProfile {
   birthYear: number;
   birthMonth: number;
@@ -115,6 +158,7 @@ export interface User {
   id: string;
   lineUserId: string;
   displayLanguage: DisplayLanguage;
+  fontSize: FontSize;
   birthYear: number | null;
   birthMonth: number | null;
   gender: Gender | null;

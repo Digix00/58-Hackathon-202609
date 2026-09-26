@@ -86,6 +86,10 @@ function getEffectiveProfile(draft: ProfileForm, user: ProfileUser | null): Prof
  * Intent: 認証済みユーザーのプロフィール入力と保存遷移を局所化する。
  * Boundary: 認証状態・保存可能な ViewModel・入力更新・保存操作だけを公開する。
  * State modeling: 入力値、保存中、成功、失敗を reducer の遷移として管理し、編集時に古い結果を消す。
+ * Update Surface: updateField / saveProfile。
+ * Hidden Complexity: 既存プロフィールと下書きの合成、保存後のセッション再取得。
+ * Composition: Authのプロフィールを入力用ViewModelへ変換し、ProfileSettingsViewへ渡す。
+ * Test Notes: 初期値、編集後の保存、失敗時の入力保持、再編集によるエラー解除を確認する。
  */
 function useProfileSettings() {
   const { status: authStatus, user, refresh } = useAuth()
@@ -131,18 +135,24 @@ function useProfileSettings() {
 }
 
 export function ProfileSettings() {
-  const { t, message } = useTranslation()
-
   const { language } = useDisplaySettings()
-  const {
-    authStatus,
-    effectiveProfile,
-    canSaveProfile,
-    profileStatus,
-    profileError,
-    updateField,
-    saveProfile,
-  } = useProfileSettings()
+  const profile = useProfileSettings()
+  return <ProfileSettingsView {...profile} language={language} />
+}
+
+function ProfileSettingsView({
+  language,
+  authStatus,
+  effectiveProfile,
+  canSaveProfile,
+  profileStatus,
+  profileError,
+  updateField,
+  saveProfile,
+}: ReturnType<typeof useProfileSettings> & {
+  language: ReturnType<typeof useDisplaySettings>['language']
+}) {
+  const { t, message } = useTranslation()
   const isSaving = profileStatus === 'saving'
   const profileMessage =
     profileStatus === 'saved' ? t('profile.saved') : profileError ? message(profileError) : null

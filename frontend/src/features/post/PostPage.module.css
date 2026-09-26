@@ -26,54 +26,6 @@
   padding-block: clamp(0.9em, 2.8vh, 1.5em);
 }
 
-/*
- * 紙束。書き足す先が一冊のノートであることを、件数ではなく
- * 下に控えた紙のふちで伝える。
- */
-.stack {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
-  margin-inline-end: 8px;
-}
-
-/*
- * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
- * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
- */
-.sheet {
-  position: absolute;
-  inset: 0;
-  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  pointer-events: none;
-}
-
-.sheet::before {
-  position: absolute;
-  inset: -2px;
-  border: 3.5px solid var(--color-outline);
-  border-radius: inherit;
-  filter: url(#crayon-edge);
-  -webkit-mask-image: var(--crayon-grain);
-  mask-image: var(--crayon-grain);
-  -webkit-mask-size: 160px 160px;
-  mask-size: 160px 160px;
-  opacity: 0.72;
-  content: '';
-}
-
-/* 遠い方の紙。先に描かれるので束の一番下になる。 */
-.sheetFar {
-  background: #fdf5e4;
-  transform: rotate(2.4deg) translate(8px, 10px);
-}
-
-.sheetNear {
-  background: #fffaef;
-  transform: rotate(1.3deg) translate(4px, 5px);
-}
-
 .enter {
   /* 紙束の上に重ねる。下に控えた紙より手前で書かせる。 */
   position: relative;
@@ -111,7 +63,7 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
-/* 読み返す紙とお礼の紙は、載せるものを紙の中央に置く。 */
+/* 読み返す紙とお礼の紙は、紙面いっぱいに一段で載せる。 */
 .readCard,
 .doneCard {
   grid-template-rows: minmax(0, 1fr);
@@ -297,9 +249,9 @@
   outline-offset: 5px;
 }
 
-/* 読み返す紙の本文。書いていたときと同じ行送りの上に置く。 */
+/* 読み返す紙の本文。最上段の罫線から、書いていたときと同じ行送りで並べる。 */
 .readBody {
-  align-self: center;
+  align-self: start;
   font-size: inherit;
   line-height: var(--line);
   letter-spacing: 0.02em;
@@ -369,16 +321,6 @@
   opacity: 0.72;
 }
 
-/* ボタンに貼った小さな付箋。ボタンの役割を邪魔せず、準備中だけを添える。 */
-.voiceLabel {
-  position: absolute;
-  z-index: 1;
-  top: -0.8em;
-  right: -0.7em;
-  font-size: calc(11px * var(--font-scale));
-  transform: rotate(3deg);
-}
-
 .mic {
   width: 1.3em;
   height: 1.3em;
@@ -391,15 +333,138 @@
   filter: url(#crayon-edge-fine);
 }
 
-/*
- * 準備中の知らせ。
- * 貼った札の大きさは札の側で決まっているので、ここで字を縮めない。
- * 縮めると、ほかの画面に貼ってある同じ札より小さくなる。
- */
+/* 音声操作は紙面内で折り返し、結果の長文も省略しない。 */
+.voiceControls {
+  display: grid;
+  gap: 0.65em;
+  margin-top: 0.7em;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.voiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  align-items: center;
+}
+
+.transcript {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
 .voiceNote {
   flex-basis: 100%;
   color: var(--color-muted);
   line-height: 1.5;
+}
+
+/*
+ * 録音の残り。
+ * 数字だけだと、あと何秒話せるのかを毎回読み直すことになる。紙の上で実際に
+ * 起きることへ合わせ、クレヨンで一本の線を引きながら経過を示す。
+ * 線は秒数の裏づけであり、秒数の言葉は必ず残す。長さと色だけで伝えない。
+ */
+.recordTimer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 0.7em;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+/* 引く前の線。紙に引いた下書きとして置き、ふちだけをクレヨンでなぞる。 */
+.recordTrack {
+  position: relative;
+  flex: 1 1 8em;
+  min-width: 7em;
+  height: 0.72em;
+  border-radius: 7px 10px 6px 9px / 9px 6px 10px 7px;
+  background: #f6edd8;
+}
+
+/* 揺らぎは線の細さに合わせる。紙や付箋と同じ #crayon-edge では、高さ10px弱の
+   下書きに対して振れ幅が大きすぎ、ふちが太って別の形に見える。 */
+.recordTrack::before {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--color-field-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge-fine);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.68;
+  pointer-events: none;
+  content: '';
+}
+
+/*
+ * 引いたぶんの線。秒数は1秒ごとにしか届かないので、その間を等速でつなぎ、
+ * クレヨンが紙の上を進み続けているように見せる。
+ */
+.recordInk {
+  position: absolute;
+  inset: 0 auto 0 0;
+  max-width: 100%;
+  border-radius: inherit;
+  background: var(--color-purple);
+  transition: width 1s linear;
+}
+
+/* クレヨンの粉がのらなかった紙目。塗りの上へ紙の色を細かく散らす。 */
+.recordInk::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fffdf4;
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.32;
+  content: '';
+}
+
+/* いま色がついているところ。押しつけた先だけ、濃く丸く紙からはみ出す。 */
+.recordInk::after {
+  position: absolute;
+  top: -0.13em;
+  right: -0.1em;
+  bottom: -0.13em;
+  width: 0.62em;
+  border-radius: 50%;
+  background: var(--color-purple-dark);
+  content: '';
+}
+
+/*
+ * 秒数。
+ * 桁が1桁から2桁へ増えると文字の幅が広がり、そのぶん線が縮んで見える。
+ * 数え終わりの幅をあらかじめ取り、線の長さを秒数だけで決める。
+ */
+.recordElapsed {
+  display: grid;
+  grid-template-areas: 'elapsed';
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recordElapsedWidest,
+.recordElapsedValue {
+  grid-area: elapsed;
+}
+
+.recordElapsedWidest {
+  visibility: hidden;
+}
+
+.recordElapsedValue {
+  text-align: end;
 }
 
 .count {
@@ -599,8 +664,8 @@
 
   /* 高コントラスト時は、かすれを外して紙とふちを確実に示す。 */
   .tab::before,
-  .sheet::before,
   .voiceButton::before,
+  .recordTrack::before,
   .caution::before {
     border-width: 2px;
     opacity: 1;
@@ -613,10 +678,24 @@
   .star {
     filter: none;
   }
+
+  /* 線の濃さで残りを読ませる面なので、紙目の抜けを外して塗りを均す。 */
+  .recordInk {
+    background: var(--color-purple-dark);
+  }
+
+  .recordInk::before {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nextButton span {
     animation: none;
+  }
+
+  /* 線は秒ごとに引かれた長さのまま置く。動きでしか読めない情報を作らない。 */
+  .recordInk {
+    transition: none;
   }
 }

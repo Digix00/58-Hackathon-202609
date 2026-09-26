@@ -1,16 +1,17 @@
 import { useTranslation } from '../i18n/useTranslation'
 import { useState, type ReactNode } from 'react'
-import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { SplashScreen } from '../features/splash/SplashScreen'
 import { CrayonFilters } from '../shared/components/CrayonFilters'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
 import crayonStyles from '../shared/styles/Crayon.module.css'
-import notebookBackground from '../shared/styles/NotebookBackground.module.css'
 import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import styles from './router.module.css'
+
+const forceLiffMode = import.meta.env.DEV && import.meta.env.VITE_DEV_LIFF_MODE === 'true'
 
 function CenteredState({ children }: { children: ReactNode }) {
   return <div className={styles.placeholderPage}>{children}</div>
@@ -25,10 +26,11 @@ export function AppLayout() {
    * 起動画面を出すかどうかは、最初の描画の時点で決める。
    *
    * 準備が終わってからも、絵が抜けきるまでは出したままにする必要があるので、
-   * 初期化中かどうかをそのまま条件にはできない。LIFF を初期化しない入口では
-   * 最初から準備が終わっているので、この値は false になり、起動画面は出ない。
+   * 初期化中かどうかをそのまま条件にはできない。LIFF IDのない通常Webでは
+   * 最初から準備が終わっているので起動画面を出さず、開発用の強制LIFFモードでは
+   * ローカルでも起動画面を確認できるよう、準備済みでも一度表示する。
    */
-  const [booting, setBooting] = useState(() => state.status === 'initializing')
+  const [booting, setBooting] = useState(() => state.status === 'initializing' || forceLiffMode)
   const crayonFilters = <CrayonFilters key={location.key} />
   const liffTarget = liffUrl(location.pathname)
 
@@ -45,27 +47,21 @@ export function AppLayout() {
   return (
     <>
       {crayonFilters}
-      {state.mode === 'liff' ? (
-        <AppShell />
-      ) : state.liffInitializationFailed ? (
-        <main className={`${styles.browserFallbackPage} ${notebookBackground.grid}`}>
-          <section className={styles.runtimeNotice} role="status">
-            <p>{t('guide.initFailed')}</p>
-            {liffTarget ? (
-              <a className={actionStyles.text} href={liffTarget}>
-                {t('guide.reopen')}
-              </a>
-            ) : null}
-          </section>
-          <div className={styles.browserFallbackContent}>
-            <Outlet />
-          </div>
-        </main>
-      ) : (
-        <main className={`${styles.standalonePage} ${notebookBackground.grid}`}>
-          <Outlet />
-        </main>
-      )}
+      <AppShell
+        standalone={state.status === 'ready' && state.mode === 'browser'}
+        notice={
+          state.status === 'ready' && state.mode === 'browser' && state.liffInitializationFailed ? (
+            <section className={styles.runtimeNotice} role="status">
+              <p>{t('guide.initFailed')}</p>
+              {liffTarget ? (
+                <a className={actionStyles.text} href={liffTarget}>
+                  {t('guide.reopen')}
+                </a>
+              ) : null}
+            </section>
+          ) : null
+        }
+      />
     </>
   )
 }
@@ -116,15 +112,22 @@ export function LoginGuide() {
   )
 }
 
-export function ProtectedRoute({ children }: { children: ReactNode }) {
+export function ProtectedRoute({
+  children,
+  pending,
+}: {
+  children: ReactNode
+  pending?: ReactNode
+}) {
   const { t } = useTranslation()
 
   const { state } = useRuntime()
   const { status, user } = useAuth()
 
-  if (state.status !== 'ready') return null
+  if (state.status !== 'ready') return pending ?? null
   if (state.mode === 'browser') return <OpenInLiffGuide />
   if (status === 'initializing') {
+    if (pending) return pending
     return (
       <main className={styles.standalonePage}>
         <LoadingState label={t('auth.checking')} />

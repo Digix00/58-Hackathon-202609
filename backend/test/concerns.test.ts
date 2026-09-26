@@ -1458,3 +1458,116 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
     expect(body.error.requestId).toBe("reaction-auth");
   });
 });
+
+describe("DELETE /api/v1/concerns/:concernId/reactions", () => {
+  it("removes the user's reaction, learning event, and aggregate count", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const concernId = await createConcern(app, cookie);
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    const registered = await app.request(
+      path,
+      {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+    expect(registered.status).toBe(201);
+
+    const removed = await app.request(
+      path,
+      { method: "DELETE", headers: { Cookie: cookie } },
+      env,
+    );
+    expect(removed.status).toBe(200);
+    await expect(removed.json()).resolves.toEqual({
+      concernId,
+      reactionType: "empathy",
+      reactionCount: 0,
+      reacted: false,
+    });
+
+    const db = drizzle(env.DB);
+    const reactions = await db
+      .select()
+      .from(concernReactions)
+      .where(eq(concernReactions.concernId, concernId));
+    expect(reactions).toHaveLength(0);
+
+    const events = await db
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(0);
+
+    const retry = await app.request(
+      path,
+      { method: "DELETE", headers: { Cookie: cookie } },
+      env,
+    );
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toMatchObject({
+      reactionCount: 0,
+      reacted: false,
+    });
+  });
+
+  it("does not remove another user's reaction", async () => {
+    const ownerApp = createTestApp("line_reaction_remove_owner");
+    const ownerCookie = await loginCookie(ownerApp);
+    const concernId = await createConcern(ownerApp, ownerCookie);
+    const reactorApp = createTestApp("line_reaction_remove_reactor");
+    const reactorCookie = await loginCookie(reactorApp);
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    await reactorApp.request(
+      path,
+      {
+        method: "POST",
+        headers: { Cookie: reactorCookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ reactionType: "empathy" }),
+      },
+      env,
+    );
+
+    const removed = await ownerApp.request(
+      path,
+      { method: "DELETE", headers: { Cookie: ownerCookie } },
+      env,
+    );
+    expect(removed.status).toBe(200);
+    await expect(removed.json()).resolves.toMatchObject({
+      reactionCount: 1,
+      reacted: false,
+    });
+
+    const stillReacted = await reactorApp.request(
+      `/api/v1/concerns/${concernId}`,
+      { headers: { Cookie: reactorCookie } },
+      env,
+    );
+    await expect(stillReacted.json()).resolves.toMatchObject({
+      reactionCount: 1,
+      reacted: true,
+    });
+  });
+
+  it("requires a LINE-authenticated session", async () => {
+    const app = anonymousTestApp();
+    const response = await app.request(
+      "/api/v1/concerns/not-a-concern/reactions",
+      { method: "DELETE", headers: { "X-Request-Id": "reaction-remove-auth" } },
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    const body = await response.json<{
+      error: { code: string; requestId: string };
+    }>();
+    expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
+    expect(body.error.requestId).toBe("reaction-remove-auth");
+  });
+});
