@@ -28,6 +28,15 @@ export const DEFAULT_REACTION_DIGEST_MAX_PER_RUN = 40;
 export const DEFAULT_REACTION_DIGEST_MANUAL_BUDGET_MILLISECONDS = 20_000;
 
 const LEASE_MILLISECONDS = 5 * 60_000;
+
+/**
+ * 結果不明の送信を諦めるまでの時間。
+ * LINE の X-Line-Retry-Key による重複排除は 24 時間で切れるため、それより前に打ち切る。
+ * 日次の Cron が少なくとも一度は再送を試みてから諦められるよう 12 時間とする。
+ * 打ち切らないと、結果不明の delivery を抱えた run が終わらず、
+ * その run を引き継ぐ Cron が新しい run を作れなくなる。
+ */
+const UNKNOWN_RESULT_GIVE_UP_MILLISECONDS = 12 * 60 * 60_000;
 const RECENT_RUN_LIMIT = 10;
 
 export interface ReactionDigestExecution {
@@ -157,6 +166,9 @@ export class ReactionDigestUseCase {
       this.maxPerRun,
     );
     const startedAt = this.now().getTime();
+    const giveUpBefore = new Date(
+      startedAt - UNKNOWN_RESULT_GIVE_UP_MILLISECONDS,
+    ).toISOString();
     for (const [index, delivery] of deliveries.entries()) {
       // 1 件目は必ず送る。以降は上限を超えた時点で打ち切り、残りは pending として残す。
       if (
@@ -166,7 +178,7 @@ export class ReactionDigestUseCase {
       ) {
         break;
       }
-      await this.sendDelivery(claimed, delivery, linkUrl);
+      await this.sendDelivery(claimed, delivery, linkUrl, giveUpBefore);
     }
 
     const run = await this.repository.finishRun(
@@ -183,7 +195,14 @@ export class ReactionDigestUseCase {
     claimed: ClaimedReactionDigestRun,
     delivery: ReactionDigestDelivery,
     linkUrl: string,
+    giveUpBefore: string,
   ): Promise<void> {
+    // 結果不明のまま残り続けた送信は、run が終わらなくなるので失敗として打ち切る。
+    if (delivery.isExpired(giveUpBefore)) {
+      await this.repository.saveDelivery(claimed, delivery.giveUp());
+      return;
+    }
+
     if (!delivery.recipient.isReachable) {
       await this.repository.saveDelivery(
         claimed,

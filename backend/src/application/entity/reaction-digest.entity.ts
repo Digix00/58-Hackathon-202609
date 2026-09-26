@@ -247,12 +247,9 @@ export class ReactionDigestDelivery {
         );
       }
     }
-    if (
-      (state.status === "sent" || state.status === "failed") &&
-      !state.response
-    ) {
+    if (state.status === "sent" && !state.response) {
       throw new ReactionDigestStateError(
-        "a finished delivery must have a response",
+        "a sent delivery must have a response",
       );
     }
     if (state.status === "failed" && !state.errorCode) {
@@ -305,6 +302,28 @@ export class ReactionDigestDelivery {
       response,
       errorCode: pushErrorCode(response.httpStatus),
     });
+  }
+
+  /**
+   * 結果不明のまま確定しなかった送信を、失敗として打ち切る。
+   * LINE の X-Line-Retry-Key による重複排除は 24 時間で切れるため、それより前に諦める。
+   * 失敗は起点を進めないので、次の run で同じ寄りそいを数え直す。
+   */
+  giveUp(): ReactionDigestDelivery {
+    this.assertStarted();
+    return this.with({
+      status: "failed",
+      errorCode: "unknown_result_expired",
+    });
+  }
+
+  /** 結果不明の送信が、at までに確定しなかったか。 */
+  isExpired(at: string): boolean {
+    return (
+      this.status === "started" &&
+      this.attemptedAt !== null &&
+      this.attemptedAt < at
+    );
   }
 
   /** 送信直前に友だち解除・削除済みだった受信者には送らない。 */

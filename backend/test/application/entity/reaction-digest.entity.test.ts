@@ -132,6 +132,23 @@ describe("ReactionDigestDelivery", () => {
     ).toBe("upstream_rejected");
   });
 
+  it("gives up on an uncertain delivery that never resolved", () => {
+    const started = pendingDelivery("retry-1");
+    // attemptedAt は 2026-09-26T11:00:00.000Z。
+    expect(started.isExpired("2026-09-26T10:00:00.000Z")).toBe(false);
+    expect(started.isExpired("2026-09-26T23:00:00.000Z")).toBe(true);
+    // まだ送っていない delivery は再送を待っているわけではないので対象外。
+    expect(pendingDelivery().isExpired("2026-09-27T00:00:00.000Z")).toBe(false);
+
+    const gaveUp = started.giveUp();
+    expect(gaveUp).toMatchObject({
+      status: "failed",
+      errorCode: "unknown_result_expired",
+      response: null,
+    });
+    expect(() => gaveUp.giveUp()).toThrow(ReactionDigestStateError);
+  });
+
   it("rejects invalid transitions", () => {
     const pending = pendingDelivery();
     expect(() =>

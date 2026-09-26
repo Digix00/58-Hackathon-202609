@@ -83,7 +83,8 @@ sequenceDiagram
 ```
 
 1. 起動元（Cron、管理画面、内部 API）から同じ UseCase を呼ぶ
-2. 実行単位 `reaction_digest_runs` を作成・claim する。Cron は `reaction-digest:cron:YYYY-MM-DD`、手動は `reaction-digest:manual:{runId}` を idempotency key にする
+2. 実行単位 `reaction_digest_runs` を作成・claim する。**未完了（`pending` / `running`）の run があれば、Cron でも手動でも、新しい run を作らずその run の続きを送る**。新しく作る場合の idempotency key は Cron が `reaction-digest:cron:YYYY-MM-DD`、手動が `reaction-digest:manual:{runId}`
+   - 未確定の delivery を持つ人は新しい run の対象から外れる（二重送信を防ぐため）。先に新しい run を作ってしまうと、前回の残りが定期実行では二度と送られない
 3. claim した時点の時刻を `cutoff_at` として run に固定する。再試行しても集計範囲は変わらない
 4. 受信者ごとの `reaction_digest_deliveries` を 1 回の `INSERT ... SELECT` で作成する。集計値（件数、同じ都道府県の人数、都道府県数）はこの時点でスナップショットする
 5. `pending` の delivery を上限件数まで順に Push API で送る
@@ -91,25 +92,42 @@ sequenceDiagram
 
 ## 5. 「前回送信から」の起点
 
-ユーザーごとの起点（`window_start`）は、そのユーザーの **最後に送信成功した delivery の `window_end` を 5 秒戻した時刻** とする。
+ユーザーごとの起点（`window_start`）は、そのユーザーの **最後に送信成功した delivery の `window_end`** とする。
 
 - 初回（成功 delivery がない人）は起点を持たず、今回の締め時刻までの全寄りそいを対象にする
 - 送信に失敗した delivery は起点にならない。次回の実行では前回成功時点から集計し直すため、取りこぼしが起きない
 - 未確定（`pending` / `started`）の delivery がある人は、その delivery が確定するまで新しい run の対象から外す。結果不明の `started` は同じ Retry Key で再送して確定させる
 - `users` に「最終通知時刻」列を追加する方式も考えられるが、送信結果と起点がずれる恐れがあるため、delivery の履歴を正とする
 
-### 起点を 5 秒戻す理由
+### 終点（= 次回の起点）の決め方
 
-`concern_reactions.created_at` はアプリ側で採番するため、採番から書き込みが他のクエリに見えるまでに間がある（Workers の時刻は直前の I/O で止まるので、少なくとも D1 への 1 往復分は開く）。この間に集計が走ると、締め時刻より前の `created_at` を持つ寄りそいが集計の後にコミットされ、起点が締め時刻まで進むことで次回以降も対象から外れてしまう。
+`window_end` は締め時刻そのものではなく、**「今回数え切った最後の寄りそいの `created_at`」と「締め時刻 - 5 秒」の早いほう** とする。
 
-起点を採番と書き込みのずれの分だけ戻し、集計と同時にコミットされた寄りそいを次の実行で拾う。同じ寄りそいを二度数える可能性（前回の締め時刻の直前 5 秒に届いた寄りそいだけ）は残るが、届いた寄りそいを知らせないほうが損失が大きいため、取りこぼしよりも重複を選ぶ。
+```sql
+window_end = min(
+  max(数えた concern_reactions.created_at),
+  締め時刻 - 5 秒
+)
+```
 
-D1 側の時刻で `created_at` を採番すればコミット順と一致するが、`created_at` は投稿や学習履歴でも使う値で、テストは `now` の注入で時刻を制御している。集計の都合でアプリ全体の時刻の採番を DB 任せにはしない。
+`concern_reactions.created_at` はアプリ側で採番するため、採番の順序とコミットの順序が一致しない（Workers の時刻は直前の I/O で止まるので、採番から書き込みが見えるまで少なくとも D1 への 1 往復分は開く）。締め時刻をそのまま終点にすると、締め時刻より前の `created_at` を持つ寄りそいが集計の後にコミットされた場合、起点が締め時刻まで進むことで次回以降も対象から外れ、永久に通知されない。
+
+二つの値を組み合わせる理由は、どちらか一方だけでは足りないため。
+
+| 終点 | 取りこぼす場合 |
+| --- | --- |
+| 締め時刻 | 集計の後にコミットされた寄りそい（採番と書き込みのずれがどれだけ短くても起きる） |
+| 数え切った時刻のみ | 数え切った寄りそいより前に採番され、集計の後にコミットされた寄りそい |
+| 数え切った時刻のみ + 5 秒戻す | （取りこぼさないが、数え切った寄りそい自体を毎回数え直してしまう） |
+
+この組み合わせで残るのは、「同じ受信者への寄りそいが 5 秒以内に二つ採番され、後から採番された側が先にコミットされ、かつ前の側が集計に間に合わなかった」場合だけになる。代わりに、締め時刻の直前 5 秒に届いた寄りそいを次回も数える可能性（手動実行を 5 秒以内に連打した場合など）は残す。届いた寄りそいを知らせないほうが損失が大きい機能なので、取りこぼしよりも重複を選ぶ。
+
+D1 側の時刻で `created_at` を採番すればコミット順と一致するが、`created_at` は学習履歴でも使う値で、アプリ全体が `now` の注入で時刻を制御している（集計の締め時刻も注入された時刻）。`created_at` だけ DB 側の採番にすると Worker と D1 の二つの時計を比べることになり、締め時刻も DB 側に移すと時刻を固定した既存テストが成立しない。集計の都合でアプリ全体の時刻の採番を DB 任せにはしない。単調なウォーターマークとしての `rowid` も、リアクションの取り消し（DELETE）の後に採番が再利用され、同じ取りこぼしが起きるため使わない。
 
 集計条件:
 
 ```sql
-concern_reactions.created_at >  window_start   -- 起点がある場合のみ（= 前回の window_end - 5 秒）
+concern_reactions.created_at >  window_start   -- 起点がある場合のみ（= 前回の window_end）
 concern_reactions.created_at <= run.cutoff_at
 concerns.user_id = 受信者
 concerns.visibility_status = 'published'
@@ -146,8 +164,8 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 | id | TEXT PK | delivery ID |
 | run_id | TEXT FK | reaction_digest_runs.id |
 | user_id | TEXT FK | 受信者の users.id（LINE user ID は保存しない。送信時に users から引く） |
-| window_start | TEXT NULL | 集計の起点（排他的）。前回の `window_end` を 5 秒戻した時刻。初回は NULL |
-| window_end | TEXT | 集計の終点（= run.cutoff_at） |
+| window_start | TEXT NULL | 集計の起点（排他的）。前回成功した delivery の `window_end`。初回は NULL |
+| window_end | TEXT | 次回の起点に使う終点。`min(数え切った created_at, cutoff_at - 5 秒)` |
 | reactor_count | INTEGER | 新しく寄りそった人の実人数 |
 | same_region_count | INTEGER | うち受信者と同じ都道府県の人からの数 |
 | region_count | INTEGER | 寄りそいが届いた都道府県の数（未設定は数えない） |
@@ -254,6 +272,7 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 - 手動実行には、件数とは別に送信時間の上限（既定 20 秒）を設ける。管理画面は POST の応答を待つため、`REACTION_DIGEST_MAX_PER_RUN` を増やしたり LINE の応答が遅い場合に、応答時間が画面側のタイムアウトを超えてしまうのを防ぐ。上限に達したら残りは `pending` のまま 202 で返し、「残りを送る」で続きを送る（1 件目は必ず送るので、必ず前に進む）
 - Cron にはこの時間の上限を適用しない。待っている画面が無く、1 日 1 回の実行で `REACTION_DIGEST_MAX_PER_RUN` まで送り切りたいため
 - 各 delivery は送信前に `status=started` と `line_retry_key` を保存する。タイムアウトなどで結果不明なら `started` のまま残し、次の実行で同じ Retry Key を使って再送する（LINE 側で重複排除される）
+- 結果不明のまま 12 時間を過ぎた delivery は、再送せず `failed`（`error_code=unknown_result_expired`）として打ち切る。Retry Key による LINE 側の重複排除は 24 時間で切れるため、それより前に諦める。打ち切らないと run が終わらず、未完了 run を引き継ぐ Cron が新しい run を作れなくなる。失敗は起点を進めないので、次の run で同じ寄りそいを数え直す（重複して数える可能性はあるが、取りこぼさない）
 - LINE が 409 と `X-Line-Accepted-Request-Id` を返したら送信成功として扱う
 - 400/403（友だちでない、ブロック）などは `failed` とし、`error_code` に記録する。再送はしない
 - 5xx は `failed` とし、次回の run で改めて集計される（起点が更新されないため取りこぼさない）
@@ -280,7 +299,9 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 ## 11. テスト観点
 
 - 前回成功時点より後の寄りそいだけが数えられる。失敗した delivery は起点にならない
-- 集計の後にコミットされた寄りそい（締め時刻の直前に採番されたもの）が次の実行で数えられる
+- 集計の後にコミットされた寄りそい（締め時刻の直前に採番されたもの、数え切った寄りそいより前に採番されたもの）が次の実行で数えられる
+- 前日の Cron が残した delivery を、翌日の Cron が新しい run を作らずに送り切る
+- 結果不明のまま 12 時間を過ぎた delivery を打ち切り、run が終わる
 - 自分の寄りそい、非公開投稿への寄りそい、締め時刻より後の寄りそいは数えない
 - 同じ日の Cron 二重起動で run が 1 つしか作られない
 - 手動実行中に別の手動実行を行うと 409 になる

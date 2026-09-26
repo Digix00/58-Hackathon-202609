@@ -10,11 +10,13 @@ import {
   inArray,
   isNull,
   lte,
+  max,
   ne,
   notExists,
   notInArray,
   or,
   type SQL,
+  type SQLWrapper,
   sql,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
@@ -61,14 +63,11 @@ const UNRESOLVED_DELIVERY_STATUSES: readonly ReactionDigestDeliveryStatus[] = [
 const MANUAL_RUN_ATTEMPTS = 2;
 
 /**
- * 起点を戻す幅。
- * concern_reactions.created_at はアプリ側で採番するため、採番から書き込みが見えるまでに間がある。
- * その間に集計が走ると、締め時刻より前の created_at を持つ寄りそいが集計の後にコミットされ、
- * 起点が締め時刻まで進むことで次回以降も対象から外れてしまう。
- * 起点をこの幅だけ戻し、集計と同時にコミットされた寄りそいを次の実行で拾う。
- * 同じ寄りそいを二度数える可能性はあるが、届いた寄りそいを知らせないほうが損失が大きい。
+ * 採番から書き込みが見えるまでに見込む幅。
+ * concern_reactions.created_at はアプリ側で採番するため、採番の順序とコミットの順序が一致しない。
+ * 集計の後にコミットされた寄りそいを次回の対象に残すため、終点を締め時刻より手前に置く。
  */
-const WINDOW_START_MARGIN_SECONDS = 5;
+const IN_FLIGHT_MARGIN_SECONDS = 5;
 
 /** 条件に合う delivery の件数。left join なので、delivery が無い run でも 0 を返す。 */
 function countDeliveriesWhere(condition: SQL): SQL<number> {
@@ -207,7 +206,10 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
               runId: reactionDigestRuns.id,
               userId: aggregate.userId,
               windowStart: aggregate.windowStart,
-              windowEnd: reactionDigestRuns.cutoffAt,
+              windowEnd: windowEnd(
+                reactionDigestRuns.cutoffAt,
+                aggregate.countedThrough,
+              ).as("window_end"),
               reactorCount: aggregate.reactorCount,
               sameRegionCount: aggregate.sameRegionCount,
               regionCount: aggregate.regionCount,
@@ -366,11 +368,7 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         userId: users.id,
         regionCode: users.regionCode,
         windowStart: sql<string | null>`(
-          select strftime(
-            '%Y-%m-%dT%H:%M:%fZ',
-            max(${reactionDigestDeliveries.windowEnd}),
-            ${`-${WINDOW_START_MARGIN_SECONDS} seconds`}
-          )
+          select max(${reactionDigestDeliveries.windowEnd})
           from ${reactionDigestDeliveries}
           where ${eq(reactionDigestDeliveries.userId, users.id)}
             and ${eq(reactionDigestDeliveries.status, "sent")}
@@ -403,6 +401,8 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         userId: recipient.userId,
         windowStart: recipient.windowStart,
         regionCode: recipient.regionCode,
+        // 今回の集計で実際に数え切った、最後の寄りそいの時刻。
+        countedThrough: max(concernReactions.createdAt).as("counted_through"),
         // 同じ人が複数の投稿へ寄りそっても 1 人と数える。
         reactorCount: countDistinct(concernReactions.userId).as(
           "reactor_count",
@@ -451,7 +451,14 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     request: ReactionDigestRunRequest,
   ): Promise<string> {
     if (request.idempotencyKey) {
-      // Cron は日付ごとの冪等キーが一意なので、INSERT 自体が重複を弾く。
+      // Cron も、前回の run が残した未送信・結果不明の delivery を先に片付ける。
+      // 未確定の delivery を持つ人は新しい run の対象から外れるため、
+      // 先に新しい run を作ると、前回の残りが定期実行では二度と送られない。
+      const unfinished = await this.findOldestUnfinishedRunId();
+      if (unfinished) {
+        return unfinished;
+      }
+      // 同じ日付の Cron は冪等キーが一意なので、INSERT 自体が重複を弾く。
       await this.insertRun(request);
       const row = await this.db
         .select({ id: reactionDigestRuns.id })
@@ -481,22 +488,25 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         return request.newRunId;
       }
 
-      const unfinished = await this.db
-        .select({ id: reactionDigestRuns.id })
-        .from(reactionDigestRuns)
-        .where(inArray(reactionDigestRuns.status, [...UNFINISHED_RUN_STATUSES]))
-        .orderBy(
-          asc(reactionDigestRuns.requestedAt),
-          asc(reactionDigestRuns.id),
-        )
-        .limit(1)
-        .get();
+      const unfinished = await this.findOldestUnfinishedRunId();
       if (unfinished) {
-        return unfinished.id;
+        return unfinished;
       }
       // 条件付き INSERT を弾いた run が、その直後に完了した。もう一度作りに行く。
     }
     throw new Error("reaction digest run could not be created");
+  }
+
+  /** 未完了の run のうち最も古いもの。Cron と手動実行はこの run の続きを送る。 */
+  private async findOldestUnfinishedRunId(): Promise<string | null> {
+    const row = await this.db
+      .select({ id: reactionDigestRuns.id })
+      .from(reactionDigestRuns)
+      .where(inArray(reactionDigestRuns.status, [...UNFINISHED_RUN_STATUSES]))
+      .orderBy(asc(reactionDigestRuns.requestedAt), asc(reactionDigestRuns.id))
+      .limit(1)
+      .get();
+    return row?.id ?? null;
   }
 
   private async insertRun(request: ReactionDigestRunRequest): Promise<void> {
@@ -570,6 +580,22 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         ),
     );
   }
+}
+
+/**
+ * 次回の起点に使う終点。
+ * 「今回数え切った最後の寄りそいの時刻」と「締め時刻 - 採番の余裕」の早いほうを採る。
+ * 前者だけでは、数え切った寄りそいより前に採番され後からコミットされた寄りそいを飛ばす。
+ * 後者だけでは、締め時刻の直前に数えた寄りそいを次回も数えてしまう。
+ */
+function windowEnd(
+  cutoffAt: SQLWrapper,
+  countedThrough: SQLWrapper,
+): SQL<string> {
+  return sql<string>`min(
+    ${countedThrough},
+    strftime('%Y-%m-%dT%H:%M:%fZ', ${cutoffAt}, ${`-${IN_FLIGHT_MARGIN_SECONDS} seconds`})
+  )`;
 }
 
 /** run の締め時刻。派生テーブルからは外側の run を参照できないため、その場で読み直す。 */

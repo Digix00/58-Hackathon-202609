@@ -334,7 +334,7 @@ POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同�
 
 LINE API を呼ぶ前に、claim を取得したトランザクション内で line_broadcast_attempts に status=started、attempt_number、attempted_at、line_retry_key を保存する。Worker が API 応答を受け取る前に終了した場合、lease の期限切れ後に同じ attempt の line_retry_key を再利用する。LINE が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みとして論理的な成功に扱う。line_broadcasts.status=succeeded は LINE が一回の Broadcast API リクエストを受理した状態であり、友だち一人ひとりの配信完了を D1 で追跡するものではない。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
 
-寄りそい通知は内容が人ごとに異なるため、Push API（POST https://api.line.me/v2/bot/message/push）で一人ずつ送り、reaction_digest_deliveries に受信者ごとの状態を持つ。受信者ごとの集計の起点（window_start）は、その人の status=sent の delivery の最大 window_end を 5 秒戻した時刻とし（concern_reactions.created_at の採番と書き込みのずれで取りこぼさないため。docs/technical/line-reaction-digest.md の 5 節を参照）、送信に失敗した delivery は起点にしない。reaction_digest_deliveries.status は pending → started → sent / failed、または送信直前に友だち解除・削除済みだった場合の skipped と遷移する。pending / started の delivery を持つ人は新しい run の対象から外し、結果不明の started は同じ line_retry_key で再送する。
+寄りそい通知は内容が人ごとに異なるため、Push API（POST https://api.line.me/v2/bot/message/push）で一人ずつ送り、reaction_digest_deliveries に受信者ごとの状態を持つ。受信者ごとの集計の起点（window_start）は、その人の status=sent の delivery の最大 window_end とし、送信に失敗した delivery は起点にしない。window_end は締め時刻ではなく min(今回数え切った created_at, cutoff_at - 5 秒) とする（concern_reactions.created_at の採番順とコミット順が一致しないため。docs/technical/line-reaction-digest.md の 5 節を参照）。reaction_digest_deliveries.status は pending → started → sent / failed、または送信直前に友だち解除・削除済みだった場合の skipped と遷移する。pending / started の delivery を持つ人は新しい run の対象から外し、結果不明の started は同じ line_retry_key で再送する（12 時間を過ぎたら failed として打ち切る）。未完了の run があれば、Cron でも手動でも新しい run を作らずその run の続きを送る。
 
 #### API項目と物理カラムの対応
 

@@ -443,6 +443,76 @@ describe("ReactionDigestUseCase", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("continues the unfinished run on the next scheduled digest", async () => {
+    for (let index = 0; index < 2; index += 1) {
+      const recipient = await seedUser();
+      const concernId = await seedConcern(recipient.id);
+      await react(concernId, (await seedUser()).id, "2026-09-26T01:00:00.000Z");
+    }
+
+    let now = new Date("2026-09-26T11:00:00.000Z");
+    const { useCase, sent } = createDigest({ now: () => now, maxPerRun: 1 });
+    const first = await useCase.runScheduled(now);
+    expect(first.status).toBe("pending");
+    expect(sent).toHaveLength(1);
+
+    // 翌日の Cron は、新しい run を作る前に前日の残りを送り切る。
+    // 未確定の delivery を持つ人は新しい run の対象から外れるため、
+    // 先に新しい run を作ると前日の残りが定期実行では二度と送られない。
+    now = new Date("2026-09-27T11:00:00.000Z");
+    const second = await useCase.runScheduled(now);
+    expect(second.run.runId).toBe(first.run.runId);
+    expect(second.status).toBe("finished");
+    expect(sent).toHaveLength(2);
+
+    const runs = await env.DB.prepare(
+      "select count(*) as count from reaction_digest_runs",
+    ).first<{ count: number }>();
+    expect(runs?.count).toBe(1);
+  });
+
+  it("gives up on an uncertain push that never resolves", async () => {
+    const recipient = await seedUser();
+    const concernId = await seedConcern(recipient.id);
+    await react(concernId, (await seedUser()).id, "2026-09-26T01:00:00.000Z");
+
+    let now = new Date("2026-09-26T11:00:00.000Z");
+    const { useCase, sent } = createDigest({
+      now: () => now,
+      behavior: () => ({ status: "unknown" }),
+    });
+    const uncertain = await useCase.runManual();
+    expect(uncertain.status).toBe("pending");
+    expect(sent).toHaveLength(1);
+
+    // 12 時間を過ぎても確定しない送信は、run が終わらなくなるので打ち切る。
+    now = new Date("2026-09-27T00:00:00.000Z");
+    const gaveUp = await useCase.runManual();
+    expect(gaveUp.run).toMatchObject({ status: "failed", failedCount: 1 });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("counts a reaction stamped before the one it counted through", async () => {
+    const recipient = await seedUser();
+    const concernId = await seedConcern(recipient.id);
+    await react(concernId, (await seedUser()).id, "2026-09-26T10:59:59.000Z");
+
+    let now = new Date("2026-09-26T11:00:00.000Z");
+    const { useCase, sent } = createDigest({ now: () => now });
+    await useCase.runManual();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("1人がそっと寄りそいました。");
+
+    // 数え切った寄りそいより前に採番され、集計の後にコミットされた寄りそい。
+    await react(concernId, (await seedUser()).id, "2026-09-26T10:59:58.000Z");
+
+    now = new Date("2026-09-26T12:00:00.000Z");
+    await useCase.runManual();
+    // 締め時刻の直前に数えた寄りそいは、取りこぼさないために二度数える。
+    expect(sent).toHaveLength(2);
+    expect(sent[1].text).toContain("2人がそっと寄りそいました。");
+  });
+
   it("skips recipients who unfollowed or never became friends", async () => {
     const unfollowed = await seedUser({ friendStatus: "unfollowed" });
     const notFriend = await seedUser({ friendStatus: null });
