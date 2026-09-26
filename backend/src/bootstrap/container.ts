@@ -1,6 +1,7 @@
 import { createApp } from "../app/create-app";
 import { AuthUseCase } from "../application/usecase/auth.usecase";
 import { CheckHealthUseCase } from "../application/usecase/check-health.usecase";
+import { ClusterUseCase } from "../application/usecase/cluster.usecase";
 import { ConcernUseCase } from "../application/usecase/concern.usecase";
 import {
   ConcernProcessingUseCase,
@@ -26,6 +27,7 @@ import {
   D1SessionRepository,
   D1UserRepository,
 } from "../infrastructure/database/d1-auth.repository";
+import { D1ClusterRepository } from "../infrastructure/database/d1-cluster.repository";
 import { D1ConcernRepository } from "../infrastructure/database/d1-concern.repository";
 import { D1ConcernClusterSummaryRepository } from "../infrastructure/database/d1-concern-cluster-summary.repository";
 import { D1ConcernProcessingRepository } from "../infrastructure/database/d1-concern-processing.repository";
@@ -44,6 +46,7 @@ import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/clo
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
 import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
 import { AuthHandler } from "../presentation/auth.handler";
+import { ClusterHandler } from "../presentation/cluster.handler";
 import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import { ConcernViewHandler } from "../presentation/concern-view.handler";
@@ -123,6 +126,9 @@ export function createApplication(bindings: Bindings) {
     concernProcessingQueue,
   );
   const concernHandler = new ConcernHandler(concernUseCase);
+  const clusterHandler = new ClusterHandler(
+    new ClusterUseCase(new D1ClusterRepository(bindings.DB)),
+  );
   const concernReactionRepository = new D1ConcernReactionRepository(
     bindings.DB,
   );
@@ -182,6 +188,7 @@ export function createApplication(bindings: Bindings) {
       authHandler,
       authUseCase,
       concernHandler,
+      clusterHandler,
       concernReactionHandler,
       concernViewHandler,
       healthHandler,
