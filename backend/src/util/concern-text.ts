@@ -1,23 +1,24 @@
-import type {
-  ConcernProcessingStatus,
-  ConcernTextRepresentation,
-} from "../entity/concern";
+import type { DisplayLanguage } from "./display-language";
 
-export const CONCERN_LANGUAGES = ["original", "jaHira", "en"] as const;
-export type ConcernLanguage = (typeof CONCERN_LANGUAGES)[number];
+/** 翻訳キューが生成した悩み本文の表現（`concern_representations` の行）。 */
+export interface ConcernTextRepresentationLike {
+  locale: "ja-Hira" | "en";
+  body: string;
+  status: "ready" | "failed";
+}
 
 export type ConcernRepresentationState = "pending" | "ready" | "failed";
 
 export interface SelectedConcernText {
   body: string;
-  language: ConcernLanguage;
+  language: DisplayLanguage;
 }
 
 /** 表現行がない場合は投稿全体の処理状態から pending / failed を補う。 */
 export function getConcernRepresentationState(
-  representations: readonly ConcernTextRepresentation[],
-  processingStatus: ConcernProcessingStatus,
-  locale: ConcernTextRepresentation["locale"],
+  representations: readonly ConcernTextRepresentationLike[],
+  processingStatus: string,
+  locale: ConcernTextRepresentationLike["locale"],
 ): ConcernRepresentationState {
   const representation = representations.find(
     (candidate) => candidate.locale === locale,
@@ -32,8 +33,8 @@ export function getConcernRepresentationState(
 /** 指定表現が ready のときだけ採用し、それ以外は原文へ戻す。 */
 export function selectConcernText(
   originalBody: string,
-  representations: readonly ConcernTextRepresentation[],
-  language: ConcernLanguage,
+  representations: readonly ConcernTextRepresentationLike[],
+  language: DisplayLanguage,
 ): SelectedConcernText {
   if (language === "original") {
     return { body: originalBody, language: "original" };

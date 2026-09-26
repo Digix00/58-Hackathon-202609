@@ -4,7 +4,7 @@ import type { ConcernTextRepresentation } from "../../src/application/entity/con
 import {
   getConcernRepresentationState,
   selectConcernText,
-} from "../../src/application/shared/concern-representation";
+} from "../../src/util/concern-text";
 
 const representations: ConcernTextRepresentation[] = [
   { locale: "ja-Hira", body: "ひらがな", status: "ready" },

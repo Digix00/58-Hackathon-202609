@@ -357,7 +357,9 @@ describe("POST /api/v1/concerns", () => {
     const created = await res.json<{ attributes: Record<string, unknown> }>();
     expect(created.attributes).toEqual({
       ageGroup: "20s",
+      ageGroupName: "20代",
       gender: "no_answer",
+      genderName: "回答しない",
       regionCode: "osaka",
       regionName: "大阪府",
     });
@@ -393,7 +395,9 @@ describe("POST /api/v1/concerns", () => {
     const created = await res.json<{ attributes: Record<string, unknown> }>();
     expect(created.attributes).toEqual({
       ageGroup: "20s",
+      ageGroupName: "20代",
       gender: "female",
+      genderName: "女性",
       regionCode: "osaka",
       regionName: "大阪府",
     });
@@ -1090,6 +1094,84 @@ describe("GET /api/v1/concerns/:concernId", () => {
     expect(english).toMatchObject({
       body: "Detail original in English",
       language: "en",
+    });
+  });
+
+  it("translates attribute names with master data and follows the user's display language", async () => {
+    const id = await seedConcern({
+      body: "属性も英語で返す原文",
+      genderCode: "female",
+      regionCode: "osaka",
+      processingStatus: "ready",
+      createdAt: "9999-03-03T00:00:00.000Z",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "en",
+      body: "Original returned in English",
+    });
+    await seedRepresentation({
+      concernId: id,
+      locale: "ja-Hira",
+      body: "ぞくせいもえいごでかえすげんぶん",
+    });
+    const app = createTestApp("line_display_language_en_user");
+
+    const englishResponse = await app.request(
+      `/api/v1/concerns/${id}?language=en`,
+      {},
+      env,
+    );
+    expect(englishResponse.status).toBe(200);
+    expect(await englishResponse.json()).toMatchObject({
+      body: "Original returned in English",
+      language: "en",
+      attributes: {
+        gender: "female",
+        genderName: "Female",
+        regionCode: "osaka",
+        regionName: "Osaka",
+      },
+    });
+
+    const hiraganaResponse = await app.request(
+      `/api/v1/concerns/${id}?language=jaHira`,
+      {},
+      env,
+    );
+    expect(await hiraganaResponse.json()).toMatchObject({
+      body: "ぞくせいもえいごでかえすげんぶん",
+      language: "jaHira",
+      attributes: { genderName: "じょせい", regionName: "おおさかふ" },
+    });
+
+    const cookie = await loginCookie(app);
+    await drizzle(env.DB)
+      .update(users)
+      .set({ displayLanguage: "en" })
+      .where(eq(users.lineUserId, "line_display_language_en_user"))
+      .run();
+
+    const defaultResponse = await app.request(
+      `/api/v1/concerns/${id}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await defaultResponse.json()).toMatchObject({
+      body: "Original returned in English",
+      language: "en",
+      attributes: { genderName: "Female", regionName: "Osaka" },
+    });
+
+    const originalResponse = await app.request(
+      `/api/v1/concerns/${id}?language=original`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await originalResponse.json()).toMatchObject({
+      body: "属性も英語で返す原文",
+      language: "original",
+      attributes: { genderName: "女性", regionName: "大阪府" },
     });
   });
 

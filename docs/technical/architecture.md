@@ -38,6 +38,7 @@ flowchart LR
 - `application/port`: 外部サービスのPort
 - `application/usecase`: Application層のユースケースと、その実装に依存する抽象契約
 - `infrastructure`: D1、Drizzle、音声認識、翻訳、AI、LINEのAdapter
+- `util`: 表示言語の決定、性別・年代・都道府県のマスタ変換、悩み本文の表現選択など、層をまたいで使う純粋な変換処理。`presentation` と `application` から参照してよいが、`util` 自身はほかの層に依存しない
 - `bootstrap/container.ts`: 依存関係の組み立て
 - `app`: Honoアプリ、共通middleware、エラーハンドラー
 
