@@ -469,7 +469,8 @@ function readOpusPacketDuration(packet: Uint8Array): number {
   if (packet.byteLength < 2 && frameCode >= 2) {
     throw new TypeError("Truncated Opus packet");
   }
-  const frameCount = frameCode === 0 ? 1 : frameCode < 3 ? 2 : packet[1]! >> 2;
+  const frameCount =
+    frameCode === 0 ? 1 : frameCode < 3 ? 2 : packet[1]! & 0x3f;
   if (frameCount < 1 || frameCount > 48) {
     throw new TypeError("Invalid Opus frame count");
   }
@@ -531,7 +532,7 @@ function validateOpusCode3Framing(
   let frameDataStart = 2;
   let paddingLength = 0;
 
-  if ((control & 0x02) !== 0) {
+  if ((control & 0x40) !== 0) {
     let paddingSize: number;
     do {
       if (frameDataStart >= packet.byteLength) {
@@ -550,7 +551,7 @@ function validateOpusCode3Framing(
     throw new TypeError("Invalid Opus packet padding");
   }
 
-  if ((control & 0x01) === 0) {
+  if ((control & 0x80) === 0) {
     const frameDataLength = frameDataEnd - frameDataStart;
     if (frameDataLength % frameCount !== 0) {
       throw new TypeError("Invalid Opus CBR frame lengths");
