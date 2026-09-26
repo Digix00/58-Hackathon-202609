@@ -42,39 +42,68 @@ const TEXTS: Record<
   },
 }
 
+/** テーマ・年代・地域のしおり。ひとつも無い声では、行そのものを出さない。 */
+function VoiceTags({ voice }: { voice: HistoryVoiceView }) {
+  if (!voice.theme && !voice.ageGroup && !voice.region) return null
+
+  return (
+    <p className={styles.voiceTags}>
+      {voice.theme ? <span className={styles.themeMark}>{voice.theme}</span> : null}
+      {voice.ageGroup ? <span className={styles.tag}>{voice.ageGroup}</span> : null}
+      {voice.region ? <span className={styles.tag}>{voice.region}</span> : null}
+    </p>
+  )
+}
+
+/**
+ * 抜粋の本文。投稿詳細は公開済みの声しか返さないので、開けない紙片は
+ * 履歴に残したまま、読み返しの導線だけ外す。
+ */
+function VoiceBody({ voice, openable }: { voice: HistoryVoiceView; openable: boolean }) {
+  const { t } = useTranslation()
+
+  const body = (
+    <span className={styles.voiceBody} lang={voice.language === 'en' ? 'en' : 'ja'}>
+      {voice.body}
+    </span>
+  )
+
+  if (!openable) return body
+
+  return (
+    <Link
+      className={styles.voiceLink}
+      to={`/concerns/${encodeURIComponent(voice.id)}`}
+      aria-label={t('history.openVoice', { body: voice.body })}
+    >
+      {body}
+    </Link>
+  )
+}
+
+/** 公開前・非公開の声にだけ、その事情を本人へ伝える。 */
+function VoiceNote({ state }: { state: HistoryVoiceView['state'] }) {
+  const { t } = useTranslation()
+
+  if (state === 'published') return null
+
+  return (
+    <p className={styles.voiceNote}>
+      {t(state === 'hidden' ? 'history.notPublished' : 'history.preparing')}
+    </p>
+  )
+}
+
 function VoiceCard({ voice, when }: { voice: HistoryVoiceView; when: MessageKey }) {
   const { t } = useTranslation()
 
-  /*
-   * 投稿詳細は公開済みの声しか返さないので、非公開の紙片は開けない。
-   * 履歴の一覧には残したまま、読み返しの導線だけ外す。
-   */
+  // 非公開の声は詳細を開けないため、本文と「ひらく」の印を合わせて切り替える。
   const openable = voice.state !== 'hidden'
 
   return (
     <li className={styles.voice}>
-      {voice.theme || voice.ageGroup || voice.region ? (
-        <p className={styles.voiceTags}>
-          {voice.theme ? <span className={styles.themeMark}>{voice.theme}</span> : null}
-          {voice.ageGroup ? <span className={styles.tag}>{voice.ageGroup}</span> : null}
-          {voice.region ? <span className={styles.tag}>{voice.region}</span> : null}
-        </p>
-      ) : null}
-      {openable ? (
-        <Link
-          className={styles.voiceLink}
-          to={`/concerns/${encodeURIComponent(voice.id)}`}
-          aria-label={t('history.openVoice', { body: voice.body })}
-        >
-          <span className={styles.voiceBody} lang={voice.language === 'en' ? 'en' : 'ja'}>
-            {voice.body}
-          </span>
-        </Link>
-      ) : (
-        <span className={styles.voiceBody} lang={voice.language === 'en' ? 'en' : 'ja'}>
-          {voice.body}
-        </span>
-      )}
+      <VoiceTags voice={voice} />
+      <VoiceBody voice={voice} openable={openable} />
       <p className={styles.voiceMeta}>
         <span>{t(when, { when: voice.whenLabel })}</span>
         <span className={styles.voiceSupport}>
@@ -86,11 +115,7 @@ function VoiceCard({ voice, when }: { voice: HistoryVoiceView; when: MessageKey 
           </span>
         ) : null}
       </p>
-      {voice.state === 'published' ? null : (
-        <p className={styles.voiceNote}>
-          {t(voice.state === 'hidden' ? 'history.notPublished' : 'history.preparing')}
-        </p>
-      )}
+      <VoiceNote state={voice.state} />
       <TranslationNotice actualLanguage={voice.language} status={voice.translationStatus} />
     </li>
   )
