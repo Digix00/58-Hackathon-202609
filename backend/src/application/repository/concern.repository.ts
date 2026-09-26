@@ -37,6 +37,8 @@ export interface ListConcernFeedInput extends ListPublishedConcernsInput {
   regionCode?: string;
   clusterId?: string;
   userId?: string;
+  /** 指定した利用者の投稿だけに絞る。推薦で本人の投稿を別枠で取得するために使う。 */
+  authorUserId?: string;
 }
 
 export interface ListConcernFeedResult {

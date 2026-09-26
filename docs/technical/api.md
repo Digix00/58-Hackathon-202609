@@ -480,7 +480,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
 - sort=recommended はLINEログイン済みLIFFで、未読、クラスタの分散、都道府県の分散、新しさを使う
-- sort=recommended には閲覧者自身の投稿も含める。本人の投稿は未読として優先せず、他の候補と同じ分散・新しさの基準で並べ、reasonCode=own_post を返す
+- sort=recommended には閲覧者自身の投稿も含める。本人の投稿は他の利用者の候補とは別に、先頭ページの取得時に新しい順で最大3件だけ候補へ加える（本人の投稿だけで候補が埋まらないようにする）。本人の投稿は未読として優先せず、他の候補と同じ分散・新しさの基準で並べ、reasonCode=own_post を返す
 - 未ログインの取得で sort=recommended を指定した場合は、公開閲覧を継続するため sort=newest と同じ結果を返す
 - 推薦に必要な処理が失敗した場合は strategy=fallback として newest 相当で返す。このときも閲覧者自身の投稿は reasonCode=own_post とする
 - 推薦理由の code は画面側で表示文言へ変換する。サーバーは内部のスコアや個人識別情報を返さない

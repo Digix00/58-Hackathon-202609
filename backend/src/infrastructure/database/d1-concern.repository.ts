@@ -119,6 +119,9 @@ export class D1ConcernRepository implements ConcernRepository {
 
   async listFeed(input: ListConcernFeedInput): Promise<ListConcernFeedResult> {
     const conditions = [eq(concerns.visibilityStatus, "published")];
+    if (input.authorUserId) {
+      conditions.push(eq(concerns.userId, input.authorUserId));
+    }
     if (input.gender) {
       conditions.push(eq(concerns.genderCode, input.gender));
     }
