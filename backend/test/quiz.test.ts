@@ -361,8 +361,32 @@ describe("quiz routes", () => {
         expect.objectContaining({
           attributes: {
             ageGroup: "no_answer",
+            ageGroupName: "回答しない",
             gender: "no_answer",
+            genderName: "回答しない",
             regionCode: "no_answer",
+            regionName: "回答しない",
+          },
+        }),
+      ]),
+    );
+
+    const englishResponse = await app.request(
+      "/api/v1/quizzes/today?language=en",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const englishBody = await englishResponse.json<QuizResponse>();
+    expect(englishBody.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          attributes: {
+            ageGroup: "no_answer",
+            ageGroupName: "Prefer not to say",
+            gender: "no_answer",
+            genderName: "Prefer not to say",
+            regionCode: "no_answer",
+            regionName: "Prefer not to say",
           },
         }),
       ]),

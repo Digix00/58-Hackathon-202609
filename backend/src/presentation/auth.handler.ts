@@ -3,13 +3,14 @@ import { createFactory } from "hono/factory";
 import { z } from "zod";
 import { SESSION_COOKIE_NAME } from "../app/auth-cookie";
 import { getRequestId } from "../app/request-id";
-import { isUserProfileCompleted, type User } from "../application/entity/user";
+import type { User } from "../application/entity/user";
 import {
   InvalidLineTokenError,
   LineAuthConfigurationError,
 } from "../application/port/line-token-verifier";
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { Bindings } from "../types";
+import { toUserResponse } from "./user-response";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const lineLoginRequest = z.object({
@@ -178,18 +179,6 @@ function toResponse(result: { user: User | null }) {
   return {
     authenticated: result.user !== null,
     user: result.user ? toUserResponse(result.user) : null,
-  };
-}
-
-function toUserResponse(user: User) {
-  return {
-    id: user.id,
-    displayLanguage: user.displayLanguage,
-    birthYear: user.birthYear,
-    birthMonth: user.birthMonth,
-    gender: user.gender,
-    regionCode: user.regionCode,
-    profileCompleted: isUserProfileCompleted(user),
   };
 }
 

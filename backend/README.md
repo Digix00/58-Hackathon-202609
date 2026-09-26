@@ -34,6 +34,10 @@ src/
 │       ├── concern-processing.usecase.ts
 │       ├── concern.usecase.ts
 │       └── check-health.usecase.ts
+├── util/                        # 層をまたぐ純粋な変換処理（ほかの層に依存しない）
+│   ├── attribute-name.ts        # 性別・年代・都道府県の表示名マスタ
+│   ├── concern-text.ts          # 悩み本文の表現（ひらがな・英語）選択
+│   └── display-language.ts      # 表示言語の決定
 ├── infrastructure/              # D1/Drizzle・外部サービスのAdapter
 │   ├── ai/
 │   │   ├── local-concern-cluster-summary.generator.ts

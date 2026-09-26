@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type MouseEvent,
-  type TouchEvent,
-} from 'react'
+import { useEffect, useEffectEvent, useRef, type MouseEvent, type TouchEvent } from 'react'
 
 const SWIPE_THRESHOLD = 56
 const SWIPE_SLOP = 8
@@ -34,14 +27,61 @@ export function useNotebookSwipe({
   onNext,
   onPrevious,
 }: UseNotebookSwipeOptions) {
-  const [dragX, setDragX] = useState(0)
   const swipe = useRef<{ x: number; y: number; active: boolean } | null>(null)
   const swiped = useRef(false)
+  const dragTarget = useRef<HTMLElement | null>(null)
+  const dragAngle = useRef<number | null>(null)
+  const dragFrame = useRef<number | null>(null)
+
+  function clearDrag() {
+    if (dragFrame.current !== null) {
+      window.cancelAnimationFrame(dragFrame.current)
+      dragFrame.current = null
+    }
+    dragAngle.current = null
+    dragTarget.current?.removeAttribute('data-notebook-dragging')
+    dragTarget.current?.style.removeProperty('--notebook-drag-angle')
+    dragTarget.current = null
+  }
+
+  function scheduleDrag(angle: number) {
+    dragAngle.current = angle
+    if (dragFrame.current !== null) return
+
+    dragFrame.current = window.requestAnimationFrame(() => {
+      dragFrame.current = null
+      const target = dragTarget.current
+      const nextAngle = dragAngle.current
+      if (!target || nextAngle === null) return
+
+      if (nextAngle === 0) {
+        target.removeAttribute('data-notebook-dragging')
+        target.style.removeProperty('--notebook-drag-angle')
+        return
+      }
+
+      target.style.setProperty('--notebook-drag-angle', `${nextAngle}deg`)
+      target.setAttribute('data-notebook-dragging', '')
+    })
+  }
+
+  useEffect(
+    () => () => {
+      if (dragFrame.current !== null) window.cancelAnimationFrame(dragFrame.current)
+      dragTarget.current?.removeAttribute('data-notebook-dragging')
+      dragTarget.current?.style.removeProperty('--notebook-drag-angle')
+    },
+    [],
+  )
 
   function handleTouchStart(event: TouchEvent) {
+    clearDrag()
     const touch = event.touches[0]
     swiped.current = false
     swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
+    dragTarget.current = event.currentTarget.querySelector<HTMLElement>(
+      '[data-notebook-swipe-target]',
+    )
   }
 
   function handleTouchMove(event: TouchEvent) {
@@ -55,18 +95,19 @@ export function useNotebookSwipe({
       // 縦に動かし始めたならスクロールとして扱い、横めくりには使わない。
       if (Math.abs(dy) >= Math.abs(dx)) {
         swipe.current = null
+        clearDrag()
         return
       }
       start.active = true
     }
-    setDragX(dx)
+    scheduleDrag(dx < 0 ? notebookAngleForDrag(dx) : 0)
   }
 
   function handleTouchEnd(event: TouchEvent) {
     const start = swipe.current
     const dx = start ? event.changedTouches[0].clientX - start.x : 0
     swipe.current = null
-    setDragX(0)
+    clearDrag()
     if (!start?.active) return
 
     // 水平に払った後の click が、本文リンクを開かないようにする。
@@ -78,7 +119,7 @@ export function useNotebookSwipe({
   function handleTouchCancel() {
     swipe.current = null
     swiped.current = false
-    setDragX(0)
+    clearDrag()
   }
 
   function handleLinkClick(event: MouseEvent) {
@@ -100,7 +141,6 @@ export function useNotebookSwipe({
   }, [])
 
   return {
-    dragX,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,

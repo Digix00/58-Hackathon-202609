@@ -10,6 +10,7 @@ import {
 } from "../application/entity/user";
 import type { IUserUseCase } from "../application/usecase/user.usecase";
 import type { Bindings } from "../types";
+import { toUserResponse } from "./user-response";
 
 const updateUserProfileRequest = z.object({
   birthYear: z.number().int(),
@@ -153,24 +154,6 @@ export class UserHandler {
       throw error;
     }
   });
-}
-
-function toUserResponse(
-  user: Awaited<ReturnType<IUserUseCase["updateProfile"]>>,
-) {
-  return {
-    id: user.id,
-    displayLanguage: user.displayLanguage,
-    birthYear: user.birthYear,
-    birthMonth: user.birthMonth,
-    gender: user.gender,
-    regionCode: user.regionCode,
-    profileCompleted:
-      user.birthYear !== null &&
-      user.birthMonth !== null &&
-      user.gender !== null &&
-      user.regionCode !== null,
-  };
 }
 
 function setRequestId(c: {
