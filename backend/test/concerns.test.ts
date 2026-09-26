@@ -816,6 +816,36 @@ describe("GET /api/v1/concerns", () => {
     expect(ids).toContain(otherConcernId);
   });
 
+  it("marks posts from the viewer's prefecture as nearby in the recommended feed", async () => {
+    const lineUserId = `line_concern_nearby_${crypto.randomUUID()}`;
+    const app = createTestApp(lineUserId);
+    const cookie = await loginCookie(app);
+    await seedUserProfile(lineUserId, {
+      birthYear: 1990,
+      birthMonth: 4,
+      genderCode: "no_answer",
+      regionCode: "tottori",
+    });
+    const nearbyConcernId = await seedConcern({
+      body: "同じ県からのおすすめ投稿",
+      regionCode: "tottori",
+      createdAt: "9999-01-12T00:00:00.000Z",
+    });
+
+    const response = await app.request(
+      "/api/v1/concerns?sort=recommended&limit=50",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{ id: string; recommendation: { reasonCode: string } }>;
+    }>();
+    const nearbyItem = body.items.find((item) => item.id === nearbyConcernId);
+
+    expect(response.status).toBe(200);
+    expect(nearbyItem?.recommendation.reasonCode).toBe("nearby_prefecture");
+  });
+
   it("does not skip candidates across recommended pages", async () => {
     const suffix = crypto.randomUUID();
     const clusterId = await seedCluster({

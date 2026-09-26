@@ -14,7 +14,10 @@ export type RecommendationStrategy = (typeof RECOMMENDATION_STRATEGIES)[number];
 export const RECOMMENDATION_REASON_CODES = [
   "unread_cluster",
   "new_cluster",
+  "nearby_prefecture",
+  "nearby_area",
   "region_diversity",
+  "age_diversity",
   "newest",
   "fallback_newest",
 ] as const;
