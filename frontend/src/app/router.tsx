@@ -1,7 +1,8 @@
 import { useTranslation } from '../i18n/useTranslation'
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { SplashScreen } from '../features/splash/SplashScreen'
 import { CrayonFilters } from '../shared/components/CrayonFilters'
 import { ErrorState, LoadingState } from '../shared/components/AsyncStates'
 import actionStyles from '../shared/styles/Actions.module.css'
@@ -9,6 +10,8 @@ import crayonStyles from '../shared/styles/Crayon.module.css'
 import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import styles from './router.module.css'
+
+const forceLiffMode = import.meta.env.DEV && import.meta.env.VITE_DEV_LIFF_MODE === 'true'
 
 function CenteredState({ children }: { children: ReactNode }) {
   return <div className={styles.placeholderPage}>{children}</div>
@@ -19,14 +22,32 @@ export function AppLayout() {
 
   const { state, liffUrl } = useRuntime()
   const location = useLocation()
+  /*
+   * 起動画面を出すかどうかは、最初の描画の時点で決める。
+   *
+   * 準備が終わってからも、絵が抜けきるまでは出したままにする必要があるので、
+   * 初期化中かどうかをそのまま条件にはできない。LIFF IDのない通常Webでは
+   * 最初から準備が終わっているので起動画面を出さず、開発用の強制LIFFモードでは
+   * ローカルでも起動画面を確認できるよう、準備済みでも一度表示する。
+   */
+  const [booting, setBooting] = useState(() => state.status === 'initializing' || forceLiffMode)
   const crayonFilters = <CrayonFilters key={location.key} />
   const liffTarget = liffUrl(location.pathname)
+
+  // 初期化中と、準備が終わって絵が抜けきるまでの両方で出す。
+  if (state.status === 'initializing' || booting) {
+    return (
+      <>
+        {crayonFilters}
+        <SplashScreen ready={state.status !== 'initializing'} onDone={() => setBooting(false)} />
+      </>
+    )
+  }
 
   return (
     <>
       {crayonFilters}
       <AppShell
-        initializing={state.status === 'initializing'}
         standalone={state.status === 'ready' && state.mode === 'browser'}
         notice={
           state.status === 'ready' && state.mode === 'browser' && state.liffInitializationFailed ? (

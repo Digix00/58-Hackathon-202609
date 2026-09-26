@@ -28,11 +28,9 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 export function AppShell({
-  initializing = false,
   standalone = false,
   notice,
 }: {
-  initializing?: boolean
   standalone?: boolean
   notice?: ReactNode
 }) {
@@ -50,7 +48,7 @@ export function AppShell({
       </main>
       <nav
         hidden={standalone}
-        inert={initializing || standalone}
+        inert={standalone}
         className={styles.nav}
         aria-label={t('nav.label')}
       >
