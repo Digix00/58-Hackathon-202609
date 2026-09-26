@@ -1,4 +1,5 @@
 import { messages, type MessageKey } from './messages.ts'
+import { hiraganaMessages } from './hiraganaMessages.ts'
 import type { DisplayLanguage } from '../app/providers/DisplaySettingsContext'
 
 export type UiLanguage = DisplayLanguage
@@ -13,7 +14,8 @@ export function translate(
   key: MessageKey,
   values: MessageValues = {},
 ): string {
-  const template = messages[key][language === 'en' ? 1 : 0]
+  const template =
+    language === 'jaHira' ? hiraganaMessages[key] : messages[key][language === 'en' ? 1 : 0]
   return template.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
     values[name] === undefined ? placeholder : String(values[name]),
   )

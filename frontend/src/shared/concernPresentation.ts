@@ -1,6 +1,6 @@
 import type { AgeGroup, Gender, RegionCode } from '../features/post/postTypes'
 import type { DisplayLanguage } from '../app/providers/DisplaySettingsContext'
-import { translate } from '../i18n/translate'
+import { translate } from '../i18n/translate.ts'
 
 export const GENDER_LABELS: Record<Gender, string> = {
   male: '男性',
@@ -177,6 +177,16 @@ export function genderLabel(
   code: string | undefined,
   language: DisplayLanguage = 'original',
 ): string | undefined {
+  if (language === 'jaHira' && code) {
+    const labels: Record<Gender, string> = {
+      male: 'だんせい',
+      female: 'じょせい',
+      non_binary: 'のんばいなりー',
+      other: 'そのた',
+      no_answer: 'かいとうしない',
+    }
+    return labels[code as Gender] ?? code
+  }
   if (language === 'en' && code) {
     const labels: Record<Gender, string> = {
       male: 'Male',
@@ -206,6 +216,12 @@ export function ageGroupLabel(
   code: string | undefined,
   language: DisplayLanguage = 'original',
 ): string | undefined {
+  if (language === 'jaHira' && code) {
+    if (code === 'no_answer') return translate(language, 'common.noAnswer')
+    if (code === '90s_plus') return '90だいいじょう'
+    if (Object.hasOwn(AGE_GROUP_LABELS, code)) return `${code.slice(0, -1)}だい`
+    return code
+  }
   if (language === 'en' && code) {
     if (code === 'no_answer') return 'Prefer not to say'
     if (code === '90s_plus') return '90 and over'

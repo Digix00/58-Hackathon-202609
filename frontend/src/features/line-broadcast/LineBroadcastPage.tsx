@@ -19,6 +19,15 @@ const timeFormatters: Record<string, Intl.DateTimeFormat> = {
     timeStyle: 'short',
     timeZone: 'Asia/Tokyo',
   }),
+  jaHira: new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tokyo',
+  }),
 }
 
 export function LineBroadcastPage() {
@@ -165,7 +174,8 @@ function BroadcastStatusContent({
 }
 
 function BroadcastStatusDetails({ status }: { status: DailyBroadcastStatus }) {
-  const { t, message, locale } = useTranslation()
+  const { t, message, locale, language } = useTranslation()
+  const timeLocale = language === 'jaHira' ? 'jaHira' : locale
 
   return (
     <>
@@ -173,7 +183,7 @@ function BroadcastStatusDetails({ status }: { status: DailyBroadcastStatus }) {
       <p className={styles.note}>{message(statusDetail(status))}</p>
       {status.requestedAt ? (
         <p className={styles.timestamp}>
-          {t('broadcast.requested')} {formatTime(status.requestedAt, locale)}
+          {t('broadcast.requested')} {formatTime(status.requestedAt, timeLocale)}
         </p>
       ) : null}
       {status.sentAt ? (
@@ -181,7 +191,7 @@ function BroadcastStatusDetails({ status }: { status: DailyBroadcastStatus }) {
           {status.deliveryMode === 'simulation'
             ? t('broadcast.simulated')
             : t('broadcast.accepted')}
-          : {formatTime(status.sentAt, locale)}
+          : {formatTime(status.sentAt, timeLocale)}
         </p>
       ) : null}
     </>
