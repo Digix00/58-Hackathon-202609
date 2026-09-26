@@ -369,16 +369,6 @@
   opacity: 0.72;
 }
 
-/* ボタンに貼った小さな付箋。ボタンの役割を邪魔せず、準備中だけを添える。 */
-.voiceLabel {
-  position: absolute;
-  z-index: 1;
-  top: -0.8em;
-  right: -0.7em;
-  font-size: calc(11px * var(--font-scale));
-  transform: rotate(3deg);
-}
-
 .mic {
   width: 1.3em;
   height: 1.3em;
@@ -391,15 +381,138 @@
   filter: url(#crayon-edge-fine);
 }
 
-/*
- * 準備中の知らせ。
- * 貼った札の大きさは札の側で決まっているので、ここで字を縮めない。
- * 縮めると、ほかの画面に貼ってある同じ札より小さくなる。
- */
+/* 音声操作は紙面内で折り返し、結果の長文も省略しない。 */
+.voiceControls {
+  display: grid;
+  gap: 0.65em;
+  margin-top: 0.7em;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.voiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  align-items: center;
+}
+
+.transcript {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
 .voiceNote {
   flex-basis: 100%;
   color: var(--color-muted);
   line-height: 1.5;
+}
+
+/*
+ * 録音の残り。
+ * 数字だけだと、あと何秒話せるのかを毎回読み直すことになる。紙の上で実際に
+ * 起きることへ合わせ、クレヨンで一本の線を引きながら経過を示す。
+ * 線は秒数の裏づけであり、秒数の言葉は必ず残す。長さと色だけで伝えない。
+ */
+.recordTimer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 0.7em;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+/* 引く前の線。紙に引いた下書きとして置き、ふちだけをクレヨンでなぞる。 */
+.recordTrack {
+  position: relative;
+  flex: 1 1 8em;
+  min-width: 7em;
+  height: 0.72em;
+  border-radius: 7px 10px 6px 9px / 9px 6px 10px 7px;
+  background: #f6edd8;
+}
+
+/* 揺らぎは線の細さに合わせる。紙や付箋と同じ #crayon-edge では、高さ10px弱の
+   下書きに対して振れ幅が大きすぎ、ふちが太って別の形に見える。 */
+.recordTrack::before {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--color-field-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge-fine);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.68;
+  pointer-events: none;
+  content: '';
+}
+
+/*
+ * 引いたぶんの線。秒数は1秒ごとにしか届かないので、その間を等速でつなぎ、
+ * クレヨンが紙の上を進み続けているように見せる。
+ */
+.recordInk {
+  position: absolute;
+  inset: 0 auto 0 0;
+  max-width: 100%;
+  border-radius: inherit;
+  background: var(--color-purple);
+  transition: width 1s linear;
+}
+
+/* クレヨンの粉がのらなかった紙目。塗りの上へ紙の色を細かく散らす。 */
+.recordInk::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fffdf4;
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.32;
+  content: '';
+}
+
+/* いま色がついているところ。押しつけた先だけ、濃く丸く紙からはみ出す。 */
+.recordInk::after {
+  position: absolute;
+  top: -0.13em;
+  right: -0.1em;
+  bottom: -0.13em;
+  width: 0.62em;
+  border-radius: 50%;
+  background: var(--color-purple-dark);
+  content: '';
+}
+
+/*
+ * 秒数。
+ * 桁が1桁から2桁へ増えると文字の幅が広がり、そのぶん線が縮んで見える。
+ * 数え終わりの幅をあらかじめ取り、線の長さを秒数だけで決める。
+ */
+.recordElapsed {
+  display: grid;
+  grid-template-areas: 'elapsed';
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recordElapsedWidest,
+.recordElapsedValue {
+  grid-area: elapsed;
+}
+
+.recordElapsedWidest {
+  visibility: hidden;
+}
+
+.recordElapsedValue {
+  text-align: end;
 }
 
 .count {
@@ -601,6 +714,7 @@
   .tab::before,
   .sheet::before,
   .voiceButton::before,
+  .recordTrack::before,
   .caution::before {
     border-width: 2px;
     opacity: 1;
@@ -613,10 +727,24 @@
   .star {
     filter: none;
   }
+
+  /* 線の濃さで残りを読ませる面なので、紙目の抜けを外して塗りを均す。 */
+  .recordInk {
+    background: var(--color-purple-dark);
+  }
+
+  .recordInk::before {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nextButton span {
     animation: none;
+  }
+
+  /* 線は秒ごとに引かれた長さのまま置く。動きでしか読めない情報を作らない。 */
+  .recordInk {
+    transition: none;
   }
 }

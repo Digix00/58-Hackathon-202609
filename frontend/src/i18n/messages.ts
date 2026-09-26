@@ -344,7 +344,66 @@ export const messages = {
     'It’s okay if you haven’t found all the words yet.',
   ],
   'post.voice': ['話して書く', 'Speak to write'],
-  'post.voiceSoon': ['音声入力は準備中です', 'Voice input is coming soon.'],
+  'speech.requesting': ['マイクの利用を許可してください。', 'Please allow microphone access.'],
+  'speech.recording': [
+    '録音中です。日本語で話してください。',
+    'Recording. Please speak in Japanese.',
+  ],
+  'speech.elapsed': ['{seconds} / {max}秒', '{seconds} / {max} seconds'],
+  'speech.transcribing': ['文字にしています…', 'Transcribing…'],
+  'speech.review': [
+    '聞き取った内容です。本文に追加してから、書き直せます。',
+    'Review the transcript. You can edit it after adding it to your text.',
+  ],
+  'speech.apply': ['本文に追加', 'Add to text'],
+  'speech.discard': ['使わずに戻る', 'Discard transcript'],
+  'speech.cancel': ['やめて手入力に戻る', 'Cancel and type instead'],
+  'speech.stop': ['停止して文字にする', 'Stop and transcribe'],
+  'speech.retry': ['もう一度話す', 'Record again'],
+  'speech.permission': [
+    'マイクが許可されていません。端末の設定を確認するか、本文を直接入力してください。',
+    'Microphone access was denied. Check your device settings or type your text.',
+  ],
+  'speech.unsupported': [
+    'この環境では音声入力を利用できません。本文を直接入力してください。',
+    'Voice input is unavailable in this environment. Please type your text.',
+  ],
+  'speech.microphone': [
+    '録音できませんでした。マイクを確認してもう一度話すか、本文を直接入力してください。',
+    'Unable to record. Check your microphone and record again, or type your text.',
+  ],
+  'speech.interrupted': [
+    '音声入力を中断しました。もう一度話すか、本文を直接入力してください。',
+    'Voice input was interrupted. Record again or type your text.',
+  ],
+  'speech.tooLarge': [
+    '音声が長すぎるか、大きすぎます。短く話し直すか、本文を直接入力してください。',
+    'The recording is too long or too large. Record a shorter message or type your text.',
+  ],
+  'speech.invalid': [
+    '音声を読み取れませんでした。もう一度話すか、本文を直接入力してください。',
+    'Unable to read the recording. Record again or type your text.',
+  ],
+  'speech.unavailable': [
+    '文字起こしを利用できません。時間をおいてもう一度話すか、本文を直接入力してください。',
+    'Transcription is unavailable. Try recording later or type your text.',
+  ],
+  'speech.rateLimited': [
+    '音声入力の利用上限に達しました。時間をおいて試すか、本文を直接入力してください。',
+    'The voice input limit has been reached. Try again later or type your text.',
+  ],
+  'speech.failed': [
+    '文字にできませんでした。通信を確認してもう一度話すか、本文を直接入力してください。',
+    'Unable to transcribe. Check your connection and record again, or type your text.',
+  ],
+  'speech.timeout': [
+    '文字起こしに時間がかかっています。もう一度話すか、本文を直接入力してください。',
+    'Transcription timed out. Record again or type your text.',
+  ],
+  'speech.empty': [
+    '声を聞き取れませんでした。もう一度話すか、本文を直接入力してください。',
+    'No speech was recognized. Record again or type your text.',
+  ],
   'post.characterCount': ['書いた文字数は{count} / {max}文字', '{count} / {max} characters'],
   'post.overLimit': ['。上限を越えています', '. Character limit exceeded'],
   'post.thanksLead': ['置いていってくれて、', 'Thank you'],
