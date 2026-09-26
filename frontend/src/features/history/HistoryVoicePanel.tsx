@@ -45,6 +45,12 @@ const TEXTS: Record<
 function VoiceCard({ voice, when }: { voice: HistoryVoiceView; when: MessageKey }) {
   const { t } = useTranslation()
 
+  /*
+   * 投稿詳細は公開済みの声しか返さないので、非公開の紙片は開けない。
+   * 履歴の一覧には残したまま、読み返しの導線だけ外す。
+   */
+  const openable = voice.state !== 'hidden'
+
   return (
     <li className={styles.voice}>
       {voice.theme || voice.ageGroup || voice.region ? (
@@ -54,23 +60,31 @@ function VoiceCard({ voice, when }: { voice: HistoryVoiceView; when: MessageKey 
           {voice.region ? <span className={styles.tag}>{voice.region}</span> : null}
         </p>
       ) : null}
-      <Link
-        className={styles.voiceLink}
-        to={`/concerns/${encodeURIComponent(voice.id)}`}
-        aria-label={t('history.openVoice', { body: voice.body })}
-      >
+      {openable ? (
+        <Link
+          className={styles.voiceLink}
+          to={`/concerns/${encodeURIComponent(voice.id)}`}
+          aria-label={t('history.openVoice', { body: voice.body })}
+        >
+          <span className={styles.voiceBody} lang={voice.language === 'en' ? 'en' : 'ja'}>
+            {voice.body}
+          </span>
+        </Link>
+      ) : (
         <span className={styles.voiceBody} lang={voice.language === 'en' ? 'en' : 'ja'}>
           {voice.body}
         </span>
-      </Link>
+      )}
       <p className={styles.voiceMeta}>
         <span>{t(when, { when: voice.whenLabel })}</span>
         <span className={styles.voiceSupport}>
           {t('history.supportTally', { count: voice.reactionCount })}
         </span>
-        <span className={styles.voiceOpen} aria-hidden="true">
-          {t('history.openMark')}
-        </span>
+        {openable ? (
+          <span className={styles.voiceOpen} aria-hidden="true">
+            {t('history.openMark')}
+          </span>
+        ) : null}
       </p>
       {voice.state === 'published' ? null : (
         <p className={styles.voiceNote}>
