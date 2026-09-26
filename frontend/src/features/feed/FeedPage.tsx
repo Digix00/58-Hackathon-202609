@@ -546,12 +546,14 @@ export function FeedPage() {
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
+    applyReaction,
   } = readerView
   const { genderOptions, regionOptions } = buildFeedFilterOptions(language)
   const reaction = useConcernReaction({
     concernId: concern?.id ?? '',
     initialReactionCount: concern?.reactionCount ?? 0,
     initialReacted: concern?.reacted ?? false,
+    onChanged: applyReaction,
   })
   useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
   const activeFilter = activeFeedFilterLabel(filter, language)

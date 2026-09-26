@@ -4,10 +4,22 @@ import { registerConcernReaction, removeConcernReaction } from './reactionApi'
 
 export type ConcernReactionStatus = 'idle' | 'submitting' | 'succeeded' | 'failed'
 
+/** 送信が確定したあとの、その投稿の集計と寄りそい済み。 */
+export interface ConcernReactionChange {
+  concernId: string
+  reactionCount: number
+  reacted: boolean
+}
+
 export interface UseConcernReactionInput {
   concernId: string
   initialReactionCount: number
   initialReacted: boolean
+  /**
+   * 送信が成功したときに呼ぶ。一覧を持つ側が初期値を更新しないと、
+   * 別の投稿へ移って戻ったときに送信前の状態へ巻き戻る。
+   */
+  onChanged?: (change: ConcernReactionChange) => void
 }
 
 export interface UseConcernReactionResult {
@@ -84,12 +96,13 @@ function reactionReducer(state: ReactionState, action: ReactionAction): Reaction
  * Update surface: react / unreact / toggle。
  * Hidden complexity: 同一投稿への二重送信を防ぎ、投稿が切り替わったときに前の投稿の状態を持ち越さない。
  * Composition: フィードや投稿詳細の表示コンポーネントから利用する。
- * Test notes: 初期値、送信中、成功、失敗、二重送信、投稿切り替え後の古いレスポンスを確認する。
+ * Test notes: 初期値、送信中、成功、失敗、二重送信、投稿切り替え後の古いレスポンス、onChangedの通知を確認する。
  */
 export function useConcernReaction({
   concernId,
   initialReactionCount,
   initialReacted,
+  onChanged,
 }: UseConcernReactionInput): UseConcernReactionResult {
   const input = { concernId, initialReactionCount, initialReacted }
   const inputKey = reactionInputKey(input)
@@ -125,6 +138,11 @@ export function useConcernReaction({
             reactionCount: result.reaction.reactionCount,
             reacted: result.reaction.reacted,
           })
+          onChanged?.({
+            concernId,
+            reactionCount: result.reaction.reactionCount,
+            reacted: result.reaction.reacted,
+          })
           return
         }
 
@@ -137,7 +155,7 @@ export function useConcernReaction({
         inFlightConcernIds.current.delete(concernId)
       }
     },
-    [concernId, currentState.reacted, inputKey],
+    [concernId, currentState.reacted, inputKey, onChanged],
   )
 
   const react = useCallback(async (): Promise<void> => {

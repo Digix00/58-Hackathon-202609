@@ -119,7 +119,7 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
  * Intent: 紙めくり、表紙のアニメーション、フィードの位置操作を局所化する。
  * Boundary: 取得条件を受け取り、読者用の表示値・操作と通信状態を返す。reducerは公開しない。
  * State modeling: reducerの状態遷移と、めくり・スワイプの副作用を画面本体から分離する。
- * Update surface: 次へ、めくり完了、フィルタ変更・初期化、ログイン案内・フィルタの開閉。
+ * Update surface: 次へ、めくり完了、フィルタ変更・初期化、ログイン案内・フィルタの開閉、リアクション反映。
  * Hidden complexity: 表紙の待ち合わせ、戻り位置の確定、フィルタ変更時の取得を隠す。
  * Composition: useFeedの取得結果と紙めくりを合成し、FeedPageへ渡す。
  * Test notes: 取得中の開く操作、前後移動、フィルタ変更、追加取得失敗を確認する。
@@ -301,5 +301,6 @@ export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCo
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
+    applyReaction: feed.applyReaction,
   }
 }
