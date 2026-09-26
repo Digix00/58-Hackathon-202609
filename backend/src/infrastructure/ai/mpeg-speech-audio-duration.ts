@@ -1,4 +1,9 @@
+import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
 import { readAscii } from "./audio-binary";
+
+const MAX_AUDIO_DURATION_SECONDS = 60;
+const MAX_ENCODER_TRIM_SAMPLES = 3_000;
+const DURATION_COMPARISON_TOLERANCE_SECONDS = 0.000000001;
 
 export function readMpegDurationSeconds(audio: Uint8Array): number {
   let offset = 0;
@@ -46,6 +51,7 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
   let durationSeconds = 0;
   let frameCount = 0;
   let firstFrameHeader: MpegFrameHeader | null = null;
+  let gaplessTrimSamples = 0;
   const firstFrameOffset = offset;
   let hasConstantFrameFormat = true;
   while (offset + 4 <= audio.byteLength) {
@@ -63,6 +69,11 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
     }
     if (!firstFrameHeader) {
       firstFrameHeader = header;
+      gaplessTrimSamples = readMpegGaplessTrimSamples(
+        audio,
+        firstFrameOffset,
+        header,
+      );
     } else if (
       firstFrameHeader.sampleRate !== header.sampleRate ||
       firstFrameHeader.samplesPerFrame !== header.samplesPerFrame
@@ -72,15 +83,20 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
     durationSeconds += header.samplesPerFrame / header.sampleRate;
     frameCount += 1;
     offset += header.frameLength;
+    const minimumPlaybackDurationSeconds =
+      durationSeconds - gaplessTrimSamples / firstFrameHeader.sampleRate;
+    if (
+      minimumPlaybackDurationSeconds >
+      MAX_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
+    ) {
+      throw new SpeechAudioDurationLimitExceededError();
+    }
   }
 
   if (frameCount === 0 || offset !== audio.byteLength) {
     throw new TypeError("MPEG audio contains no complete frames");
   }
 
-  const gaplessTrimSamples = firstFrameHeader
-    ? readMpegGaplessTrimSamples(audio, firstFrameOffset, firstFrameHeader)
-    : 0;
   if (firstFrameHeader && hasConstantFrameFormat) {
     const playbackSampleCount =
       frameCount * firstFrameHeader.samplesPerFrame - gaplessTrimSamples;
@@ -158,7 +174,10 @@ function readMpegGaplessTrimSamples(
   const encoderPadding =
     ((audio[delayOffset + 1]! & 0x0f) << 8) | audio[delayOffset + 2]!;
   // LAME reserves values above 3,000 as invalid rather than usable trim data.
-  if (encoderDelay > 3_000 || encoderPadding > 3_000) {
+  if (
+    encoderDelay > MAX_ENCODER_TRIM_SAMPLES ||
+    encoderPadding > MAX_ENCODER_TRIM_SAMPLES
+  ) {
     return 0;
   }
   return encoderDelay + encoderPadding;

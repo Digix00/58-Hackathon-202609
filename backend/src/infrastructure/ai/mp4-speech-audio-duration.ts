@@ -42,6 +42,8 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     let mediaTimescale: number | undefined;
     let movieTimescale: number | undefined;
     let trackEdits: Mp4Edit[] | undefined;
+    let totalSampleDurationTicks = 0;
+    let previousPresentationEndTicks: number | undefined;
     let fragmented = false;
     let settled = false;
 
@@ -95,6 +97,10 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
         return;
       }
       sampleRate = audioTrack.audio.sample_rate;
+      if (!Number.isSafeInteger(mediaTimescale) || mediaTimescale! <= 0) {
+        failInvalid("MP4 audio timescale is invalid");
+        return;
+      }
       if (
         !Number.isFinite(sampleRate) ||
         sampleRate <= 0 ||
@@ -125,7 +131,8 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             sample.size <= 0 ||
             !sample.data ||
             sample.data.byteLength !== sample.size ||
-            sample.timescale <= 0
+            !Number.isSafeInteger(sample.timescale) ||
+            sample.timescale !== mediaTimescale
           ) {
             failInvalid("MP4 audio sample is incomplete");
             return;
@@ -145,6 +152,30 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             failInvalid("MP4 AAC configuration is unavailable");
             return;
           }
+          const expectedSampleDurationTicks =
+            (samplesPerAccessUnit * sample.timescale) / sampleRate;
+          const isLastSample =
+            !fragmented && sampleCount + 1 === audioTrack.nb_samples;
+          if (
+            !Number.isSafeInteger(sample.duration) ||
+            sample.duration <= 0 ||
+            (isLastSample
+              ? sample.duration > expectedSampleDurationTicks + 1
+              : Math.abs(sample.duration - expectedSampleDurationTicks) > 1)
+          ) {
+            failInvalid("MP4 sample duration does not match AAC configuration");
+            return;
+          }
+          if (
+            !Number.isSafeInteger(sample.cts) ||
+            (previousPresentationEndTicks !== undefined &&
+              sample.cts !== previousPresentationEndTicks)
+          ) {
+            failInvalid("MP4 AAC presentation timestamps are inconsistent");
+            return;
+          }
+          previousPresentationEndTicks = sample.cts + sample.duration;
+          totalSampleDurationTicks += sample.duration;
           const startSeconds = sample.cts / sample.timescale;
           const endSeconds = (sample.cts + sample.duration) / sample.timescale;
           if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)) {
@@ -203,6 +234,18 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     }
     const sampleCountDuration =
       (sampleCount * samplesPerAccessUnit) / sampleRate;
+    const expectedSampleDurationTicks =
+      (sampleCount * samplesPerAccessUnit * mediaTimescale!) / sampleRate;
+    const maximumFinalSampleTrimTicks =
+      (samplesPerAccessUnit * mediaTimescale!) / sampleRate;
+    if (
+      totalSampleDurationTicks > expectedSampleDurationTicks + 1 ||
+      expectedSampleDurationTicks - totalSampleDurationTicks >
+        maximumFinalSampleTrimTicks + 1
+    ) {
+      failInvalid("MP4 sample timeline does not match AAC access units");
+      return;
+    }
     const timelineDuration = lastPresentationTime - firstPresentationTime;
     const encodedDuration = Math.max(sampleCountDuration, timelineDuration);
     let duration: number;

@@ -298,6 +298,7 @@ export function createMp4Audio(
     segmentDurationSeconds: number;
     mediaTimeSeconds: number | null;
   }>,
+  timeToSampleDurationOverride?: number,
 ): Uint8Array {
   const movieTimescale = 1_000;
   const audioTimescale = 48_000;
@@ -405,7 +406,7 @@ export function createMp4Audio(
       new Uint8Array(4),
       u32be(tableEntryCountOverrides.stts ?? 1),
       u32be(sampleCount),
-      u32be(sampleDuration),
+      u32be(timeToSampleDurationOverride ?? sampleDuration),
     ),
   );
   const sampleToChunk = atom(

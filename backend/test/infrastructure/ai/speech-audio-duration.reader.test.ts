@@ -83,7 +83,16 @@ describe("VerifiedSpeechAudioDurationReader", () => {
 
     await expect(
       reader.getDurationSeconds(audio, "audio/mpeg"),
-    ).resolves.toBeGreaterThan(60);
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
+  it("stops parsing MPEG frames once audio exceeds the maximum gapless trim", async () => {
+    const audio = createMp3Audio(61);
+    audio[audio.byteLength - 417] = 0;
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/mpeg"),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
   });
 
   it("accepts a complete nonzero Opus channel mapping table", async () => {
@@ -525,6 +534,24 @@ describe("VerifiedSpeechAudioDurationReader", () => {
 
     await expect(reader.getDurationSeconds(audio, "audio/mp4")).rejects.toThrow(
       "MP4 edit list exceeds the verified audio samples",
+    );
+  });
+
+  it("rejects edited MP4 when AAC sample durations disagree with access units", async () => {
+    const audio = createMp4Audio(
+      70,
+      70,
+      undefined,
+      {},
+      undefined,
+      1,
+      1,
+      [{ segmentDurationSeconds: 60, mediaTimeSeconds: 0 }],
+      878,
+    );
+
+    await expect(reader.getDurationSeconds(audio, "audio/mp4")).rejects.toThrow(
+      "MP4 sample duration does not match AAC configuration",
     );
   });
 
