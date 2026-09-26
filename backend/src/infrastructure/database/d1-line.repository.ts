@@ -72,6 +72,7 @@ export class D1LineRepository implements LineRepository {
           lastSeenAt: sql<string>`${receivedAt}`.as("lastSeenAt"),
           createdAt: sql<string>`${receivedAt}`.as("createdAt"),
           updatedAt: sql<string>`${receivedAt}`.as("updatedAt"),
+          deletedAt: sql<string | null>`null`.as("deletedAt"),
         })
         .from(lineWebhookEvents)
         .where(

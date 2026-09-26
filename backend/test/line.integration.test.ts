@@ -19,6 +19,7 @@ import { HealthHandler } from "../src/presentation/health.handler";
 import { LineHandler } from "../src/presentation/line.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const quizDate = "2099-12-30";
@@ -51,6 +52,7 @@ function createTestApp() {
   const app = createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({

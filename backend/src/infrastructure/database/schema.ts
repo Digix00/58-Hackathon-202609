@@ -34,6 +34,7 @@ export const users = sqliteTable(
     lastSeenAt: text("last_seen_at"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
+    deletedAt: text("deleted_at"),
   },
   (table) => ({
     lineUserIdIndex: uniqueIndex("users_line_user_id_idx").on(table.lineUserId),
@@ -387,6 +388,31 @@ export const quizAnswers = sqliteTable(
     correctCheck: check(
       "quiz_answers_is_correct_check",
       sql`${table.isCorrect} in (0, 1)`,
+    ),
+  }),
+);
+
+export const learningEvents = sqliteTable(
+  "learning_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    eventType: text("event_type").notNull(),
+    concernId: text("concern_id").references(() => concerns.id),
+    clusterId: text("cluster_id").references(() => concernClusters.id),
+    quizId: text("quiz_id").references(() => quizzes.id),
+    occurredAt: text("occurred_at").notNull(),
+  },
+  (table) => ({
+    userOccurredAtIndex: index("learning_events_user_idx").on(
+      table.userId,
+      sql`${table.occurredAt} DESC`,
+    ),
+    eventTypeCheck: check(
+      "learning_events_event_type_check",
+      sql.raw("event_type in ('view', 'reaction', 'quiz_answer')"),
     ),
   }),
 );

@@ -18,6 +18,7 @@ import {
   concernReactions,
   concernRepresentations,
   concerns,
+  learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
@@ -26,6 +27,7 @@ import { ConcernReactionHandler } from "../src/presentation/concern-reaction.han
 import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 function createTestApp(lineUserId = "line_concern_test_user") {
@@ -52,6 +54,7 @@ function createTestApp(lineUserId = "line_concern_test_user") {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     concernHandler,
     concernReactionHandler,
     ...createUserDependencies(),
@@ -70,6 +73,7 @@ function anonymousTestApp() {
   return createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({
@@ -1112,6 +1116,41 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
       .from(concernReactions)
       .where(eq(concernReactions.concernId, concernId));
     expect(rows).toHaveLength(1);
+
+    const events = await drizzle(env.DB)
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe("reaction");
+  });
+
+  it("does not add a learning event when retrying a preexisting reaction", async () => {
+    const app = createTestApp();
+    const cookie = await loginCookie(app);
+    const concernId = await createConcern(app, cookie);
+    const request = {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ reactionType: "empathy" }),
+    } as const;
+    const path = "/api/v1/concerns/" + concernId + "/reactions";
+
+    const original = await app.request(path, request, env);
+    expect(original.status).toBe(201);
+
+    await drizzle(env.DB)
+      .delete(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+
+    const retry = await app.request(path, request, env);
+    expect(retry.status).toBe(200);
+
+    const events = await drizzle(env.DB)
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.concernId, concernId));
+    expect(events).toHaveLength(0);
   });
 
   it("counts a reaction from a different user separately", async () => {

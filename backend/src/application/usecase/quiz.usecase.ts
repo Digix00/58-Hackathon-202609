@@ -1,3 +1,4 @@
+import { LearningEvent } from "../entity/learning-event";
 import {
   hasDistinctQuizAttributes,
   Quiz,
@@ -155,7 +156,16 @@ export class QuizUseCase implements IQuizUseCase {
       })),
     };
 
-    const recorded = await this.repository.recordAnswer(recordInput);
+    const recorded = await this.repository.recordAnswer(
+      recordInput,
+      new LearningEvent({
+        id: this.createId(),
+        userId: input.userId,
+        eventType: "quiz_answer",
+        quizId: quiz.id,
+        occurredAt: answeredAt,
+      }),
+    );
     if (recorded.status === "already_answered") {
       throw new QuizAlreadyAnsweredError();
     }

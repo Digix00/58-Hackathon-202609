@@ -12,6 +12,7 @@ import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 
 function createTestApp(lineUserId = "line_auth_test_user") {
   const userRepository = new D1UserRepository(env.DB);
@@ -32,6 +33,7 @@ function createTestApp(lineUserId = "line_auth_test_user") {
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     userHandler: new UserHandler(new UserUseCase(userRepository)),
     healthHandler: new HealthHandler({
       execute: async () => ({
