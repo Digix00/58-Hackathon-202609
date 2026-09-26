@@ -51,6 +51,45 @@ describe("ConcernUseCase recommendation feed", () => {
     });
   });
 
+  it("marks the viewer's own post as own_post in the fallback feed", async () => {
+    const concern = (id: string, userId: string) => ({
+      concern: new Concern({
+        id,
+        userId,
+        body: `フォールバック対象-${id}`,
+        createdAt: "2026-09-22T00:00:00.000Z",
+      }),
+      cluster: null,
+      viewed: false,
+    });
+    const repository: ConcernRepository = {
+      insert: async (value) => value,
+      listPublished: async () => ({ items: [], hasMore: false }),
+      findPublishedById: async () => null,
+      listFeed: async () => ({
+        items: [concern("own", "user-1"), concern("other", "author-1")],
+        hasMore: false,
+      }),
+      listRecommendationHistory: async () => {
+        throw new Error("history unavailable");
+      },
+    };
+    const useCase = new ConcernUseCase(repository);
+
+    const result = await useCase.listFeed({
+      limit: 2,
+      sort: "recommended",
+      userId: "user-1",
+    });
+
+    expect(
+      result.items.map((item) => [item.concern.id, item.recommendation]),
+    ).toEqual([
+      ["own", { strategy: "fallback", reasonCode: "own_post" }],
+      ["other", { strategy: "fallback", reasonCode: "fallback_newest" }],
+    ]);
+  });
+
   it("carries the last cluster into the next recommendation page", async () => {
     const firstCandidate = {
       concern: new Concern({

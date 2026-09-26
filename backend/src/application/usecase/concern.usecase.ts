@@ -281,26 +281,15 @@ export class ConcernUseCase implements IConcernUseCase {
       if (restorationFailed && fallbackCandidates.length === 0) {
         throw new Error("pending recommendation candidates are unavailable");
       }
-      const items = fallbackCandidates
-        .slice(0, input.limit)
-        .map((candidate) => ({
-          ...candidate,
-          recommendation: {
-            strategy: "fallback" as const,
-            reasonCode: "fallback_newest" as const,
-          },
-        }));
+      const fallbackItems = fallbackCandidates.map((candidate) =>
+        toFallbackFeedItem(candidate, input.userId),
+      );
+      const items = fallbackItems.slice(0, input.limit);
       await this.recordImpressions(input.userId ?? "", items);
       return {
         items,
         nextCursor: toRecommendedCursor(
-          fallbackCandidates.map((candidate) => ({
-            ...candidate,
-            recommendation: {
-              strategy: "fallback" as const,
-              reasonCode: "fallback_newest" as const,
-            },
-          })),
+          fallbackItems,
           input.limit,
           fallbackSourceCursor,
           candidateWindowCursor,
@@ -409,6 +398,26 @@ function toNextCursor(
 
   const concern = "concern" in lastItem ? lastItem.concern : lastItem;
   return { createdAt: concern.createdAt, id: concern.id };
+}
+
+/**
+ * 推薦処理の失敗時に新着順で返す項目を作る。閲覧者自身の投稿は、
+ * 通常の推薦と同じく own_post として識別できるようにする。
+ */
+function toFallbackFeedItem(
+  candidate: ConcernFeedCandidate,
+  userId: string | undefined,
+): RankedConcernFeedItem {
+  return {
+    ...candidate,
+    recommendation: {
+      strategy: "fallback",
+      reasonCode:
+        userId && candidate.concern.userId === userId
+          ? "own_post"
+          : "fallback_newest",
+    },
+  };
 }
 
 function mergeFeedCandidates(
