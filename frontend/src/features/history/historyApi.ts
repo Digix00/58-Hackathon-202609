@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../i18n/translate'
 import { ApiTimeoutError, apiClient, readApiError, withApiTimeout } from '../../lib/api'
 import type { HistorySummaryResponse, QuizAnswerHistoryResponse } from '../../lib/api'
 
@@ -14,17 +15,14 @@ export async function getHistorySummary(): Promise<HistoryApiResult<HistorySumma
       ok: false,
       status: response.status,
       code: error?.code ?? 'UNKNOWN_ERROR',
-      message: error?.message ?? '学習履歴を読み込めませんでした。時間をおいて再試行してください',
+      message: apiErrorMessage(error?.code, 'error.history'),
     }
   } catch (error) {
     return {
       ok: false,
       status: 0,
       code: error instanceof ApiTimeoutError ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
-      message:
-        error instanceof ApiTimeoutError
-          ? '読み込みに時間がかかっています。時間をおいて再試行してください'
-          : '学習履歴を読み込めませんでした。時間をおいて再試行してください',
+      message: error instanceof ApiTimeoutError ? 'error.timeout' : 'error.history',
     }
   }
 }
@@ -46,17 +44,14 @@ export async function getQuizAnswerHistory(
       ok: false,
       status: response.status,
       code: error?.code ?? 'UNKNOWN_ERROR',
-      message: error?.message ?? 'クイズ履歴を読み込めませんでした。時間をおいて再試行してください',
+      message: apiErrorMessage(error?.code, 'error.quizHistory'),
     }
   } catch (error) {
     return {
       ok: false,
       status: 0,
       code: error instanceof ApiTimeoutError ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
-      message:
-        error instanceof ApiTimeoutError
-          ? '読み込みに時間がかかっています。時間をおいて再試行してください'
-          : 'クイズ履歴を読み込めませんでした。時間をおいて再試行してください',
+      message: error instanceof ApiTimeoutError ? 'error.timeout' : 'error.quizHistory',
     }
   }
 }

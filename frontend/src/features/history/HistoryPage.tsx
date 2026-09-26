@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
@@ -8,25 +9,33 @@ import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
 import { useHistory } from './useHistory'
 import type { HistoryViewModel } from './historyViewModel'
+import type { MessageKey } from '../../i18n/messages'
 
 type AggregateDetail = 'regions' | 'clusters' | 'ageGroups' | 'genders' | 'viewedCount'
 type Detail = AggregateDetail | 'quiz' | null
 
-const detailTitles: Record<Exclude<Detail, null>, string> = {
-  regions: '都道府県の傾向',
-  clusters: 'テーマの傾向',
-  ageGroups: '投稿者の年代',
-  genders: '投稿者の性別',
-  viewedCount: '読んだ声の数',
-  quiz: 'クイズの履歴',
+const dateFormatters: Record<string, Intl.DateTimeFormat> = {
+  en: new Intl.DateTimeFormat('en', { timeZone: 'UTC' }),
+  'ja-JP': new Intl.DateTimeFormat('ja-JP', { timeZone: 'UTC' }),
+}
+
+const detailTitles: Record<Exclude<Detail, null>, MessageKey> = {
+  regions: 'history.regions',
+  clusters: 'history.themes',
+  ageGroups: 'history.ages',
+  genders: 'history.genders',
+  viewedCount: 'history.voices',
+  quiz: 'history.quizzes',
 }
 
 function HistoryHeading() {
+  const { t } = useTranslation()
+
   return (
     <header className={screen.heading}>
-      <p className={screen.eyebrow}>履歴</p>
-      <h1>これまでに会った声。</h1>
-      <p className={screen.muted}>これまでに触れた声を、ゆっくり振り返れます。</p>
+      <p className={screen.eyebrow}>{t('nav.history')}</p>
+      <h1>{t('history.title')}</h1>
+      <p className={screen.muted}>{t('history.description')}</p>
     </header>
   )
 }
@@ -46,12 +55,14 @@ function HistoryDetailView({
   isLoadingMore: boolean
   errorMessage: string | null
 }) {
+  const { t } = useTranslation()
+
   return (
     <section className={`${screen.paper} ${crayonStyles.edge}`}>
       <button type="button" className={actionStyles.text} onClick={onBack}>
-        ← 振り返りに戻る
+        {t('history.back')}
       </button>
-      <h2>{detailTitles[detail]}</h2>
+      <h2>{t(detailTitles[detail])}</h2>
       {detail === 'quiz' ? (
         <QuizHistoryDetail
           model={model}
@@ -77,24 +88,31 @@ function QuizHistoryDetail({
   isLoadingMore: boolean
   error: string | null
 }) {
+  const { t, message, locale } = useTranslation()
+
   return (
     <div className={screen.stack}>
       <p>
-        回答 {model.quiz.answeredCount}回・正答 {model.quiz.correctCount} /{' '}
-        {model.quiz.totalQuestions}問（正答率 {Math.round(model.quiz.accuracy * 100)}%）
+        {t('history.quizSummary', {
+          answered: model.quiz.answeredCount,
+          correct: model.quiz.correctCount,
+          total: model.quiz.totalQuestions,
+          accuracy: Math.round(model.quiz.accuracy * 100),
+        })}
       </p>
       {model.quizAnswers.length ? (
         <ul className={screen.list}>
           {model.quizAnswers.map((answer) => (
             <li className={screen.listItem} key={answer.quizId}>
-              {answer.quizDate}: {answer.score} / {answer.total}問
+              {dateFormatters[locale].format(new Date(answer.quizDate))}: {answer.score} /{' '}
+              {t('common.questions', { count: answer.total })}
             </li>
           ))}
         </ul>
       ) : (
-        <p className={screen.muted}>まだクイズに回答していません。</p>
+        <p className={screen.muted}>{t('history.noQuizzes')}</p>
       )}
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p role="alert">{message(error)}</p> : null}
       {model.quizAnswersNextCursor ? (
         <button
           type="button"
@@ -102,7 +120,7 @@ function QuizHistoryDetail({
           onClick={onLoadMore}
           disabled={isLoadingMore}
         >
-          {isLoadingMore ? '読み込んでいます…' : '過去の履歴を読み込む'}
+          {isLoadingMore ? t('common.loading') : t('history.loadMore')}
         </button>
       ) : null}
     </div>
@@ -116,6 +134,7 @@ function HistoryAggregateDetail({
   detail: AggregateDetail
   model: HistoryViewModel
 }) {
+  const { t } = useTranslation()
   switch (detail) {
     case 'regions':
       return (
@@ -142,7 +161,9 @@ function HistoryAggregateDetail({
     case 'genders':
       return <HistoryCountList items={model.genders} />
     case 'viewedCount':
-      return <p className={screen.muted}>読んだ声: {model.viewedCount}件</p>
+      return (
+        <p className={screen.muted}>{t('history.viewedCount', { count: model.viewedCount })}</p>
+      )
   }
 }
 
@@ -151,22 +172,26 @@ function HistoryCountList({
 }: {
   items: Array<{ key?: string; label: string; count: number }>
 }) {
+  const { t } = useTranslation()
+
   return (
     <ul className={screen.list}>
       {items.length ? (
         items.map((item) => (
           <li className={screen.listItem} key={item.key ?? item.label}>
-            {item.label} · {item.count}件
+            {item.label} · {t('common.count', { count: item.count })}
           </li>
         ))
       ) : (
-        <li>まだ記録がありません。</li>
+        <li>{t('history.noRecords')}</li>
       )}
     </ul>
   )
 }
 
 function HistoryUnavailableView() {
+  const { t } = useTranslation()
+
   const { liffUrl } = useRuntime()
   const returnUrl = liffUrl('/') ?? '/'
 
@@ -181,22 +206,24 @@ function HistoryUnavailableView() {
 
   return (
     <section className={`${screen.paper} ${crayonStyles.edge}`}>
-      <h2>学習履歴を利用できません</h2>
-      <p className={screen.muted}>このアカウントでは学習履歴を確認できません。</p>
+      <h2>{t('history.unavailable')}</h2>
+      <p className={screen.muted}>{t('history.accountUnavailable')}</p>
       <button type="button" className={actionStyles.primary} onClick={handleReturnToLine}>
-        LINEへ戻る
+        {t('history.returnLine')}
       </button>
     </section>
   )
 }
 
 function HistoryEmptyView({ feedPath }: { feedPath: string }) {
+  const { t } = useTranslation()
+
   return (
     <section className={`${screen.paper} ${crayonStyles.edge}`}>
-      <h2>最初の声を読んでみましょう</h2>
-      <p className={screen.muted}>読んだ地域やクイズの結果が、ここに残ります。</p>
+      <h2>{t('history.firstVoice')}</h2>
+      <p className={screen.muted}>{t('history.emptyHint')}</p>
       <Link className={actionStyles.primary} to={feedPath}>
-        声を読む
+        {t('common.readVoices')}
       </Link>
     </section>
   )
@@ -211,14 +238,18 @@ function RegionShelf({
   selectedRegion: string | null
   onSelect: (region: string) => void
 }) {
-  const visibleRegions = regions.length ? regions : [{ code: 'quiz', label: 'クイズ', count: 0 }]
+  const { t } = useTranslation()
+
+  const visibleRegions = regions.length
+    ? regions
+    : [{ code: 'quiz', label: t('nav.quiz'), count: 0 }]
   const activeRegion =
     selectedRegion && visibleRegions.some(({ code }) => code === selectedRegion)
       ? selectedRegion
       : visibleRegions[0].code
   return (
-    <section className={screen.stack} aria-label="出会った地域">
-      <div className={screen.shelf} role="group" aria-label="出会った地域のしおり">
+    <section className={screen.stack} aria-label={t('history.regionShelf')}>
+      <div className={screen.shelf} role="group" aria-label={t('history.regionBookmarks')}>
         {visibleRegions.slice(0, 4).map((region) => (
           <button
             key={region.code}
@@ -233,8 +264,10 @@ function RegionShelf({
       </div>
       <p className={screen.muted} aria-live="polite">
         {regions.length
-          ? `「${visibleRegions.find(({ code }) => code === activeRegion)?.label}」の声に出会いました。`
-          : '今日のクイズで、違う立場の声を読みました。'}
+          ? t('history.metRegion', {
+              region: visibleRegions.find(({ code }) => code === activeRegion)?.label,
+            })
+          : t('history.quizDiscovery')}
       </p>
     </section>
   )
@@ -255,6 +288,8 @@ function HistoryOverviewView({
   feedPath: string
   quizPath: string
 }) {
+  const { t } = useTranslation()
+
   return (
     <>
       <RegionShelf
@@ -265,72 +300,78 @@ function HistoryOverviewView({
       <section
         className={`${screen.paper} ${screen.taped} ${screen.tapeRight} ${crayonStyles.edge}`}
       >
-        <p className={screen.eyebrow}>つぎに、ひらくなら</p>
+        <p className={screen.eyebrow}>{t('history.next')}</p>
         {model.nextSuggestion ? (
           <>
-            <h2>未読の{model.nextSuggestion.kind === 'theme' ? 'テーマ' : '都道府県'}</h2>
+            <h2>
+              {t(
+                model.nextSuggestion.kind === 'theme'
+                  ? 'history.unreadTheme'
+                  : 'history.unreadRegion',
+              )}
+            </h2>
             <p className={screen.muted}>{model.nextSuggestion.label}</p>
             <Link className={actionStyles.text} to={feedPath}>
-              声を読む →
+              {t('common.readVoicesArrow')}
             </Link>
           </>
         ) : (
           <>
-            <h2>今読める未読の声はありません</h2>
-            <p className={screen.muted}>新しい声が届いたら、ここに表示します。</p>
+            <h2>{t('history.noUnread')}</h2>
+            <p className={screen.muted}>{t('history.newVoicesHint')}</p>
             <Link className={actionStyles.text} to={feedPath}>
-              フィードを見る →
+              {t('common.viewFeedArrow')}
             </Link>
           </>
         )}
       </section>
       <Link className={actionStyles.text} to={quizPath}>
-        きょうの手紙をひらく
+        {t('history.openQuiz')}
       </Link>
       <details className={screen.stack}>
-        <summary>もっと見る</summary>
+        <summary>{t('history.more')}</summary>
         <div className={screen.stack}>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('regions')}
           >
-            都道府県の傾向
+            {t('history.regions')}
           </button>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('clusters')}
           >
-            テーマの傾向
+            {t('history.themes')}
           </button>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('ageGroups')}
           >
-            投稿者の年代
+            {t('history.ages')}
           </button>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('genders')}
           >
-            投稿者の性別
+            {t('history.genders')}
           </button>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('viewedCount')}
           >
-            読んだ声の数
+            {t('history.voices')}
           </button>
           <button
             type="button"
             className={actionStyles.secondary}
             onClick={() => onOpenDetail('quiz')}
           >
-            クイズの履歴
+            {t('history.quizzes')}
           </button>
         </div>
       </details>
@@ -343,6 +384,8 @@ export function HistoryPage() {
 }
 
 function HistoryContent() {
+  const { t } = useTranslation()
+
   const { status, data, error, isLoadingMore, refresh, loadMoreQuizAnswers } = useHistory()
   const [detail, setDetail] = useState<Detail>(null)
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
@@ -350,10 +393,10 @@ function HistoryContent() {
   return (
     <div className={screen.page}>
       <HistoryHeading />
-      {status === 'loading' ? <LoadingState label="履歴を読み込んでいます…" /> : null}
+      {status === 'loading' ? <LoadingState label={t('history.loading')} /> : null}
       {status === 'error' ? (
         <ErrorState
-          description={error?.message ?? '履歴を読み込めませんでした。'}
+          description={error?.message ?? t('error.historyShort')}
           onRetry={() => void refresh()}
         />
       ) : null}

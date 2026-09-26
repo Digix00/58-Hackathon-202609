@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n/useTranslation'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
 import notebookBackground from '../../shared/styles/NotebookBackground.module.css'
 import { CrayonMark } from './CrayonMark'
@@ -45,6 +46,8 @@ function TitleRule() {
  * Composition: AppLayout が初期化中に描き、onDone のあと本来の画面へ移る。
  */
 export function SplashScreen({ ready, onDone }: { ready: boolean; onDone: () => void }) {
+  const { t } = useTranslation()
+
   const { rootRef, phase, hint } = useSplashPresentation(ready, onDone)
   // 文字サイズの設定は、下部ナビを持つ画面の外にあるこの画面にも通す。
   const { fontSize } = useDisplaySettings()
@@ -59,7 +62,7 @@ export function SplashScreen({ ready, onDone }: { ready: boolean; onDone: () => 
     >
       <div className={styles.mark}>
         {/* 置くのは題字だけ。件数も一言も出さない。めくる前に中身を予告しない。 */}
-        <h1 className={styles.title}>目安箱</h1>
+        <h1 className={styles.title}>{t('app.name')}</h1>
         <TitleRule />
         {/* クレヨンは移動・息・絵を層で分ける。同じ要素に重ねると動きが打ち消し合う。 */}
         <span className={styles.pen} aria-hidden="true">
@@ -74,7 +77,7 @@ export function SplashScreen({ ready, onDone }: { ready: boolean; onDone: () => 
        * 文字が入る前から場所を持たせ、あとから読み上げへ届くようにする。
        */}
       <p className={styles.hint} role="status">
-        {hint ? <span className={styles.hintText}>じゅんびしています…</span> : null}
+        {hint ? <span className={styles.hintText}>{t('splash.loading')}</span> : null}
       </p>
     </main>
   )
