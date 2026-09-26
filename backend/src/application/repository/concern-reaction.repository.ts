@@ -6,6 +6,11 @@ export interface InsertConcernReactionResult {
   reactionCount: number;
 }
 
+export interface RemoveConcernReactionResult {
+  removed: boolean;
+  reactionCount: number;
+}
+
 /**
  * Application層が必要とするリアクション永続化処理のPort。
  * 対象投稿が公開中でなければ null を返す。
@@ -15,4 +20,7 @@ export interface ConcernReactionRepository {
     reaction: ConcernReaction,
     event: LearningEvent,
   ): Promise<InsertConcernReactionResult | null>;
+  remove(
+    reaction: ConcernReaction,
+  ): Promise<RemoveConcernReactionResult | null>;
 }

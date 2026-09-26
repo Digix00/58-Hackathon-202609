@@ -6,6 +6,7 @@ import type { LearningEvent } from "../../application/entity/learning-event";
 import type {
   ConcernReactionRepository,
   InsertConcernReactionResult,
+  RemoveConcernReactionResult,
 } from "../../application/repository/concern-reaction.repository";
 import { concernReactions, concerns } from "./schema";
 
@@ -104,6 +105,56 @@ export class D1ConcernReactionRepository implements ConcernReactionRepository {
 
     return {
       created: inserted.meta.changes > 0,
+      reactionCount: aggregate?.reactionCount ?? 0,
+    };
+  }
+
+  async remove(
+    reaction: ConcernReaction,
+  ): Promise<RemoveConcernReactionResult | null> {
+    const publishedConcern = await this.db
+      .select({ id: concerns.id })
+      .from(concerns)
+      .where(
+        and(
+          eq(concerns.id, reaction.concernId),
+          eq(concerns.visibilityStatus, "published"),
+        ),
+      )
+      .limit(1)
+      .get();
+
+    if (!publishedConcern) {
+      return null;
+    }
+
+    const [removedReaction] = await this.database.batch([
+      this.database
+        .prepare(
+          "DELETE FROM concern_reactions " +
+            "WHERE concern_id = ? AND user_id = ? AND reaction_type = ? " +
+            "AND EXISTS (SELECT 1 FROM concerns " +
+            "WHERE concerns.id = concern_reactions.concern_id " +
+            "AND concerns.visibility_status = 'published')",
+        )
+        .bind(reaction.concernId, reaction.userId, reaction.reactionType),
+      this.database
+        .prepare(
+          "DELETE FROM learning_events " +
+            "WHERE user_id = ? AND event_type = 'reaction' " +
+            "AND concern_id = ? AND changes() > 0",
+        )
+        .bind(reaction.userId, reaction.concernId),
+    ]);
+
+    const aggregate = await this.db
+      .select({ reactionCount: count() })
+      .from(concernReactions)
+      .where(eq(concernReactions.concernId, reaction.concernId))
+      .get();
+
+    return {
+      removed: removedReaction.meta.changes > 0,
       reactionCount: aggregate?.reactionCount ?? 0,
     };
   }

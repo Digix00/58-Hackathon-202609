@@ -13,6 +13,7 @@ import {
 import { D1HistoryRepository } from "../src/infrastructure/database/d1-history.repository";
 import {
   concernClusters,
+  concernReactions,
   concerns,
   concernViews,
   quizAttempts,
@@ -386,6 +387,186 @@ async function seedHistory(userId: string) {
   };
 }
 
+/** 自分が書いた声と、寄りそった声の履歴だけを確認するための最小データ。 */
+async function seedConcernHistory(userId: string) {
+  const db = drizzle(env.DB);
+  const suffix = crypto.randomUUID();
+  const authorId = `own-author-${suffix}`;
+  const otherUserId = `own-other-${suffix}`;
+  const clusterId = `own-cluster-${suffix}`;
+  const createdAt = "2098-02-01T00:00:00.000Z";
+
+  await db.insert(users).values([
+    {
+      id: authorId,
+      lineUserId: `own-author-line-${suffix}`,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: otherUserId,
+      lineUserId: `own-other-line-${suffix}`,
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ]);
+  await db.insert(concernClusters).values({
+    id: clusterId,
+    legacyLabel: "old label",
+    legacySummary: "old summary",
+    label: "眠れない夜",
+    summary: "夜の過ごし方について",
+    status: "ready",
+    createdAt,
+    updatedAt: createdAt,
+  });
+
+  const ownIds = {
+    published: `${suffix}-own-published`,
+    pending: `${suffix}-own-pending`,
+    hidden: `${suffix}-own-hidden`,
+    deleted: `${suffix}-own-deleted`,
+  };
+  const supportedIds = {
+    first: `${suffix}-supported-1`,
+    second: `${suffix}-supported-2`,
+    third: `${suffix}-supported-3`,
+    hidden: `${suffix}-supported-hidden`,
+  };
+
+  await db.insert(concerns).values([
+    {
+      id: ownIds.published,
+      userId,
+      body: "自分で書いた公開中の声",
+      ageGroup: "20s",
+      genderCode: "female",
+      regionCode: "osaka",
+      clusterId,
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt: "2098-02-03T00:00:00.000Z",
+      updatedAt: "2098-02-03T00:00:00.000Z",
+    },
+    {
+      id: ownIds.pending,
+      userId,
+      body: "自分で書いた準備中の声",
+      visibilityStatus: "published",
+      processingStatus: "pending",
+      createdAt: "2098-02-02T00:00:00.000Z",
+      updatedAt: "2098-02-02T00:00:00.000Z",
+    },
+    {
+      id: ownIds.hidden,
+      userId,
+      body: "自分で書いた非公開の声",
+      visibilityStatus: "hidden",
+      processingStatus: "ready",
+      createdAt: "2098-02-01T00:00:00.000Z",
+      updatedAt: "2098-02-01T00:00:00.000Z",
+    },
+    {
+      id: ownIds.deleted,
+      userId,
+      body: "自分で消した声",
+      visibilityStatus: "deleted",
+      processingStatus: "ready",
+      createdAt: "2098-02-04T00:00:00.000Z",
+      updatedAt: "2098-02-04T00:00:00.000Z",
+    },
+  ]);
+  await db.insert(concerns).values([
+    {
+      id: supportedIds.first,
+      userId: authorId,
+      body: "寄りそった声その1",
+      regionCode: "tokyo",
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: supportedIds.second,
+      userId: authorId,
+      body: "寄りそった声その2",
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: supportedIds.third,
+      userId: authorId,
+      body: "寄りそった声その3",
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: supportedIds.hidden,
+      userId: authorId,
+      body: "非公開になった声",
+      visibilityStatus: "hidden",
+      processingStatus: "ready",
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ]);
+
+  await db.insert(concernReactions).values([
+    {
+      concernId: supportedIds.first,
+      userId,
+      reactionType: "empathy",
+      createdAt: "2098-02-05T00:00:00.000Z",
+    },
+    {
+      concernId: supportedIds.second,
+      userId,
+      reactionType: "empathy",
+      createdAt: "2098-02-06T00:00:00.000Z",
+    },
+    {
+      concernId: supportedIds.third,
+      userId,
+      reactionType: "empathy",
+      createdAt: "2098-02-07T00:00:00.000Z",
+    },
+    {
+      concernId: supportedIds.hidden,
+      userId,
+      reactionType: "empathy",
+      createdAt: "2098-02-08T00:00:00.000Z",
+    },
+    {
+      concernId: ownIds.published,
+      userId: otherUserId,
+      reactionType: "empathy",
+      createdAt: "2098-02-09T00:00:00.000Z",
+    },
+  ]);
+
+  return { authorId, otherUserId, ownIds, supportedIds };
+}
+
+interface ConcernHistoryPageResponse {
+  items: Array<{
+    id: string;
+    body: string;
+    attributes: { regionName?: string };
+    cluster: { label: string | null } | null;
+    reactionCount: number;
+    visibilityStatus: string;
+    processingStatus: string;
+    reactedAt: string | null;
+    createdAt: string;
+  }>;
+  nextCursor: string | null;
+}
+
 describe("learning history routes", () => {
   it("aggregates only the current user's public views and paginates their quiz attempts", async () => {
     const { app, lineUserId } = createTestApp();
@@ -586,6 +767,137 @@ describe("learning history routes", () => {
     });
   });
 
+  it("lists the user's own voices and the voices they supported", async () => {
+    const { app, lineUserId } = createTestApp();
+    const cookie = await login(app);
+    const db = drizzle(env.DB);
+    const user = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.lineUserId, lineUserId))
+      .get();
+    if (!user) throw new Error("authenticated user was not created");
+    const seeded = await seedConcernHistory(user.id);
+
+    const ownFirstResponse = await app.request(
+      "/api/v1/history/concerns?limit=2",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(ownFirstResponse.status).toBe(200);
+    const ownFirstPage =
+      await ownFirstResponse.json<ConcernHistoryPageResponse>();
+    expect(ownFirstPage.items.map((item) => item.id)).toEqual([
+      seeded.ownIds.published,
+      seeded.ownIds.pending,
+    ]);
+    expect(ownFirstPage.items[0]).toMatchObject({
+      body: "自分で書いた公開中の声",
+      attributes: { regionName: "大阪府" },
+      cluster: { label: "眠れない夜" },
+      reactionCount: 1,
+      visibilityStatus: "published",
+      processingStatus: "ready",
+      reactedAt: null,
+    });
+    // 準備中の投稿はテーマがまだないため、しおりを出さない。
+    expect(ownFirstPage.items[1].cluster).toBeNull();
+    expect(ownFirstPage.nextCursor).toBeTruthy();
+    expect(JSON.stringify(ownFirstPage)).not.toContain(user.id);
+
+    const ownSecondResponse = await app.request(
+      `/api/v1/history/concerns?limit=2&cursor=${encodeURIComponent(ownFirstPage.nextCursor ?? "")}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const ownSecondPage =
+      await ownSecondResponse.json<ConcernHistoryPageResponse>();
+    // 削除済みの投稿は本人にも返さない。
+    expect(ownSecondPage.items.map((item) => item.id)).toEqual([
+      seeded.ownIds.hidden,
+    ]);
+    expect(ownSecondPage.nextCursor).toBeNull();
+
+    const supportedFirstResponse = await app.request(
+      "/api/v1/history/reactions?limit=2",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(supportedFirstResponse.status).toBe(200);
+    const supportedFirstPage =
+      await supportedFirstResponse.json<ConcernHistoryPageResponse>();
+    // 寄りそった順に並び、相手が非公開へ変えた声は履歴からも外す。
+    expect(supportedFirstPage.items.map((item) => item.id)).toEqual([
+      seeded.supportedIds.third,
+      seeded.supportedIds.second,
+    ]);
+    expect(supportedFirstPage.items[0]).toMatchObject({
+      body: "寄りそった声その3",
+      reactionCount: 1,
+      reactedAt: "2098-02-07T00:00:00.000Z",
+    });
+    expect(supportedFirstPage.nextCursor).toBeTruthy();
+    expect(JSON.stringify(supportedFirstPage)).not.toContain(user.id);
+    expect(JSON.stringify(supportedFirstPage)).not.toContain(seeded.authorId);
+
+    const supportedSecondResponse = await app.request(
+      `/api/v1/history/reactions?limit=2&cursor=${encodeURIComponent(supportedFirstPage.nextCursor ?? "")}`,
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const supportedSecondPage =
+      await supportedSecondResponse.json<ConcernHistoryPageResponse>();
+    expect(supportedSecondPage.items.map((item) => item.id)).toEqual([
+      seeded.supportedIds.first,
+    ]);
+    expect(supportedSecondPage.nextCursor).toBeNull();
+
+    const englishResponse = await app.request(
+      "/api/v1/history/concerns?limit=1&language=en",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await englishResponse.json()).toMatchObject({
+      items: [{ attributes: { regionName: "Osaka" } }],
+    });
+
+    const summaryResponse = await app.request(
+      "/api/v1/history/summary",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    expect(await summaryResponse.json()).toMatchObject({
+      contributions: {
+        concernCount: 3,
+        receivedReactionCount: 1,
+        givenReactionCount: 3,
+      },
+    });
+
+    for (const path of [
+      "/api/v1/history/concerns",
+      "/api/v1/history/reactions",
+    ]) {
+      const invalidLimit = await app.request(
+        `${path}?limit=0`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      expect(invalidLimit.status).toBe(400);
+      const invalidCursor = await app.request(
+        `${path}?cursor=not-a-cursor`,
+        { headers: { Cookie: cookie } },
+        env,
+      );
+      expect(invalidCursor.status).toBe(400);
+      expect(await invalidCursor.json()).toMatchObject({
+        error: { code: "INVALID_CURSOR" },
+      });
+      const unauthenticated = await app.request(path, {}, env);
+      expect(unauthenticated.status).toBe(401);
+    }
+  });
+
   it("blocks both history routes for a deleted user", async () => {
     const { app, lineUserId } = createTestApp();
     const cookie = await login(app);
@@ -598,6 +910,8 @@ describe("learning history routes", () => {
     for (const path of [
       "/api/v1/history/summary",
       "/api/v1/history/quiz-answers",
+      "/api/v1/history/concerns",
+      "/api/v1/history/reactions",
     ]) {
       const response = await app.request(
         path,

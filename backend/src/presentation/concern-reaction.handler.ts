@@ -147,6 +147,80 @@ export class ConcernReactionHandler {
       return c.json(response, 200);
     },
   );
+
+  readonly remove = factory.createHandlers(
+    setRequestIdMiddleware,
+    async (c, next) => {
+      if (!c.var.auth?.user) {
+        return c.json(
+          {
+            error: {
+              code: "AUTHENTICATION_REQUIRED",
+              message: "リアクションにはLINEログインが必要です",
+              requestId: c.var.requestId,
+            },
+          },
+          401,
+        );
+      }
+      await next();
+    },
+    async (c) => {
+      const auth = c.var.auth;
+      if (!auth?.user) {
+        return c.json(
+          {
+            error: {
+              code: "AUTHENTICATION_REQUIRED",
+              message: "リアクションにはLINEログインが必要です",
+              requestId: c.var.requestId,
+            },
+          },
+          401,
+        );
+      }
+
+      const concernId = c.req.param("concernId");
+      if (!concernId) {
+        return c.json(
+          {
+            error: {
+              code: "NOT_FOUND",
+              message: "悩みが見つかりません",
+              requestId: c.var.requestId,
+            },
+          },
+          404,
+        );
+      }
+
+      const result = await this.reactionUseCase.remove({
+        concernId,
+        userId: auth.user.id,
+        reactionType: "empathy",
+      });
+
+      if (!result) {
+        return c.json(
+          {
+            error: {
+              code: "NOT_FOUND",
+              message: "悩みが見つかりません",
+              requestId: c.var.requestId,
+            },
+          },
+          404,
+        );
+      }
+
+      return c.json({
+        concernId: result.reaction.concernId,
+        reactionType: result.reaction.reactionType,
+        reactionCount: result.reactionCount,
+        reacted: false as const,
+      });
+    },
+  );
 }
 
 async function readJson(request: Request): Promise<unknown> {
