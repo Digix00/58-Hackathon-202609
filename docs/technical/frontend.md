@@ -153,6 +153,11 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 - 録音中の経過は、秒数の言葉とクレヨンで引く線の長さの両方で示す。線は `aria-hidden` の装飾とし、`role="timer"` が伝えるのは秒数だけにする。桁数の変化で線の長さが動かないよう、秒数の表示幅は上限秒数ぶんを先に確保する。`prefers-reduced-motion: reduce` では秒の間を補間せず、`prefers-contrast: more` では紙目の抜けを外す。
 - `pnpm --filter frontend test:speech` で録音終了・中断・形式選択・サイズ制限を確認する。ローカル認識器の固定値での疎通と、実際のWorkers AI・LINE実機の検証を区別する。
 
+### 文字サイズの保存
+
+- `DisplaySettingsProvider` の `fontSize` を唯一の文字サイズの状態とする。ログイン済みの場合は設定画面で `PUT /api/v1/users/me/font-size` に保存し、成功後に反映する。保存に失敗した場合は現在の文字サイズを維持し、エラーを表示する。
+- 未ログインの場合はメモリ内の状態だけを切り替え、アカウントには保存しない。ログイン後はセッションの `user.fontSize` を復元し、未ログイン時に選んだ値より優先する。
+
 ### 表示言語とUI文言
 
 - `DisplaySettingsProvider` の `language` を唯一の表示言語の状態とする。設定保存とログイン後の復元には既存の `displayLanguage` APIを利用する。保存に失敗した場合は現在の言語を維持する。

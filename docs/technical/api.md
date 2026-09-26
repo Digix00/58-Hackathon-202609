@@ -66,7 +66,7 @@ Accept: application/json
 7. 以降のユースケースには、クライアント入力ではなく解決済み users.id を渡す
 
 `POST /api/v1/auth/line` と `GET /api/v1/auth/session` の認証済みレスポンスには、
-ログインユーザー自身のプロフィール情報、`displayLanguage`、`profileCompleted` を含める。プロフィール未入力の
+ログインユーザー自身のプロフィール情報、`displayLanguage`、`fontSize`、`profileCompleted` を含める。プロフィール未入力の
 ユーザーは `profileCompleted=false` となり、`PUT /api/v1/users/me` で登録する。
 
 次の値は信頼しない。
@@ -255,6 +255,7 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
 | PUT | /api/v1/users/me/display-language | 実装済み | LINEログイン済みセッション | ログインユーザー自身の都道府県表示形式を更新 |
+| PUT | /api/v1/users/me/font-size | 実装済み | LINEログイン済みセッション | ログインユーザー自身の文字サイズを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -310,6 +311,7 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
   "user": {
     "id": "opaque-user-id",
     "displayLanguage": "original",
+    "fontSize": "normal",
     "birthYear": 2002,
     "birthMonth": 9,
     "gender": "no_answer",
@@ -341,6 +343,23 @@ LINEログイン済みユーザー自身の表示言語（悩み本文、性別�
 
 認証レスポンスと同じユーザー情報を返す。`displayLanguage` は更新後の値となる。
 未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`を返す。
+
+### 2.3 PUT /api/v1/users/me/font-size
+
+LINEログイン済みユーザー自身の文字サイズを更新する。文字サイズは `normal`（標準）、`large`（大きく表示）のいずれかとし、初期値は `normal` とする。
+
+#### Request
+
+~~~json
+{
+  "fontSize": "large"
+}
+~~~
+
+#### Response: 200 OK
+
+認証レスポンスと同じユーザー情報を返す。`fontSize` は更新後の値となる。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`（`details` の `field` は `fontSize`）を返す。
 
 ## 3. 悩み API
 

@@ -76,6 +76,7 @@ erDiagram
     TEXT id PK
     TEXT line_user_id UK
     TEXT display_language
+    TEXT font_size
     INTEGER birth_year
     INTEGER birth_month
     TEXT gender_code
@@ -260,7 +261,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 
 | テーブル | 主なカラム | 制約・用途 |
 | --- | --- | --- |
-| users | id, line_user_id, display_language, birth_year, birth_month, gender_code, region_code, friend_status, joined_at, unfollowed_at, last_seen_at, created_at, updated_at, deleted_at | LINE/LIFF ログイン済みユーザー。LINE user ID は認証用に内部保存し、APIや画面には返さない。display_language は original, jaHira, en のいずれかで、初期値は original。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力のユーザーは NULL とする。friend_status は follow/unfollow の状態を保持する。deleted_at はアカウントの削除状態を示す |
+| users | id, line_user_id, display_language, font_size, birth_year, birth_month, gender_code, region_code, friend_status, joined_at, unfollowed_at, last_seen_at, created_at, updated_at, deleted_at | LINE/LIFF ログイン済みユーザー。LINE user ID は認証用に内部保存し、APIや画面には返さない。display_language は original, jaHira, en のいずれかで、初期値は original。font_size は normal, large のいずれかで、初期値は normal。プロフィールは生年月（年・月）、性別、都道府県を保持し、未入力のユーザーは NULL とする。friend_status は follow/unfollow の状態を保持する。deleted_at はアカウントの削除状態を示す |
 
 ### 4.2 投稿・AI処理
 
