@@ -1,0 +1,123 @@
+/*
+ * 表紙の絵の置きかた。
+ *
+ * 絵は題字と一言を囲むように、紙の上（名札）と下（クレヨンの箱）に分けて置く。
+ * 文字の後ろへ回すと、絵が透けた紙に書いた字になって読みにくい。
+ * どれも装飾なので指も読み上げも通さない。
+ */
+.tag,
+.box {
+  position: absolute;
+  pointer-events: none;
+}
+
+/*
+ * クレヨンの目。ふち・しおりと同じ砂目を絵にもかける。
+ * 線と塗りの両方にかけるのは、クレヨンでは輪郭も紙の目に負けるため。
+ *
+ * 目の大きさは紙のふち（160px）より細かくする。名札の罫線のような
+ * 短く細い線は、粗い目にかけると点線に割れて、かすれではなく欠けに見える。
+ */
+.tag,
+.crayon {
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 110px 110px;
+  mask-size: 110px 110px;
+  overflow: visible;
+}
+
+/* 名札は右上。題字より先に目に入らないよう、紙の角に寄せる。 */
+.tag {
+  top: 0.5em;
+  right: 0.8em;
+  width: clamp(5em, 15vw, 6.2em);
+  height: auto;
+  transform: rotate(-6deg);
+}
+
+.tagFill {
+  fill: #fff6e4;
+  opacity: 0.95;
+}
+
+.tagLine {
+  fill: none;
+  stroke: #c3ab75;
+  /* 線は砂目に負けない太さにする。細いと、かすれではなく切れた線に見える。 */
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 吊るす紐。名札の輪郭と同じ色にすると、紙の一部に見えて紐にならない。 */
+.stringLine {
+  fill: none;
+  stroke: #8d7cc4;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* 書きかけの罫線。輪郭より薄くして、書かれた文字に見せない。 */
+.writingLine {
+  fill: none;
+  stroke: #cdc3ad;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+}
+
+/*
+ * クレヨンの箱。紙の下辺を箱の縁に見立てて、そこに並べる。
+ * 左はとじリングの領分なので、本文と同じとじ代の内側から並べはじめる。
+ */
+.box {
+  right: var(--cover-gutter);
+  bottom: 0;
+  left: calc(var(--cover-gutter) + var(--cover-binding));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* 出ぐあいは箱の高さから引く。1本ずつ違う高さにして、列に見せない。 */
+.crayon {
+  width: auto;
+  height: calc(var(--box-height) * var(--grown, 1));
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: bottom center;
+}
+
+.waxFill {
+  fill: var(--wax);
+  opacity: 0.92;
+}
+
+.waxLine {
+  fill: none;
+  stroke: var(--wax-line);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 背の低い端末では、絵より題字と操作を先に収める。 */
+@media (max-height: 700px) {
+  .tag {
+    top: 0.3em;
+    width: clamp(4em, 11.5vw, 4.9em);
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 高コントラスト時は、砂目とかすれを外して形をはっきり出す。 */
+  .tag,
+  .crayon {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .tag g,
+  .crayon g {
+    filter: none;
+  }
+}
