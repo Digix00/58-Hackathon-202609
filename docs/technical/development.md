@@ -61,6 +61,7 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 | `CORS_ORIGIN` | APIが許可するフロントエンドorigin | Worker環境変数 |
 | `LINE_CHANNEL_ID` | LINE IDトークン検証に使うチャネルID | Worker環境変数 |
 | `DEV_AUTH_ENABLED` | 開発用認証エンドポイントの有効化 | `wrangler.dev.jsonc` のみ |
+| `LOCAL_SPEECH_RECOGNIZER_ENABLED` | 固定のローカル音声認識結果を使い、音声APIの成功経路を確認 | `wrangler.dev.jsonc` / `wrangler.vectorize.dev.jsonc` のみ |
 | `AUTH_SESSION_TTL_SECONDS` | アプリセッションの有効秒数 | Worker環境変数（任意） |
 | `CLOUDFLARE_API_TOKEN` | D1マイグレーションとWorkerデプロイ | GitHub Secret |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflareアカウント識別子 | GitHub Secretまたは環境設定 |
@@ -99,6 +100,9 @@ frontendのみは `make check-frontend`、backendのみは `make check-backend` 
 ハッカソン期間は無料枠または低額で動作する構成を優先する。Workers AI はモデルごとの利用量に応じて課金され、現行の無料枠はアカウント全体で1日10,000 Neuronsまで。Freeプランでは上限超過後の推論が失敗し、Workers Paidでは無料枠を超えた分が課金される。Neuron数や単価はモデルによって異なるため、[公式料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)を確認する。
 
 Application層からは、原文からの英訳・ひらがな変換用の `TextTranslator`、Embedding用の `TextEmbeddingGenerator`、クラスタ表示文用の `ConcernClusterSummaryGenerator`、音声認識用の `SpeechRecognizer` Portを呼び出す。PoCの英訳・ひらがな変換・クラスタ要約は `@cf/meta/llama-3.1-8b-instruct-fp8` を使い、Embeddingは1024次元の `@cf/qwen/qwen3-embedding-0.6b` を使う。PLaMo-Embedding-1Bは2048次元のためVectorizeの上限に収まらない。各PortのWorkers AI Adapterへ `env.AI` を注入する。投稿保存後は `CONCERN_PROCESSING_QUEUE` へメッセージを送り、Queue consumerから `ConcernProcessingUseCase` を呼び出す。処理結果の表現とcluster IDはD1へ、EmbeddingはCloudflare Vectorizeへ保存する。Vectorizeにはローカルシミュレーターがないため開発用・本番用に別のindexを作成する。通常の `pnpm dev` はWorkers AIとVectorizeのremote bindingを使わず、Cloudflare認証なしでローカルアダプタを動かす。Vectorize連携の開発確認には `pnpm --filter backend dev:vectorize` を使い、開発用remote indexだけに接続する。
+`pnpm dev` と `pnpm dev:vectorize` では `LOCAL_SPEECH_RECOGNIZER_ENABLED=true` により、音声APIもローカルアダプターで成功する。ローカルアダプターは `[local-dev transcript]` という固定値を返し、実際の音声認識は行わない。Workers AI binding がある場合はWorkers AIを優先し、ローカル用フラグもAI bindingもない環境では503を返す。
+
+音声APIだけを実際のWorkers AIへ接続する場合は `wrangler login` 後に `pnpm --filter backend dev:speech` を使う。`wrangler.speech.dev.jsonc` はローカルD1とremote AI bindingだけを設定し、本番Vectorize・Queue・LINE配信へは接続しない。先に `pnpm --filter backend db:migrate:local` を実行し、`POST /api/v1/auth/dev` の開発セッションを使う。推論はCloudflareの利用量に計上される。手順は [backend README](../../backend/README.md#音声文字起こしapiの確認) を参照する。
 
 新しく作られたpending clusterだけ、最大10件の公開済み悩みからlabelとsummaryを一度生成する。Workers AIへ送る本文は1件あたり2000文字までに切り詰める。生成前にD1の条件付き更新でclusterを`generating`へ原子的にclaimし、同じclusterに対する同時Queue配信の重複推論を防ぐ。別workerが生成中のclusterに当たった配信は投稿をreadyにせず、Queueで再試行する。claim後のD1読み込みや生成に失敗した場合はclaimの解放を試みてQueue再試行を行い、公開済み原文は保持する。claimは5分で失効し、Worker停止後も再投入で回復できる。生成結果はJSON形式でlabelとsummaryだけを含み、両方が空でないことを検証する。出力文の長さ・個人情報・禁止語のパターン検査は行わず、プロンプトで連絡先、URL、個人名、住所、攻撃的・差別的な表現を出さないよう指示する。既存クラスタに投稿が追加されたときの再生成は次の処理で実装する。
 

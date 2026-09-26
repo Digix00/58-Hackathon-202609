@@ -1,0 +1,890 @@
+const WAV_SAMPLE_RATE = 8_000;
+const WAV_CHANNELS = 1;
+const WAV_BITS_PER_SAMPLE = 16;
+
+type Mp4SampleGroupDescriptionOptions = {
+  version: 1 | 2;
+  defaultLength: number;
+  defaultSampleDescriptionIndex?: number;
+  entryCount: number;
+  entryData: Uint8Array;
+};
+
+export function createWavAudio(
+  durationSeconds: number,
+  zeroLengthUnknownChunkCount = 0,
+): Uint8Array {
+  const bytesPerSample = WAV_BITS_PER_SAMPLE / 8;
+  const blockAlign = WAV_CHANNELS * bytesPerSample;
+  const byteRate = WAV_SAMPLE_RATE * blockAlign;
+  const dataLength = Math.round(durationSeconds * byteRate);
+  const dataHeaderOffset = 36 + zeroLengthUnknownChunkCount * 8;
+  const buffer = new ArrayBuffer(dataHeaderOffset + 8 + dataLength);
+  const view = new DataView(buffer);
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, buffer.byteLength - 8, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, WAV_CHANNELS, true);
+  view.setUint32(24, WAV_SAMPLE_RATE, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, WAV_BITS_PER_SAMPLE, true);
+  for (let chunk = 0; chunk < zeroLengthUnknownChunkCount; chunk += 1) {
+    const chunkOffset = 36 + chunk * 8;
+    writeAscii(view, chunkOffset, "JUNK");
+    view.setUint32(chunkOffset + 4, 0, true);
+  }
+  writeAscii(view, dataHeaderOffset, "data");
+  view.setUint32(dataHeaderOffset + 4, dataLength, true);
+  return new Uint8Array(buffer);
+}
+
+export function createMp3Audio(
+  durationSeconds: number,
+  includeId3v24Footer = false,
+  gaplessMetadata?: {
+    encoderDelaySamples: number;
+    encoderPaddingSamples: number;
+    encoderTag?: string;
+  },
+): Uint8Array {
+  const frameLength = 417;
+  const samplesPerFrame = 1_152;
+  const sampleRate = 44_100;
+  const trimSamples =
+    (gaplessMetadata?.encoderDelaySamples ?? 0) +
+    (gaplessMetadata?.encoderPaddingSamples ?? 0);
+  const frameCount = Math.ceil(
+    (durationSeconds * sampleRate + trimSamples) / samplesPerFrame,
+  );
+  const audio = new Uint8Array(frameCount * frameLength);
+  const frameHeader = Uint8Array.of(0xff, 0xfb, 0x90, 0x64);
+
+  for (let frame = 0; frame < frameCount; frame += 1) {
+    audio.set(frameHeader, frame * frameLength);
+  }
+
+  if (gaplessMetadata) {
+    const firstFrame = audio.subarray(0, frameLength);
+    const xingOffset = 4 + 32;
+    firstFrame.set(ascii("Xing"), xingOffset);
+    writeUint32BigEndian(firstFrame, xingOffset + 4, 0x0f);
+    let tagOffset = xingOffset + 8;
+    writeUint32BigEndian(firstFrame, tagOffset, frameCount);
+    tagOffset += 4;
+    writeUint32BigEndian(firstFrame, tagOffset, audio.byteLength);
+    tagOffset += 4 + 100 + 4;
+    firstFrame.set(ascii(gaplessMetadata.encoderTag ?? "LAME3.100"), tagOffset);
+    const delayOffset = tagOffset + 21;
+    firstFrame[delayOffset] = gaplessMetadata.encoderDelaySamples >> 4;
+    firstFrame[delayOffset + 1] =
+      ((gaplessMetadata.encoderDelaySamples & 0x0f) << 4) |
+      (gaplessMetadata.encoderPaddingSamples >> 8);
+    firstFrame[delayOffset + 2] = gaplessMetadata.encoderPaddingSamples & 0xff;
+  }
+
+  if (!includeId3v24Footer) {
+    return audio;
+  }
+
+  const tag = concat(
+    ascii("TIT2"),
+    encodeSynchsafeSize(1),
+    Uint8Array.of(0, 0, 0),
+  );
+  const size = encodeSynchsafeSize(tag.length);
+  const header = concat(ascii("ID3"), Uint8Array.of(4, 0, 0x10), size);
+  const footer = concat(ascii("3DI"), Uint8Array.of(4, 0, 0x10), size);
+  return concat(header, tag, footer, audio);
+}
+
+export function createWebmAudio(
+  durationSeconds: number,
+  declaredDurationSeconds = durationSeconds,
+  voidElementCount = 0,
+  opusPacket: Uint8Array<ArrayBufferLike> = Uint8Array.of(0xf8, 0xff),
+  options: {
+    segmentSize?: "known" | "unknown" | "oversized";
+    clusterSize?: "known" | "unknown";
+    codecDelayNs?: number;
+    discardPaddingNs?: number;
+    discardPaddingAtPackets?: number[];
+    fixedLacingPacketsPerBlock?: number;
+    ebmlLacingPacketsPerBlock?: number;
+    opusHead?: Uint8Array;
+  } = {},
+): Uint8Array {
+  const packetCount = Math.ceil(durationSeconds / 0.02);
+  const ebmlHead = ebmlElement(
+    [0x1a, 0x45, 0xdf, 0xa3],
+    concat(
+      ebmlUint([0x42, 0x86], 1),
+      ebmlUint([0x42, 0xf7], 1),
+      ebmlUint([0x42, 0xf2], 4),
+      ebmlUint([0x42, 0xf3], 8),
+      ebmlElement([0x42, 0x82], ascii("webm")),
+      ebmlUint([0x42, 0x85], 2),
+    ),
+  );
+  const info = ebmlElement(
+    [0x15, 0x49, 0xa9, 0x66],
+    concat(
+      ebmlUint([0x2a, 0xd7, 0xb1], 1_000_000),
+      ebmlElement(
+        [0x44, 0x89],
+        float64BigEndian(declaredDurationSeconds * 1_000),
+      ),
+    ),
+  );
+  const audioTrack = ebmlElement(
+    [0xae],
+    concat(
+      ebmlUint([0xd7], 1),
+      ebmlUint([0x73, 0xc5], 1),
+      ebmlUint([0x83], 2),
+      ebmlElement([0x86], ascii("A_OPUS")),
+      ebmlElement(
+        [0xe1],
+        concat(
+          ebmlElement([0xb5], float64BigEndian(48_000)),
+          ebmlUint([0x9f], 1),
+        ),
+      ),
+      ebmlElement(
+        [0x63, 0xa2],
+        options.opusHead ??
+          concat(
+            ascii("OpusHead"),
+            (() => {
+              const preSkipSamples =
+                options.codecDelayNs === undefined
+                  ? 0
+                  : Math.round((options.codecDelayNs * 48_000) / 1_000_000_000);
+              return Uint8Array.of(
+                1,
+                1,
+                preSkipSamples & 0xff,
+                (preSkipSamples >> 8) & 0xff,
+                0x80,
+                0xbb,
+                0,
+                0,
+                0,
+                0,
+                0,
+              );
+            })(),
+          ),
+      ),
+      ...(options.codecDelayNs === undefined
+        ? []
+        : [ebmlUint([0x56, 0xaa], options.codecDelayNs)]),
+    ),
+  );
+  const tracks = ebmlElement([0x16, 0x54, 0xae, 0x6b], audioTrack);
+  const clusters: Uint8Array[] = [];
+  const discardPaddingAtPackets = new Set(
+    options.discardPaddingAtPackets ?? [],
+  );
+  const createBlockElement = (
+    blockPayload: Uint8Array,
+    firstPacket: number,
+    lastPacket: number,
+  ): Uint8Array => {
+    let containsTargetedPacket = false;
+    for (
+      let packet = firstPacket;
+      packet <= lastPacket && !containsTargetedPacket;
+      packet += 1
+    ) {
+      containsTargetedPacket = discardPaddingAtPackets.has(packet);
+    }
+    const hasDiscardPadding =
+      options.discardPaddingNs !== undefined &&
+      (options.discardPaddingAtPackets !== undefined
+        ? containsTargetedPacket
+        : options.discardPaddingNs < 0
+          ? firstPacket === 0
+          : lastPacket === packetCount - 1);
+    if (!hasDiscardPadding) {
+      return ebmlElement([0xa3], blockPayload);
+    }
+    return ebmlElement(
+      [0xa0],
+      concat(
+        ebmlElement([0xa1], blockPayload),
+        ebmlSigned([0x75, 0xa2], options.discardPaddingNs!),
+      ),
+    );
+  };
+  const pushCluster = (timecodeMs: number, blocks: Uint8Array[]) => {
+    const clusterBody = concat(ebmlUint([0xe7], timecodeMs), ...blocks);
+    clusters.push(
+      options.clusterSize === "unknown"
+        ? ebmlElementWithUnknownSize([0x1f, 0x43, 0xb6, 0x75], clusterBody)
+        : ebmlElement([0x1f, 0x43, 0xb6, 0x75], clusterBody),
+    );
+  };
+  if (options.ebmlLacingPacketsPerBlock !== undefined) {
+    const packetsPerBlock = options.ebmlLacingPacketsPerBlock;
+    if (
+      options.fixedLacingPacketsPerBlock !== undefined ||
+      !Number.isSafeInteger(packetsPerBlock) ||
+      packetsPerBlock < 2 ||
+      packetsPerBlock > 256
+    ) {
+      throw new RangeError(
+        "EBML lacing packets per block must be from 2 to 256 and cannot be combined with fixed lacing",
+      );
+    }
+    for (
+      let firstPacket = 0;
+      firstPacket < packetCount;
+      firstPacket += packetsPerBlock
+    ) {
+      const blockPacketCount = Math.min(
+        packetsPerBlock,
+        packetCount - firstPacket,
+      );
+      const lastPacket = firstPacket + blockPacketCount - 1;
+      const blockPayload = concat(
+        Uint8Array.of(0x81),
+        u16be(0),
+        Uint8Array.of(blockPacketCount > 1 ? 0x86 : 0x80),
+        ...(blockPacketCount > 1
+          ? [
+              Uint8Array.of(blockPacketCount - 1),
+              encodeEbmlVint(opusPacket.byteLength),
+              ...Array.from({ length: blockPacketCount - 2 }, () =>
+                encodeEbmlLacingDelta(0),
+              ),
+            ]
+          : []),
+        ...Array.from({ length: blockPacketCount }, () => opusPacket),
+      );
+      pushCluster(firstPacket * 20, [
+        createBlockElement(blockPayload, firstPacket, lastPacket),
+      ]);
+    }
+  } else if (options.fixedLacingPacketsPerBlock !== undefined) {
+    const packetsPerBlock = options.fixedLacingPacketsPerBlock;
+    if (
+      !Number.isSafeInteger(packetsPerBlock) ||
+      packetsPerBlock < 1 ||
+      packetsPerBlock > 256
+    ) {
+      throw new RangeError(
+        "Fixed lacing packets per block must be from 1 to 256",
+      );
+    }
+    for (
+      let firstPacket = 0;
+      firstPacket < packetCount;
+      firstPacket += packetsPerBlock
+    ) {
+      const blockPacketCount = Math.min(
+        packetsPerBlock,
+        packetCount - firstPacket,
+      );
+      const lastPacket = firstPacket + blockPacketCount - 1;
+      const blockPayload = concat(
+        Uint8Array.of(0x81),
+        u16be(0),
+        Uint8Array.of(blockPacketCount > 1 ? 0x84 : 0x80),
+        ...(blockPacketCount > 1 ? [Uint8Array.of(blockPacketCount - 1)] : []),
+        ...Array.from({ length: blockPacketCount }, () => opusPacket),
+      );
+      pushCluster(firstPacket * 20, [
+        createBlockElement(blockPayload, firstPacket, lastPacket),
+      ]);
+    }
+  } else {
+    for (let firstPacket = 0; firstPacket < packetCount; firstPacket += 50) {
+      const clusterSecond = Math.floor(firstPacket / 50);
+      const blocks: Uint8Array[] = [];
+      for (
+        let packet = firstPacket;
+        packet < Math.min(firstPacket + 50, packetCount);
+        packet += 1
+      ) {
+        const blockTimecode = (packet - firstPacket) * 20;
+        const blockPayload = concat(
+          Uint8Array.of(0x81),
+          u16be(blockTimecode),
+          Uint8Array.of(0x80),
+          opusPacket,
+        );
+        blocks.push(createBlockElement(blockPayload, packet, packet));
+      }
+      pushCluster(clusterSecond * 1_000, blocks);
+    }
+  }
+  const voidElements = new Uint8Array(voidElementCount * 2);
+  for (let offset = 0; offset < voidElements.length; offset += 2) {
+    voidElements[offset] = 0xec;
+    voidElements[offset + 1] = 0x80;
+  }
+  const segmentBody = concat(info, voidElements, tracks, ...clusters);
+  const segment =
+    options.segmentSize === "unknown"
+      ? ebmlElementWithUnknownSize([0x18, 0x53, 0x80, 0x67], segmentBody)
+      : options.segmentSize === "oversized"
+        ? ebmlElementWithSize(
+            [0x18, 0x53, 0x80, 0x67],
+            Uint8Array.of(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe),
+            segmentBody,
+          )
+        : ebmlElement([0x18, 0x53, 0x80, 0x67], segmentBody);
+
+  return concat(ebmlHead, segment);
+}
+
+export function createMp4Audio(
+  durationSeconds: number,
+  declaredDurationSeconds = durationSeconds,
+  stszSampleCountOverride?: number,
+  tableEntryCountOverrides: Record<string, number> = {},
+  sampleGroupDescription?: Mp4SampleGroupDescriptionOptions,
+  sampleDescriptionCount = 1,
+  sampleDescriptionIndex = 1,
+  editList?: Array<{
+    segmentDurationSeconds: number;
+    mediaTimeSeconds: number | null;
+  }>,
+  timeToSampleDurationOverride?: number,
+): Uint8Array {
+  const movieTimescale = 1_000;
+  const audioTimescale = 48_000;
+  const sampleDuration = 1_024;
+  const sampleCount = Math.ceil(
+    (durationSeconds * audioTimescale) / sampleDuration,
+  );
+  const movieDuration = Math.round(declaredDurationSeconds * movieTimescale);
+  const audioDuration = Math.round(declaredDurationSeconds * audioTimescale);
+  const movieHeader = concat(
+    new Uint8Array(4),
+    u32be(0),
+    u32be(0),
+    u32be(movieTimescale),
+    u32be(movieDuration),
+    u32be(0x0001_0000),
+    u16be(0x0100),
+    u16be(0),
+    new Uint8Array(8),
+    new Uint8Array(36),
+    new Uint8Array(24),
+    u32be(2),
+  );
+  const trackHeader = concat(
+    Uint8Array.of(0, 0, 0, 7),
+    u32be(0),
+    u32be(0),
+    u32be(1),
+    u32be(0),
+    u32be(movieDuration),
+    new Uint8Array(8),
+    u16be(0),
+    u16be(0),
+    u16be(0x0100),
+    u16be(0),
+    new Uint8Array(36),
+    u32be(0),
+    u32be(0),
+  );
+  const mediaHeader = concat(
+    new Uint8Array(4),
+    u32be(0),
+    u32be(0),
+    u32be(audioTimescale),
+    u32be(audioDuration),
+    u16be(0),
+    u16be(0),
+  );
+  const handler = concat(
+    new Uint8Array(4),
+    u32be(0),
+    ascii("soun"),
+    new Uint8Array(12),
+    Uint8Array.of(0),
+  );
+  const decoderSpecificInfo = concat(Uint8Array.of(5, 2, 0x11, 0x88));
+  const decoderConfig = concat(
+    Uint8Array.of(0x40, 0x15, 0, 0, 0),
+    u32be(64_000),
+    u32be(64_000),
+    decoderSpecificInfo,
+  );
+  const decoderConfigDescriptor = concat(
+    Uint8Array.of(4, decoderConfig.length),
+    decoderConfig,
+  );
+  const esDescriptorBody = concat(
+    u16be(1),
+    Uint8Array.of(0),
+    decoderConfigDescriptor,
+    Uint8Array.of(6, 1, 2),
+  );
+  const esDescriptor = concat(
+    Uint8Array.of(3, esDescriptorBody.length),
+    esDescriptorBody,
+  );
+  const esds = atom("esds", concat(new Uint8Array(4), esDescriptor));
+  const audioSampleEntry = atom(
+    "mp4a",
+    concat(
+      new Uint8Array(6),
+      u16be(1),
+      u16be(0),
+      u16be(0),
+      u32be(0),
+      u16be(1),
+      u16be(16),
+      u16be(0),
+      u16be(0),
+      u32be(audioTimescale * 0x1_0000),
+      esds,
+    ),
+  );
+  const sampleDescription = atom(
+    "stsd",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.stsd ?? sampleDescriptionCount),
+      ...Array.from({ length: sampleDescriptionCount }, () => audioSampleEntry),
+    ),
+  );
+  const timeToSample = atom(
+    "stts",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.stts ?? 1),
+      u32be(sampleCount),
+      u32be(timeToSampleDurationOverride ?? sampleDuration),
+    ),
+  );
+  const sampleToChunk = atom(
+    "stsc",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.stsc ?? 1),
+      u32be(1),
+      u32be(sampleCount),
+      u32be(sampleDescriptionIndex),
+    ),
+  );
+  const compositionOffsets = atom(
+    "ctts",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.ctts ?? 1),
+      u32be(sampleCount),
+      u32be(0),
+    ),
+  );
+  const sampleSizes = atom(
+    "stsz",
+    concat(
+      new Uint8Array(4),
+      u32be(2),
+      u32be(stszSampleCountOverride ?? sampleCount),
+    ),
+  );
+  const chunkOffset = (offset: number) => {
+    const stco = atom(
+      "stco",
+      concat(
+        new Uint8Array(4),
+        u32be(tableEntryCountOverrides.stco ?? 1),
+        u32be(offset),
+      ),
+    );
+    if (!("co64" in tableEntryCountOverrides)) {
+      return stco;
+    }
+    const co64 = atom(
+      "co64",
+      concat(
+        new Uint8Array(4),
+        u32be(tableEntryCountOverrides.co64!),
+        u32be(0),
+        u32be(offset),
+      ),
+    );
+    return concat(stco, co64);
+  };
+  const optionalSampleTables = ["stss", "stps", "stsh"].flatMap((type) => {
+    if (!(type in tableEntryCountOverrides)) {
+      return [];
+    }
+    const entryCount = tableEntryCountOverrides[type]!;
+    const record = type === "stsh" ? concat(u32be(1), u32be(1)) : u32be(1);
+    return [atom(type, concat(new Uint8Array(4), u32be(entryCount), record))];
+  });
+  const auxiliarySampleTables: Uint8Array[] = [];
+  if ("elst" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "elst",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.elst!),
+          new Uint8Array(12),
+        ),
+      ),
+    );
+  }
+  if ("sbgp" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sbgp",
+        concat(
+          new Uint8Array(4),
+          ascii("roll"),
+          u32be(tableEntryCountOverrides.sbgp!),
+          new Uint8Array(8),
+        ),
+      ),
+    );
+  }
+  if (sampleGroupDescription) {
+    const { version, defaultLength, entryCount, entryData } =
+      sampleGroupDescription;
+    auxiliarySampleTables.push(
+      atom(
+        "sgpd",
+        concat(
+          Uint8Array.of(version, 0, 0, 0),
+          ascii("roll"),
+          u32be(defaultLength),
+          ...(version === 2
+            ? [u32be(sampleGroupDescription.defaultSampleDescriptionIndex ?? 0)]
+            : []),
+          u32be(entryCount),
+          entryData,
+        ),
+      ),
+    );
+  } else if ("sgpd" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sgpd",
+        concat(
+          new Uint8Array(4),
+          ascii("roll"),
+          u32be(tableEntryCountOverrides.sgpd!),
+        ),
+      ),
+    );
+  }
+  if ("subs" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "subs",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.subs!),
+          u32be(1),
+          u16be(0),
+        ),
+      ),
+    );
+  }
+  if ("saio" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "saio",
+        concat(
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.saio!),
+          u32be(0),
+        ),
+      ),
+    );
+  }
+  if ("saiz" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "saiz",
+        concat(
+          new Uint8Array(4),
+          Uint8Array.of(0),
+          u32be(tableEntryCountOverrides.saiz!),
+          Uint8Array.of(1),
+        ),
+      ),
+    );
+  }
+  if ("tfra" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "tfra",
+        concat(
+          new Uint8Array(4),
+          u32be(1),
+          new Uint8Array(4),
+          u32be(tableEntryCountOverrides.tfra!),
+          new Uint8Array(11),
+        ),
+      ),
+    );
+  }
+  if ("sidx" in tableEntryCountOverrides) {
+    auxiliarySampleTables.push(
+      atom(
+        "sidx",
+        concat(
+          new Uint8Array(4),
+          u32be(1),
+          u32be(audioTimescale),
+          u32be(audioDuration),
+          u32be(0),
+          u16be(0),
+          u16be(tableEntryCountOverrides.sidx!),
+          new Uint8Array(12),
+        ),
+      ),
+    );
+  }
+  const dataReference = atom(
+    "dref",
+    concat(
+      new Uint8Array(4),
+      u32be(tableEntryCountOverrides.dref ?? 1),
+      atom("url ", concat(Uint8Array.of(0, 0, 0, 1))),
+    ),
+  );
+  const editListBox = editList
+    ? atom(
+        "edts",
+        atom(
+          "elst",
+          concat(
+            new Uint8Array(4),
+            u32be(editList.length),
+            ...editList.flatMap((edit) => [
+              u32be(Math.round(edit.segmentDurationSeconds * movieTimescale)),
+              u32be(
+                edit.mediaTimeSeconds === null
+                  ? -1
+                  : Math.round(edit.mediaTimeSeconds * audioTimescale),
+              ),
+              u16be(1),
+              u16be(0),
+            ]),
+          ),
+        ),
+      )
+    : new Uint8Array();
+  const sampleTable = (offset: number) =>
+    atom(
+      "stbl",
+      concat(
+        sampleDescription,
+        timeToSample,
+        compositionOffsets,
+        sampleToChunk,
+        sampleSizes,
+        ...optionalSampleTables,
+        ...auxiliarySampleTables,
+        chunkOffset(offset),
+      ),
+    );
+  const makeMovie = (offset: number) => {
+    const mediaInformation = atom(
+      "minf",
+      concat(
+        atom("smhd", concat(new Uint8Array(4), new Uint8Array(4))),
+        atom("dinf", dataReference),
+        sampleTable(offset),
+      ),
+    );
+    const media = atom(
+      "mdia",
+      concat(
+        atom("mdhd", mediaHeader),
+        atom("hdlr", handler),
+        mediaInformation,
+      ),
+    );
+    const track = atom(
+      "trak",
+      concat(atom("tkhd", trackHeader), editListBox, media),
+    );
+    return atom("moov", concat(atom("mvhd", movieHeader), track));
+  };
+  const fileType = atom(
+    "ftyp",
+    concat(ascii("M4A "), u32be(0), ascii("M4A isom")),
+  );
+  const firstMovie = makeMovie(0);
+  const mediaDataOffset = fileType.length + firstMovie.length + 8;
+  const movie = makeMovie(mediaDataOffset);
+  const mediaData = atom("mdat", new Uint8Array(sampleCount * 2).fill(0xff));
+
+  return concat(fileType, movie, mediaData);
+}
+
+function writeAscii(view: DataView, offset: number, value: string): void {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index));
+  }
+}
+
+function writeUint32BigEndian(
+  audio: Uint8Array,
+  offset: number,
+  value: number,
+): void {
+  audio[offset] = value >>> 24;
+  audio[offset + 1] = value >>> 16;
+  audio[offset + 2] = value >>> 8;
+  audio[offset + 3] = value;
+}
+
+function ascii(value: string): Uint8Array {
+  return new TextEncoder().encode(value);
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(
+    parts.reduce((length, part) => length + part.length, 0),
+  );
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
+  return result;
+}
+
+function u16be(value: number): Uint8Array {
+  return Uint8Array.of(value >>> 8, value);
+}
+
+function u32be(value: number): Uint8Array {
+  return Uint8Array.of(value >>> 24, value >>> 16, value >>> 8, value);
+}
+
+function encodeSynchsafeSize(value: number): Uint8Array {
+  return Uint8Array.of(
+    (value >> 21) & 0x7f,
+    (value >> 14) & 0x7f,
+    (value >> 7) & 0x7f,
+    value & 0x7f,
+  );
+}
+
+function atom(type: string, body: Uint8Array): Uint8Array {
+  return concat(u32be(body.length + 8), ascii(type), body);
+}
+
+function ebmlElement(id: number[], body: Uint8Array): Uint8Array {
+  return concat(Uint8Array.from(id), ebmlSize(body.length), body);
+}
+
+function ebmlElementWithUnknownSize(
+  id: number[],
+  body: Uint8Array,
+): Uint8Array {
+  return ebmlElementWithSize(
+    id,
+    Uint8Array.of(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff),
+    body,
+  );
+}
+
+function ebmlElementWithSize(
+  id: number[],
+  size: Uint8Array,
+  body: Uint8Array,
+): Uint8Array {
+  return concat(Uint8Array.from(id), size, body);
+}
+
+function ebmlUint(id: number[], value: number): Uint8Array {
+  let byteLength = 1;
+  while (value >= 256 ** byteLength) {
+    byteLength += 1;
+  }
+
+  const body = new Uint8Array(byteLength);
+  for (let index = byteLength - 1; index >= 0; index -= 1) {
+    body[index] = value & 0xff;
+    value = Math.floor(value / 256);
+  }
+  return ebmlElement(id, body);
+}
+
+function ebmlSigned(id: number[], value: number): Uint8Array {
+  let byteLength = 1;
+  while (
+    value < -(2 ** (byteLength * 8 - 1)) ||
+    value > 2 ** (byteLength * 8 - 1) - 1
+  ) {
+    byteLength += 1;
+  }
+  const bitLength = BigInt(byteLength * 8);
+  let encoded = BigInt(value);
+  if (encoded < 0) {
+    encoded += 1n << bitLength;
+  }
+  const body = new Uint8Array(byteLength);
+  for (let index = byteLength - 1; index >= 0; index -= 1) {
+    body[index] = Number(encoded & 0xffn);
+    encoded >>= 8n;
+  }
+  return ebmlElement(id, body);
+}
+
+function ebmlSize(size: number): Uint8Array {
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    if (size < 2 ** (7 * byteLength) - 1) {
+      let value = BigInt(size) | (1n << BigInt(7 * byteLength));
+      const result = new Uint8Array(byteLength);
+      for (let index = byteLength - 1; index >= 0; index -= 1) {
+        result[index] = Number(value & 0xffn);
+        value >>= 8n;
+      }
+      return result;
+    }
+  }
+  throw new RangeError("EBML test element is too large");
+}
+
+function encodeEbmlVint(value: number): Uint8Array {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError("EBML test VINT value must be a non-negative integer");
+  }
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    if (value < 2 ** (7 * byteLength)) {
+      let encoded = BigInt(value) | (1n << BigInt(7 * byteLength));
+      const result = new Uint8Array(byteLength);
+      for (let index = byteLength - 1; index >= 0; index -= 1) {
+        result[index] = Number(encoded & 0xffn);
+        encoded >>= 8n;
+      }
+      return result;
+    }
+  }
+  throw new RangeError("EBML test VINT value is too large");
+}
+
+function encodeEbmlLacingDelta(delta: number): Uint8Array {
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    const bias = 2 ** (7 * byteLength - 1) - 1;
+    const encoded = delta + bias;
+    if (encoded >= 0 && encoded < 2 ** (7 * byteLength)) {
+      return encodeEbmlVint(encoded);
+    }
+  }
+  throw new RangeError("EBML test lacing delta is too large");
+}
+
+function float64BigEndian(value: number): Uint8Array {
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setFloat64(0, value, false);
+  return bytes;
+}

@@ -60,6 +60,25 @@ export const sessions = sqliteTable(
   }),
 );
 
+export const speechTranscriptionRateLimitEvents = sqliteTable(
+  "speech_transcription_rate_limit_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => ({
+    userCreatedAtIndex: index(
+      "speech_transcription_rate_limit_user_created_idx",
+    ).on(table.userId, table.createdAt),
+    createdAtIndex: index("speech_transcription_rate_limit_created_idx").on(
+      table.createdAt,
+    ),
+  }),
+);
+
 export const concernClusters = sqliteTable(
   "concern_clusters",
   {

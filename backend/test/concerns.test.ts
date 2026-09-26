@@ -28,6 +28,7 @@ import { HealthHandler } from "../src/presentation/health.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 function createTestApp(
@@ -57,6 +58,7 @@ function createTestApp(
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
     ...createConcernDependencies(),
+    ...createSpeechDependencies(),
     ...createHistoryDependencies(),
     concernHandler,
     concernReactionHandler,
@@ -76,6 +78,7 @@ function anonymousTestApp() {
   return createApp({
     ...createAuthDependencies(),
     ...createConcernDependencies(),
+    ...createSpeechDependencies(),
     ...createHistoryDependencies(),
     ...createUserDependencies(),
     healthHandler: new HealthHandler({

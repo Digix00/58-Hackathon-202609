@@ -30,6 +30,7 @@ import { HealthHandler } from "../src/presentation/health.handler";
 import { UserHandler } from "../src/presentation/user.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 
 function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
   const userRepository = new D1UserRepository(env.DB);
@@ -48,6 +49,7 @@ function createTestApp(lineUserId = `line-view-${crypto.randomUUID()}`) {
 
   return createApp({
     ...createConcernDependencies(),
+    ...createSpeechDependencies(),
     ...createHistoryDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,

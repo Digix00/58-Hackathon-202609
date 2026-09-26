@@ -11,11 +11,15 @@ import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase"
 import { HistoryUseCase } from "../application/usecase/history.usecase";
 import { LineUseCase } from "../application/usecase/line.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
+import { SpeechUseCase } from "../application/usecase/speech.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
+import { LocalSpeechRecognizer } from "../infrastructure/ai/local-speech.recognizer";
 import { LocalTextTranslator } from "../infrastructure/ai/local-text.translator";
 import { LocalTextEmbeddingGenerator } from "../infrastructure/ai/local-text-embedding.generator";
+import { VerifiedSpeechAudioDurationReader } from "../infrastructure/ai/speech-audio-duration.reader";
 import { WorkersAiConcernClusterSummaryGenerator } from "../infrastructure/ai/workers-ai-concern-cluster-summary.generator";
+import { WorkersAiSpeechRecognizer } from "../infrastructure/ai/workers-ai-speech.recognizer";
 import { WorkersAiTextTranslator } from "../infrastructure/ai/workers-ai-text.translator";
 import { WorkersAiTextEmbeddingGenerator } from "../infrastructure/ai/workers-ai-text-embedding.generator";
 import {
@@ -31,6 +35,7 @@ import { D1HealthRepository } from "../infrastructure/database/d1-health.reposit
 import { D1HistoryRepository } from "../infrastructure/database/d1-history.repository";
 import { D1LineRepository } from "../infrastructure/database/d1-line.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
+import { D1SpeechRateLimiter } from "../infrastructure/database/d1-speech-rate-limiter";
 import { HmacLineSignatureVerifier } from "../infrastructure/line/hmac-line-signature.verifier";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { LineBroadcastApiSender } from "../infrastructure/line/line-broadcast.sender";
@@ -46,6 +51,7 @@ import { HealthHandler } from "../presentation/health.handler";
 import { HistoryHandler } from "../presentation/history.handler";
 import { LineHandler } from "../presentation/line.handler";
 import { QuizHandler } from "../presentation/quiz.handler";
+import { SpeechHandler } from "../presentation/speech.handler";
 import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 
@@ -135,6 +141,18 @@ export function createApplication(bindings: Bindings) {
   const quizRepository = new D1QuizRepository(bindings.DB);
   const quizUseCase = new QuizUseCase(quizRepository);
   const quizHandler = new QuizHandler(quizUseCase);
+  const speechRecognizer = bindings.AI
+    ? new WorkersAiSpeechRecognizer(bindings.AI)
+    : bindings.LOCAL_SPEECH_RECOGNIZER_ENABLED === "true"
+      ? new LocalSpeechRecognizer()
+      : null;
+  const speechHandler = new SpeechHandler(
+    new SpeechUseCase(
+      speechRecognizer,
+      new VerifiedSpeechAudioDurationReader(),
+      new D1SpeechRateLimiter(bindings.DB),
+    ),
+  );
   const historyRepository = new D1HistoryRepository(bindings.DB);
   const historyUseCase = new HistoryUseCase(historyRepository);
   const historyHandler = new HistoryHandler(historyUseCase);
@@ -170,6 +188,7 @@ export function createApplication(bindings: Bindings) {
       historyHandler,
       lineHandler,
       quizHandler,
+      speechHandler,
       userHandler,
     }),
     queue: concernProcessingConsumer.handle,

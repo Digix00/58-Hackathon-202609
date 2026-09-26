@@ -20,6 +20,7 @@ import { LineHandler } from "../src/presentation/line.handler";
 import { createAuthDependencies } from "./support/auth-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const quizDate = "2099-12-30";
@@ -53,6 +54,7 @@ function createTestApp() {
     ...createAuthDependencies(),
     ...createConcernDependencies(),
     ...createHistoryDependencies(),
+    ...createSpeechDependencies(),
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
       execute: async () => ({

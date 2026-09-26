@@ -1,0 +1,21 @@
+{
+  // 音声 API の実推論確認用。D1 はローカル、Workers AI だけに接続する。
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "58-hackathon-backend-speech-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    "DEV_AUTH_ENABLED": "true",
+    "CORS_ORIGIN": "http://localhost:5173"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "58-hackathon-db",
+      "database_id": "620550f8-c658-4edc-aad5-deb30382784f",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

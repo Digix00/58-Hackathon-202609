@@ -27,7 +27,8 @@
     "LINE_LIFF_ID": "local-development",
     "DEV_AUTH_ENABLED": "true",
     "DEV_ACCESS_BYPASS": "true",
-    "DEV_LINE_BROADCAST_SIMULATION": "true"
+    "DEV_LINE_BROADCAST_SIMULATION": "true",
+    "LOCAL_SPEECH_RECOGNIZER_ENABLED": "true"
   },
   "queues": {
     "producers": [

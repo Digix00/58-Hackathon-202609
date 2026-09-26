@@ -10,6 +10,7 @@ import type { HealthHandler } from "../presentation/health.handler";
 import type { HistoryHandler } from "../presentation/history.handler";
 import type { LineHandler } from "../presentation/line.handler";
 import type { QuizHandler } from "../presentation/quiz.handler";
+import type { SpeechHandler } from "../presentation/speech.handler";
 import type { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
 import { handleError } from "./error-handler";
@@ -28,6 +29,7 @@ export interface ApplicationDependencies {
   historyHandler: HistoryHandler;
   lineHandler?: LineHandler;
   quizHandler: QuizHandler;
+  speechHandler: SpeechHandler;
   userHandler: UserHandler;
 }
 
@@ -52,6 +54,7 @@ function createPublicApp({
   healthHandler,
   historyHandler,
   quizHandler,
+  speechHandler,
   userHandler,
 }: ApplicationDependencies) {
   const app = new Hono<AppEnvironment>();
@@ -62,6 +65,7 @@ function createPublicApp({
     return cors({
       origin: () => origin || "*",
       credentials: Boolean(origin),
+      exposeHeaders: ["Retry-After", "X-Request-Id"],
     })(c, next);
   });
   app.onError(handleError);
@@ -91,7 +95,8 @@ function createPublicApp({
     .post("/api/v1/concerns/:concernId/views", ...concernViewHandler.record)
     .get("/api/v1/quizzes/today", ...quizHandler.getToday)
     .get("/api/v1/quizzes/:quizId", ...quizHandler.getById)
-    .post("/api/v1/quizzes/:quizId/answers", ...quizHandler.answer);
+    .post("/api/v1/quizzes/:quizId/answers", ...quizHandler.answer)
+    .post("/api/v1/speech/transcriptions", ...speechHandler.transcribe);
 
   return publicApp;
 }
