@@ -532,3 +532,95 @@ export const lineBroadcastAttempts = sqliteTable(
     ),
   }),
 );
+
+export const reactionDigestRuns = sqliteTable(
+  "reaction_digest_runs",
+  {
+    id: text("id").primaryKey(),
+    trigger: text("trigger").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull().default("pending"),
+    cutoffAt: text("cutoff_at").notNull(),
+    claimToken: text("claim_token"),
+    leaseExpiresAt: text("lease_expires_at"),
+    deliveriesPreparedAt: text("deliveries_prepared_at"),
+    requestedAt: text("requested_at").notNull(),
+    finishedAt: text("finished_at"),
+  },
+  (table) => ({
+    idempotencyIndex: uniqueIndex("reaction_digest_runs_idempotency_idx").on(
+      table.idempotencyKey,
+    ),
+    statusRequestedIndex: index("reaction_digest_runs_status_requested_idx").on(
+      table.status,
+      table.requestedAt,
+    ),
+    triggerCheck: check(
+      "reaction_digest_runs_trigger_check",
+      sql`${table.trigger} in ('cron', 'manual')`,
+    ),
+    statusCheck: check(
+      "reaction_digest_runs_status_check",
+      sql`${table.status} in ('pending', 'running', 'succeeded', 'partially_failed', 'failed')`,
+    ),
+    leaseCheck: check(
+      "reaction_digest_runs_lease_check",
+      sql`(${table.status} = 'running' and ${table.claimToken} is not null and ${table.leaseExpiresAt} is not null) or (${table.status} <> 'running' and ${table.claimToken} is null and ${table.leaseExpiresAt} is null)`,
+    ),
+  }),
+);
+
+export const reactionDigestDeliveries = sqliteTable(
+  "reaction_digest_deliveries",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => reactionDigestRuns.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    windowStart: text("window_start"),
+    windowEnd: text("window_end").notNull(),
+    reactorCount: integer("reactor_count").notNull(),
+    sameRegionCount: integer("same_region_count").notNull(),
+    regionCount: integer("region_count").notNull(),
+    regionCodeSnapshot: text("region_code_snapshot"),
+    status: text("status").notNull().default("pending"),
+    lineRetryKey: text("line_retry_key"),
+    httpStatus: integer("http_status"),
+    lineRequestId: text("line_request_id"),
+    createdAt: text("created_at").notNull(),
+    attemptedAt: text("attempted_at"),
+    sentAt: text("sent_at"),
+    errorCode: text("error_code"),
+  },
+  (table) => ({
+    runUserIndex: uniqueIndex("reaction_digest_deliveries_run_user_idx").on(
+      table.runId,
+      table.userId,
+    ),
+    retryKeyIndex: uniqueIndex("reaction_digest_deliveries_retry_key_idx").on(
+      table.lineRetryKey,
+    ),
+    userStatusWindowIndex: index(
+      "reaction_digest_deliveries_user_status_window_idx",
+    ).on(table.userId, table.status, table.windowEnd),
+    runStatusIndex: index("reaction_digest_deliveries_run_status_idx").on(
+      table.runId,
+      table.status,
+    ),
+    statusCheck: check(
+      "reaction_digest_deliveries_status_check",
+      sql`${table.status} in ('pending', 'started', 'sent', 'failed', 'skipped')`,
+    ),
+    retryKeyCheck: check(
+      "reaction_digest_deliveries_retry_key_check",
+      sql`${table.status} = 'pending' or ${table.status} = 'skipped' or ${table.lineRetryKey} is not null`,
+    ),
+    countCheck: check(
+      "reaction_digest_deliveries_count_check",
+      sql`${table.reactorCount} > 0 and ${table.sameRegionCount} between 0 and ${table.reactorCount} and ${table.regionCount} between 0 and ${table.reactorCount}`,
+    ),
+  }),
+);

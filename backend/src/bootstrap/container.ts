@@ -11,6 +11,7 @@ import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase"
 import { HistoryUseCase } from "../application/usecase/history.usecase";
 import { LineUseCase } from "../application/usecase/line.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
+import { ReactionDigestUseCase } from "../application/usecase/reaction-digest.usecase";
 import { SpeechUseCase } from "../application/usecase/speech.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
@@ -35,11 +36,14 @@ import { D1HealthRepository } from "../infrastructure/database/d1-health.reposit
 import { D1HistoryRepository } from "../infrastructure/database/d1-history.repository";
 import { D1LineRepository } from "../infrastructure/database/d1-line.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
+import { D1ReactionDigestRepository } from "../infrastructure/database/d1-reaction-digest.repository";
 import { D1SpeechRateLimiter } from "../infrastructure/database/d1-speech-rate-limiter";
 import { HmacLineSignatureVerifier } from "../infrastructure/line/hmac-line-signature.verifier";
 import { LineApiClient } from "../infrastructure/line/line-api.client";
 import { LineBroadcastApiSender } from "../infrastructure/line/line-broadcast.sender";
+import { LinePushApiSender } from "../infrastructure/line/line-push.sender";
 import { LocalLineBroadcastSender } from "../infrastructure/line/local-line-broadcast.sender";
+import { LocalLinePushSender } from "../infrastructure/line/local-line-push.sender";
 import { CloudflareConcernProcessingConsumer } from "../infrastructure/queue/cloudflare-concern-processing.consumer";
 import { CloudflareConcernProcessingQueue } from "../infrastructure/queue/cloudflare-concern-processing.queue";
 import { CloudflareConcernVectorIndex } from "../infrastructure/vectorize/cloudflare-concern-vector-index";
@@ -51,6 +55,7 @@ import { HealthHandler } from "../presentation/health.handler";
 import { HistoryHandler } from "../presentation/history.handler";
 import { LineHandler } from "../presentation/line.handler";
 import { QuizHandler } from "../presentation/quiz.handler";
+import { ReactionDigestHandler } from "../presentation/reaction-digest.handler";
 import { SpeechHandler } from "../presentation/speech.handler";
 import { UserHandler } from "../presentation/user.handler";
 import type { Bindings } from "../types";
@@ -176,6 +181,16 @@ export function createApplication(bindings: Bindings) {
     bindings.LINE_LIFF_ID,
   );
   const lineHandler = new LineHandler(lineUseCase);
+  const reactionDigestUseCase = new ReactionDigestUseCase(
+    new D1ReactionDigestRepository(bindings.DB),
+    useLocalLineBroadcastSimulation
+      ? new LocalLinePushSender()
+      : new LinePushApiSender(bindings.LINE_CHANNEL_ACCESS_TOKEN),
+    bindings.LINE_LIFF_ID,
+  );
+  const reactionDigestHandler = new ReactionDigestHandler(
+    reactionDigestUseCase,
+  );
 
   return {
     app: createApp({
@@ -188,11 +203,13 @@ export function createApplication(bindings: Bindings) {
       historyHandler,
       lineHandler,
       quizHandler,
+      reactionDigestHandler,
       speechHandler,
       userHandler,
     }),
     queue: concernProcessingConsumer.handle,
     scheduled: lineUseCase.triggerDailyRun,
+    reactionDigestScheduled: reactionDigestUseCase.runScheduled,
   };
 }
 
