@@ -30,9 +30,7 @@ export function AppLayout() {
    * 最初から準備が終わっているので起動画面を出さず、開発用の強制LIFFモードでは
    * ローカルでも起動画面を確認できるよう、準備済みでも一度表示する。
    */
-  const [booting, setBooting] = useState(
-    () => state.status === 'initializing' || forceLiffMode,
-  )
+  const [booting, setBooting] = useState(() => state.status === 'initializing' || forceLiffMode)
   const crayonFilters = <CrayonFilters key={location.key} />
   const liffTarget = liffUrl(location.pathname)
 
