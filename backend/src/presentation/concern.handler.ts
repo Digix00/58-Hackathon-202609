@@ -103,12 +103,6 @@ export class ConcernHandler {
         ageGroup: parsed.data.ageGroup as AgeGroup | undefined,
         gender: parsed.data.gender as Gender | undefined,
         regionCode: parsed.data.regionCode,
-        userProfile: {
-          birthYear: auth.user.birthYear,
-          birthMonth: auth.user.birthMonth,
-          gender: auth.user.gender,
-          regionCode: auth.user.regionCode,
-        },
       });
 
       return c.json(toResponse(concern, auth.user.displayLanguage), 201);
