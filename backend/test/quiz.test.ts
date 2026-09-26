@@ -24,6 +24,7 @@ import { HealthHandler } from "../src/presentation/health.handler";
 import { QuizHandler } from "../src/presentation/quiz.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const fixedNow = "2099-01-02T00:20:00.000Z";
@@ -52,6 +53,7 @@ function createTestApp(
 
   const app = createApp({
     ...createConcernDependencies(),
+    ...createSpeechDependencies(),
     ...createHistoryDependencies(),
     ...createUserDependencies(),
     authHandler: new AuthHandler(authUseCase),

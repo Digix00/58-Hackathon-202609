@@ -250,10 +250,16 @@
 }
 
 .storyLink {
-  /* 絵本の1ページのように、本文の塊を紙の中央に置く。 */
   position: relative;
-  align-self: center;
-  display: block;
+  /*
+   * 罫線は紙にあらかじめ引いてあるものなので、本文の高さではなく紙の書く面いっぱいに敷く。
+   * 本文の塊にだけ合わせると、短い声のときに罫線が1行の切れ端になり、紙がノートに見えない。
+   */
+  align-self: stretch;
+  display: grid;
+  /* 本文は罫線の2行目から書きはじめる。1行分空けて、文字と罫線のピッチを揃える。 */
+  align-content: start;
+  padding-block-start: var(--story-line-height);
   isolation: isolate;
   color: inherit;
   text-decoration: none;
@@ -270,6 +276,11 @@
   position: absolute;
   z-index: -1;
   inset: 0;
+  /*
+   * 罫線は行の下端に引くので、書く面の高さを行送りの整数倍へ丸め、
+   * 最後の1本を下端で切らない。round() がない環境では inset の高さがそのまま残る。
+   */
+  height: round(down, 100%, var(--story-line-height));
   background: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -282,20 +293,6 @@
   mask-image: var(--crayon-grain);
   -webkit-mask-size: 160px 160px;
   mask-size: 160px 160px;
-  pointer-events: none;
-  content: '';
-}
-
-/* 繰り返しの端にかかって消えないよう、最後の行の罫線を別に描く。 */
-.storyLink::after {
-  position: absolute;
-  z-index: -1;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1.5px;
-  background: var(--story-rule-color);
-  filter: url(#crayon-edge);
   pointer-events: none;
   content: '';
 }
@@ -728,8 +725,7 @@
     --story-rule-color: rgba(93, 88, 80, 0.45);
   }
 
-  .storyLink::before,
-  .storyLink::after {
+  .storyLink::before {
     opacity: 0.8;
     filter: none;
     -webkit-mask-image: none;

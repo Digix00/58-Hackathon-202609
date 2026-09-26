@@ -1,12 +1,7 @@
 import type { SpeechRecognizer } from "../../application/port/speech-recognizer";
 
-const WHISPER_MODEL = "@cf/openai/whisper";
-
+const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
 type WorkersAiBinding = Pick<Ai, "run">;
-type WorkersAiRun = (
-  model: string,
-  input: Record<string, unknown>,
-) => Promise<unknown>;
 
 export class InvalidWorkersAiTranscriptionResponseError extends Error {
   constructor() {
@@ -15,7 +10,7 @@ export class InvalidWorkersAiTranscriptionResponseError extends Error {
   }
 }
 
-/** Adapts the multilingual Whisper model to the application port. */
+/** 日本語の文字起こしを Workers AI の公開入力仕様へ変換する。 */
 export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
   private readonly ai: WorkersAiBinding;
 
@@ -28,10 +23,12 @@ export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
       throw new TypeError("audio must not be empty");
     }
 
-    const run = this.ai.run as unknown as WorkersAiRun;
-    const audioBytes = Array.from(new Uint8Array(audio));
-    const response: unknown = await run(WHISPER_MODEL, {
-      audio: audioBytes,
+    // binary string は binding 内で JSON 化される。対応する Base64 入力を使い、
+    // 10 MiB の音声を巨大な number[] に展開せず、日本語の文字起こしを指定する。
+    const response: unknown = await this.ai.run(WHISPER_MODEL, {
+      audio: toBase64(new Uint8Array(audio)),
+      task: "transcribe",
+      language: "ja",
     });
 
     if (
@@ -44,4 +41,16 @@ export class WorkersAiSpeechRecognizer implements SpeechRecognizer {
 
     return Reflect.get(response, "text");
   }
+}
+
+function toBase64(audio: Uint8Array): string {
+  // 3の倍数で区切り、中間チャンクにBase64のpaddingを入れない。
+  const chunkSize = 3 * 8192;
+  const chunks: string[] = [];
+  for (let offset = 0; offset < audio.byteLength; offset += chunkSize) {
+    chunks.push(
+      btoa(String.fromCharCode(...audio.subarray(offset, offset + chunkSize))),
+    );
+  }
+  return chunks.join("");
 }

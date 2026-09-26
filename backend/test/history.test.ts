@@ -23,6 +23,7 @@ import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { HistoryHandler } from "../src/presentation/history.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createSpeechDependencies } from "./support/speech-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const fixedNow = "2099-01-04T00:20:00.000Z";
@@ -42,6 +43,7 @@ function createTestApp(lineUserId = `history-user-${crypto.randomUUID()}`) {
 
   const app = createApp({
     ...createConcernDependencies(),
+    ...createSpeechDependencies(),
     ...createUserDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
