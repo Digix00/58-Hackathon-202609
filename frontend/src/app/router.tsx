@@ -11,6 +11,8 @@ import { AppShell } from './AppShell'
 import { useRuntime } from './providers/RuntimeContext'
 import styles from './router.module.css'
 
+const forceLiffMode = import.meta.env.DEV && import.meta.env.VITE_DEV_LIFF_MODE === 'true'
+
 function CenteredState({ children }: { children: ReactNode }) {
   return <div className={styles.placeholderPage}>{children}</div>
 }
@@ -24,10 +26,13 @@ export function AppLayout() {
    * 起動画面を出すかどうかは、最初の描画の時点で決める。
    *
    * 準備が終わってからも、絵が抜けきるまでは出したままにする必要があるので、
-   * 初期化中かどうかをそのまま条件にはできない。LIFF を初期化しない入口では
-   * 最初から準備が終わっているので、この値は false になり、起動画面は出ない。
+   * 初期化中かどうかをそのまま条件にはできない。LIFF IDのない通常Webでは
+   * 最初から準備が終わっているので起動画面を出さず、開発用の強制LIFFモードでは
+   * ローカルでも起動画面を確認できるよう、準備済みでも一度表示する。
    */
-  const [booting, setBooting] = useState(() => state.status === 'initializing')
+  const [booting, setBooting] = useState(
+    () => state.status === 'initializing' || forceLiffMode,
+  )
   const crayonFilters = <CrayonFilters key={location.key} />
   const liffTarget = liffUrl(location.pathname)
 
