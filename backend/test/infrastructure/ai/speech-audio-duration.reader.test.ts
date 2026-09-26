@@ -527,6 +527,18 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     );
   });
 
+  it("accepts a 127-byte first packet in EBML lacing", async () => {
+    const packet = new Uint8Array(127);
+    packet[0] = 0xf8;
+    const audio = createWebmAudio(0.04, 0.04, 0, packet, {
+      ebmlLacingPacketsPerBlock: 2,
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).resolves.toBeCloseTo(0.04, 2);
+  });
+
   it("rejects an MP4 edit list that points beyond verified audio samples", async () => {
     const audio = createMp4Audio(60, 60, undefined, {}, undefined, 1, 1, [
       { segmentDurationSeconds: 60, mediaTimeSeconds: 2 },
@@ -590,6 +602,20 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     await expect(
       reader.getDurationSeconds(audio, "audio/webm"),
     ).rejects.toThrow("WebM discard padding exceeds its audio block");
+  });
+
+  it("keeps the timestamp span across intermediate WebM DiscardPadding", async () => {
+    const audio = createWebmAudio(70, 70, 0, undefined, {
+      discardPaddingNs: 20_000_000,
+      discardPaddingAtPackets: Array.from(
+        { length: 500 },
+        (_, index) => index + 500,
+      ),
+    });
+
+    await expect(
+      reader.getDurationSeconds(audio, "audio/webm"),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
   });
 
   it.each([

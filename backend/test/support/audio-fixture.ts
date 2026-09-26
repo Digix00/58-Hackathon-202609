@@ -111,7 +111,9 @@ export function createWebmAudio(
     clusterSize?: "known" | "unknown";
     codecDelayNs?: number;
     discardPaddingNs?: number;
+    discardPaddingAtPackets?: number[];
     fixedLacingPacketsPerBlock?: number;
+    ebmlLacingPacketsPerBlock?: number;
     opusHead?: Uint8Array;
   } = {},
 ): Uint8Array {
@@ -184,16 +186,29 @@ export function createWebmAudio(
   );
   const tracks = ebmlElement([0x16, 0x54, 0xae, 0x6b], audioTrack);
   const clusters: Uint8Array[] = [];
+  const discardPaddingAtPackets = new Set(
+    options.discardPaddingAtPackets ?? [],
+  );
   const createBlockElement = (
     blockPayload: Uint8Array,
     firstPacket: number,
     lastPacket: number,
   ): Uint8Array => {
+    let containsTargetedPacket = false;
+    for (
+      let packet = firstPacket;
+      packet <= lastPacket && !containsTargetedPacket;
+      packet += 1
+    ) {
+      containsTargetedPacket = discardPaddingAtPackets.has(packet);
+    }
     const hasDiscardPadding =
       options.discardPaddingNs !== undefined &&
-      (options.discardPaddingNs < 0
-        ? firstPacket === 0
-        : lastPacket === packetCount - 1);
+      (options.discardPaddingAtPackets !== undefined
+        ? containsTargetedPacket
+        : options.discardPaddingNs < 0
+          ? firstPacket === 0
+          : lastPacket === packetCount - 1);
     if (!hasDiscardPadding) {
       return ebmlElement([0xa3], blockPayload);
     }
@@ -213,7 +228,48 @@ export function createWebmAudio(
         : ebmlElement([0x1f, 0x43, 0xb6, 0x75], clusterBody),
     );
   };
-  if (options.fixedLacingPacketsPerBlock !== undefined) {
+  if (options.ebmlLacingPacketsPerBlock !== undefined) {
+    const packetsPerBlock = options.ebmlLacingPacketsPerBlock;
+    if (
+      options.fixedLacingPacketsPerBlock !== undefined ||
+      !Number.isSafeInteger(packetsPerBlock) ||
+      packetsPerBlock < 2 ||
+      packetsPerBlock > 256
+    ) {
+      throw new RangeError(
+        "EBML lacing packets per block must be from 2 to 256 and cannot be combined with fixed lacing",
+      );
+    }
+    for (
+      let firstPacket = 0;
+      firstPacket < packetCount;
+      firstPacket += packetsPerBlock
+    ) {
+      const blockPacketCount = Math.min(
+        packetsPerBlock,
+        packetCount - firstPacket,
+      );
+      const lastPacket = firstPacket + blockPacketCount - 1;
+      const blockPayload = concat(
+        Uint8Array.of(0x81),
+        u16be(0),
+        Uint8Array.of(blockPacketCount > 1 ? 0x86 : 0x80),
+        ...(blockPacketCount > 1
+          ? [
+              Uint8Array.of(blockPacketCount - 1),
+              encodeEbmlVint(opusPacket.byteLength),
+              ...Array.from({ length: blockPacketCount - 2 }, () =>
+                encodeEbmlLacingDelta(0),
+              ),
+            ]
+          : []),
+        ...Array.from({ length: blockPacketCount }, () => opusPacket),
+      );
+      pushCluster(firstPacket * 20, [
+        createBlockElement(blockPayload, firstPacket, lastPacket),
+      ]);
+    }
+  } else if (options.fixedLacingPacketsPerBlock !== undefined) {
     const packetsPerBlock = options.fixedLacingPacketsPerBlock;
     if (
       !Number.isSafeInteger(packetsPerBlock) ||
@@ -796,6 +852,35 @@ function ebmlSize(size: number): Uint8Array {
     }
   }
   throw new RangeError("EBML test element is too large");
+}
+
+function encodeEbmlVint(value: number): Uint8Array {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError("EBML test VINT value must be a non-negative integer");
+  }
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    if (value < 2 ** (7 * byteLength)) {
+      let encoded = BigInt(value) | (1n << BigInt(7 * byteLength));
+      const result = new Uint8Array(byteLength);
+      for (let index = byteLength - 1; index >= 0; index -= 1) {
+        result[index] = Number(encoded & 0xffn);
+        encoded >>= 8n;
+      }
+      return result;
+    }
+  }
+  throw new RangeError("EBML test VINT value is too large");
+}
+
+function encodeEbmlLacingDelta(delta: number): Uint8Array {
+  for (let byteLength = 1; byteLength <= 8; byteLength += 1) {
+    const bias = 2 ** (7 * byteLength - 1) - 1;
+    const encoded = delta + bias;
+    if (encoded >= 0 && encoded < 2 ** (7 * byteLength)) {
+      return encodeEbmlVint(encoded);
+    }
+  }
+  throw new RangeError("EBML test lacing delta is too large");
 }
 
 function float64BigEndian(value: number): Uint8Array {

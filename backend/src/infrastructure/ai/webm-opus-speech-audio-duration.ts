@@ -152,34 +152,30 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
       Math.abs(blockDiscardPaddingNs) / 1_000_000_000;
     const blockTimecode = clusterTimecode + block.relativeTimecode;
     const blockStartSeconds = blockTimecode * secondsPerTimecode;
-    let packetOffsetSeconds = 0;
     let blockDurationSeconds = 0;
     for (const packet of block.packets) {
       if (packetCount >= MAX_WEBM_OPUS_PACKETS) {
         throw new SpeechAudioDurationLimitExceededError();
       }
       const packetDuration = readOpusPacketDuration(packet);
-      const packetStart = blockStartSeconds + packetOffsetSeconds;
-      const packetEnd = packetStart + packetDuration;
-      firstTimeSeconds = Math.min(firstTimeSeconds, packetStart);
-      lastTimeSeconds = Math.max(lastTimeSeconds, packetEnd);
       packetDurationSeconds += packetDuration;
       blockDurationSeconds += packetDuration;
-      packetOffsetSeconds += packetDuration;
       packetCount += 1;
-      if (
-        packetDurationSeconds -
-          codecDelaySeconds -
-          discardPaddingSeconds -
-          blockDiscardPaddingSeconds >
-        MAX_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
-      ) {
-        throw new SpeechAudioDurationLimitExceededError();
-      }
     }
 
     if (blockDiscardPaddingSeconds > blockDurationSeconds) {
       throw new TypeError("WebM discard padding exceeds its audio block");
+    }
+    const adjustedBlockStartSeconds =
+      blockStartSeconds +
+      (blockDiscardPaddingNs < 0 ? blockDiscardPaddingSeconds : 0);
+    const adjustedBlockEndSeconds =
+      blockStartSeconds +
+      blockDurationSeconds -
+      (blockDiscardPaddingNs > 0 ? blockDiscardPaddingSeconds : 0);
+    if (adjustedBlockEndSeconds > adjustedBlockStartSeconds) {
+      firstTimeSeconds = Math.min(firstTimeSeconds, adjustedBlockStartSeconds);
+      lastTimeSeconds = Math.max(lastTimeSeconds, adjustedBlockEndSeconds);
     }
     discardPaddingSeconds += blockDiscardPaddingSeconds;
   };
@@ -223,10 +219,7 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
 
   const timestampDuration = Math.max(
     0,
-    lastTimeSeconds -
-      firstTimeSeconds -
-      codecDelaySeconds -
-      discardPaddingSeconds,
+    lastTimeSeconds - firstTimeSeconds - codecDelaySeconds,
   );
   const duration = Math.max(
     packetDurationSeconds - codecDelaySeconds - discardPaddingSeconds,
@@ -311,7 +304,7 @@ function readEbmlElement(
     throw new TypeError("Too many WebM EBML elements");
   }
   const id = readEbmlVint(audio, offset, false);
-  const size = readEbmlVint(audio, offset + id.length, true);
+  const size = readEbmlVint(audio, offset + id.length, true, true);
   const dataStart = offset + id.length + size.length;
   const dataEnd = size.unknownSize ? limit : dataStart + size.value;
   if (
@@ -329,6 +322,7 @@ function readEbmlVint(
   audio: Uint8Array,
   offset: number,
   isSize: boolean,
+  allowUnknownSize = false,
 ): EbmlVint {
   const first = audio[offset];
   if (first === undefined || first === 0) {
@@ -344,7 +338,7 @@ function readEbmlVint(
     throw new TypeError("Invalid EBML variable integer length");
   }
 
-  let unknownSize = isSize && (first & (marker - 1)) === marker - 1;
+  let unknownSize = allowUnknownSize && (first & (marker - 1)) === marker - 1;
   for (let index = 1; index < length; index += 1) {
     if (audio[offset + index] !== 0xff) {
       unknownSize = false;
