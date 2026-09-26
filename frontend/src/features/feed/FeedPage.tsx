@@ -1,13 +1,16 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import {
+  useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
   type RefCallback,
   type RefObject,
+  type ReactNode,
   type TouchEvent,
 } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
@@ -40,6 +43,9 @@ import type { TurningPage } from './useFeedReader'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
+import { FeedThemePicker } from './FeedThemePicker'
+import { FeedThemeControl } from './FeedThemeControl'
+import type { FeedTheme } from './clusterApi'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
@@ -194,7 +200,10 @@ function FeedCard({
       <FeedTabs concern={concern} showTabs={showTabs} />
       <Link
         className={styles.storyLink}
-        to={`/concerns/${encodeURIComponent(concern.id)}`}
+        to={{
+          pathname: `/concerns/${encodeURIComponent(concern.id)}`,
+          search: concern.theme ? `?clusterId=${encodeURIComponent(concern.theme.id)}` : '',
+        }}
         aria-label={t('feed.details', { body: concern.body })}
         onClick={onLinkClick}
       >
@@ -202,6 +211,7 @@ function FeedCard({
           {concern.body}
         </p>
       </Link>
+      {concern.theme ? <p className={styles.storyTheme}>テーマ：{concern.theme.label}</p> : null}
       {showTabs ? (
         <TranslationNotice actualLanguage={concern.language} status={concern.translationStatus} />
       ) : null}
@@ -464,6 +474,7 @@ function FeedActions({
 }
 
 type FeedPageViewProps = {
+  themeControl: ReactNode
   showInitialLoading: boolean
   showInitialError: boolean
   initialError: string | null
@@ -477,6 +488,7 @@ type FeedPageViewProps = {
 }
 
 function FeedPageView({
+  themeControl,
   showInitialLoading,
   showInitialError,
   initialError,
@@ -492,6 +504,7 @@ function FeedPageView({
 
   return (
     <div className={styles.page}>
+      {themeControl}
       {showInitialLoading && stageProps.coverOpened ? (
         <LoadingState label={t('feed.loading')} />
       ) : null}
@@ -515,6 +528,9 @@ function FeedPageView({
 
 export function FeedPage() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const clusterId = searchParams.get('clusterId')
+  const themeButton = useRef<HTMLButtonElement>(null)
   const { state: runtime } = useRuntime()
   const { language } = useDisplaySettings()
   const { status: authStatus, user } = useAuth()
@@ -524,7 +540,26 @@ export function FeedPage() {
     enabled: feedContext.enabled,
     sort: feedContext.sort,
     authUserId: user?.id,
+    initialTheme: clusterId ? { id: clusterId, label: '選んだテーマ', summary: '' } : null,
   })
+  useEffect(() => {
+    const selectedId = readerView.theme?.id
+    if (selectedId === clusterId) return
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (selectedId) next.set('clusterId', selectedId)
+        else next.delete('clusterId')
+        return next
+      },
+      { replace: true },
+    )
+  }, [clusterId, readerView.theme?.id, setSearchParams])
+  const closeThemePicker = (theme?: FeedTheme | null) => {
+    if (theme === undefined) readerView.onThemePickerToggle(false)
+    else readerView.onThemeChange(theme)
+    requestAnimationFrame(() => themeButton.current?.focus())
+  }
   const {
     showInitialLoading,
     showInitialError,
@@ -543,6 +578,8 @@ export function FeedPage() {
     goNext,
     onTurningFinished,
     onReset,
+    theme,
+    themePickerOpen,
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
@@ -555,7 +592,7 @@ export function FeedPage() {
     initialReacted: concern?.reacted ?? false,
     onChanged: applyReaction,
   })
-  useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
+  useConcernViewOnDisplay(coverOpened && !themePickerOpen ? concern?.id : undefined)
   const activeFilter = activeFeedFilterLabel(filter, language)
 
   const stageProps: FeedStageProps = {
@@ -609,8 +646,27 @@ export function FeedPage() {
     onFilterChange,
   }
 
+  if (themePickerOpen) {
+    return (
+      <FeedThemePicker
+        filter={filter}
+        selectedId={theme?.id}
+        onSelect={closeThemePicker}
+        onClose={() => closeThemePicker()}
+      />
+    )
+  }
+
   return (
     <FeedPageView
+      themeControl={
+        <FeedThemeControl
+          theme={theme}
+          buttonRef={themeButton}
+          onOpen={() => readerView.onThemePickerToggle(true)}
+          onClear={() => closeThemePicker(null)}
+        />
+      }
       showInitialLoading={showInitialLoading}
       showInitialError={showInitialError}
       initialError={readerView.feedError}

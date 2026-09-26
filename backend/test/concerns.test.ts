@@ -5,12 +5,14 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app/create-app";
 import { AuthUseCase } from "../src/application/usecase/auth.usecase";
+import { ClusterUseCase } from "../src/application/usecase/cluster.usecase";
 import { ConcernUseCase } from "../src/application/usecase/concern.usecase";
 import { ConcernReactionUseCase } from "../src/application/usecase/concern-reaction.usecase";
 import {
   D1SessionRepository,
   D1UserRepository,
 } from "../src/infrastructure/database/d1-auth.repository";
+import { D1ClusterRepository } from "../src/infrastructure/database/d1-cluster.repository";
 import { D1ConcernRepository } from "../src/infrastructure/database/d1-concern.repository";
 import { D1ConcernReactionRepository } from "../src/infrastructure/database/d1-concern-reaction.repository";
 import {
@@ -22,6 +24,7 @@ import {
   users,
 } from "../src/infrastructure/database/schema";
 import { AuthHandler } from "../src/presentation/auth.handler";
+import { ClusterHandler } from "../src/presentation/cluster.handler";
 import { ConcernHandler } from "../src/presentation/concern.handler";
 import { ConcernReactionHandler } from "../src/presentation/concern-reaction.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
@@ -61,6 +64,9 @@ function createTestApp(
     ...createSpeechDependencies(),
     ...createHistoryDependencies(),
     concernHandler,
+    clusterHandler: new ClusterHandler(
+      new ClusterUseCase(new D1ClusterRepository(env.DB)),
+    ),
     concernReactionHandler,
     ...createUserDependencies(),
     healthHandler: new HealthHandler({
@@ -1569,5 +1575,310 @@ describe("DELETE /api/v1/concerns/:concernId/reactions", () => {
     }>();
     expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
     expect(body.error.requestId).toBe("reaction-remove-auth");
+  });
+});
+describe("テーマの目次とクラスタによる絞り込み", () => {
+  it("公開・分類済みの投稿だけを数え、未生成・空のテーマを返さない", async () => {
+    const clusterId = await seedCluster({ label: "頼りづらさ" });
+    const pendingCluster = await seedCluster({ status: "pending" });
+    const emptyCluster = await seedCluster({});
+    const hiddenCluster = await seedCluster({});
+    const timestamp = "9999-02-01T00:00:00.000Z";
+    await seedConcern({
+      body: "公開された声",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "別の公開された声",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "分類待ち",
+      clusterId,
+      processingStatus: "pending",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "失敗した声",
+      clusterId,
+      processingStatus: "failed",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "非公開の声",
+      clusterId,
+      visibilityStatus: "hidden",
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "削除された声",
+      clusterId,
+      visibilityStatus: "deleted",
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "ラベル生成待ち",
+      clusterId: pendingCluster,
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    await seedConcern({
+      body: "非公開のみ",
+      clusterId: hiddenCluster,
+      visibilityStatus: "hidden",
+      processingStatus: "ready",
+      createdAt: timestamp,
+    });
+    const response = await createTestApp().request(
+      "/api/v1/clusters?limit=50",
+      {},
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json<{
+      items: Array<{ id: string; concernCount: number; label: string }>;
+    }>();
+    expect(body.items.find((item) => item.id === clusterId)).toMatchObject({
+      concernCount: 2,
+      label: "頼りづらさ",
+    });
+    expect(body.items.map((item) => item.id)).not.toEqual(
+      expect.arrayContaining([pendingCluster]),
+    );
+    expect(body.items.map((item) => item.id)).not.toContain(emptyCluster);
+    expect(body.items.map((item) => item.id)).not.toContain(hiddenCluster);
+  });
+
+  it("目次の投稿件数にも地域と性別の条件を適用する", async () => {
+    const clusterId = await seedCluster({});
+    for (const [regionCode, genderCode] of [
+      ["osaka", "female"],
+      ["tokyo", "female"],
+      ["osaka", "male"],
+    ]) {
+      await seedConcern({
+        body: "地域ごとの声",
+        clusterId,
+        regionCode,
+        genderCode,
+        processingStatus: "ready",
+        createdAt: "9999-02-02T00:00:00.000Z",
+      });
+    }
+    const response = await createTestApp().request(
+      "/api/v1/clusters?regionCode=osaka&gender=female&limit=50",
+      {},
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{ id: string; concernCount: number }>;
+    }>();
+    expect(body.items.find((item) => item.id === clusterId)?.concernCount).toBe(
+      1,
+    );
+  });
+
+  it("目次を重複なくページ送りし、条件が変わったカーソルを拒否する", async () => {
+    const app = createTestApp();
+    const ids = [];
+    for (let i = 0; i < 3; i++) {
+      const clusterId = await seedCluster({});
+      ids.push(clusterId);
+      await seedConcern({
+        body: "目次用の声",
+        clusterId,
+        regionCode: "tottori",
+        processingStatus: "ready",
+        createdAt: "9999-02-03T00:00:00.000Z",
+      });
+    }
+    let cursor: string | null = null;
+    const found: string[] = [];
+    for (let page = 0; page < 3; page++) {
+      const response = await app.request(
+        `/api/v1/clusters?regionCode=tottori&limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        {},
+        env,
+      );
+      expect(response.status).toBe(200);
+      const body: { items: Array<{ id: string }>; nextCursor: string | null } =
+        await response.json();
+      found.push(...body.items.map((item) => item.id));
+      cursor = body.nextCursor;
+      if (page === 0) {
+        expect(cursor).not.toBeNull();
+        const invalid = await app.request(
+          `/api/v1/clusters?regionCode=tokyo&cursor=${encodeURIComponent(cursor!)}`,
+          {},
+          env,
+        );
+        expect(invalid.status).toBe(400);
+        expect(await invalid.json()).toMatchObject({
+          error: { code: "INVALID_CURSOR" },
+        });
+      }
+    }
+    expect(found).toEqual(ids.sort());
+    expect(cursor).toBeNull();
+  });
+
+  it.each([
+    "limit=0",
+    "limit=51",
+    "regionCode=unknown",
+    "gender=unknown",
+    "extra=1",
+    "cursor=invalid",
+  ])("不正な目次条件を拒否する: %s", async (query) => {
+    const response = await createTestApp().request(
+      `/api/v1/clusters?${query}`,
+      {},
+      env,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { requestId: expect.any(String) },
+    });
+  });
+
+  it.each(["newest", "recommended"])(
+    "%sでもクラスタ・地域・性別の条件とページ送りを維持する",
+    async (sort) => {
+      const app = createTestApp();
+      const cookie =
+        sort === "recommended" ? await loginCookie(app) : undefined;
+      const clusterId = await seedCluster({});
+      const otherCluster = await seedCluster({});
+      const included: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        included.push(
+          await seedConcern({
+            body: "同じテーマの声",
+            clusterId,
+            regionCode: "osaka",
+            genderCode: "female",
+            processingStatus: "ready",
+            createdAt: `9999-03-0${i + 1}T00:00:00.000Z`,
+          }),
+        );
+      }
+      for (const extra of [
+        { clusterId: otherCluster },
+        { regionCode: "tokyo" },
+        { genderCode: "male" },
+        { visibilityStatus: "hidden" as const },
+        { visibilityStatus: "deleted" as const },
+        { processingStatus: "pending" as const },
+        { processingStatus: "failed" as const },
+      ]) {
+        await seedConcern({
+          body: "結果に混ざらない声",
+          clusterId,
+          regionCode: "osaka",
+          genderCode: "female",
+          processingStatus: "ready",
+          createdAt: "9999-03-30T00:00:00.000Z",
+          ...extra,
+        });
+      }
+      const query = `clusterId=${clusterId}&regionCode=osaka&gender=female&sort=${sort}&limit=1`;
+      let cursor: string | null = null;
+      const found: string[] = [];
+      for (let page = 0; page < 7; page++) {
+        const response = await app.request(
+          `/api/v1/concerns?${query}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+          { headers: cookie ? { Cookie: cookie } : {} },
+          env,
+        );
+        expect(response.status).toBe(200);
+        const body: {
+          items: Array<{ id: string; cluster: { id: string } }>;
+          nextCursor: string | null;
+        } = await response.json();
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0].cluster.id).toBe(clusterId);
+        found.push(body.items[0].id);
+        cursor = body.nextCursor;
+        if (page === 0) {
+          const invalid = await app.request(
+            `/api/v1/concerns?clusterId=${otherCluster}&regionCode=osaka&gender=female&sort=${sort}&cursor=${encodeURIComponent(cursor!)}`,
+            { headers: cookie ? { Cookie: cookie } : {} },
+            env,
+          );
+          expect(invalid.status).toBe(400);
+        }
+      }
+      expect(found.sort()).toEqual(included.sort());
+      expect(cursor).toBeNull();
+    },
+  );
+
+  it("ラベル生成中のテーマでは絞り込めず、原文は通常フィードで読める", async () => {
+    const clusterId = await seedCluster({ status: "pending" });
+    const id = await seedConcern({
+      body: "原文を残す声",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: "9999-04-01T00:00:00.000Z",
+    });
+    const app = createTestApp();
+    const filtered = await app.request(
+      `/api/v1/concerns?clusterId=${clusterId}`,
+      {},
+      env,
+    );
+    expect(await filtered.json()).toMatchObject({
+      items: [],
+      nextCursor: null,
+    });
+    const detail = await app.request(`/api/v1/concerns/${id}`, {}, env);
+    expect(await detail.json()).toMatchObject({
+      id,
+      body: "原文を残す声",
+      cluster: null,
+    });
+    const scoped = await app.request(
+      `/api/v1/clusters/${clusterId}/concerns`,
+      {},
+      env,
+    );
+    expect(scoped.status).toBe(404);
+  });
+
+  it("テーマ別URLではパスのクラスタを使い、存在しないテーマは404を返す", async () => {
+    const clusterId = await seedCluster({});
+    const otherCluster = await seedCluster({});
+    const id = await seedConcern({
+      body: "テーマ別URLの声",
+      clusterId,
+      processingStatus: "ready",
+      createdAt: "9999-04-02T00:00:00.000Z",
+    });
+    const app = createTestApp();
+    const response = await app.request(
+      `/api/v1/clusters/${clusterId}/concerns?clusterId=${otherCluster}`,
+      {},
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ items: [{ id }] });
+    const missing = await app.request(
+      "/api/v1/clusters/absent/concerns",
+      {},
+      env,
+    );
+    expect(missing.status).toBe(404);
+    const empty = await app.request(
+      `/api/v1/concerns?clusterId=${otherCluster}`,
+      {},
+      env,
+    );
+    expect(await empty.json()).toMatchObject({ items: [], nextCursor: null });
   });
 });

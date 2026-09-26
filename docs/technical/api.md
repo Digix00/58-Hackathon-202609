@@ -441,7 +441,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | limit | 任意 | 20 | 1〜50 |
 | cursor | 任意 | — | 次ページの opaque cursor |
 | sort | 任意 | newest | recommended または newest。未ログインでrecommendedを指定した場合はnewestとして扱う |
-| clusterId | 任意 | — | 指定クラスタに絞る |
+| clusterId | 任意 | — | 指定クラスタに絞る。公開済み・処理完了の投稿と表示生成済みのクラスタだけを対象にする |
 | gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
 | language | 任意 | 1.8 の規則 | original、jaHira、en。未指定時はログインユーザーの displayLanguage、未ログイン時は original |
@@ -611,7 +611,8 @@ reasonCode の初期値は次のとおり。
 
 - limit: 1〜50、既定値 20
 - cursor: opaque cursor
-- regionCode: 任意。クラスタ内の公開済み悩みを都道府県で絞る
+- regionCode: 任意。クラスタ内の公開済み・処理完了の悩みを都道府県で絞る
+- gender: 任意。クラスタ内の公開済み・処理完了の悩みを性別コードで絞る
 
 #### Response
 
@@ -629,17 +630,22 @@ reasonCode の初期値は次のとおり。
 }
 ~~~
 
-- 公開済みの悩みが 0 件のクラスタは返さない
-- concernCount は published の悩みだけを数える
+- `ready` で空でないlabelとsummaryを持つクラスタだけを返す
+- 公開済み（`published`）かつ処理完了（`ready`）の悩みが 0 件のクラスタは返さない
+- concernCount は上記の悩みのうち、指定された都道府県・性別に一致する投稿件数。人数やリアクション件数ではなく、本人の投稿も含む公開投稿全体の件数とする
+- クラスタIDの昇順で返し、人気順・リアクション順にはしない
+- cursorには直前のクラスタIDと地域・性別条件を含む。条件が変わったcursorは400 INVALID_CURSORとする
+- 通常ブラウザ・未ログインでも利用できる。分類待ちの投稿はテーマ一覧に含めず、条件未指定の投稿フィードで原文を読める
 
 ### 4.2 GET /api/v1/clusters/:clusterId/concerns
 
 指定クラスタに属する公開済みの悩みを返す。
 
-- Query は GET /api/v1/concerns の limit、cursor、sort、regionCode、language と同じ
-- clusterId の絞り込みはサーバー側で行い、クライアントが別条件を組み合わせて判定しない
+- Query は GET /api/v1/concerns の limit、cursor、sort、regionCode、gender、language と同じ
+- clusterId の絞り込みはサーバー側で行い、クライアントが別条件を組み合わせて判定しない。クエリにもclusterIdがある場合はパスのIDを優先する
+- `GET /api/v1/concerns?clusterId=...` と同じ取得処理を使う。クエリ形式は存在しない・未生成のクラスタに対して空配列を返す
 - Response は GET /api/v1/concerns と同じ形式
-- 存在しない、または公開済みの悩みがない clusterId は 404 NOT_FOUND とする
+- 存在しない、表示生成前、または公開済み・処理完了の悩みがない clusterId は 404 NOT_FOUND とする。地域・性別の追加条件だけで0件になった場合は200と空配列を返す
 - sort の既定値は newest とする
 
 ## 5. クイズ API

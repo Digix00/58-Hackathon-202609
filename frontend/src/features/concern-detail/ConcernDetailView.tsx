@@ -1,5 +1,5 @@
 import { useTranslation } from '../../i18n/useTranslation'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { LoginGuide } from '../../app/router'
 import type { ConcernReactionStatus } from '../reaction/useConcernReaction'
 import type { ConcernDetailViewModel } from './concernDetailViewModel'
@@ -30,10 +30,14 @@ export function ConcernDetailView({
   onReact,
 }: ConcernDetailViewProps) {
   const { t, message } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const feedTarget = searchParams.has('clusterId')
+    ? `/?clusterId=${encodeURIComponent(searchParams.get('clusterId') ?? '')}`
+    : '/'
 
   return (
     <div className={screen.page}>
-      <Link className={actionStyles.text} to="/">
+      <Link className={actionStyles.text} to={feedTarget}>
         {t('common.backToFeedArrow')}
       </Link>
       <article className={`${screen.paper} ${screen.taped} ${crayonStyles.edge}`}>
@@ -71,7 +75,7 @@ export function ConcernDetailView({
             : ''}
       </p>
       {showLogin ? <LoginGuide /> : null}
-      <Link className={`${actionStyles.primary} ${screen.fullButton}`} to="/">
+      <Link className={`${actionStyles.primary} ${screen.fullButton}`} to={feedTarget}>
         {t('detail.next')}
       </Link>
     </div>
