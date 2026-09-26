@@ -111,19 +111,29 @@ function StepTabs({ current }: { current: Step }) {
  * 紙が伸びれば線も一緒に増えるので、いつでも文字が線の上に乗る。
  * 高さは行送りの倍数へそろえる。端数で止めると最後の行だけ線から浮く。
  */
+const SUPPORTS_FIELD_SIZING = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
+
 function useGrowingSheet(ref: RefObject<HTMLTextAreaElement | null>, body: string) {
+  const previousBody = useRef(body)
+
   useLayoutEffect(() => {
     const node = ref.current
-    if (!node) return
+    if (!node || SUPPORTS_FIELD_SIZING) return
 
-    // まず紙の高さにまかせる。ここで初めて、あふれているかどうかが分かる。
-    node.style.height = ''
-    if (node.scrollHeight <= node.clientHeight) return
+    // 追記中は現在の高さを保ち、行があふれたときだけ伸ばす。
+    // 削除や置き換えでは一度自然な高さへ戻し、紙も縮められるようにする。
+    if (!body.startsWith(previousBody.current)) node.style.height = ''
+    previousBody.current = body
+
+    const contentHeight = node.scrollHeight
+    const currentHeight = node.clientHeight
+    if (contentHeight <= currentHeight) return
 
     const line = Number.parseFloat(window.getComputedStyle(node).lineHeight)
-    node.style.height = Number.isFinite(line)
-      ? `${Math.ceil(node.scrollHeight / line) * line}px`
-      : `${node.scrollHeight}px`
+    const nextHeight = Number.isFinite(line)
+      ? Math.ceil(contentHeight / line) * line
+      : contentHeight
+    if (nextHeight > currentHeight) node.style.height = `${nextHeight}px`
   }, [body, ref])
 }
 
@@ -139,10 +149,6 @@ function WriteSheet({
   inputRef: RefObject<HTMLTextAreaElement | null>
   onBodyChange: (body: string) => void
 }) {
-  const tooLong = body.trim().length > POST_BODY_MAX_LENGTH
-
-  useGrowingSheet(inputRef, body)
-
   return (
     <article
       className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${styles.writeCard}`}
@@ -158,13 +164,46 @@ function WriteSheet({
         </label>
         <p className={styles.promptLead}>うまくまとまっていなくても、大丈夫。</p>
       </div>
+      <WriteFields
+        initialBody={body}
+        fieldError={fieldError}
+        inputRef={inputRef}
+        onBodyChange={onBodyChange}
+      />
+    </article>
+  )
+}
+
+/** 本文入力の再描画と高さ計測を、紙全体から切り離す。 */
+function WriteFields({
+  initialBody,
+  fieldError,
+  inputRef,
+  onBodyChange,
+}: {
+  initialBody: string
+  fieldError?: string
+  inputRef: RefObject<HTMLTextAreaElement | null>
+  onBodyChange: (body: string) => void
+}) {
+  const [body, setBody] = useState(initialBody)
+  const tooLong = body.trim().length > POST_BODY_MAX_LENGTH
+
+  useGrowingSheet(inputRef, body)
+
+  return (
+    <>
       <div className={styles.write}>
         <textarea
           id="post-body"
           ref={inputRef}
           className={styles.input}
           value={body}
-          onChange={(event) => onBodyChange(event.target.value)}
+          onChange={(event) => {
+            const nextBody = event.target.value
+            setBody(nextBody)
+            onBodyChange(nextBody)
+          }}
           placeholder={BODY_EXAMPLE}
           maxLength={POST_BODY_MAX_LENGTH + 1}
           aria-invalid={Boolean(fieldError)}
@@ -198,7 +237,7 @@ function WriteSheet({
           {tooLong ? <span className={styles.srOnly}>。上限を越えています</span> : null}
         </p>
       </div>
-    </article>
+    </>
   )
 }
 
@@ -420,7 +459,7 @@ export function PostPage() {
         onConfirm={() => {
           // 進めない本文のときは、送信の検証にエラーの文言を出させる。
           if (!draft.confirm()) {
-            void submission.submit({ body: draft.body })
+            void submission.submit({ body: draft.getBody() })
             return
           }
           turn('write', 1)
@@ -431,7 +470,7 @@ export function PostPage() {
         }}
         onSubmit={() => {
           // 送信できたら、書いた紙をノートへめくり込む。その下からお礼の紙が現れる。
-          void submission.submit({ body: draft.body }).then((saved) => {
+          void submission.submit({ body: draft.getBody() }).then((saved) => {
             if (saved) turn('confirm', 1)
           })
         }}
