@@ -14,6 +14,7 @@ import { D1QuizRepository } from "../src/infrastructure/database/d1-quiz.reposit
 import {
   concernRepresentations,
   concerns,
+  learningEvents,
   quizAttempts,
   quizzes,
   users,
@@ -22,6 +23,7 @@ import { AuthHandler } from "../src/presentation/auth.handler";
 import { HealthHandler } from "../src/presentation/health.handler";
 import { QuizHandler } from "../src/presentation/quiz.handler";
 import { createConcernDependencies } from "./support/concern-fixture";
+import { createHistoryDependencies } from "./support/history-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const fixedNow = "2099-01-02T00:20:00.000Z";
@@ -50,6 +52,7 @@ function createTestApp(
 
   const app = createApp({
     ...createConcernDependencies(),
+    ...createHistoryDependencies(),
     ...createUserDependencies(),
     authHandler: new AuthHandler(authUseCase),
     authUseCase,
@@ -433,6 +436,14 @@ describe("quiz routes", () => {
       .from(quizAttempts)
       .where(eq(quizAttempts.quizId, generated.id));
     expect(attempts).toHaveLength(1);
+
+    const events = await db
+      .select()
+      .from(learningEvents)
+      .where(eq(learningEvents.quizId, generated.id));
+    expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe("quiz_answer");
+    expect(events[0].userId).toBe(attempts[0].userId);
   });
 
   it("hides a quiz when one of its source concerns is no longer public", async () => {

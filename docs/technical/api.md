@@ -514,6 +514,7 @@ reasonCode の初期値は次のとおり。
 - reactionType が欠落または未対応の場合は 400 INVALID_REQUEST を返す
 - 存在しない、hidden、deleted の concernId は 404 NOT_FOUND とする
 - concernId と解決済みの認証主体と reactionType の組を一意にする
+- 新しいリアクションと同じトランザクションで learning_events に reaction を1件記録し、再送では重複記録しない
 - 他ユーザーのリアクションを解除・変更する API は提供しない
 - 同じ操作の再送は成功扱いとし、409 にはしない
 
@@ -532,6 +533,7 @@ reasonCode の初期値は次のとおり。
 ~~~
 
 - 同じ concernId と actor_key の組は一行に集約し、再送時も最初の viewedAt を返す
+- 新しい既読と同じトランザクションで learning_events に view を1件記録し、再送では重複記録しない
 - actor_key は認証セッションから解決した内部 users.id とし、LINE user ID は保存・返却しない
 - 未ログイン時は 401 AUTHENTICATION_REQUIRED
 - hidden、deleted、存在しない concernId は 404 NOT_FOUND とする
@@ -760,6 +762,10 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~json
 {
   "viewedConcernCount": 24,
+  "nextSuggestion": {
+    "kind": "theme",
+    "label": "昼休み・食堂"
+  },
   "clusters": [
     {
       "clusterId": "cluster_01J...",
@@ -797,7 +803,8 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
-- clusters と `regions` は、既読履歴に現れた公開投稿を集計する。`regions` は都道府県コード別の集計結果であり、マスタテーブルの参照結果ではない
+- nextSuggestion は本人以外の公開投稿の未読候補から、既読の公開投稿にまだ現れていないテーマまたは都道府県を1件返す。テーマ候補には処理完了済みの投稿と ready なラベル付きクラスタだけを使い、未読テーマを優先する。テーマ候補がない場合は未読の都道府県コードを返し、該当する候補がない場合は null
+- clusters は既読履歴に現れた公開・処理完了済み投稿のうち、ready なラベル付きクラスタを集計する。`regions` は既読履歴に現れた公開投稿の都道府県コード別集計であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
 - 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
 - quiz.answeredCount は回答済みクイズ数

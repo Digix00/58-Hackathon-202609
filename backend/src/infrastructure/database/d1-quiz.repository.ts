@@ -6,6 +6,7 @@ import type {
   ConcernProcessingStatus,
   Gender,
 } from "../../application/entity/concern";
+import type { LearningEvent } from "../../application/entity/learning-event";
 import {
   Quiz,
   type QuizAnswerResult,
@@ -164,6 +165,7 @@ export class D1QuizRepository implements QuizRepository {
 
   async recordAnswer(
     input: RecordQuizAnswerInput,
+    event: LearningEvent,
   ): Promise<RecordQuizAnswerResult> {
     const statements = [
       this.database
@@ -216,6 +218,26 @@ export class D1QuizRepository implements QuizRepository {
             input.userId,
           ),
       ),
+      this.database
+        .prepare(
+          "INSERT INTO learning_events " +
+            "(id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at) " +
+            "SELECT ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0 " +
+            "AND NOT EXISTS (SELECT 1 FROM learning_events " +
+            "WHERE user_id = ? AND event_type = ? AND quiz_id = ?)",
+        )
+        .bind(
+          event.id,
+          event.userId,
+          event.eventType,
+          event.concernId,
+          event.clusterId,
+          event.quizId,
+          event.occurredAt,
+          event.userId,
+          event.eventType,
+          event.quizId,
+        ),
     ];
     await this.database.batch(statements);
 

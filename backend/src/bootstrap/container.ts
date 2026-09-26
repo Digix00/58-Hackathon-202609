@@ -8,6 +8,7 @@ import {
 } from "../application/usecase/concern-processing.usecase";
 import { ConcernReactionUseCase } from "../application/usecase/concern-reaction.usecase";
 import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase";
+import { HistoryUseCase } from "../application/usecase/history.usecase";
 import { LineUseCase } from "../application/usecase/line.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
@@ -27,6 +28,7 @@ import { D1ConcernProcessingRepository } from "../infrastructure/database/d1-con
 import { D1ConcernReactionRepository } from "../infrastructure/database/d1-concern-reaction.repository";
 import { D1ConcernViewRepository } from "../infrastructure/database/d1-concern-view.repository";
 import { D1HealthRepository } from "../infrastructure/database/d1-health.repository";
+import { D1HistoryRepository } from "../infrastructure/database/d1-history.repository";
 import { D1LineRepository } from "../infrastructure/database/d1-line.repository";
 import { D1QuizRepository } from "../infrastructure/database/d1-quiz.repository";
 import { HmacLineSignatureVerifier } from "../infrastructure/line/hmac-line-signature.verifier";
@@ -41,6 +43,7 @@ import { ConcernHandler } from "../presentation/concern.handler";
 import { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import { ConcernViewHandler } from "../presentation/concern-view.handler";
 import { HealthHandler } from "../presentation/health.handler";
+import { HistoryHandler } from "../presentation/history.handler";
 import { LineHandler } from "../presentation/line.handler";
 import { QuizHandler } from "../presentation/quiz.handler";
 import { UserHandler } from "../presentation/user.handler";
@@ -132,6 +135,9 @@ export function createApplication(bindings: Bindings) {
   const quizRepository = new D1QuizRepository(bindings.DB);
   const quizUseCase = new QuizUseCase(quizRepository);
   const quizHandler = new QuizHandler(quizUseCase);
+  const historyRepository = new D1HistoryRepository(bindings.DB);
+  const historyUseCase = new HistoryUseCase(historyRepository);
+  const historyHandler = new HistoryHandler(historyUseCase);
   const lineRepository = new D1LineRepository(bindings.DB);
   const useLocalLineBroadcastSimulation =
     isLocalLineBroadcastSimulationEnabled(bindings);
@@ -161,6 +167,7 @@ export function createApplication(bindings: Bindings) {
       concernReactionHandler,
       concernViewHandler,
       healthHandler,
+      historyHandler,
       lineHandler,
       quizHandler,
       userHandler,
