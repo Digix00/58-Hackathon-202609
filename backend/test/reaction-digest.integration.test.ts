@@ -46,6 +46,7 @@ function createDigest(
   options: {
     now?: () => Date;
     maxPerRun?: number;
+    manualBudgetMilliseconds?: number;
     behavior?: PushBehavior;
   } = {},
 ) {
@@ -62,7 +63,10 @@ function createDigest(
       },
     },
     liffId,
-    { maxPerRun: options.maxPerRun },
+    {
+      maxPerRun: options.maxPerRun,
+      manualBudgetMilliseconds: options.manualBudgetMilliseconds,
+    },
     options.now,
   );
   return {
@@ -296,6 +300,80 @@ describe("ReactionDigestUseCase", () => {
       remainingCount: 0,
     });
     expect(new Set(sent.map((message) => message.lineUserId)).size).toBe(3);
+  });
+
+  it("stops a manual run at the time budget and continues in the next run", async () => {
+    const reactor = await seedUser();
+    for (let index = 0; index < 3; index += 1) {
+      const recipient = await seedUser();
+      await react(
+        await seedConcern(recipient.id),
+        reactor.id,
+        "2026-09-26T01:00:00.000Z",
+      );
+    }
+
+    // 1 件送るたびに 10 秒進む時計にして、上限 15 秒で打ち切られることを見る。
+    let elapsedMilliseconds = 0;
+    const { useCase, sent } = createDigest({
+      now: () =>
+        new Date(
+          new Date("2026-09-26T11:00:00.000Z").getTime() + elapsedMilliseconds,
+        ),
+      manualBudgetMilliseconds: 15_000,
+      behavior: () => {
+        elapsedMilliseconds += 10_000;
+        return accepted;
+      },
+    });
+
+    const partial = await useCase.runManual();
+    expect(partial.status).toBe("pending");
+    expect(partial.run).toMatchObject({
+      targetCount: 3,
+      sentCount: 2,
+      remainingCount: 1,
+    });
+
+    const completed = await useCase.runManual();
+    expect(completed.run.runId).toBe(partial.run.runId);
+    expect(completed.run).toMatchObject({ status: "succeeded", sentCount: 3 });
+    expect(new Set(sent.map((message) => message.lineUserId)).size).toBe(3);
+  });
+
+  it("does not send the whole run in one call when cron has no time budget", async () => {
+    const reactor = await seedUser();
+    for (let index = 0; index < 3; index += 1) {
+      const recipient = await seedUser();
+      await react(
+        await seedConcern(recipient.id),
+        reactor.id,
+        "2026-09-26T01:00:00.000Z",
+      );
+    }
+
+    // Cron には上限を適用しないので、時計が大きく進んでも maxPerRun まで送り切る。
+    let elapsedMilliseconds = 0;
+    const { useCase } = createDigest({
+      now: () =>
+        new Date(
+          new Date("2026-09-26T11:00:00.000Z").getTime() + elapsedMilliseconds,
+        ),
+      manualBudgetMilliseconds: 1,
+      behavior: () => {
+        elapsedMilliseconds += 10_000;
+        return accepted;
+      },
+    });
+
+    const result = await useCase.runScheduled(
+      new Date("2026-09-26T11:00:00.000Z"),
+    );
+    expect(result.run).toMatchObject({
+      status: "succeeded",
+      sentCount: 3,
+      remainingCount: 0,
+    });
   });
 
   it("creates one run when two manual triggers arrive at the same time", async () => {

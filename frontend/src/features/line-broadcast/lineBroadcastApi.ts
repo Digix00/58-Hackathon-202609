@@ -98,15 +98,23 @@ export async function getReactionDigestStatus(): Promise<ReactionDigestStatus> {
   }
 }
 
-/** 寄りそい通知を今すぐ送る。未完了の実行があれば、その続きを送る。 */
+/**
+ * 寄りそい通知を今すぐ送る。未完了の実行があれば、その続きを送る。
+ *
+ * バックエンドは手動実行の送信時間に上限を設けており、上限に達すると残りを
+ * pending のまま 202 で返す。そのため送信件数の設定
+ * (REACTION_DIGEST_MAX_PER_RUN) を増やしても応答時間は伸びない。
+ * ここでは、その上限に最後の 1 件の送信待ちを足した時間より十分長く待つ。
+ */
+const REACTION_DIGEST_TIMEOUT_MILLISECONDS = 60_000
+
 export async function triggerReactionDigest(): Promise<void> {
-  // 一回の実行でLINEへ複数件送るため、状態取得より長く待つ。
   const response = await sendRequest(
     () =>
       reactionDigest.$post(undefined, {
-        init: { signal: AbortSignal.timeout(60_000) },
+        init: { signal: AbortSignal.timeout(REACTION_DIGEST_TIMEOUT_MILLISECONDS) },
       }),
-    60_000,
+    REACTION_DIGEST_TIMEOUT_MILLISECONDS,
   )
   if (!response.ok) {
     const error = await readApiError(response)

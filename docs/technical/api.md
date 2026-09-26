@@ -1258,7 +1258,8 @@ scheduled handler は `controller.cron` で振り分け、`0 0 * * *` はデイ�
 3. 未確定の delivery を最大 40 件まで、LINE Messaging API の `POST /v2/bot/message/push` で送る。送信前に delivery を started にして X-Line-Retry-Key を保存する
 4. 200、または 409 と X-Line-Accepted-Request-Id は sent。その他の HTTP エラーは failed として記録し、再送しない。失敗した人は次の run で前回成功時点から集計し直す
 5. タイムアウトなど結果不明の場合は started のまま残し、次の実行で同じ Retry Key を使って再送する
-6. 未確定の delivery が残る場合は run を pending に戻し、次の手動実行で続きを送る。すべて確定したら run を succeeded / partially_failed / failed にする
+6. 手動実行は、送信に使う時間の上限（既定 20 秒）に達した時点で打ち切る。管理画面が POST の応答を待つため、件数の上限を増やしても応答時間が伸びないようにしている（1 件目は必ず送る）。Cron には適用しない
+7. 未確定の delivery が残る場合は run を pending に戻し、次の手動実行で続きを送る。すべて確定したら run を succeeded / partially_failed / failed にする
 
 ローカル開発で `DEV_AUTH_ENABLED`、`DEV_ACCESS_BYPASS`、`DEV_LINE_BROADCAST_SIMULATION` がすべて `true` の場合は LINE へ送らず、送信成功として記録する（`deliveryMode=simulation`）。
 
@@ -1293,7 +1294,7 @@ scheduled handler は `controller.cron` で振り分け、`0 0 * * *` はデイ�
 | status | 内容 |
 | --- | --- |
 | 200 | `{ deliveryMode, run }`。run のすべての delivery が確定した。一部が failed でも 200 とし、`run.status` で区別する |
-| 202 | `{ deliveryMode, run }`。上限件数や結果不明の送信が残り、run が pending に戻った |
+| 202 | `{ deliveryMode, run }`。上限件数・送信時間の上限・結果不明の送信のいずれかで残りがあり、run が pending に戻った |
 | 401 | 内部 API の `AUTHENTICATION_REQUIRED`、または管理 API の Access 認証失敗 |
 | 403 | 管理 API の Origin 不一致（9.3 と同じ） |
 | 409 | `REACTION_DIGEST_IN_PROGRESS`。別の runner が lease 期限内で実行中 |
