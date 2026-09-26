@@ -7,28 +7,8 @@ import {
   type DailyBroadcastStatus,
 } from './lineBroadcastApi'
 import styles from './LineBroadcastPage.module.css'
-
-const timeFormatters: Record<string, Intl.DateTimeFormat> = {
-  en: new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Asia/Tokyo',
-  }),
-  'ja-JP': new Intl.DateTimeFormat('ja-JP', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Asia/Tokyo',
-  }),
-  jaHira: new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Tokyo',
-  }),
-}
+import { ReactionDigestSection } from './ReactionDigestSection'
+import { formatTime } from './formatTime'
 
 export function LineBroadcastPage() {
   const { t } = useTranslation()
@@ -57,6 +37,8 @@ export function LineBroadcastPage() {
       </section>
 
       <DeliveryModeNote isSimulation={isSimulation} />
+
+      <ReactionDigestSection />
     </main>
   )
 }
@@ -289,11 +271,6 @@ function statusDetail(status: DailyBroadcastStatus): string {
     return 'broadcast.failedDetail'
   }
   return 'broadcast.pendingDetail'
-}
-
-function formatTime(value: string, locale: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : timeFormatters[locale].format(date)
 }
 
 function toMessage(error: unknown): string {
