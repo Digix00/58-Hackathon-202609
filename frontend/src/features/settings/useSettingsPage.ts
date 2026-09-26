@@ -14,7 +14,7 @@ const initialSaveState: SaveState = { status: 'idle', error: null }
  * Boundary: 設定値、保存状態、設定変更操作だけを公開する。
  * State Modeling: 保存状態とエラーをreducerで一括更新し、失敗時だけエラーを持つ。
  * Update Surface: selectLanguage / selectFontSize / setSpeechEnabled。
- * Hidden Complexity: 認証の確認、同時保存の抑止、成功後だけ共有言語を更新する順序。
+ * Hidden Complexity: 認証の確認、言語・文字サイズをまたいだ同時保存の抑止、成功後だけ共有設定を更新する順序。
  * Composition: AuthとDisplaySettingsを接続し、SettingsPageへ表示用の状態を渡す。
  * Test Notes: 保存失敗時の言語維持、再試行成功時のエラー解除、連続操作を確認する。
  */
@@ -23,9 +23,9 @@ export function useSettingsPage() {
   const { fontSize, language, speechEnabled, setFontSize, setLanguage, setSpeechEnabled } =
     useDisplaySettings()
   const [save, transition] = useReducer(saveReducer, initialSaveState)
-  const inFlight = useRef(false)
   const [fontSizeSave, transitionFontSize] = useReducer(saveReducer, initialSaveState)
-  const fontSizeInFlight = useRef(false)
+  // 両設定の保存は同じAPIがユーザー全体を返すため、古いレスポンスで新しい設定を戻さないよう直列化する。
+  const inFlight = useRef(false)
 
   const selectLanguage = async (value: typeof language) => {
     if (authStatus !== 'authenticated' || value === language || inFlight.current) return
@@ -51,13 +51,13 @@ export function useSettingsPage() {
 
   // 未ログインでは端末内の表示だけを切り替え、ログイン済みならアカウントへ保存してから反映する。
   const selectFontSize = async (value: typeof fontSize) => {
-    if (value === fontSize || fontSizeInFlight.current) return
+    if (value === fontSize || inFlight.current) return
     if (authStatus !== 'authenticated') {
       setFontSize(value)
       return
     }
 
-    fontSizeInFlight.current = true
+    inFlight.current = true
     transitionFontSize({ status: 'saving', error: null })
     try {
       const result = await updateUserDisplaySettings({ fontSize: value }, 'error.fontSize')
@@ -72,7 +72,7 @@ export function useSettingsPage() {
     } catch {
       transitionFontSize({ status: 'failed', error: 'error.fontSize' })
     } finally {
-      fontSizeInFlight.current = false
+      inFlight.current = false
     }
   }
 

@@ -37,6 +37,7 @@ function SettingsPageView({
   profileSettings,
 }: ReturnType<typeof useSettingsPage> & { profileSettings: ReactNode }) {
   const { t, message } = useTranslation()
+  const saving = languageStatus === 'saving' || fontSizeStatus === 'saving'
 
   return (
     <section className={styles.page} aria-labelledby="settings-title">
@@ -44,7 +45,7 @@ function SettingsPageView({
         <h1 id="settings-title">{t('nav.settings')}</h1>
       </header>
 
-      <fieldset className={sharedStyles.group} disabled={fontSizeStatus === 'saving'}>
+      <fieldset className={sharedStyles.group} disabled={saving}>
         <legend>{t('settings.fontSize')}</legend>
         {authStatus !== 'authenticated' ? <p>{t('settings.fontSizeLoginHint')}</p> : null}
         <div className={sharedStyles.choiceRow}>
@@ -65,10 +66,7 @@ function SettingsPageView({
         {fontSizeError ? <p role="alert">{message(fontSizeError)}</p> : null}
       </fieldset>
 
-      <fieldset
-        className={sharedStyles.group}
-        disabled={authStatus !== 'authenticated' || languageStatus === 'saving'}
-      >
+      <fieldset className={sharedStyles.group} disabled={authStatus !== 'authenticated' || saving}>
         <legend>{t('settings.language')}</legend>
         {authStatus !== 'authenticated' ? (
           <p>{t('settings.loginHint')}</p>
