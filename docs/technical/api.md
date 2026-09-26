@@ -945,7 +945,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
     {
       "id": "concern_01J...",
       "body": "食堂が混んでいて昼休みに休めない",
-      "language": "ja",
+      "language": "original",
       "attributes": {
         "ageGroup": "20s",
         "ageGroupName": "20代",
@@ -965,7 +965,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
       },
       "reactionCount": 3,
       "visibilityStatus": "published",
-      "processingStatus": "completed",
+      "processingStatus": "ready",
       "reactedAt": null,
       "createdAt": "2026-09-21T00:20:00.000Z"
     }
@@ -976,7 +976,8 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 - 自分の投稿だけを返す。削除済みだけを除き、公開前・非公開の投稿も本人には返す
 - `visibilityStatus` が published 以外の投稿は 3.3 の詳細 API では取得できないため、画面から詳細への導線は出さない
-- 本文と `language` の選び方、`representations` の状態は 3.2 のフィードと同じ規則にそろえる
+- 本文と `language` の選び方、`representations` の状態は 3.2 のフィードと同じ規則にそろえる。`language` は original、jaHira、en のいずれかで、選んだ表現が ready でないときは original を返す
+- `visibilityStatus` は pending、published、hidden のいずれかとする。deleted の投稿は返さない。`processingStatus` は pending、processing、ready、failed のいずれかとする
 - reactedAt は常に null とする。並びは createdAt DESC, id DESC とする
 - 投稿者の内部 userId は返さない
 - LIFF / LINE ユーザーで users.deleted_at が設定された場合は 403 USER_DELETED とする
