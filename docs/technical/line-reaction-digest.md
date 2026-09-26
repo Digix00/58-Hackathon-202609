@@ -204,6 +204,7 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 
 - Request body なし
 - 未完了（`pending`）の run があれば、新しい run を作らずその続きを送る。なければ新しい手動 run を作成して実行する
+  - 「未完了の run があるか」の確認と作成は一つの条件付き INSERT で行う。手動実行は冪等キーが要求ごとに異なるため、確認と作成を分けると、同時に届いた 2 つの手動実行がそれぞれ run を作れてしまう
 - 別の runner が `running` で lease 期限内の場合は 409 `REACTION_DIGEST_IN_PROGRESS`（同時実行で同じ人に 2 通送るのを防ぐ）
 - 上限件数を超えて残りがある場合は 202 と run の状態を返し、管理画面から「続きを送る」を押せるようにする
 

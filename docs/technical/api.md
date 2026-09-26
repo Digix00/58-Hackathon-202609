@@ -1246,7 +1246,7 @@ Request body は持たない。今日の公開クイズがなければ生成を�
 | 起動元 | 実行単位 | 備考 |
 | --- | --- | --- |
 | Cloudflare Cron `0 11 * * *`（20:00 JST） | idempotencyKey=`reaction-digest:cron:YYYY-MM-DD`（Asia/Tokyo） | 同じ日に二度起動しても run は一つ |
-| `POST /api/v1/admin/line/notifications/reaction-digest` | 未完了の run があればその続き、なければ新しい手動 run | Cloudflare Access と Origin 検証（9.3 と同じ） |
+| `POST /api/v1/admin/line/notifications/reaction-digest` | 未完了の run があればその続き、なければ新しい手動 run（確認と作成は一つの条件付き INSERT で行い、同時実行でも run は一つ） | Cloudflare Access と Origin 検証（9.3 と同じ） |
 | `POST /api/v1/line/notifications/reaction-digest` | 同上 | Authorization Bearer に INTERNAL_API_TOKEN。画面向け `AppType` に含めない |
 
 scheduled handler は `controller.cron` で振り分け、`0 0 * * *` はデイリークイズ、`0 11 * * *` は寄りそい通知を実行する。POST はいずれも Request body を持たない。

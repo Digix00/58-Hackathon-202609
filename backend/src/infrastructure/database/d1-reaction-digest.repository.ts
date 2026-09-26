@@ -56,6 +56,13 @@ const RUN_VIEW_SQL = `
   from reaction_digest_runs r
   left join reaction_digest_deliveries d on d.run_id = r.id`;
 
+/**
+ * 手動実行で run を決めるまでの試行回数。
+ * 「作れなかったのに未完了 run もない」のは、条件付き INSERT の直後に
+ * 他の runner が完了した場合だけなので、もう一度作りに行けば決まる。
+ */
+const MANUAL_RUN_ATTEMPTS = 2;
+
 const HAS_CURRENT_CLAIM_SQL = `exists (
   select 1 from reaction_digest_runs r
   where r.id = ? and r.claim_token = ? and r.status = 'running'
@@ -305,6 +312,7 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
     request: ReactionDigestRunRequest,
   ): Promise<string> {
     if (request.idempotencyKey) {
+      // Cron は日付ごとの冪等キーが一意なので、INSERT 自体が重複を弾く。
       await this.insertRun(request);
       const row = await this.db
         .prepare(
@@ -318,21 +326,37 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
       return row.id;
     }
 
-    // 手動実行は、未完了の run があれば新しく作らずに続きを送る。
-    const unfinished = await this.db
-      .prepare(
-        `select id from reaction_digest_runs
-         where status in ('pending', 'running')
-         order by requested_at, id
-         limit 1`,
-      )
-      .first<{ id: string }>();
-    if (unfinished) {
-      return unfinished.id;
-    }
+    return this.findOrCreateManualRun(request);
+  }
 
-    await this.insertRun(request);
-    return request.newRunId;
+  /**
+   * 手動実行の対象 run を決める。未完了の run があれば続きを送り、なければ新しく作る。
+   * 手動実行は冪等キーが要求ごとに異なるため、未完了確認と作成を分けると
+   * 同時に届いた要求がそれぞれ run を作れてしまう。判定と作成を一つの
+   * 条件付き INSERT にまとめ、作れなかった要求は既存の run を掴む。
+   */
+  private async findOrCreateManualRun(
+    request: ReactionDigestRunRequest,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < MANUAL_RUN_ATTEMPTS; attempt += 1) {
+      if (await this.insertRunIfNoneUnfinished(request)) {
+        return request.newRunId;
+      }
+
+      const unfinished = await this.db
+        .prepare(
+          `select id from reaction_digest_runs
+           where status in ('pending', 'running')
+           order by requested_at, id
+           limit 1`,
+        )
+        .first<{ id: string }>();
+      if (unfinished) {
+        return unfinished.id;
+      }
+      // 条件付き INSERT を弾いた run が、その直後に完了した。もう一度作りに行く。
+    }
+    throw new Error("reaction digest run could not be created");
   }
 
   private async insertRun(request: ReactionDigestRunRequest): Promise<void> {
@@ -351,6 +375,32 @@ export class D1ReactionDigestRepository implements ReactionDigestRepository {
         request.requestedAt,
       )
       .run();
+  }
+
+  /** 未完了の run が一つもないときだけ run を作る。作れた場合だけ true を返す。 */
+  private async insertRunIfNoneUnfinished(
+    request: ReactionDigestRunRequest,
+  ): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `insert into reaction_digest_runs
+           (id, trigger, idempotency_key, status, cutoff_at, requested_at)
+         select ?, ?, ?, 'pending', ?, ?
+         where not exists (
+           select 1 from reaction_digest_runs
+           where status in ('pending', 'running')
+         )
+         on conflict (idempotency_key) do nothing`,
+      )
+      .bind(
+        request.newRunId,
+        request.trigger,
+        request.newRunIdempotencyKey,
+        request.requestedAt,
+        request.requestedAt,
+      )
+      .run();
+    return result.meta.changes > 0;
   }
 
   private async findRunRow(runId: string): Promise<RunRow | null> {

@@ -298,6 +298,31 @@ describe("ReactionDigestUseCase", () => {
     expect(new Set(sent.map((message) => message.lineUserId)).size).toBe(3);
   });
 
+  it("creates one run when two manual triggers arrive at the same time", async () => {
+    const recipient = await seedUser();
+    const reactor = await seedUser();
+    await react(
+      await seedConcern(recipient.id),
+      reactor.id,
+      "2026-09-26T01:00:00.000Z",
+    );
+
+    const now = () => new Date("2026-09-26T11:00:00.000Z");
+    // 管理 API と内部 API から同時に届いた状況を、別の UseCase インスタンスで表す。
+    const admin = createDigest({ now });
+    const internal = createDigest({ now });
+    const results = await Promise.all([
+      admin.useCase.runManual(),
+      internal.useCase.runManual(),
+    ]);
+
+    const runs = await admin.useCase.getRecentRuns();
+    expect(runs).toHaveLength(1);
+    expect(new Set(results.map((result) => result.run.runId)).size).toBe(1);
+    // 同じ受信者へ二重に送らない。
+    expect([...admin.sent, ...internal.sent]).toHaveLength(1);
+  });
+
   it("runs the scheduled digest only once per Tokyo date", async () => {
     const recipient = await seedUser();
     const reactor = await seedUser();
