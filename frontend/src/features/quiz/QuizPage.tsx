@@ -18,7 +18,6 @@ import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import {
-  notebookAngleForDrag,
   prefersReducedMotion,
   useNotebookSwipe,
 } from '../../shared/hooks/useNotebookSwipe'
@@ -335,22 +334,18 @@ function assignmentsFromResult(result: QuizAnswerResponse | undefined): Answers 
  */
 function Paper({
   children,
-  dragX = 0,
+  swipeTarget = false,
   className = '',
 }: {
   children: ReactNode
-  dragX?: number
+  swipeTarget?: boolean
   /** 紙の中身に合わせた行送り。結果の紙だけ、判定のメモのぶん余白を取り直す。 */
   className?: string
 }) {
   return (
     <article
-      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${className} ${
-        turnStyles.page
-      } ${dragX !== 0 ? turnStyles.pageDragging : ''}`}
-      style={{
-        transform: dragX < 0 ? `rotateY(${notebookAngleForDrag(dragX)}deg)` : undefined,
-      }}
+      className={`${screen.paper} ${crayonStyles.edge} ${styles.card} ${className} ${turnStyles.page}`}
+      data-notebook-swipe-target={swipeTarget ? '' : undefined}
     >
       {/* とじ穴。リングと違い、これは紙の側にあるのでページと一緒に動く。 */}
       <NotebookBinding part="holes" />
@@ -1327,7 +1322,7 @@ function QuizFrontPage({
   if (coverOpened) {
     return (
       <div key={`${letter.id}-${stateIndex}`} className={styles.enter}>
-        <Paper className={showingResults ? styles.resultCard : ''} dragX={swipe.dragX}>
+        <Paper className={showingResults ? styles.resultCard : ''} swipeTarget>
           <QuizPaperBody
             target={letter}
             personId={answers[letter.id]}
