@@ -73,7 +73,7 @@ LINE側の制約として、初期化は登録したエンドポイントURLと�
 プロジェクト仕様はスマートフォン向け1カラムで、360px幅を基本の確認対象とする。LINE側のヘッダーや端末の安全領域を含めて確認し、ブラウザのスクリーンショットだけで操作可能と判断しない。
 
 - 現行の [AppShell](../../frontend/src/app/AppShell.module.css) は高さ `100svh` の2行Grid。本文領域が縦スクロールし、その下に5項目のナビを置く。ナビを本文へ重ねる固定配置に変える場合は、入力欄・主要操作が隠れないことを確認する。
-- 上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` を使用する。[index.html](../../frontend/index.html) のviewportには現在 `viewport-fit=cover` がない。CSS変数が常に期待した余白を返すと仮定せず、ノッチ・ホームインジケーター・横向きで実測する。
+- [index.html](../../frontend/index.html) のviewportに `viewport-fit=cover` を指定し、上部余白と下部ナビに `env(safe-area-inset-top)` / `env(safe-area-inset-bottom, 0px)` を使用する。下部ナビは通常の12pxに端末の下側安全領域を加算し、ホームインジケーターと操作を離す。安全領域が0なら12pxを維持する。[WebKit公式の方式](https://webkit.org/blog/7929/designing-websites-for-iphone-x/)に従うが、LINE内のWebViewが返す値は実機で確認し、ノッチ・ホームインジケーター・横向きで重なりがないことを実測する。
 - LINE公式は縦向きと横向きで異なるセーフエリアを案内している。既存の余白へ固定値を無条件に加算せず、表示領域との重複を確認する。[公式: LINEミニアプリのセーフエリア](https://developers.line.biz/ja/docs/line-mini-app/design/landscape/)
 - ソフトウェアキーボードを開閉し、本文入力・初期登録・設定の入力欄と送信操作へ到達できることを確認する。画面高が不足した場合は、文字を縮めず本文領域の縦スクロールを許容する。
 - 横めくりと縦スクロールを両立させる。[useNotebookSwipe](../../frontend/src/shared/hooks/useNotebookSwipe.ts) は縦方向のジェスチャーをめくりにせず、スワイプ後のリンク誤作動を防ぐ。入力欄では左右キーをめくりに使わない。
