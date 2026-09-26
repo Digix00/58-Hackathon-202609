@@ -22,6 +22,8 @@
 | `users` | id、LINE user ID、表示形式、生年月（年・月）、性別、都道府県、日時 | LINE配信、表示形式の保存、ユーザー単位の履歴。表示形式は original、jaHira、en |
 | `speech_transcription_rate_limit_events` | id、user_id、created_at | 音声文字起こしのユーザー単位レート制限。音声や文字起こし結果は保存しない |
 | `learning_events` | id、user_id、concern_id、cluster_id、quiz_id、event_type、occurred_at | 閲覧・リアクション・クイズの履歴 |
+| `reaction_digest_runs` | id、起動元、idempotency key、状態、締め時刻、claim、日時 | LINE 寄りそい通知の実行単位 |
+| `reaction_digest_deliveries` | id、run_id、user_id、集計範囲、寄りそった人数・同じ都道府県の人数・都道府県数、送信状態、Retry Key | 寄りそい通知の受信者ごとの送信状態。寄りそった人の ID と本文は保存しない |
 
 `user_id` はサーバーがLINEログイン済みセッションから解決する内部の `users.id` であり、リクエストから受け取らない。`concern_views.actor_key` にもこの内部 ID を保存し、LINE user ID は保存しない。通常ブラウザおよび未ログインのLINEミニアプリによる公開投稿の閲覧では、`user_id`、既読、リアクション、クイズ回答、学習イベントを記録しない。
 
@@ -57,4 +59,4 @@
 - ユーザーが削除を要求した投稿は公開対象から直ちに除外する
 - 生の音声、画像、IPアドレス、LINEアクセストークンは保存しない
 - 音声レート制限には内部 `users.id` と受付時刻だけを記録し、直近24時間より古い記録はレート制限判定時に削除する
-- デモ終了時に投稿、翻訳、学習履歴、LINE連携情報を削除する
+- デモ終了時に投稿、翻訳、学習履歴、LINE連携情報（寄りそい通知の送信履歴を含む）を削除する

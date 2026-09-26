@@ -324,12 +324,16 @@ quiz_attempts と quiz_participants には、それぞれ (id, quiz_id) の複�
 | line_webhook_events | webhook_event_id, user_id, event_type, status, received_at, processed_at, error_code | LINE の再送に対する冪等性を確保。webhook_event_id は LINE の webhookEventId に対応し、user_id は user source の場合だけ入り得る nullable の外部キー。生の webhook payload は保存しない |
 | line_broadcasts | id, quiz_id, idempotency_key, status, claim_token, lease_expires_at, requested_at, sent_at, finished_at, last_error | デイリークイズを全友だちへ送る一回の論理実行単位。quiz_id と idempotency_key をそれぞれ UNIQUE にし、claim_token と lease_expires_at で実行単位を原子的に占有する |
 | line_broadcast_attempts | id, broadcast_id, attempt_number, status, http_status, line_request_id, line_accepted_request_id, line_retry_key, attempted_at, error_message | LINE Broadcast API の HTTP 呼び出し一回につき一行。配信先ユーザーごとの明細ではない。外部 API 呼び出し前に status=started と line_retry_key を保存し、結果不明の再試行では同じキーを使う |
+| reaction_digest_runs | id, trigger, idempotency_key, status, cutoff_at, claim_token, lease_expires_at, deliveries_prepared_at, requested_at, finished_at | 寄りそい通知の一回の実行単位。idempotency_key を UNIQUE にし、Cron は `reaction-digest:cron:YYYY-MM-DD`、手動は `reaction-digest:manual:{id}` とする。cutoff_at は集計の締め時刻。件数は持たず、delivery から集計する |
+| reaction_digest_deliveries | id, run_id, user_id, window_start, window_end, reactor_count, same_region_count, region_count, region_code_snapshot, status, line_retry_key, http_status, line_request_id, created_at, attempted_at, sent_at, error_code | 寄りそい通知の受信者ごとの送信単位。(run_id, user_id) と line_retry_key を UNIQUE にする。集計値は作成時のスナップショットで、寄りそった人の ID や本文は保存しない |
 
-`users.friend_status` は `active` または `unfollowed` を保存する。follow 時は `joined_at`（初回のみ）と `last_seen_at` を更新し、unfollow 時は `unfollowed_at` を更新する。友だち状態は運用・分析用であり、配信先一覧の生成には使わない。Broadcast API の配信対象は LINE Platform に任せる。
+`users.friend_status` は `active` または `unfollowed` を保存する。follow 時は `joined_at`（初回のみ）と `last_seen_at` を更新し、unfollow 時は `unfollowed_at` を更新する。デイリークイズの Broadcast API の配信対象は LINE Platform に任せ、友だち状態から配信先一覧を作らない。寄りそい通知だけは、`friend_status = 'active'` かつ未削除の人を Push API の送信対象にする。
 
 POST https://api.line.me/v2/bot/message/broadcast（LINE Broadcast API）は同じメッセージを公式アカウントの全友だちへ送るため、送信先を一人ずつ D1 に展開しない。line_broadcasts はクイズごとの論理配信、line_broadcast_attempts はその論理配信に対する HTTP 試行履歴として分離する。アプリ側の idempotency_key と LINE の X-Line-Retry-Key を分けて保持し、日次実行の二重起動と同一 API リクエストの重複をそれぞれ抑止する。line_broadcasts の claim_token と lease_expires_at を使い、Cron と内部 endpoint の呼び出しが同じ論理配信を同時に外部 API へ送らないようにする。
 
 LINE API を呼ぶ前に、claim を取得したトランザクション内で line_broadcast_attempts に status=started、attempt_number、attempted_at、line_retry_key を保存する。Worker が API 応答を受け取る前に終了した場合、lease の期限切れ後に同じ attempt の line_retry_key を再利用する。LINE が 409 と X-Line-Accepted-Request-Id を返した場合は、先行リクエストが受理済みとして論理的な成功に扱う。line_broadcasts.status=succeeded は LINE が一回の Broadcast API リクエストを受理した状態であり、友だち一人ひとりの配信完了を D1 で追跡するものではない。LINE の user ID やアクセストークンはログとレスポンスに出力しない。
+
+寄りそい通知は内容が人ごとに異なるため、Push API（POST https://api.line.me/v2/bot/message/push）で一人ずつ送り、reaction_digest_deliveries に受信者ごとの状態を持つ。受信者ごとの集計の起点（window_start）は、その人の status=sent の delivery の最大 window_end とし、送信に失敗した delivery は起点にしない。reaction_digest_deliveries.status は pending → started → sent / failed、または送信直前に友だち解除・削除済みだった場合の skipped と遷移する。pending / started の delivery を持つ人は新しい run の対象から外し、結果不明の started は同じ line_retry_key で再送する。
 
 #### API項目と物理カラムの対応
 

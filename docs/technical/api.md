@@ -273,8 +273,11 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | POST | /api/v1/line/broadcasts/daily-quiz | デモ必須 | 内部認証 | 全友だちへクイズを一斉配信 |
 | GET | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日の配信状況を管理者向けに取得 |
 | POST | /api/v1/admin/line/broadcasts/daily-quiz | デモ必須 | Cloudflare Access | 今日のクイズ生成と配信を手動実行 |
+| POST | /api/v1/line/notifications/reaction-digest | デモ必須 | 内部認証 | 寄りそい通知を投稿者へ個別送信 |
+| GET | /api/v1/admin/line/notifications/reaction-digest | デモ必須 | Cloudflare Access | 寄りそい通知の直近の実行状況を取得 |
+| POST | /api/v1/admin/line/notifications/reaction-digest | デモ必須 | Cloudflare Access | 寄りそい通知を手動実行 |
 
-userId を受け取る API、ユーザーごとに Push API を呼び出す配信 API は実装しない。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
+userId を受け取る API は実装しない。デイリークイズは全員に同じ内容のため Broadcast API で送り、ユーザーごとに Push API を呼び出さない。内容が人ごとに異なる寄りそい通知（[9.5](#95-line-寄りそい通知)）だけは Push API で一人ずつ送る。公開閲覧は通常ブラウザと未ログインのLINEミニアプリから利用し、操作 API はLINEログイン済みのLIFFから利用する。
 
 `POST /api/v1/auth/dev` はローカル開発専用であり、本番のAPI契約には含めない。`DEV_AUTH_ENABLED=true` のWorkerだけが、
 サーバー側で定義した `demo-a`、`demo-b`、`demo-c` を受け付ける。任意の `userId`、LINE user ID、アクセストークンは受け付けず、
@@ -1015,7 +1018,7 @@ quizId は必須とする。対象クイズを明示することで、再試行�
 
 重要な制約:
 
-- users を全件走査して、ユーザーごとに Push API を呼び出してはならない
+- デイリークイズの配信では、users を全件走査して、ユーザーごとに Push API を呼び出してはならない（人ごとに内容が異なる寄りそい通知は 9.5 を参照）
 - 受信者ごとの delivery 行は作成しない
 - LINE Broadcast API の全友だち配信を一回の論理実行として扱う
 - アプリケーションの idempotencyKey と LINE API の Retry Key は別に管理する
@@ -1100,6 +1103,84 @@ Request body は持たない。今日の公開クイズがなければ生成を�
 - `deliveryMode=line_api` の status=succeeded は LINE Broadcast API のリクエスト受理を意味し、LINE 公式アカウントの友だち全員への個別配信完了を意味しない。`simulation` はローカル模擬実行の完了を意味する
 - アプリケーションの broadcastId / idempotencyKey と、LINE API の Retry Key / Request ID は別の識別子として扱う
 - DBの物理カラムや制約は #32 の database.md で定義し、この PR は HTTP の認証、Request/Response、状態コード、冪等性の契約を定義する
+
+### 9.5 LINE 寄りそい通知
+
+投稿者へ、前回の通知以降に自分の投稿へ届いた「そっと寄りそう」の人数を LINE で知らせる。設計の背景と判断は [LINE 寄りそい通知 設計](./line-reaction-digest.md) を参照する。
+
+#### 送信内容
+
+- 前回の送信成功時点から、今回の締め時刻までに、公開中の自分の投稿へ寄りそった人の実人数（同じ人が複数の投稿へ寄りそっても 1 人と数える）
+- そのうち受信者と同じ都道府県の人数。受信者が都道府県を未設定・`no_answer` の場合と 0 人の場合は省略する
+- 寄りそいが届いた都道府県の数。1 つ以下の場合は省略する
+- LIFF のフィードのトップ（`https://liff.line.me/{LINE_LIFF_ID}/`）へのリンク
+- 文面は受信者の `users.display_language`（original / jaHira / en）で切り替える
+
+自分の寄りそい、非公開の投稿への寄りそい、新しい寄りそいが 0 人の人、友だちでない人（`users.friend_status <> 'active'`）、削除済みの人には送らない。
+
+#### 起動方法
+
+| 起動元 | 実行単位 | 備考 |
+| --- | --- | --- |
+| Cloudflare Cron `0 11 * * *`（20:00 JST） | idempotencyKey=`reaction-digest:cron:YYYY-MM-DD`（Asia/Tokyo） | 同じ日に二度起動しても run は一つ |
+| `POST /api/v1/admin/line/notifications/reaction-digest` | 未完了の run があればその続き、なければ新しい手動 run | Cloudflare Access と Origin 検証（9.3 と同じ） |
+| `POST /api/v1/line/notifications/reaction-digest` | 同上 | Authorization Bearer に INTERNAL_API_TOKEN。画面向け `AppType` に含めない |
+
+scheduled handler は `controller.cron` で振り分け、`0 0 * * *` はデイリークイズ、`0 11 * * *` は寄りそい通知を実行する。POST はいずれも Request body を持たない。
+
+#### 処理
+
+1. run を claim する（claim_token と 5 分の lease）。締め時刻 `cutoff_at` は run 作成時に固定し、再試行でも集計範囲を変えない
+2. 最初の claim で、受信者ごとの delivery を一つの `INSERT ... SELECT` で作成し、集計値をスナップショットする。未確定（pending / started）の delivery を持つ人は対象から外す
+3. 未確定の delivery を最大 40 件まで、LINE Messaging API の `POST /v2/bot/message/push` で送る。送信前に delivery を started にして X-Line-Retry-Key を保存する
+4. 200、または 409 と X-Line-Accepted-Request-Id は sent。その他の HTTP エラーは failed として記録し、再送しない。失敗した人は次の run で前回成功時点から集計し直す
+5. タイムアウトなど結果不明の場合は started のまま残し、次の実行で同じ Retry Key を使って再送する
+6. 未確定の delivery が残る場合は run を pending に戻し、次の手動実行で続きを送る。すべて確定したら run を succeeded / partially_failed / failed にする
+
+ローカル開発で `DEV_AUTH_ENABLED`、`DEV_ACCESS_BYPASS`、`DEV_LINE_BROADCAST_SIMULATION` がすべて `true` の場合は LINE へ送らず、送信成功として記録する（`deliveryMode=simulation`）。
+
+#### GET /api/v1/admin/line/notifications/reaction-digest
+
+直近 10 件の run を新しい順に返す。受信者、LINE user ID、個人の集計値は返さない。
+
+~~~json
+{
+  "deliveryMode": "line_api",
+  "runs": [
+    {
+      "runId": "4f0c...",
+      "trigger": "manual",
+      "status": "succeeded",
+      "requestedAt": "2026-09-26T05:12:00.000Z",
+      "finishedAt": "2026-09-26T05:12:03.000Z",
+      "targetCount": 12,
+      "sentCount": 11,
+      "failedCount": 0,
+      "skippedCount": 1,
+      "remainingCount": 0
+    }
+  ]
+}
+~~~
+
+`trigger` は `cron` / `manual`、`status` は `pending` / `running` / `succeeded` / `partially_failed` / `failed`。件数は delivery から集計した値で、`skippedCount` は送信直前に友だち解除・削除済みだった人数、`remainingCount` は未確定の人数。
+
+#### POST（管理・内部共通）のレスポンス
+
+| status | 内容 |
+| --- | --- |
+| 200 | `{ deliveryMode, run }`。run のすべての delivery が確定した。一部が failed でも 200 とし、`run.status` で区別する |
+| 202 | `{ deliveryMode, run }`。上限件数や結果不明の送信が残り、run が pending に戻った |
+| 401 | 内部 API の `AUTHENTICATION_REQUIRED`、または管理 API の Access 認証失敗 |
+| 403 | 管理 API の Origin 不一致（9.3 と同じ） |
+| 409 | `REACTION_DIGEST_IN_PROGRESS`。別の runner が lease 期限内で実行中 |
+| 503 | `LINE_INTEGRATION_NOT_CONFIGURED`（channel access token または LIFF ID が未設定）、`INTERNAL_API_NOT_CONFIGURED` |
+
+#### 注意事項
+
+- Push API は受信者 1 人につき 1 通として LINE 公式アカウントの通数に数えられる
+- Push API の宛先は Messaging API チャネル上の user ID。LINE ログインのチャネルと同じプロバイダー配下であることを前提とする
+- レスポンスとログに LINE user ID、アクセストークン、メッセージ本文を出力しない
 
 ## 10. 非同期処理と状態表示
 

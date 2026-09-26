@@ -1,7 +1,7 @@
 # LINE 寄りそい通知（リアクションダイジェスト）設計
 
 投稿者へ「前回のお知らせ以降に届いた『そっと寄りそう』の数」を LINE で知らせる機能の設計書。
-実装前の設計段階の文書であり、合意後に [API仕様](./api.md)、[SQLiteデータベース設計](./database.md)、[データモデル](./data.md) へ確定内容を反映する。
+実装済み。API の契約は [API仕様 9.5](./api.md#95-line-寄りそい通知)、テーブルは [SQLiteデータベース設計](./database.md) と [データモデル](./data.md) を正とし、この文書は背景と設計判断を残す。
 
 ## 1. 目的とコンセプト
 
@@ -108,7 +108,7 @@ concerns.visibility_status = 'published'
 concern_reactions.user_id <> 受信者          -- 自分への寄りそいは除く
 ```
 
-「人数」は寄りそいの件数を数える（1 人 1 投稿 1 回の制約があるため、複数投稿へ同じ人が寄りそった場合は複数件として数える）。メッセージ上は「◯人」ではなく「◯回」とするか、実人数（`count(distinct reactor)`）を使うかは 9 章で確認する。
+「人数」は実人数（`count(distinct reactor)`）とする。同じ人が複数の投稿へ寄りそった場合も 1 人と数える。
 
 ## 6. データ設計
 
@@ -123,14 +123,13 @@ concern_reactions.user_id <> 受信者          -- 自分への寄りそいは�
 | cutoff_at | TEXT | 集計の締め時刻。最初の claim 時に固定 |
 | claim_token | TEXT NULL | 実行中の runner を識別 |
 | lease_expires_at | TEXT NULL | runner が落ちた場合に再 claim できる期限 |
-| target_count | INTEGER | 作成した delivery 数 |
-| sent_count | INTEGER | 送信成功数 |
-| failed_count | INTEGER | 送信失敗数 |
+| deliveries_prepared_at | TEXT NULL | delivery を作成した時刻。二度作らないための印 |
 | requested_at | TEXT | 作成時刻 |
 | finished_at | TEXT NULL | 完了時刻 |
-| last_error | TEXT NULL | 内部エラーコード（本文やユーザー情報は入れない） |
 
 CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ（`line_broadcasts` と同じ制約）。
+
+件数（対象・送信・失敗・対象外・残り）は run に持たず、delivery から毎回集計する。状態を二重に持つとずれるため。
 
 ### 6.2 reaction_digest_deliveries
 
@@ -141,7 +140,7 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 | user_id | TEXT FK | 受信者の users.id（LINE user ID は保存しない。送信時に users から引く） |
 | window_start | TEXT NULL | 集計の起点（排他的）。初回は NULL |
 | window_end | TEXT | 集計の終点（= run.cutoff_at） |
-| reaction_count | INTEGER | 新しい寄りそい数 |
+| reactor_count | INTEGER | 新しく寄りそった人の実人数 |
 | same_region_count | INTEGER | うち受信者と同じ都道府県の人からの数 |
 | region_count | INTEGER | 寄りそいが届いた都道府県の数（未設定は数えない） |
 | region_code_snapshot | TEXT NULL | 集計時の受信者の都道府県コード |
@@ -149,6 +148,7 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 | line_retry_key | TEXT NULL UNIQUE | Push API の X-Line-Retry-Key。送信前に保存 |
 | http_status | INTEGER NULL | LINE API の HTTP status |
 | line_request_id | TEXT NULL | X-Line-Request-Id |
+| created_at | TEXT | 作成時刻 |
 | attempted_at | TEXT NULL | 最後に送信を試みた時刻 |
 | sent_at | TEXT NULL | 送信成功時刻 |
 | error_code | TEXT NULL | `upstream_rejected` / `user_blocked` など |
@@ -173,7 +173,7 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 ### 7.1 POST /api/v1/line/notifications/reaction-digest（内部）
 
 - 認証: `Authorization: Bearer {INTERNAL_API_TOKEN}`
-- Request body: `{ "runId"?: string }`。省略時は新しい手動 run を作成、指定時はその run の続きを再試行する
+- Request body なし。管理画面の POST と同じく、未完了の run があれば続きを送り、なければ新しい手動 run を作る
 - 画面向け `AppType` には含めない
 
 ### 7.2 GET /api/v1/admin/line/notifications/reaction-digest（管理画面）
@@ -183,7 +183,6 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
 ```json
 {
   "deliveryMode": "line_api",
-  "nextScheduledAt": "2026-09-26T11:00:00.000Z",
   "runs": [
     {
       "runId": "01J...",
@@ -193,7 +192,9 @@ CHECK: `running` のときだけ `claim_token` と `lease_expires_at` を持つ�
       "finishedAt": "2026-09-26T05:12:03.000Z",
       "targetCount": 12,
       "sentCount": 12,
-      "failedCount": 0
+      "failedCount": 0,
+      "skippedCount": 0,
+      "remainingCount": 0
     }
   ]
 }
@@ -230,7 +231,7 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 | Entity | `application/entity/reaction-digest.entity.ts`: run / delivery の状態、メッセージに使う集計値（`ReactionDigestSummary`） |
 | Port | `application/port/line-push-sender.ts`: `sendPush(lineUserId, messages, retryKey)`。結果型はクイズの `LineBroadcastResult` と同じ形 |
 | Repository | `application/repository/reaction-digest.repository.ts`: claim、delivery の一括作成、pending の取得、結果記録、状態取得 |
-| UseCase | `application/usecase/reaction-digest.usecase.ts`: `ReactionDigestUseCase`（`runScheduled` / `runManual` / `getStatus`） |
+| UseCase | `application/usecase/reaction-digest.usecase.ts`: `ReactionDigestUseCase`（`runScheduled` / `runManual` / `getRecentRuns`） |
 | 共有 | メッセージ文面の組み立て（表示言語別テンプレート） |
 | Adapter | `infrastructure/line/line-push.sender.ts`（Push API）、`infrastructure/line/local-line-push.sender.ts`（ローカル模擬）、`infrastructure/database/d1-reaction-digest.repository.ts` |
 | Handler | `presentation/reaction-digest.handler.ts` |
@@ -248,13 +249,15 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 
 利用者が増えた場合は、delivery ごとに Cloudflare Queue のメッセージを発行する方式へ置き換えられるよう、「delivery を 1 件送る」処理を UseCase 内で独立させておく。
 
-## 9. 決めておきたいこと（要確認）
+## 9. 決定事項
 
-1. **送信時刻**: 20:00 JST を想定。昼休み（12:30）など別の時刻がよいか
-2. **件数の数え方**: 「5人が寄りそいました」とするなら実人数（重複なし）、「5回」なら件数。実人数の方が「人に届いた」感覚が強いため、実人数を推奨
-3. **地域表現**: 同じ都道府県の人数に加えて、隣接地域や地方（「北海道・東北から」）単位の表現も入れるか。今回は都道府県のみを推奨
-4. **通知の停止**: 利用者が通知を止める設定を画面に持つか。LINE のブロックで止められるため、今回はブロック前提とし、設定画面は対象外を推奨
-5. **リンク先**: 自分の投稿への反応を見る画面がまだないため、当面はフィードのトップへ誘導する。将来「あなたの悩みの届き先」画面ができたらそこへ切り替える
+| 項目 | 決定 |
+| --- | --- |
+| 送信時刻 | 20:00 JST（`0 11 * * *`） |
+| 件数の数え方 | 実人数（「◯人がそっと寄りそいました」） |
+| 地域表現 | 都道府県単位のみ。地方単位の表現は入れない |
+| 通知の停止 | 設定画面は作らず、LINE のブロックで止める |
+| リンク先 | 自分の投稿への反応を見る画面ができるまで、フィードのトップ |
 
 ## 10. 前提と注意事項
 
