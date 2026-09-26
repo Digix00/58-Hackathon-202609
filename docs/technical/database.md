@@ -273,7 +273,7 @@ ER 図における「3人」「3件」は、SQLite のリレーションだけ�
 | concern_reactions | concern_id, user_id, reaction_type, created_at | MVP は reaction_type を empathy に固定し、concern_id、user_id、reaction_type の組を主キーにする |
 | concern_views | concern_id, actor_key, viewed_at | 既読記録。concern_id と actor_key の組で一意 |
 | learning_events | id, user_id, event_type, concern_id, cluster_id, quiz_id, occurred_at | view, reaction, quiz_answer などの学習イベントを保存 |
-| feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認用。fallback で新着順にした場合も strategy に記録 |
+| feed_impressions | id, user_id, concern_id, strategy, reason_code, algorithm_version, position, exposed_at, opened_at | 推薦品質の確認用。fallback で新着順にした場合も strategy に記録。exposed_at はAPIが返した時刻で、画面に表示されたことは意味しない。投稿を開いた（既読APIが呼ばれた）ときに、その利用者・投稿の未開封行へ opened_at を記録する |
 
 concerns の processing_status は次の概要値とする。
 
@@ -441,11 +441,23 @@ LIMIT ?
 
 ### 推薦
 
-1. concern_views から未読投稿を除外する。
-2. 直近の cluster_id と都道府県の偏りを確認する。
-3. 新着・クラスタ分散・都道府県分散で候補を並べる。
+推薦は「飽きさせない」「特定の分野に偏らせない」「近くの悩みにも出会える」ことを目的とする。
+
+1. 新着順に候補を取得し（表示件数の5倍、最大250件）、concern_views で既読かを判定する。閲覧者自身の投稿は候補から除外する。
+2. 直近50件の閲覧履歴から、クラスタごとの閲覧割合と既読の都道府県を求める。
+3. 候補を1件ずつ選び、次の加減点で順位を決める。重みは `backend/src/application/recommendation/recommendation.policy.ts` の `RECOMMENDATION_WEIGHTS` を正とする。
+   - 未読、閲覧履歴にないクラスタ、ページ内で未選択のクラスタ・都道府県・年代を加点する
+   - 閲覧者のプロフィールの都道府県と同じ県、または同じ地方（8地方区分）の投稿を加点する。ただし加点するのは1ページの30%まで（最低1件）とし、近くの投稿だけのフィードにしない。プロフィールの都道府県が未設定なら加点しない
+   - 閲覧履歴に占める割合が大きいクラスタほど減点する。同じクラスタが1ページの20%（最低1件）に達したら、以降の同クラスタを減点する
+   - 新しい投稿ほど加点し、24時間ごとに加点を半減させる
+   - 利用者IDと日付（日本時間）から決まる小さなゆらぎを加え、同じ日は同じ順、日が変わると並びが変わるようにする
+   - 直前と同じクラスタは、異なるクラスタが残っている限り選ばない
 4. 各候補を feed_impressions に保存し、strategy と reason_code を返す。
 5. AI や推薦処理が使えない場合は strategy=fallback で新着順を返す。
+
+同じ投稿が繰り返し上位に出続けないよう、一度表示して既読になった投稿は未読の加点を失う。feed_impressions は API が返した全件を記録しており、フィードは1枚ずつ表示するため、画面に表示されなかった投稿と「表示されたが開かれなかった投稿」を区別できない。そのため表示回数による減点は行わない。
+
+近くの判定は、利用者が登録した都道府県と投稿の都道府県だけで行い、位置情報や住所は使わない。近くの候補は新着の候補群の中から選ぶため、候補群より古い近くの投稿は対象にならない。
 
 ### LINE 日次一斉配信
 

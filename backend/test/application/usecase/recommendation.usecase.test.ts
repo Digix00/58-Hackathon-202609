@@ -174,4 +174,49 @@ describe("ConcernUseCase recommendation feed", () => {
       returnedConcernIds: ["returned-candidate", "fallback-candidate"],
     });
   });
+
+  it("passes the viewer region to the ranking", async () => {
+    const candidate = (id: string, regionCode: string, createdAt: string) => ({
+      concern: new Concern({
+        id,
+        userId: `author-${id}`,
+        body: `推薦対象-${id}`,
+        regionCode,
+        createdAt,
+      }),
+      cluster: null,
+      viewed: false,
+    });
+    const repository: ConcernRepository = {
+      insert: async (value) => value,
+      listPublished: async () => ({ items: [], hasMore: false }),
+      findPublishedById: async () => null,
+      listFeed: async () => ({
+        items: [
+          candidate("tokyo-newest", "tokyo", "2026-09-26T00:00:00.000Z"),
+          candidate("tokyo-new", "tokyo", "2026-09-25T00:00:00.000Z"),
+          candidate("osaka-old", "osaka", "2026-09-20T00:00:00.000Z"),
+        ],
+        hasMore: false,
+      }),
+    };
+    const useCase = new ConcernUseCase(
+      repository,
+      () => new Date("2026-09-26T12:00:00.000Z"),
+    );
+
+    const result = await useCase.listFeed({
+      limit: 3,
+      sort: "recommended",
+      userId: "user-1",
+      viewerRegionCode: "osaka",
+    });
+
+    // 大阪の投稿は古くても、閲覧者と同じ県として先頭に来る。
+    expect(result.items[0]?.concern.id).toBe("osaka-old");
+    expect(result.items[0]?.recommendation).toEqual({
+      strategy: "recommended",
+      reasonCode: "nearby_prefecture",
+    });
+  });
 });

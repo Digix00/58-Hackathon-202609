@@ -12,7 +12,10 @@ export type FeedSort = (typeof FEED_SORTS)[number]
 export const RECOMMENDATION_REASON_LABELS = {
   unread_cluster: 'history.unreadTheme',
   new_cluster: 'feed.newTheme',
+  nearby_prefecture: 'feed.nearbyPrefecture',
+  nearby_area: 'feed.nearbyArea',
   region_diversity: 'feed.regionDiversity',
+  age_diversity: 'feed.ageDiversity',
   newest: 'feed.newest',
   fallback_newest: 'feed.newestFirst',
 } as const
