@@ -52,11 +52,17 @@ export class ReactionDigestUseCase {
     now: () => Date = () => new Date(),
     createId: () => string = generateId,
   ) {
+    const maxPerRun = options.maxPerRun ?? DEFAULT_REACTION_DIGEST_MAX_PER_RUN;
+    // 送信件数は SQL の LIMIT へ渡すため、正の整数だけを受け付ける。
+    if (!Number.isInteger(maxPerRun) || maxPerRun < 1) {
+      throw new RangeError("maxPerRun must be a positive integer");
+    }
+
     this.repository = repository;
     this.pushSender = pushSender;
     // 自分の投稿への反応を見る画面ができるまでは、フィードのトップへ誘導する。
     this.linkUrl = createLiffUrl(liffId, "/");
-    this.maxPerRun = options.maxPerRun ?? DEFAULT_REACTION_DIGEST_MAX_PER_RUN;
+    this.maxPerRun = maxPerRun;
     this.now = now;
     this.createId = createId;
   }

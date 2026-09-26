@@ -241,7 +241,7 @@ AGENTS.md のレイヤー規約に従い、次を追加する。
 
 ### 8.1 送信の上限と冪等性
 
-- Workers の 1 回の実行で呼べる外部 API 数には上限があるため、1 run の 1 回の実行で送る件数を `REACTION_DIGEST_MAX_PER_RUN`（既定 40）に制限する。残りは run を `pending` に戻して次の実行で続きを送る
+- Workers の 1 回の実行で呼べる外部 API 数には上限があるため、1 run の 1 回の実行で送る件数を `REACTION_DIGEST_MAX_PER_RUN`（既定 40）に制限する。残りは run を `pending` に戻して次の実行で続きを送る。この値は Composition Root で Worker 環境変数から読み取り、正の整数でなければ起動時に拒否する（本番は GitHub Actions Variable から渡す）
 - 各 delivery は送信前に `status=started` と `line_retry_key` を保存する。タイムアウトなどで結果不明なら `started` のまま残し、次の実行で同じ Retry Key を使って再送する（LINE 側で重複排除される）
 - LINE が 409 と `X-Line-Accepted-Request-Id` を返したら送信成功として扱う
 - 400/403（友だちでない、ブロック）などは `failed` とし、`error_code` に記録する。再送はしない

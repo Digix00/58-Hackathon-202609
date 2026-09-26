@@ -11,7 +11,10 @@ import { ConcernViewUseCase } from "../application/usecase/concern-view.usecase"
 import { HistoryUseCase } from "../application/usecase/history.usecase";
 import { LineUseCase } from "../application/usecase/line.usecase";
 import { QuizUseCase } from "../application/usecase/quiz.usecase";
-import { ReactionDigestUseCase } from "../application/usecase/reaction-digest.usecase";
+import {
+  DEFAULT_REACTION_DIGEST_MAX_PER_RUN,
+  ReactionDigestUseCase,
+} from "../application/usecase/reaction-digest.usecase";
 import { SpeechUseCase } from "../application/usecase/speech.usecase";
 import { UserUseCase } from "../application/usecase/user.usecase";
 import { LocalConcernClusterSummaryGenerator } from "../infrastructure/ai/local-concern-cluster-summary.generator";
@@ -187,6 +190,11 @@ export function createApplication(bindings: Bindings) {
       ? new LocalLinePushSender()
       : new LinePushApiSender(bindings.LINE_CHANNEL_ACCESS_TOKEN),
     bindings.LINE_LIFF_ID,
+    {
+      maxPerRun: parseReactionDigestMaxPerRun(
+        bindings.REACTION_DIGEST_MAX_PER_RUN,
+      ),
+    },
   );
   const reactionDigestHandler = new ReactionDigestHandler(
     reactionDigestUseCase,
@@ -233,6 +241,20 @@ function parseSessionTtl(value: string | undefined): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseReactionDigestMaxPerRun(value: string | undefined): number {
+  if (value === undefined || value.trim() === "") {
+    return DEFAULT_REACTION_DIGEST_MAX_PER_RUN;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new TypeError(
+      "REACTION_DIGEST_MAX_PER_RUN must be a positive integer",
+    );
+  }
+  return parsed;
 }
 
 function parseSimilarityThreshold(value: string | undefined): number {

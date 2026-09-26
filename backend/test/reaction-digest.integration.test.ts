@@ -6,6 +6,7 @@ import { createApp } from "../src/app/create-app";
 import type { LinePushResult } from "../src/application/port/line-push-sender";
 import { LineUseCase } from "../src/application/usecase/line.usecase";
 import { ReactionDigestUseCase } from "../src/application/usecase/reaction-digest.usecase";
+import { createApplication } from "../src/bootstrap/container";
 import { D1LineRepository } from "../src/infrastructure/database/d1-line.repository";
 import { D1ReactionDigestRepository } from "../src/infrastructure/database/d1-reaction-digest.repository";
 import {
@@ -495,5 +496,81 @@ describe("reaction digest API", () => {
       error: { code: "REACTION_DIGEST_IN_PROGRESS" },
     });
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("reaction digest configuration", () => {
+  const simulationBindings = {
+    ...env,
+    DEV_AUTH_ENABLED: "true",
+    DEV_ACCESS_BYPASS: "true",
+    DEV_LINE_BROADCAST_SIMULATION: "true",
+    INTERNAL_API_TOKEN: "expected-token",
+    LINE_LIFF_ID: liffId,
+  };
+
+  it("limits one run to REACTION_DIGEST_MAX_PER_RUN deliveries from the binding", async () => {
+    const reactor = await seedUser();
+    for (let index = 0; index < 3; index += 1) {
+      const recipient = await seedUser();
+      await react(
+        await seedConcern(recipient.id),
+        reactor.id,
+        "2026-09-26T01:00:00.000Z",
+      );
+    }
+
+    const bindings = {
+      ...simulationBindings,
+      REACTION_DIGEST_MAX_PER_RUN: "2",
+    };
+    const application = createApplication(bindings);
+    const response = await application.app.request(
+      "/api/v1/line/notifications/reaction-digest",
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer expected-token" },
+      },
+      bindings,
+    );
+
+    // 上限が既定の 40 のままなら 3 件すべて送られ、200 になる。
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      deliveryMode: "simulation",
+      run: {
+        status: "pending",
+        targetCount: 3,
+        sentCount: 2,
+        remainingCount: 1,
+      },
+    });
+  });
+
+  it("rejects a REACTION_DIGEST_MAX_PER_RUN binding that is not a positive integer", () => {
+    for (const value of ["0", "-1", "1.5", "many"]) {
+      expect(() =>
+        createApplication({
+          ...simulationBindings,
+          REACTION_DIGEST_MAX_PER_RUN: value,
+        }),
+      ).toThrow(TypeError);
+    }
+  });
+
+  it("falls back to the default limit when the binding is absent or blank", () => {
+    for (const value of [undefined, "", "  "]) {
+      expect(() =>
+        createApplication({
+          ...simulationBindings,
+          REACTION_DIGEST_MAX_PER_RUN: value,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("rejects an invalid maxPerRun option", () => {
+    expect(() => createDigest({ maxPerRun: 0 })).toThrow(RangeError);
+    expect(() => createDigest({ maxPerRun: 2.5 })).toThrow(RangeError);
   });
 });
