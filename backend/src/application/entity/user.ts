@@ -49,6 +49,31 @@ export function validateFontSize(value: string): FontSize {
   return value as FontSize;
 }
 
+export interface DisplaySettingsInput {
+  displayLanguage?: string;
+  fontSize?: string;
+}
+
+/** 表示設定のうち、更新を指定された項目だけを持つ。 */
+export interface DisplaySettings {
+  displayLanguage?: DisplayLanguage;
+  fontSize?: FontSize;
+}
+
+/** 表示設定の入力値のうち、指定された項目だけを検証して返す。 */
+export function validateDisplaySettings(
+  input: DisplaySettingsInput,
+): DisplaySettings {
+  return {
+    ...(input.displayLanguage !== undefined && {
+      displayLanguage: validateDisplayLanguage(input.displayLanguage),
+    }),
+    ...(input.fontSize !== undefined && {
+      fontSize: validateFontSize(input.fontSize),
+    }),
+  };
+}
+
 export interface UserProfile {
   birthYear: number;
   birthMonth: number;

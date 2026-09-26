@@ -254,8 +254,7 @@ API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の
 | GET | /api/v1/auth/session | 実装済み | 任意（Cookie） | ログイン状態を復元し、Cookie がない場合は未認証セッションを発行 |
 | POST | /api/v1/auth/logout | 実装済み | 任意（Cookie） | セッションを失効させ、Cookie を削除 |
 | PUT | /api/v1/users/me | 実装済み | LINEログイン済みセッション | ログインユーザー自身のプロフィールを更新 |
-| PUT | /api/v1/users/me/display-language | 実装済み | LINEログイン済みセッション | ログインユーザー自身の都道府県表示形式を更新 |
-| PUT | /api/v1/users/me/font-size | 実装済み | LINEログイン済みセッション | ログインユーザー自身の文字サイズを更新 |
+| PUT | /api/v1/users/me/display-language | 実装済み | LINEログイン済みセッション | ログインユーザー自身の表示言語・文字サイズを更新 |
 | POST | /api/v1/sessions/anonymous | 廃止 | 不要 | 旧仕様。匿名セッション作成（現行MVPでは提供しない） |
 | POST | /api/v1/concerns | MVP | LINEログイン（LIFF内のみ） | 悩み投稿 |
 | GET | /api/v1/concerns | MVP | 不要（閲覧のみ） | 新着または推薦フィード |
@@ -329,37 +328,26 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
 
 ### 2.2 PUT /api/v1/users/me/display-language
 
-LINEログイン済みユーザー自身の表示言語（悩み本文、性別・年代・都道府県名の表示形式）を更新する。表示形式は `original`、`jaHira`、`en` のいずれかとする。
+LINEログイン済みユーザー自身の表示設定を更新する。Request に含めた項目だけを更新し、省略した項目は現在の値を維持する。少なくとも1項目を指定する。
+
+| 項目 | 値 | 内容 |
+| --- | --- | --- |
+| displayLanguage | `original`、`jaHira`、`en` | 悩み本文、性別・年代・都道府県名の表示形式 |
+| fontSize | `normal`、`large` | 文字サイズ（標準、大きく表示）。初期値は `normal` |
 
 #### Request
 
 ~~~json
 {
-  "displayLanguage": "jaHira"
-}
-~~~
-
-#### Response: 200 OK
-
-認証レスポンスと同じユーザー情報を返す。`displayLanguage` は更新後の値となる。
-未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`を返す。
-
-### 2.3 PUT /api/v1/users/me/font-size
-
-LINEログイン済みユーザー自身の文字サイズを更新する。文字サイズは `normal`（標準）、`large`（大きく表示）のいずれかとし、初期値は `normal` とする。
-
-#### Request
-
-~~~json
-{
+  "displayLanguage": "jaHira",
   "fontSize": "large"
 }
 ~~~
 
 #### Response: 200 OK
 
-認証レスポンスと同じユーザー情報を返す。`fontSize` は更新後の値となる。
-未認証の場合は401 `AUTHENTICATION_REQUIRED`、値が不正な場合は400 `INVALID_REQUEST`（`details` の `field` は `fontSize`）を返す。
+認証レスポンスと同じユーザー情報を返す。`displayLanguage`、`fontSize` は更新後の値となる。
+未認証の場合は401 `AUTHENTICATION_REQUIRED`、項目を1つも指定しない場合や値が不正な場合は400 `INVALID_REQUEST`を返す。値が不正な場合、`details` の `field` は `displayLanguage` または `fontSize` とする。
 
 ## 3. 悩み API
 

@@ -35,12 +35,8 @@ function createRepository() {
       };
       return updated;
     },
-    updateDisplayLanguage: async (userId, displayLanguage) => {
-      updated = { ...existingUser, id: userId, displayLanguage };
-      return updated;
-    },
-    updateFontSize: async (userId, fontSize) => {
-      updated = { ...existingUser, id: userId, fontSize };
+    updateDisplaySettings: async (userId, settings) => {
+      updated = { ...existingUser, id: userId, ...settings };
       return updated;
     },
   };
@@ -93,10 +89,15 @@ describe("UserUseCase", () => {
     const { repository, getUpdated } = createRepository();
     const useCase = new UserUseCase(repository);
 
-    const result = await useCase.updateFontSize("user_1", "large");
+    const result = await useCase.updateDisplaySettings("user_1", {
+      fontSize: "large",
+    });
 
     expect(result).toEqual(getUpdated());
-    expect(result.fontSize).toBe("large");
+    expect(result).toMatchObject({
+      displayLanguage: "original",
+      fontSize: "large",
+    });
   });
 
   it("rejects an unsupported font size", async () => {
@@ -104,7 +105,7 @@ describe("UserUseCase", () => {
     const useCase = new UserUseCase(repository);
 
     await expect(
-      useCase.updateFontSize("user_1", "huge"),
+      useCase.updateDisplaySettings("user_1", { fontSize: "huge" }),
     ).rejects.toBeInstanceOf(FontSizeValidationError);
     expect(getUpdated()).toBeUndefined();
   });

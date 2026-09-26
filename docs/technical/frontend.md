@@ -155,7 +155,7 @@ LINE user ID、アクセストークン、プロフィール情報はURL、ロ�
 
 ### 文字サイズの保存
 
-- `DisplaySettingsProvider` の `fontSize` を唯一の文字サイズの状態とする。ログイン済みの場合は設定画面で `PUT /api/v1/users/me/font-size` に保存し、成功後に反映する。保存に失敗した場合は現在の文字サイズを維持し、エラーを表示する。
+- `DisplaySettingsProvider` の `fontSize` を唯一の文字サイズの状態とする。ログイン済みの場合は設定画面で表示言語と同じ `PUT /api/v1/users/me/display-language` に `fontSize` だけを送って保存し、成功後に反映する。保存に失敗した場合は現在の文字サイズを維持し、エラーを表示する。
 - 未ログインの場合はメモリ内の状態だけを切り替え、アカウントには保存しない。ログイン後はセッションの `user.fontSize` を復元し、未ログイン時に選んだ値より優先する。
 
 ### 表示言語とUI文言

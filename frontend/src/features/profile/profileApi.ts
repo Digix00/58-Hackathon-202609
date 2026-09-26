@@ -71,6 +71,11 @@ export type UserProfileInput = {
   regionCode: RegionCode
 }
 
+export type DisplaySettingsInput = {
+  displayLanguage?: DisplayLanguage
+  fontSize?: FontSize
+}
+
 type ProfileApiClient = typeof apiClient & {
   api: typeof apiClient.api & {
     v1: typeof apiClient.api.v1 & {
@@ -78,10 +83,7 @@ type ProfileApiClient = typeof apiClient & {
         me: {
           $put: (args: { json: UserProfileInput }) => Promise<Response>
           'display-language': {
-            $put: (args: { json: { displayLanguage: DisplayLanguage } }) => Promise<Response>
-          }
-          'font-size': {
-            $put: (args: { json: { fontSize: FontSize } }) => Promise<Response>
+            $put: (args: { json: DisplaySettingsInput }) => Promise<Response>
           }
         }
       }
@@ -103,38 +105,22 @@ export async function updateUserProfile(
   return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.profile') }
 }
 
-export async function updateUserDisplayLanguage(
-  displayLanguage: DisplayLanguage,
+/** 表示言語・文字サイズのうち、指定した項目だけをアカウントへ保存する。 */
+export async function updateUserDisplaySettings(
+  settings: DisplaySettingsInput,
+  fallbackMessage: 'error.language' | 'error.fontSize',
 ): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
   const response = await profileApiClient.api.v1.users.me['display-language'].$put({
-    json: { displayLanguage },
+    json: settings,
   })
   if (response.ok) {
     const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
     if (body?.user) return { ok: true, user: body.user }
-    return { ok: false, message: 'error.language' }
+    return { ok: false, message: fallbackMessage }
   }
 
   const body = (await response.json().catch(() => null)) as {
     error?: { code?: string; message?: string }
   } | null
-  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.language') }
-}
-
-export async function updateUserFontSize(
-  fontSize: FontSize,
-): Promise<{ ok: true; user: AuthenticatedUser } | { ok: false; message: string }> {
-  const response = await profileApiClient.api.v1.users.me['font-size'].$put({
-    json: { fontSize },
-  })
-  if (response.ok) {
-    const body = (await response.json().catch(() => null)) as { user?: AuthenticatedUser } | null
-    if (body?.user) return { ok: true, user: body.user }
-    return { ok: false, message: 'error.fontSize' }
-  }
-
-  const body = (await response.json().catch(() => null)) as {
-    error?: { code?: string; message?: string }
-  } | null
-  return { ok: false, message: apiErrorMessage(body?.error?.code, 'error.fontSize') }
+  return { ok: false, message: apiErrorMessage(body?.error?.code, fallbackMessage) }
 }

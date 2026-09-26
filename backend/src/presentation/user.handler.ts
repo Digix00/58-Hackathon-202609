@@ -19,12 +19,15 @@ const updateUserProfileRequest = z.object({
   gender: z.string(),
   regionCode: z.string(),
 });
-const updateDisplayLanguageRequest = z.object({
-  displayLanguage: z.string(),
-});
-const updateFontSizeRequest = z.object({
-  fontSize: z.string(),
-});
+const updateDisplaySettingsRequest = z
+  .object({
+    displayLanguage: z.string().optional(),
+    fontSize: z.string().optional(),
+  })
+  .refine(
+    (body) => body.displayLanguage !== undefined || body.fontSize !== undefined,
+    { message: "displayLanguage or fontSize is required" },
+  );
 
 const factory = createFactory<{
   Bindings: Bindings;
@@ -99,7 +102,7 @@ export class UserHandler {
     }
   });
 
-  readonly updateDisplayLanguage = factory.createHandlers(async (c) => {
+  readonly updateDisplaySettings = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
     const auth = c.var.auth;
     if (!auth?.user) {
@@ -107,7 +110,7 @@ export class UserHandler {
         {
           error: {
             code: "AUTHENTICATION_REQUIRED",
-            message: "表示形式の更新にはLINEログインが必要です",
+            message: "表示設定の更新にはLINEログインが必要です",
             requestId,
           },
         },
@@ -115,7 +118,7 @@ export class UserHandler {
       );
     }
 
-    const parsed = updateDisplayLanguageRequest.safeParse(
+    const parsed = updateDisplaySettingsRequest.safeParse(
       await readJson(c.req.raw),
     );
     if (!parsed.success) {
@@ -123,7 +126,7 @@ export class UserHandler {
         {
           error: {
             code: "INVALID_REQUEST",
-            message: "表示形式を確認してください",
+            message: "表示設定を確認してください",
             details: parsed.error.issues.map((issue) => ({
               field: issue.path.join(".") || "body",
               reason: issue.code,
@@ -136,77 +139,25 @@ export class UserHandler {
     }
 
     try {
-      const user = await this.userUseCase.updateDisplayLanguage(
+      const user = await this.userUseCase.updateDisplaySettings(
         auth.user.id,
-        parsed.data.displayLanguage,
+        parsed.data,
       );
       return c.json({ authenticated: true, user: toUserResponse(user) });
     } catch (error) {
-      if (error instanceof DisplayLanguageValidationError) {
+      const field =
+        error instanceof DisplayLanguageValidationError
+          ? "displayLanguage"
+          : error instanceof FontSizeValidationError
+            ? "fontSize"
+            : null;
+      if (field) {
         return c.json(
           {
             error: {
               code: "INVALID_REQUEST",
-              message: "表示形式を確認してください",
-              details: [{ field: "displayLanguage", reason: "invalid" }],
-              requestId,
-            },
-          },
-          400,
-        );
-      }
-      throw error;
-    }
-  });
-
-  readonly updateFontSize = factory.createHandlers(async (c) => {
-    const requestId = setRequestId(c);
-    const auth = c.var.auth;
-    if (!auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "文字サイズの更新にはLINEログインが必要です",
-            requestId,
-          },
-        },
-        401,
-      );
-    }
-
-    const parsed = updateFontSizeRequest.safeParse(await readJson(c.req.raw));
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: "INVALID_REQUEST",
-            message: "文字サイズを確認してください",
-            details: parsed.error.issues.map((issue) => ({
-              field: issue.path.join(".") || "body",
-              reason: issue.code,
-            })),
-            requestId,
-          },
-        },
-        400,
-      );
-    }
-
-    try {
-      const user = await this.userUseCase.updateFontSize(
-        auth.user.id,
-        parsed.data.fontSize,
-      );
-      return c.json({ authenticated: true, user: toUserResponse(user) });
-    } catch (error) {
-      if (error instanceof FontSizeValidationError) {
-        return c.json(
-          {
-            error: {
-              code: "INVALID_REQUEST",
-              message: "文字サイズを確認してください",
-              details: [{ field: "fontSize", reason: "invalid" }],
+              message: "表示設定を確認してください",
+              details: [{ field, reason: "invalid" }],
               requestId,
             },
           },

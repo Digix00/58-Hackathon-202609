@@ -388,24 +388,31 @@ describe("authentication routes", () => {
     return cookieFrom(login);
   }
 
-  it("updates and restores the authenticated user's font size", async () => {
+  it("updates only the specified display settings and restores them", async () => {
     const app = createTestApp("line_font_size_test_user");
     const cookie = await loginAs(app);
+    const updateSettings = (body: Record<string, string>) =>
+      app.request(
+        "/api/v1/users/me/display-language",
+        {
+          method: "PUT",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        env,
+      );
 
-    const update = await app.request(
-      "/api/v1/users/me/font-size",
-      {
-        method: "PUT",
-        headers: { Cookie: cookie, "Content-Type": "application/json" },
-        body: JSON.stringify({ fontSize: "large" }),
-      },
-      env,
-    );
+    const language = await updateSettings({ displayLanguage: "en" });
+    expect(language.status).toBe(200);
+    expect(await language.json()).toMatchObject({
+      user: { displayLanguage: "en", fontSize: "normal" },
+    });
 
-    expect(update.status).toBe(200);
-    expect(await update.json()).toMatchObject({
+    const fontSize = await updateSettings({ fontSize: "large" });
+    expect(fontSize.status).toBe(200);
+    expect(await fontSize.json()).toMatchObject({
       authenticated: true,
-      user: { fontSize: "large", displayLanguage: "original" },
+      user: { displayLanguage: "en", fontSize: "large" },
     });
 
     const restored = await app.request(
@@ -415,7 +422,7 @@ describe("authentication routes", () => {
     );
     expect(await restored.json()).toMatchObject({
       authenticated: true,
-      user: { fontSize: "large" },
+      user: { displayLanguage: "en", fontSize: "large" },
     });
   });
 
@@ -424,7 +431,7 @@ describe("authentication routes", () => {
     const cookie = await loginAs(app);
 
     const response = await app.request(
-      "/api/v1/users/me/font-size",
+      "/api/v1/users/me/display-language",
       {
         method: "PUT",
         headers: { Cookie: cookie, "Content-Type": "application/json" },
@@ -442,11 +449,31 @@ describe("authentication routes", () => {
     });
   });
 
+  it("rejects display settings updates without any setting", async () => {
+    const app = createTestApp("line_display_settings_empty_test_user");
+    const cookie = await loginAs(app);
+
+    const response = await app.request(
+      "/api/v1/users/me/display-language",
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+  });
+
   it("rejects font size updates without an authenticated user", async () => {
     const app = createTestApp("line_font_size_auth_required_test_user");
 
     const response = await app.request(
-      "/api/v1/users/me/font-size",
+      "/api/v1/users/me/display-language",
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

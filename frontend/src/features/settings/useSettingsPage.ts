@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../auth/useAuth'
 import { useDisplaySettings } from '../../app/providers/DisplaySettingsContext'
-import { updateUserDisplayLanguage, updateUserFontSize } from '../profile/profileApi'
+import { updateUserDisplaySettings } from '../profile/profileApi'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
 
@@ -20,7 +20,7 @@ export function useSettingsPage() {
     setLanguageStatus('saving')
     setLanguageError(null)
     try {
-      const result = await updateUserDisplayLanguage(value)
+      const result = await updateUserDisplaySettings({ displayLanguage: value }, 'error.language')
       if (!result.ok) {
         setLanguageStatus('failed')
         setLanguageError(result.message)
@@ -47,7 +47,7 @@ export function useSettingsPage() {
     setFontSizeStatus('saving')
     setFontSizeError(null)
     try {
-      const result = await updateUserFontSize(value)
+      const result = await updateUserDisplaySettings({ fontSize: value }, 'error.fontSize')
       if (!result.ok) {
         setFontSizeStatus('failed')
         setFontSizeError(result.message)
