@@ -1,9 +1,17 @@
-import type { Concern } from "../entity/concern";
+import type { Concern, Gender } from "../entity/concern";
 import type {
   ConcernFeedCandidate,
   FeedImpression,
   RecommendationHistory,
 } from "../entity/feed";
+
+/** 投稿の属性が未指定の場合に、insert時のフォールバック元となる認証済みユーザーのプロフィール。 */
+export interface CreateConcernUserProfile {
+  birthYear: number | null;
+  birthMonth: number | null;
+  gender: Gender | null;
+  regionCode: string | null;
+}
 
 export interface ConcernListCursor {
   createdAt: string;
@@ -58,7 +66,14 @@ export interface ListConcernFeedByIdsInput {
  * 実装の詳細（D1やDrizzle）をApplication層へ持ち込まない。
  */
 export interface ConcernRepository {
-  insert(concern: Concern): Promise<Concern>;
+  /**
+   * concernを永続化する。userProfileはageGroup/gender/regionCodeが未指定のときの
+   * フォールバック元。優先順位の判断（明示指定を優先する）は実装側が担う。
+   */
+  insert(
+    concern: Concern,
+    userProfile?: CreateConcernUserProfile,
+  ): Promise<Concern>;
   listPublished(
     input: ListPublishedConcernsInput,
   ): Promise<ListPublishedConcernsResult>;

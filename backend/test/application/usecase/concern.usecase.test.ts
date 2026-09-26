@@ -78,9 +78,13 @@ describe("ConcernUseCase", () => {
     expect(result.regionCode).toBeNull();
   });
 
-  it("falls back to the user's profile when attributes are omitted", async () => {
+  it("passes the caller's userProfile through to the repository as a fallback source", async () => {
+    let receivedProfile: unknown;
     const repository: ConcernRepository = {
-      insert: async (concern) => concern,
+      insert: async (concern, userProfile) => {
+        receivedProfile = userProfile;
+        return concern;
+      },
       listPublished: async () => ({ items: [], hasMore: false }),
       findPublishedById: async () => null,
     };
@@ -89,80 +93,20 @@ describe("ConcernUseCase", () => {
       () => new Date("2026-09-22T00:00:00.000Z"),
       () => "fixed-id",
     );
-
-    const result = await useCase.create({
-      userId: "user_1",
-      body: "属性はプロフィールから補われる投稿",
-      userProfile: {
-        birthYear: 2006,
-        birthMonth: 8,
-        gender: "female",
-        regionCode: "osaka",
-      },
-    });
-
-    expect(result.ageGroup).toBe("20s");
-    expect(result.gender).toBe("female");
-    expect(result.regionCode).toBe("osaka");
-  });
-
-  it("prefers explicitly provided attributes over the user's profile", async () => {
-    const repository: ConcernRepository = {
-      insert: async (concern) => concern,
-      listPublished: async () => ({ items: [], hasMore: false }),
-      findPublishedById: async () => null,
+    const userProfile = {
+      birthYear: 2006,
+      birthMonth: 8,
+      gender: "female" as const,
+      regionCode: "osaka",
     };
-    const useCase = new ConcernUseCase(
-      repository,
-      () => new Date("2026-09-22T00:00:00.000Z"),
-      () => "fixed-id",
-    );
 
-    const result = await useCase.create({
+    await useCase.create({
       userId: "user_1",
-      body: "明示的な属性を優先する投稿",
-      ageGroup: "30s",
-      gender: "male",
-      regionCode: "tokyo",
-      userProfile: {
-        birthYear: 2006,
-        birthMonth: 8,
-        gender: "female",
-        regionCode: "osaka",
-      },
+      body: "属性の補完はrepositoryに委ねる投稿",
+      userProfile,
     });
 
-    expect(result.ageGroup).toBe("30s");
-    expect(result.gender).toBe("male");
-    expect(result.regionCode).toBe("tokyo");
-  });
-
-  it("stores null attributes when the profile is incomplete", async () => {
-    const repository: ConcernRepository = {
-      insert: async (concern) => concern,
-      listPublished: async () => ({ items: [], hasMore: false }),
-      findPublishedById: async () => null,
-    };
-    const useCase = new ConcernUseCase(
-      repository,
-      () => new Date("2026-09-22T00:00:00.000Z"),
-      () => "fixed-id",
-    );
-
-    const result = await useCase.create({
-      userId: "user_1",
-      body: "プロフィール未設定の投稿",
-      userProfile: {
-        birthYear: null,
-        birthMonth: null,
-        gender: null,
-        regionCode: null,
-      },
-    });
-
-    expect(result.ageGroup).toBeNull();
-    expect(result.gender).toBeNull();
-    expect(result.regionCode).toBeNull();
+    expect(receivedProfile).toEqual(userProfile);
   });
 
   it("rejects an invalid body via the Concern entity's invariant check", async () => {
