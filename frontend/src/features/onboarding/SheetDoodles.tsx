@@ -160,6 +160,15 @@ const DOODLE_ART = {
       { d: TREE.trunk, line: '#c3ab75' },
     ],
   },
+  treeYellow: {
+    viewBox: '0 0 32 32',
+    ratio: 1,
+    line: '#9cae5c',
+    parts: [
+      { d: TREE.crown, fill: '#dfe7ae' },
+      { d: TREE.trunk, line: '#c3ab75' },
+    ],
+  },
   popper: {
     viewBox: '0 0 32 32',
     ratio: 1,
@@ -181,6 +190,14 @@ type Doodle = {
   at: readonly [x: number, y: number]
   size: number
   tilt: number
+  /**
+   * 背の低い端末では描かない1つ。
+   *
+   * 紙の高さは画面に合わせて縮むが、問いと入力欄は縮まないので、余白だけが減る。
+   * 減った余白に同じ数を描くと、絵が問いや入力欄の裏へ回り、半分だけ覗く。
+   * 描き切れないぶんは、小さくするのではなく描かない。
+   */
+  short?: false
 }
 
 /**
@@ -193,9 +210,10 @@ type Doodle = {
 const DOODLES: Partial<Record<OnboardingPage, readonly Doodle[]>> = {
   // 生まれた年月。誕生日の場面を、紙の上と下に分けて置く。
   birth: [
-    { art: 'balloonPink', at: [80, 13], size: 3.9, tilt: -7 },
-    { art: 'balloonBlue', at: [92, 20], size: 2.9, tilt: 9 },
-    { art: 'cake', at: [78, 88], size: 4.6, tilt: -3 },
+    { art: 'balloonPink', at: [83, 10], size: 3.7, tilt: -7 },
+    { art: 'balloonBlue', at: [93, 17], size: 2.7, tilt: 9 },
+    // ケーキは入力欄のすぐ下。紙が縮むと欄に隠れるので、背の低い端末では描かない。
+    { art: 'cake', at: [77, 87], size: 5.2, tilt: -3, short: false },
   ],
   // 言葉を選ぶ紙。中は空の吹き出しにして、答えの例を先に見せない。
   gender: [
@@ -203,15 +221,18 @@ const DOODLES: Partial<Record<OnboardingPage, readonly Doodle[]>> = {
     { art: 'bubblePink', at: [16, 91], size: 3.2, tilt: 8 },
   ],
   // 地域の紙。紙の下辺を地面に見立てて、おうちと木を並べる。
+  // 一覧が開いても下辺までは届かないので、ここは隠れない。
   region: [
-    { art: 'house', at: [79, 87], size: 4.6, tilt: -2 },
-    { art: 'tree', at: [92, 89], size: 3.4, tilt: 4 },
+    { art: 'house', at: [72, 84], size: 6, tilt: -2 },
+    { art: 'tree', at: [89, 86], size: 4.4, tilt: 4 },
+    { art: 'treeYellow', at: [21, 87], size: 3.8, tilt: -5 },
   ],
   // 書き終えた紙。名札の上下で、はじけたところを描く。
   done: [
-    { art: 'popper', at: [83, 14], size: 4.6, tilt: -8 },
-    { art: 'confetti', at: [22, 12], size: 3.8, tilt: 6 },
-    { art: 'confetti', at: [80, 88], size: 3.4, tilt: -5 },
+    { art: 'popper', at: [82, 13], size: 5.2, tilt: -8 },
+    { art: 'confetti', at: [22, 12], size: 4, tilt: 6 },
+    { art: 'confetti', at: [78, 85], size: 3.8, tilt: -5 },
+    { art: 'confetti', at: [24, 88], size: 3.2, tilt: 12 },
   ],
 }
 
@@ -254,10 +275,10 @@ export function SheetDoodles({ page }: { page: OnboardingPage }) {
 
   return (
     <span className={styles.layer} aria-hidden="true">
-      {doodles.map(({ art, at, size, tilt }, order) => (
+      {doodles.map(({ art, at, size, tilt, short }, order) => (
         <span
           key={`${art}-${at[0]}-${at[1]}`}
-          className={styles.doodle}
+          className={`${styles.doodle} ${short === false ? styles.tallOnly : ''}`}
           style={
             {
               '--x': `${at[0]}%`,

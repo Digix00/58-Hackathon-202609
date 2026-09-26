@@ -46,9 +46,15 @@ const PAGE_TITLES: Record<OnboardingPageName, string> = {
   done: 'これで、はじめられます。',
 }
 
-/** めくり直すたびにアニメーションを最初から流すための鍵。 */
-function turningKey(turning: OnboardingTurn) {
-  return `${turning.page}-${turning.direction}`
+/**
+ * めくり直すたびにアニメーションを最初から流すための鍵。
+ *
+ * 同じ鍵を持つ要素が隣に並ぶと、Reactがどちらかを取り違えて作り直す。
+ * めくり終わりの合図はめくる紙の animationend なので、取り違えられると
+ * 合図が届かず、めくっている紙が立ったまま残る。役割ごとに別の鍵にする。
+ */
+function turningKey(turning: OnboardingTurn, part: 'rear' | 'sheet') {
+  return `${part}-${turning.page}-${turning.direction}`
 }
 
 /**
@@ -344,10 +350,10 @@ function OnboardingStack({
             </div>
           </div>
         ) : null}
-        {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
+        {turning ? <NotebookBinding key={turningKey(turning, 'rear')} part="rear" between /> : null}
         {turning ? (
           <NotebookTurn
-            key={turningKey(turning)}
+            key={turningKey(turning, 'sheet')}
             variant={turning.page === 'cover' ? 'cover' : 'page'}
             startAngle={turning.startAngle}
             direction={turning.direction}

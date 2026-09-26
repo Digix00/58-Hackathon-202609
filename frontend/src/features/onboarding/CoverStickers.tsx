@@ -32,12 +32,16 @@ type StickerArt = {
   parts: readonly StickerPart[]
 }
 
-/** えんぴつ。木の部分と芯を別の色で塗る。1色で塗ると棒に見える。 */
+/**
+ * えんぴつ。木の部分・芯・尻のゴムを別の色で塗る。1色で塗ると棒に見える。
+ * 軸は表紙のクレヨンより細くする。同じ太さだと、紙の上の絵が机へ出てきたように見える。
+ */
 const PENCIL = {
-  wood: 'M16 2.4 21.4 12.6 10.6 12.8Z',
-  lead: 'M16 2.4 18.2 6.6 13.8 6.7Z',
-  body: 'M10.6 12.8 21.4 12.6c1 6.1 1.1 12.2.4 18.3l-11.6.3c-.8-6.2-.7-12.4.4-18.4Z',
-  band: 'M10.8 17.4 21.2 17.1',
+  wood: 'M16 2.6 20.4 12.2 11.6 12.4Z',
+  lead: 'M16 2.6 17.9 6.4 14.1 6.5Z',
+  body: 'M11.6 12.4 20.4 12.2c.8 5 .9 10 .4 15l-9.5.3c-.5-5.1-.4-10.2.3-15.1Z',
+  band: 'M11.7 16.4 20.3 16.2',
+  rubber: 'M11.3 27.2 20.8 27c.3 1.4.3 2.8.2 4.2l-10 .3c-.3-1.5-.3-3-.2-4.3Z',
 }
 
 /** けしゴム。下半分の紙の帯だけ色を変える。帯がないと角の取れた箱に見える。 */
@@ -50,10 +54,22 @@ const ERASER = {
 const CLIP =
   'M11.6 26.4V11.2c0-3 2-5.4 4.6-5.4s4.6 2.4 4.6 5.4v14.6c0 2.2-1.4 3.9-3.3 3.9s-3.3-1.7-3.3-3.9V12.2c0-1.1.8-2 1.8-2s1.8.9 1.8 2v12.6'
 
-/** 画びょう。頭を横から見た形にして、針を下へ出す。 */
-const PIN = {
-  head: 'M16 4.4c4.8 0 8.8 3.1 8.8 7s-4 7-8.8 7-8.8-3.1-8.8-7 4-7 8.8-7Z',
-  needle: 'M16 18.4c.4 4.4.8 7.6 1.2 9.8',
+/**
+ * 三角定規。輪郭と、まんなかの穴だけで描く。
+ * 目盛りは刻まない。この大きさでは線が潰れて、汚れにしか見えない。
+ *
+ * 画びょうは描かない。横から見ると頭と針になるが、この大きさでは
+ * どう描いてもきのこに見え、机の道具として読めなかった。
+ */
+const RULER = {
+  body: 'M5 27.6 5.8 7 26.4 26.8Z',
+  hole: 'M11.6 22.4c0-2 1.6-3.6 3.6-3.6s3.6 1.6 3.6 3.6-1.6 3.6-3.6 3.6-3.6-1.6-3.6-3.6Z',
+}
+
+/** インクのしずく。落ちる向きに尖らせる。丸く描くと玉に見える。 */
+const DROP = {
+  body: 'M16 3.8c4.6 6.4 7 11.2 7 14.6 0 4.3-3.1 7.6-7 7.6s-7-3.3-7-7.6c0-3.4 2.4-8.2 7-14.6Z',
+  shine: 'M12.8 19c-.1-1.7.5-3.2 1.8-4.4',
 }
 
 /** ふせん。罫線は2本だけ。3本以上引くと、書かれた文字に見える。 */
@@ -97,6 +113,7 @@ const STICKER_ART = {
       { d: PENCIL.body, fill: '#f6cf63' },
       { d: PENCIL.wood, fill: '#f4e3c4', line: '#c3ab75' },
       { d: PENCIL.lead, fill: '#8d8577', line: '#6f685d' },
+      { d: PENCIL.rubber, fill: '#f5a8bd', line: '#d9738f' },
       { d: PENCIL.band },
     ],
   },
@@ -107,6 +124,7 @@ const STICKER_ART = {
       { d: PENCIL.body, fill: '#bcaee2' },
       { d: PENCIL.wood, fill: '#f4e3c4', line: '#c3ab75' },
       { d: PENCIL.lead, fill: '#8d8577', line: '#6f685d' },
+      { d: PENCIL.rubber, fill: '#f0d9a4', line: '#c3ab75' },
       { d: PENCIL.band },
     ],
   },
@@ -118,19 +136,13 @@ const STICKER_ART = {
     ],
   },
   clip: { line: '#8fa9c2', parts: [{ d: CLIP }] },
-  pin: {
-    line: '#d9738f',
-    parts: [
-      { d: PIN.head, fill: '#f5a8bd' },
-      { d: PIN.needle, line: '#8d8577' },
-    ],
-  },
-  pinMint: {
+  ruler: {
     line: '#6fae87',
-    parts: [
-      { d: PIN.head, fill: '#c3e2c8' },
-      { d: PIN.needle, line: '#8d8577' },
-    ],
+    parts: [{ d: RULER.body, fill: '#d8ecd9' }, { d: RULER.hole }],
+  },
+  drop: {
+    line: '#d9738f',
+    parts: [{ d: DROP.body, fill: '#f7c9d8' }, { d: DROP.shine }],
   },
   memo: {
     line: '#dda630',
@@ -179,8 +191,8 @@ type Sticker = {
  * 本のまわりに出したままの12本。
  *
  * 種類・大きさ・角度を隣どうしで変え、同じものが並ばないようにする。
- * 上辺には旗と、紙をとめる道具（画びょう・クリップ）を寄せ、
- * 下辺には机に転がる道具（えんぴつ・けしゴム）を寄せる。
+ * 上辺には旗と、紙にはさむ道具（ふせん・クリップ）を寄せ、
+ * 下辺には机に転がる道具（えんぴつ・けしゴム・定規）を寄せる。
  * どこに置いても同じように散らすと、机ではなく模様に見える。
  *
  * 場所は紙そのものに対する割合で指す。紙の外へ置く道具は0%より手前と100%より先を使う。
@@ -194,9 +206,9 @@ type Sticker = {
  * ふちすれすれの1本を後回しにすると、入っていく前に広がった紙の下へ潜ってしまう。
  */
 const STICKERS: readonly Sticker[] = [
-  { art: 'garland', at: [46, -15], size: 7.4, tilt: -3, drift: [0.4, -8.6], spin: 10, step: 4 },
+  { art: 'garland', at: [46, -12], size: 7.4, tilt: -3, drift: [0.4, -8.6], spin: 10, step: 4 },
   { art: 'pencil', at: [3, -12], size: 6.6, tilt: -18, drift: [-7.6, -6.6], spin: -30, step: 2 },
-  { art: 'pin', at: [21, -13.5], size: 3.5, tilt: 8, drift: [2.4, -8.2], spin: 18, step: 4 },
+  { art: 'drop', at: [21, -13.5], size: 3.4, tilt: 8, drift: [2.4, -8.2], spin: 18, step: 4 },
   { art: 'memo', at: [106, -8], size: 6.4, tilt: 12, drift: [7.8, -6.6], spin: 32, step: 2 },
   { art: 'tape', at: [112, 22], size: 5.2, tilt: -9, drift: [9.2, -0.8], spin: 24, step: 0 },
   { art: 'note', at: [113, 58], size: 4, tilt: 11, drift: [9.2, 2.1], spin: 20, step: 1 },
@@ -213,7 +225,7 @@ const STICKERS: readonly Sticker[] = [
     spin: -16,
     step: 1,
   },
-  { art: 'pinMint', at: [-8.5, 20], size: 4.4, tilt: -12, drift: [-9.2, -1.4], spin: -24, step: 0 },
+  { art: 'ruler', at: [-8.5, 20], size: 5, tilt: -12, drift: [-9.2, -1.4], spin: -24, step: 0 },
 ]
 
 /**

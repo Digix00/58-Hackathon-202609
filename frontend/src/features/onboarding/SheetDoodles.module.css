@@ -105,6 +105,14 @@
   .layer {
     font-size: 0.8em;
   }
+
+  /*
+   * 背の低い端末では、余白に収まらない1つを描かない。
+   * 小さくして詰めると、問いや入力欄の裏から絵が半分だけ覗く。
+   */
+  .tallOnly {
+    display: none;
+  }
 }
 
 @media (prefers-contrast: more) {
