@@ -47,11 +47,7 @@
   /* 付箋が紙へ差し込まれて隠れる深さ。残りは紙の上端から外へ出る。 */
   --tab-inset: 1em;
 
-  position: relative;
-  display: grid;
-  min-width: 0;
-  /* 右へはみ出す紙のぶんだけ束を左へ寄せ、画面の外へ出さない。 */
-  margin-inline-end: 8px;
+  --notebook-stack-shadow: 6px 7px 0 var(--color-paper-shadow);
   /*
    * 表紙が開いたときの押し上げ。--lift は useStackLift が一度だけ入れる。
    * 版面の組み直しではなく合成で動かすので、クレヨンのふちが描き直されない。
@@ -68,43 +64,6 @@
 
 .stackCover.stackOpening {
   transform: translateY(var(--lift, 0px)) scale(1);
-}
-
-/*
- * 下に控えた紙。紙の面（要素）とふちのクレヨン線（::before）を分けるのは、
- * 紙の目のマスクを面にかけると、紙が汚れて見えるため。
- */
-.sheet {
-  position: absolute;
-  inset: 0;
-  border-radius: 22px 18px 24px 19px / 19px 25px 18px 23px;
-  pointer-events: none;
-}
-
-.sheet::before {
-  position: absolute;
-  inset: -2px;
-  border: 3.5px solid var(--color-outline);
-  border-radius: inherit;
-  filter: url(#crayon-edge);
-  -webkit-mask-image: var(--crayon-grain);
-  mask-image: var(--crayon-grain);
-  -webkit-mask-size: 160px 160px;
-  mask-size: 160px 160px;
-  opacity: 0.72;
-  content: '';
-}
-
-/* 遠い方の紙。先に描かれるので束の一番下になる。 */
-.sheetFar {
-  background: #fdf5e4;
-  box-shadow: 6px 7px 0 var(--color-paper-shadow);
-  transform: rotate(2.4deg) translate(8px, 10px);
-}
-
-.sheetNear {
-  background: #fffaef;
-  transform: rotate(1.3deg) translate(4px, 5px);
 }
 
 .enter {
@@ -822,7 +781,6 @@
 
 @media (prefers-contrast: more) {
   /* 高コントラスト時は、かすれを外して紙としおりのふちを確実に示す。 */
-  .sheet::before,
   .verdict::before,
   .score::before,
   .ring {

@@ -16,8 +16,8 @@ import { ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { SelectField } from '../../shared/components/FormFields'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
+import { NotebookOpening, NotebookStack } from '../../shared/components/NotebookStack'
 import { QiiteLogo } from '../../shared/components/QiiteLogo'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import turnStyles from '../../shared/styles/NotebookTurn.module.css'
@@ -42,15 +42,6 @@ import { useFeed } from './useFeed'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
-
-/** 表紙の裏。声の紙とは違う色を当てず、同じ紙として見せる。 */
-const COVER_BACK_COLOR = '#a894dd'
-
-/** ページをめくっても紙の裏面が色変わりしないよう、裏面の色を固定する。 */
-const PAGE_BACK_COLOR = '#e3d8c0'
-
-/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
@@ -293,50 +284,29 @@ function FeedStack({
   reactionError,
 }: FeedStackProps) {
   return (
-    <div
-      ref={stackRef}
-      className={`${styles.stackMotion} ${coverOpening ? styles.stackOpening : ''}`}
-    >
-      <div className={styles.stack} style={notebookBindingStyle}>
-        {/*
-         * 本の下に敷いたシール。大きい1枚は紙の下へ潜り込み、はみ出した側だけが見える。
-         * 紙より先に置くのは、そうしないと紙の上に貼られて本文より前に出るため。
-         * 紙束の中に置くので、表紙が開くときは本と一緒に大きくなる。
-         * 表紙が開ききったら、散り終えたまま外す。
-         */}
-        {!coverOpened ? <CoverStickers scattering={coverOpening} /> : null}
-        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-        {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-        <NotebookBinding part="rear" />
-        {/* めくり終えた紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-        {coverOpened ? (
-          <div className={turnStyles.turned} aria-hidden="true">
-            <div
-              className={`${turnStyles.back} ${crayonStyles.edge}`}
-              style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <NotebookOpening ref={stackRef} opening={coverOpening}>
+      <NotebookStack
+        className={styles.stack}
+        opened={coverOpened}
+        decoration={!coverOpened ? <CoverStickers scattering={coverOpening} /> : null}
+        turning={
+          turning ? (
+            <NotebookTurn
+              key={turningKey(turning)}
+              variant={turning.kind === 'cover' ? 'cover' : 'page'}
+              startAngle={turning.startAngle}
+              direction={turning.kind === 'concern' ? turning.direction : 1}
+              onFinish={onTurningFinished}
             >
-              <NotebookBinding part="holes" back />
-            </div>
-          </div>
-        ) : null}
-        {turning ? <NotebookBinding key={turningKey(turning)} part="rear" between /> : null}
-        {turning ? (
-          <NotebookTurn
-            key={turningKey(turning)}
-            variant={turning.kind === 'cover' ? 'cover' : 'page'}
-            startAngle={turning.startAngle}
-            direction={turning.kind === 'concern' ? turning.direction : 1}
-            backColor={turning.kind === 'concern' ? PAGE_BACK_COLOR : COVER_BACK_COLOR}
-            onFinish={onTurningFinished}
-          >
-            {turning.kind === 'concern' ? (
-              <FeedCard concern={turning.concern} page={turning.page} />
-            ) : (
-              <FeedCover />
-            )}
-          </NotebookTurn>
-        ) : null}
+              {turning.kind === 'concern' ? (
+                <FeedCard concern={turning.concern} page={turning.page} />
+              ) : (
+                <FeedCover />
+              )}
+            </NotebookTurn>
+          ) : null
+        }
+      >
         {/*
          * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
          * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
@@ -364,10 +334,8 @@ function FeedStack({
             </div>
           </>
         )}
-        {/* 手前側の線は金具として動かさない。 */}
-        <NotebookBinding part="front" />
-      </div>
-    </div>
+      </NotebookStack>
+    </NotebookOpening>
   )
 }
 

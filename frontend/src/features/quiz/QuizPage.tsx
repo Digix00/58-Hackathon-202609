@@ -17,7 +17,7 @@ import { Link } from 'react-router'
 import { EmptyState, ErrorState, LoadingState } from '../../shared/components/AsyncStates'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import { NotebookStack } from '../../shared/components/NotebookStack'
 import { prefersReducedMotion, useNotebookSwipe } from '../../shared/hooks/useNotebookSwipe'
 import { useStackLift } from '../../shared/hooks/useStackLift'
 import actionStyles from '../../shared/styles/Actions.module.css'
@@ -1192,15 +1192,6 @@ function QuizTray({
   )
 }
 
-/** 表紙の裏。手紙の紙とは違う色を当て、いま開いたのが表紙だと分かるようにする。 */
-const COVER_BACK_COLOR = '#c2a98b'
-
-/** 手紙の裏。どの紙も同じ色にして、裏面が回答を示さないようにする。 */
-const PAGE_BACK_COLOR = '#e4d9c2'
-
-/** めくり終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
-
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningState, index: number) {
   return turning.kind === 'cover'
@@ -1265,21 +1256,6 @@ function QuizTabs({
 
 type QuizSwipe = ReturnType<typeof useNotebookSwipe>
 
-function QuizTurnedCover({ coverOpened }: { coverOpened: boolean }) {
-  if (!coverOpened) return null
-
-  return (
-    <div className={turnStyles.turned} aria-hidden="true">
-      <div
-        className={`${turnStyles.back} ${crayonStyles.edge}`}
-        style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
-      >
-        <NotebookBinding part="holes" back />
-      </div>
-    </div>
-  )
-}
-
 function QuizTurnLayer({
   turning,
   stateIndex,
@@ -1308,34 +1284,30 @@ function QuizTurnLayer({
   const isCover = turning.kind === 'cover'
 
   return (
-    <>
-      <NotebookBinding key={key} part="rear" between />
-      <NotebookTurn
-        key={key}
-        variant={isCover ? 'cover' : 'page'}
-        startAngle={turning.startAngle}
-        backColor={isCover ? COVER_BACK_COLOR : PAGE_BACK_COLOR}
-        direction={turning.direction}
-        onFinish={onTurnFinish}
-      >
-        {isCover ? (
-          <QuizCover answered={answeredCover} />
-        ) : (
-          <Paper className={showingResults ? styles.resultCard : ''}>
-            <QuizPaperBody
-              target={turning.letter}
-              personId={turning.personId}
-              interactive={false}
-              showingResults={showingResults}
-              body={bodyOf(turning.letter)}
-              slotRef={slotRef}
-              dragOver={dragOver}
-              onPull={onPull}
-            />
-          </Paper>
-        )}
-      </NotebookTurn>
-    </>
+    <NotebookTurn
+      key={key}
+      variant={isCover ? 'cover' : 'page'}
+      startAngle={turning.startAngle}
+      direction={turning.direction}
+      onFinish={onTurnFinish}
+    >
+      {isCover ? (
+        <QuizCover answered={answeredCover} />
+      ) : (
+        <Paper className={showingResults ? styles.resultCard : ''}>
+          <QuizPaperBody
+            target={turning.letter}
+            personId={turning.personId}
+            interactive={false}
+            showingResults={showingResults}
+            body={bodyOf(turning.letter)}
+            slotRef={slotRef}
+            dragOver={dragOver}
+            onPull={onPull}
+          />
+        </Paper>
+      )}
+    </NotebookTurn>
   )
 }
 
@@ -1463,41 +1435,36 @@ function QuizStage({
         小さく置くのは、まだ読みはじめていない表紙だけにする。
         読み終えて閉じたノートには付箋が並ぶので、そこで縮めると条件の字が読めない。
       */}
-      <div
+      <NotebookStack
         ref={stackRef}
         className={`${styles.stack} ${!coverOpened && !closed ? styles.stackCover : ''} ${
           coverOpening ? styles.stackOpening : ''
         }`}
-        style={notebookBindingStyle}
-      >
-        <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-        <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-        <NotebookBinding part="rear" />
-        {/*
-          挟み終えた付箋は、紙より奥に置く。紙に隠れるのは差し込んだ下端だけで、
-          残りは紙の上端から出る。いま開いている紙の付箋だけは、その紙が持つ。
-        */}
-        {showingResults ? null : (
-          <QuizTabs
-            answers={answers}
-            activeIndex={coverOpened ? stateIndex : null}
-            closed={closed}
-            onSelect={onSelect}
+        opened={coverOpened}
+        bookmarks={
+          showingResults ? null : (
+            <QuizTabs
+              answers={answers}
+              activeIndex={coverOpened ? stateIndex : null}
+              closed={closed}
+              onSelect={onSelect}
+            />
+          )
+        }
+        turning={
+          <QuizTurnLayer
+            turning={turning}
+            stateIndex={stateIndex}
+            showingResults={showingResults}
+            answeredCover={complete}
+            slotRef={slotRef}
+            dragOver={dragOver}
+            bodyOf={bodyOf}
+            onTurnFinish={onTurnFinish}
+            onPull={onPull}
           />
-        )}
-        {/* めくり終えた表紙は捨てず、最終フレームの姿勢のままリング左側に残す。 */}
-        <QuizTurnedCover coverOpened={coverOpened} />
-        <QuizTurnLayer
-          turning={turning}
-          stateIndex={stateIndex}
-          showingResults={showingResults}
-          answeredCover={complete}
-          slotRef={slotRef}
-          dragOver={dragOver}
-          bodyOf={bodyOf}
-          onTurnFinish={onTurnFinish}
-          onPull={onPull}
-        />
+        }
+      >
         {/*
          * 表紙が開くまでは、表紙が一番上の紙。1通目の手紙はその下に控えている。
          * 控えている紙は、表紙が開くまで読ませない。切り欠きも息をさせない。
@@ -1514,8 +1481,7 @@ function QuizStage({
           bodyOf={bodyOf}
           onPull={onPull}
         />
-        <NotebookBinding part="front" />
-      </div>
+      </NotebookStack>
     </section>
   )
 }

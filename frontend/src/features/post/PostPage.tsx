@@ -11,12 +11,11 @@ import { Link } from 'react-router'
 import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
-import { notebookBindingStyle } from '../../shared/components/notebookBindingLayout'
+import { NotebookStack } from '../../shared/components/NotebookStack'
 import { prefersReducedMotion } from '../../shared/hooks/useNotebookSwipe'
 import actionStyles from '../../shared/styles/Actions.module.css'
 import crayonStyles from '../../shared/styles/Crayon.module.css'
 import screen from '../../shared/styles/Screen.module.css'
-import turnStyles from '../../shared/styles/NotebookTurn.module.css'
 import { POST_BODY_MAX_LENGTH } from './postTypes'
 import { usePostDraft } from './usePostDraft'
 import { usePostSubmit } from './usePostSubmit'
@@ -31,14 +30,6 @@ import styles from './PostPage.module.css'
 
 /** まだ誰も読んでいない一枚。フィードのページ色は当てず、生成りのまま置く。 */
 const PAPER_TINT = '#fffdf4'
-/**
- * めくったときに覗く裏面。
- * 下部ナビの「投稿」と同じ淡い紫にして、自分が書いた紙だと分かるようにする。
- */
-const TURN_BACK_COLOR = '#b3a5dd'
-/** 書き終えた紙をリング左側に残すときの、文字のない裏面。 */
-const TURNED_BACK_COLOR = 'var(--color-surface)'
-
 const paperStyle = { '--paper-tint': PAPER_TINT } as CSSProperties
 
 /** 紙の上辺に挟むしおり。投稿はこの2枚で終わることを、めくる前に見せておく。 */
@@ -311,33 +302,22 @@ function PostStack({
   onTurningFinished: () => void
 }) {
   return (
-    <div className={styles.stack} style={notebookBindingStyle}>
-      <span className={`${styles.sheet} ${styles.sheetFar}`} aria-hidden="true" />
-      <span className={`${styles.sheet} ${styles.sheetNear}`} aria-hidden="true" />
-      {/* 奥側の線は紙に隠れ、めくった紙が離れると2枚の間に見える。 */}
-      <NotebookBinding part="rear" />
-      {view === 'done' ? (
-        <div className={turnStyles.turned} aria-hidden="true">
-          <div
-            className={`${turnStyles.back} ${crayonStyles.edge}`}
-            style={{ '--turn-back-color': TURNED_BACK_COLOR } as CSSProperties}
+    <NotebookStack
+      className={styles.stack}
+      opened={view === 'done'}
+      turning={
+        turning ? (
+          <NotebookTurn
+            key={turning.key}
+            startAngle={0}
+            direction={turning.direction}
+            onFinish={onTurningFinished}
           >
-            <NotebookBinding part="holes" back />
-          </div>
-        </div>
-      ) : null}
-      {turning ? <NotebookBinding key={turning.key} part="rear" between /> : null}
-      {turning ? (
-        <NotebookTurn
-          key={turning.key}
-          startAngle={0}
-          direction={turning.direction}
-          backColor={TURN_BACK_COLOR}
-          onFinish={onTurningFinished}
-        >
-          <ReadSheet body={body} step={turning.step} />
-        </NotebookTurn>
-      ) : null}
+            <ReadSheet body={body} step={turning.step} />
+          </NotebookTurn>
+        ) : null
+      }
+    >
       <div className={styles.enter}>
         {view === 'write' ? (
           <WriteSheet
@@ -352,9 +332,7 @@ function PostStack({
           <DoneSheet note={doneNote} />
         )}
       </div>
-      {/* 手前側の線は金具として動かさない。 */}
-      <NotebookBinding part="front" />
-    </div>
+    </NotebookStack>
   )
 }
 
