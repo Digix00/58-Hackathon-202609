@@ -1,9 +1,10 @@
 import type { SpeechAudioDurationReader } from "../port/speech-audio-duration-reader";
-import { SpeechAudioDurationLimitExceededError } from "../port/speech-audio-duration-reader";
+import {
+  MAX_SPEECH_AUDIO_DURATION_SECONDS,
+  SpeechAudioDurationLimitExceededError,
+} from "../port/speech-audio-duration-reader";
 import type { SpeechRateLimiter } from "../port/speech-rate-limiter";
 import type { SpeechRecognizer } from "../port/speech-recognizer";
-
-const MAX_AUDIO_DURATION_SECONDS = 60;
 
 export class SpeechRecognitionUnavailableError extends Error {
   constructor() {
@@ -83,7 +84,7 @@ export class SpeechUseCase implements ISpeechUseCase {
     if (!Number.isFinite(duration) || duration <= 0) {
       throw new InvalidSpeechAudioError();
     }
-    if (duration > MAX_AUDIO_DURATION_SECONDS) {
+    if (duration > MAX_SPEECH_AUDIO_DURATION_SECONDS) {
       throw new SpeechAudioTooLongError();
     }
 

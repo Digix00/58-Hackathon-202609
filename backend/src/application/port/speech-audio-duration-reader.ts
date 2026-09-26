@@ -1,3 +1,6 @@
+/** Maximum speech audio duration accepted for transcription. */
+export const MAX_SPEECH_AUDIO_DURATION_SECONDS = 60;
+
 /** Reads the encoded audio duration without decoding or persisting the audio. */
 export interface SpeechAudioDurationReader {
   getDurationSeconds(audio: Uint8Array, mimeType: string): Promise<number>;

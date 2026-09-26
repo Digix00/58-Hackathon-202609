@@ -48,8 +48,9 @@ export function readWavDurationSeconds(audio: Uint8Array): number {
     throw new TypeError("Invalid WAV header");
   }
 
+  // The whole upload is sent to the recognizer, so the RIFF chunk must cover it.
   const riffEnd = 8 + readUint32Le(audio, 4);
-  if (riffEnd > audio.byteLength || riffEnd < 12) {
+  if (riffEnd !== audio.byteLength) {
     throw new TypeError("Invalid WAV length");
   }
 

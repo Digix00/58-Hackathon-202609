@@ -19,3 +19,12 @@ export function readUint32Le(audio: Uint8Array, offset: number): number {
     true,
   );
 }
+
+export function readUint32Be(audio: Uint8Array, offset: number): number {
+  return (
+    audio[offset]! * 0x1_000_000 +
+    (audio[offset + 1]! << 16) +
+    (audio[offset + 2]! << 8) +
+    audio[offset + 3]!
+  );
+}

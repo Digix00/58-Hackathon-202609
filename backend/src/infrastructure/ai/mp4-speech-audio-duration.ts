@@ -1,8 +1,10 @@
 import * as MP4Box from "mp4box";
-import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
-import { readAscii } from "./audio-binary";
+import {
+  MAX_SPEECH_AUDIO_DURATION_SECONDS,
+  SpeechAudioDurationLimitExceededError,
+} from "../../application/port/speech-audio-duration-reader";
+import { readAscii, readUint32Be } from "./audio-binary";
 
-const MAX_AUDIO_DURATION_SECONDS = 60;
 const MAX_AAC_SAMPLE_RATE = 96_000;
 // A supported AAC-LC track needs at most 6,000 access units for 60 seconds.
 export const MAX_MP4_SAMPLE_ENTRIES = 10_000;
@@ -198,9 +200,11 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
             : 0;
           if (
             (trackEdits === undefined &&
-              sampleCountDuration > MAX_AUDIO_DURATION_SECONDS + maximumTrim) ||
+              sampleCountDuration >
+                MAX_SPEECH_AUDIO_DURATION_SECONDS + maximumTrim) ||
             (trackEdits === undefined &&
-              timelineDuration > MAX_AUDIO_DURATION_SECONDS + maximumTrim)
+              timelineDuration >
+                MAX_SPEECH_AUDIO_DURATION_SECONDS + maximumTrim)
           ) {
             failTooLong(true);
             return;
@@ -292,7 +296,7 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
       failInvalid("MP4 audio duration is invalid");
       return;
     }
-    if (duration > MAX_AUDIO_DURATION_SECONDS) {
+    if (duration > MAX_SPEECH_AUDIO_DURATION_SECONDS) {
       failTooLong(false);
       return;
     }
@@ -421,9 +425,10 @@ function readAacConfig(description: object): {
   if (sampleRate === undefined || sampleRate <= 0) {
     throw new TypeError("MP4 AAC sample rate is invalid");
   }
+  // 0 requires a program config element and 8-15 are reserved.
   const channelConfiguration = readBits(4);
-  if (channelConfiguration === 0) {
-    throw new TypeError("Program-config AAC is unsupported");
+  if (channelConfiguration < 1 || channelConfiguration > 7) {
+    throw new TypeError("MP4 AAC channel configuration is unsupported");
   }
   const frameLengthFlag = readBits(1);
   return {
@@ -1045,13 +1050,4 @@ function addMp4TableEntries(
     throw new TypeError(`MP4 ${type} table exceeds parser budget`);
   }
   budget.tableEntries += entryCount;
-}
-
-function readUint32Be(audio: Uint8Array, offset: number): number {
-  return (
-    audio[offset]! * 0x1_000_000 +
-    (audio[offset + 1]! << 16) +
-    (audio[offset + 2]! << 8) +
-    audio[offset + 3]!
-  );
 }

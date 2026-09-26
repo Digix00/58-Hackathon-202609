@@ -1,7 +1,9 @@
-import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
-import { readAscii } from "./audio-binary";
+import {
+  MAX_SPEECH_AUDIO_DURATION_SECONDS,
+  SpeechAudioDurationLimitExceededError,
+} from "../../application/port/speech-audio-duration-reader";
+import { readAscii, readUint32Be } from "./audio-binary";
 
-const MAX_AUDIO_DURATION_SECONDS = 60;
 const MAX_ENCODER_TRIM_SAMPLES = 3_000;
 const DURATION_COMPARISON_TOLERANCE_SECONDS = 0.000000001;
 
@@ -87,7 +89,7 @@ export function readMpegDurationSeconds(audio: Uint8Array): number {
       durationSeconds - gaplessTrimSamples / firstFrameHeader.sampleRate;
     if (
       minimumPlaybackDurationSeconds >
-      MAX_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
+      MAX_SPEECH_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
     ) {
       throw new SpeechAudioDurationLimitExceededError();
     }
@@ -143,7 +145,7 @@ function readMpegGaplessTrimSamples(
     return 0;
   }
 
-  const flags = readUint32BigEndian(audio, xingOffset + 4);
+  const flags = readUint32Be(audio, xingOffset + 4);
   if (flags > 0x0f) {
     return 0;
   }
@@ -181,15 +183,6 @@ function readMpegGaplessTrimSamples(
     return 0;
   }
   return encoderDelay + encoderPadding;
-}
-
-function readUint32BigEndian(audio: Uint8Array, offset: number): number {
-  return (
-    audio[offset]! * 0x1_00_00_00 +
-    (audio[offset + 1]! << 16) +
-    (audio[offset + 2]! << 8) +
-    audio[offset + 3]!
-  );
 }
 
 type MpegFrameHeader = {

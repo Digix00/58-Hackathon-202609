@@ -859,6 +859,7 @@ Content-Type は multipart/form-data とする。
 - 音声の最大長は 60 秒。コンテナ全体の申告 duration ではなく、サーバーが音声サンプル・MPEGフレーム・MP4の音声サンプル・WebM Opusパケットから再生時間を算出する
 - multipart/form-data の本文全体は音声ファイル上限に 16 KiB の multipart overhead を加えたサイズまでとし、Content-Length の有無にかかわらず読み取り中に上限を適用する。audio と language 以外の field は受け付けない
 - WAV は PCM / IEEE float、MP4 は AAC-LC、WebM は Opus を受け付ける。実データの音声サンプルやパケットを検証できないファイルは受け付けない
+- WAV は RIFF チャンクの宣言長がファイル全体と一致しない場合、AAC-LC は `channelConfiguration` が1〜7以外（program config element や予約値）の場合に400にする
 - AAC の再生時間は `elst` の編集区間を反映する。`elst` がない Apple M4A は `iTunSMPB` の priming・padding・有効サンプル数を実サンプル数と照合する。priming は AAC 4フレーム以下、padding は1フレーム未満に制限し、不整合な値は400にする
 - 生音声は D1、R2、ログへ保存しない
 - 文字起こし結果をユーザーが編集してから、編集後の本文で concerns API を呼ぶ

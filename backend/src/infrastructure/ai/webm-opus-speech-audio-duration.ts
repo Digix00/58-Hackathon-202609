@@ -1,10 +1,12 @@
-import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
+import {
+  MAX_SPEECH_AUDIO_DURATION_SECONDS,
+  SpeechAudioDurationLimitExceededError,
+} from "../../application/port/speech-audio-duration-reader";
 import { readAscii } from "./audio-binary";
 
 export const MAX_WEBM_EBML_ELEMENT_VISITS = 100_000;
 // The 60-second limit allows at most 24,000 packets of minimum-size 2.5 ms frames.
 export const MAX_WEBM_OPUS_PACKETS = 24_000;
-const MAX_AUDIO_DURATION_SECONDS = 60;
 // Avoid rejecting exactly 60 seconds due to accumulated floating-point error.
 const DURATION_COMPARISON_TOLERANCE_SECONDS = 0.000001;
 // RFC 6716に従い、各Opus圧縮フレームを1,275バイト以下とする。
@@ -230,12 +232,12 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
   }
   if (
     duration >
-    MAX_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
+    MAX_SPEECH_AUDIO_DURATION_SECONDS + DURATION_COMPARISON_TOLERANCE_SECONDS
   ) {
     throw new SpeechAudioDurationLimitExceededError();
   }
   // 許容した浮動小数点誤差で、UseCase の 60 秒判定に再び拒否されないようにする。
-  return Math.min(duration, MAX_AUDIO_DURATION_SECONDS);
+  return Math.min(duration, MAX_SPEECH_AUDIO_DURATION_SECONDS);
 }
 
 function validateOpusHeadChannelMapping(

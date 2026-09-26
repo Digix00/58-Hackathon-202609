@@ -555,6 +555,46 @@ describe("VerifiedSpeechAudioDurationReader", () => {
     ).rejects.toThrow();
   });
 
+  it("rejects WAV data after the declared RIFF chunk", async () => {
+    const wav = createWavAudio(1);
+    const audio = new Uint8Array(wav.byteLength + 1_024);
+    audio.set(wav);
+
+    await expect(reader.getDurationSeconds(audio, "audio/wav")).rejects.toThrow(
+      "Invalid WAV length",
+    );
+  });
+
+  it.each([
+    [1, true],
+    [7, true],
+    [0, false],
+    [8, false],
+    [15, false],
+  ])(
+    "validates MP4 AAC channel configuration %i",
+    async (channelConfiguration, accepted) => {
+      const audio = createMp4Audio(1);
+      // AudioSpecificConfig 0x11 0x88: AAC-LC, 48 kHz, 1 channel.
+      const configOffset = audio.findIndex(
+        (byte, index) =>
+          byte === 5 &&
+          audio[index + 1] === 2 &&
+          audio[index + 2] === 0x11 &&
+          audio[index + 3] === 0x88,
+      );
+      expect(configOffset).toBeGreaterThan(0);
+      audio[configOffset + 3] = 0x80 | (channelConfiguration << 3);
+
+      const duration = reader.getDurationSeconds(audio, "audio/mp4");
+      if (accepted) {
+        await expect(duration).resolves.toBeCloseTo(1, 1);
+      } else {
+        await expect(duration).rejects.toThrow("Invalid MP4 audio");
+      }
+    },
+  );
+
   it("reports verified MP4 samples over 60 seconds as a duration limit error", async () => {
     await expect(
       reader.getDurationSeconds(createMp4Audio(65, 1), "audio/mp4"),
