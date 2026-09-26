@@ -1,5 +1,6 @@
 import * as MP4Box from "mp4box";
 import { SpeechAudioDurationLimitExceededError } from "../../application/port/speech-audio-duration-reader";
+import { readAscii } from "./audio-binary";
 
 const MAX_AUDIO_DURATION_SECONDS = 60;
 const MAX_AAC_SAMPLE_RATE = 96_000;
@@ -11,6 +12,7 @@ const MAX_MP4_BOX_DEPTH = 16;
 const MP4_CONTAINER_BOXES = new Set([
   "dinf",
   "edts",
+  "ilst",
   "mdia",
   "meta",
   "minf",
@@ -21,12 +23,15 @@ const MP4_CONTAINER_BOXES = new Set([
   "stbl",
   "traf",
   "trak",
+  "udta",
+  "----",
 ]);
 
 export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
   return new Promise((resolve, reject) => {
+    let gapless: AacGapless | undefined;
     try {
-      validateMp4BeforeParsing(audio);
+      gapless = validateMp4BeforeParsing(audio);
     } catch (error) {
       reject(error);
       return;
@@ -188,11 +193,14 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
           const sampleCountDuration =
             (sampleCount * samplesPerAccessUnit) / sampleRate;
           const timelineDuration = lastPresentationTime - firstPresentationTime;
+          const maximumTrim = gapless
+            ? (5 * samplesPerAccessUnit) / sampleRate
+            : 0;
           if (
             (trackEdits === undefined &&
-              sampleCountDuration > MAX_AUDIO_DURATION_SECONDS) ||
+              sampleCountDuration > MAX_AUDIO_DURATION_SECONDS + maximumTrim) ||
             (trackEdits === undefined &&
-              timelineDuration > MAX_AUDIO_DURATION_SECONDS)
+              timelineDuration > MAX_AUDIO_DURATION_SECONDS + maximumTrim)
           ) {
             failTooLong(true);
             return;
@@ -251,6 +259,19 @@ export function readMp4DurationSeconds(audio: Uint8Array): Promise<number> {
     let duration: number;
     if (trackEdits === undefined) {
       duration = encodedDuration;
+      if (gapless) {
+        const encodedSamples = sampleCount * samplesPerAccessUnit;
+        if (
+          fragmented ||
+          gapless.priming > 4 * samplesPerAccessUnit ||
+          gapless.padding >= samplesPerAccessUnit ||
+          gapless.samples + gapless.priming + gapless.padding !== encodedSamples
+        ) {
+          failInvalid("MP4 gapless metadata does not match AAC samples");
+          return;
+        }
+        duration = gapless.samples / sampleRate;
+      }
     } else {
       try {
         duration = getEditedPlaybackDuration(
@@ -411,19 +432,26 @@ function readAacConfig(description: object): {
   };
 }
 
+type AacGapless = { priming: number; padding: number; samples: number };
+type ItunesItem = { mean?: string; name?: string; data?: string };
+
 type Mp4ParseBudget = {
   boxVisits: number;
   sampleEntries: number;
   tableEntries: number;
+  gapless?: AacGapless;
 };
 
-export function validateMp4BeforeParsing(audio: Uint8Array): void {
+export function validateMp4BeforeParsing(
+  audio: Uint8Array,
+): AacGapless | undefined {
   const budget: Mp4ParseBudget = {
     boxVisits: 0,
     sampleEntries: 0,
     tableEntries: 0,
   };
   visitMp4Boxes(audio, 0, audio.byteLength, 0, budget);
+  return budget.gapless;
 }
 
 function visitMp4Boxes(
@@ -432,6 +460,8 @@ function visitMp4Boxes(
   end: number,
   depth: number,
   budget: Mp4ParseBudget,
+  item?: ItunesItem,
+  path = "",
 ): void {
   if (depth > MAX_MP4_BOX_DEPTH) {
     throw new TypeError("MP4 box nesting is too deep");
@@ -472,6 +502,23 @@ function visitMp4Boxes(
     }
     const boxEnd = offset + boxSize;
     const payloadStart = offset + headerSize;
+    // iTunes の自由形式タグだけを読む。サイズ・深さ・件数は既存の走査予算で制限する。
+    if (item && (type === "mean" || type === "name" || type === "data")) {
+      const prefix = type === "data" ? 8 : 4;
+      if (boxEnd - payloadStart >= prefix && boxEnd - payloadStart <= 256) {
+        if (item[type] !== undefined) {
+          throw new TypeError("Duplicate MP4 metadata field");
+        }
+        if (readUint32Be(audio, payloadStart) !== (type === "data" ? 1 : 0)) {
+          throw new TypeError("Invalid MP4 metadata field encoding");
+        }
+        item[type] = readAscii(
+          audio,
+          payloadStart + prefix,
+          boxEnd - payloadStart - prefix,
+        );
+      }
+    }
     if (type === "stsz") {
       visitSampleSizeBox(audio, payloadStart, boxEnd, budget);
     } else if (type === "stz2") {
@@ -552,6 +599,8 @@ function visitMp4Boxes(
     }
 
     if (MP4_CONTAINER_BOXES.has(type)) {
+      const childItem: ItunesItem | undefined =
+        type === "----" && path === "moov/udta/meta/ilst" ? {} : undefined;
       const containerPrefix = type === "meta" ? 4 : 0;
       if (payloadStart + containerPrefix > boxEnd) {
         throw new TypeError("Invalid MP4 container box");
@@ -562,7 +611,33 @@ function visitMp4Boxes(
         boxEnd,
         depth + 1,
         budget,
+        childItem,
+        path ? `${path}/${type}` : type,
       );
+      if (
+        childItem?.mean === "com.apple.iTunes" &&
+        childItem.name === "iTunSMPB"
+      ) {
+        const fields = childItem.data?.trim().split(/\s+/);
+        if (
+          budget.gapless ||
+          !fields ||
+          fields.length < 4 ||
+          !fields.slice(0, 3).every((field) => /^[0-9a-f]{8}$/i.test(field)) ||
+          !/^[0-9a-f]{16}$/i.test(fields[3]!)
+        ) {
+          throw new TypeError("Invalid MP4 gapless metadata");
+        }
+        const samples = Number.parseInt(fields[3]!, 16);
+        if (!Number.isSafeInteger(samples) || samples <= 0) {
+          throw new TypeError("Invalid MP4 gapless sample count");
+        }
+        budget.gapless = {
+          priming: Number.parseInt(fields[1]!, 16),
+          padding: Number.parseInt(fields[2]!, 16),
+          samples,
+        };
+      }
     }
     offset = boxEnd;
   }

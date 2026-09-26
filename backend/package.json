@@ -6,6 +6,7 @@
   "types": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev --config wrangler.dev.jsonc",
+    "dev:speech": "wrangler dev --config wrangler.speech.dev.jsonc",
     "dev:vectorize": "wrangler dev --config wrangler.vectorize.dev.jsonc",
     "build": "tsc --noEmit",
     "deploy": "wrangler deploy --minify",

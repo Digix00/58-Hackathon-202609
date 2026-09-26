@@ -859,6 +859,7 @@ Content-Type は multipart/form-data とする。
 - 音声の最大長は 60 秒。コンテナ全体の申告 duration ではなく、サーバーが音声サンプル・MPEGフレーム・MP4の音声サンプル・WebM Opusパケットから再生時間を算出する
 - multipart/form-data の本文全体は音声ファイル上限に 16 KiB の multipart overhead を加えたサイズまでとし、Content-Length の有無にかかわらず読み取り中に上限を適用する。audio と language 以外の field は受け付けない
 - WAV は PCM / IEEE float、MP4 は AAC-LC、WebM は Opus を受け付ける。実データの音声サンプルやパケットを検証できないファイルは受け付けない
+- AAC の再生時間は `elst` の編集区間を反映する。`elst` がない Apple M4A は `iTunSMPB` の priming・padding・有効サンプル数を実サンプル数と照合する。priming は AAC 4フレーム以下、padding は1フレーム未満に制限し、不整合な値は400にする
 - 生音声は D1、R2、ログへ保存しない
 - 文字起こし結果をユーザーが編集してから、編集後の本文で concerns API を呼ぶ
 - 音声ファイルが 10 MiB を超える場合、または長さが 60 秒を超える場合は 413 PAYLOAD_TOO_LARGE
@@ -867,6 +868,8 @@ Content-Type は multipart/form-data とする。
 - MIME type が未対応の場合は 415 UNSUPPORTED_MEDIA_TYPE
 - 1ユーザーあたり直近60秒で10回、直近24時間で200回まで。上限は認証後、multipart の解析前に適用し、不正・形式違い・サイズ超過のリクエストも1回として数える。超過時は 429 RATE_LIMITED と Retry-After を返す
 - 音声認識サービスが失敗した場合は 503 UPSTREAM_UNAVAILABLE
+- `Retry-After` と `X-Request-Id` は CORS の公開ヘッダーに含め、別 origin のフロントエンドから読み取れる
+- Hono RPC の `form: { audio: File, language?: "ja" }` で呼び出せる。ブラウザが multipart boundary を設定するため Content-Type は手動設定しない
 
 #### Response: 200 OK
 

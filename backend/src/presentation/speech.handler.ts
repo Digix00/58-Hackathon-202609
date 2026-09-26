@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { createFactory } from "hono/factory";
+import { validator } from "hono/validator";
 
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
@@ -26,6 +27,7 @@ const factory = createFactory<{
   Variables: AuthVariables;
 }>();
 type SpeechContext = Context<{ Bindings: Bindings; Variables: AuthVariables }>;
+type SpeechTranscriptionForm = { audio: File; language?: "ja" };
 
 export class SpeechHandler {
   private readonly speechUseCase: ISpeechUseCase;
@@ -34,95 +36,111 @@ export class SpeechHandler {
     this.speechUseCase = speechUseCase;
   }
 
-  readonly transcribe = factory.createHandlers(async (c) => {
-    const requestId = setRequestId(c);
-    if (!c.var.auth?.user) {
-      return c.json(
-        {
-          error: {
-            code: "AUTHENTICATION_REQUIRED",
-            message: "音声入力にはLINEログインが必要です",
-            requestId,
+  readonly transcribe = factory.createHandlers(
+    async (c, next) => {
+      const requestId = setRequestId(c);
+      if (!c.var.auth?.user) {
+        return c.json(
+          {
+            error: {
+              code: "AUTHENTICATION_REQUIRED",
+              message: "音声入力にはLINEログインが必要です",
+              requestId,
+            },
           },
-        },
-        401,
-      );
-    }
+          401,
+        );
+      }
 
-    try {
-      await this.speechUseCase.admitRequest(c.var.auth.user.id);
-    } catch (error) {
-      return speechErrorResponse(error, requestId, c);
-    }
+      try {
+        await this.speechUseCase.admitRequest(c.var.auth.user.id);
+      } catch (error) {
+        return speechErrorResponse(error, requestId, c);
+      }
 
-    const contentType = c.req.header("content-type") ?? "";
-    if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
-      return unsupportedMediaType(requestId, c);
-    }
+      const contentType = c.req.header("content-type") ?? "";
+      if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
+        return unsupportedMediaType(requestId, c);
+      }
 
-    if (hasOversizedContentLength(c.req.raw, MAX_MULTIPART_BODY_BYTES)) {
-      return payloadTooLarge(requestId, c);
-    }
-
-    const limitedBody = limitRequestBody(c.req.raw, MAX_MULTIPART_BODY_BYTES);
-    c.req.raw = limitedBody.request;
-
-    let formData: FormData;
-    try {
-      formData = await c.req.raw.formData();
-    } catch {
-      if (limitedBody.exceeded()) {
+      if (hasOversizedContentLength(c.req.raw, MAX_MULTIPART_BODY_BYTES)) {
         return payloadTooLarge(requestId, c);
       }
-      return invalidRequest(requestId, c);
-    }
 
-    for (const fieldName of formData.keys()) {
-      if (fieldName !== "audio" && fieldName !== "language") {
+      const limitedBody = limitRequestBody(c.req.raw, MAX_MULTIPART_BODY_BYTES);
+      c.req.raw = limitedBody.request;
+
+      try {
+        // Hono のキャッシュを使い、後続の validator で本文を再読み込みしない。
+        await c.req.formData();
+      } catch {
+        if (limitedBody.exceeded()) {
+          return payloadTooLarge(requestId, c);
+        }
         return invalidRequest(requestId, c);
       }
-    }
 
-    const audioFields = formData.getAll("audio");
-    if (audioFields.length !== 1 || !(audioFields[0] instanceof File)) {
-      return invalidRequest(requestId, c);
-    }
+      await next();
+    },
+    validator("form", async (_value, c) => {
+      const requestId = setRequestId(c);
+      const formData = await c.req.formData();
 
-    const audio = audioFields[0];
-    if (audio.size === 0) {
-      return invalidRequest(requestId, c);
-    }
-    if (audio.size > MAX_AUDIO_BYTES) {
-      return payloadTooLarge(requestId, c);
-    }
-    const audioType = audio.type.split(";", 1)[0].trim().toLowerCase();
-    if (!SUPPORTED_AUDIO_TYPES.has(audioType)) {
-      return unsupportedMediaType(requestId, c);
-    }
+      for (const fieldName of formData.keys()) {
+        if (fieldName !== "audio" && fieldName !== "language") {
+          return invalidRequest(requestId, c);
+        }
+      }
 
-    const languageFields = formData.getAll("language");
-    if (
-      languageFields.length > 1 ||
-      (languageFields.length === 1 && typeof languageFields[0] !== "string")
-    ) {
-      return invalidRequest(requestId, c);
-    }
-    const language =
-      languageFields.length === 0 ? "ja" : (languageFields[0] as string).trim();
-    if (language !== "ja") {
-      return invalidRequest(requestId, c);
-    }
+      const audioFields = formData.getAll("audio");
+      if (audioFields.length !== 1 || !(audioFields[0] instanceof File)) {
+        return invalidRequest(requestId, c);
+      }
 
-    try {
-      const text = await this.speechUseCase.transcribe(
-        await audio.arrayBuffer(),
-        audioType,
-      );
-      return c.json({ text, language: "ja" as const }, 200);
-    } catch (error) {
-      return speechErrorResponse(error, requestId, c);
-    }
-  });
+      const audio = audioFields[0];
+      if (audio.size === 0) {
+        return invalidRequest(requestId, c);
+      }
+      if (audio.size > MAX_AUDIO_BYTES) {
+        return payloadTooLarge(requestId, c);
+      }
+      const audioType = audio.type.split(";", 1)[0].trim().toLowerCase();
+      if (!SUPPORTED_AUDIO_TYPES.has(audioType)) {
+        return unsupportedMediaType(requestId, c);
+      }
+
+      const languageFields = formData.getAll("language");
+      if (
+        languageFields.length > 1 ||
+        (languageFields.length === 1 && typeof languageFields[0] !== "string")
+      ) {
+        return invalidRequest(requestId, c);
+      }
+      const language =
+        languageFields.length === 0
+          ? "ja"
+          : (languageFields[0] as string).trim();
+      if (language !== "ja") {
+        return invalidRequest(requestId, c);
+      }
+
+      const form: SpeechTranscriptionForm = { audio, language: "ja" };
+      return form;
+    }),
+    async (c) => {
+      const requestId = setRequestId(c);
+      const { audio } = c.req.valid("form");
+      try {
+        const text = await this.speechUseCase.transcribe(
+          await audio.arrayBuffer(),
+          audio.type.split(";", 1)[0].trim().toLowerCase(),
+        );
+        return c.json({ text, language: "ja" as const }, 200);
+      } catch (error) {
+        return speechErrorResponse(error, requestId, c);
+      }
+    },
+  );
 }
 
 function hasOversizedContentLength(

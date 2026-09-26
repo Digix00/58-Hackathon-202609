@@ -75,12 +75,38 @@ Presentation層にHandlerを置く。機能名はファイル名に含め、依�
 
 - `WorkersAiTextTranslator`: 1つの多言語Instruction modelで、原文（日本語）→英語、原文（日本語）→ひらがなを処理する
 - `WorkersAiTextEmbeddingGenerator`: [Qwen3-Embedding-0.6B](https://developers.cloudflare.com/workers-ai/models/qwen3-embedding-0.6b/) で入力順を保ったベクトルを生成する
-- `WorkersAiSpeechRecognizer`: 多言語Whisperで音声をテキストへ変換する
+- `WorkersAiSpeechRecognizer`: `@cf/openai/whisper-large-v3-turbo` へBase64音声を送り、日本語の文字起こしを行う
 - `WorkersAiConcernClusterSummaryGenerator`: 最大10件、各2000文字までの悩み本文を使ってクラスタラベルと要約を生成する
 
 各Adapterは `env.AI` を注入して直接呼び出せるため、ジョブやUseCaseから利用できる。テストではWorkers AI bindingをFakeに差し替え、Cloudflareへの実呼び出しを行わない。
 
 Workers AI bindingはローカルシミュレーションが存在せず、`wrangler dev`実行時はCloudflareへのリモート接続を試みる。ローカル開発 (`pnpm dev`) は`ai.binding`を含まない`wrangler.dev.jsonc`を使い、`bootstrap/container.ts`が`env.AI`の有無で`LocalTextTranslator`/`LocalTextEmbeddingGenerator`（決定的なダミー結果を返すだけでCloudflareを呼ばない）へ自動的に切り替えるため、Workers AIの認証なしで起動できる。実際のWorkers AIで動作確認したい場合は`wrangler login`後に`pnpm --filter backend exec wrangler dev`（`--config`省略、本番用`wrangler.jsonc`を使用）で起動する。この設定は本番用Vectorize indexへ書き込むため、通常の開発には使わない。Vectorizeの連携確認には、開発用indexを使う`pnpm dev:vectorize`を利用する。
+
+## 音声文字起こしAPIの確認
+
+通常の `pnpm dev` と `pnpm dev:vectorize` は固定値 `[local-dev transcript]` を返す。実際の文字起こしは、音声確認専用の設定で起動する。
+
+```bash
+pnpm --filter backend exec wrangler login
+pnpm --filter backend db:migrate:local
+pnpm --filter backend dev:speech
+```
+
+この設定はローカルD1とWorkers AIだけを使う。開発用ログインを含む設定なので、本番へデプロイしない。短いテスト用音声を用意し、別ターミナルから確認する。
+
+```bash
+curl --fail-with-body -sS -c /tmp/speech-dev-cookie.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"userKey":"demo-a"}' http://localhost:8787/api/v1/auth/dev > /dev/null
+curl --fail-with-body -sS -b /tmp/speech-dev-cookie.txt \
+  -F 'audio=@/path/to/test.wav;type=audio/wav' -F 'language=ja' \
+  http://localhost:8787/api/v1/speech/transcriptions
+rm /tmp/speech-dev-cookie.txt
+```
+
+`200` の `text` が認識結果。Workers AIの利用量が発生する。モデルの[公式スキーマ](https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/schema-input.json)と[公式のBase64送信例](https://developers.cloudflare.com/workers-ai/guides/tutorials/build-a-workers-ai-whisper-with-chunking/)に従い、`audio`、`task: "transcribe"`、`language: "ja"` を指定する。通常のテストはFakeを使い、実推論を行わない。
+
+回帰テストの `test/support/recorded-audio.json` は合成音だけをgzip/Base64にしたもの。ChromeのMediaRecorderによるWebMと、macOSの `afconvert` による60秒のAACを含み、人の録音は保存しない。
 
 ## Queue
 

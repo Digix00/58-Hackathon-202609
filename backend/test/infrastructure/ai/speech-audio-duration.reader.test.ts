@@ -18,10 +18,54 @@ import {
   createWavAudio,
   createWebmAudio,
 } from "../../support/audio-fixture";
+import {
+  recordedAudio,
+  replaceGaplessSamples,
+} from "../../support/recorded-audio-fixture";
 
 const reader = new VerifiedSpeechAudioDurationReader();
 
 describe("VerifiedSpeechAudioDurationReader", () => {
+  it("Chrome MediaRecorder が生成した WebM Opus を受理する", async () => {
+    const duration = await reader.getDurationSeconds(
+      recordedAudio("chromeWebm"),
+      "audio/webm",
+    );
+    expect(duration).toBeGreaterThan(0);
+    expect(duration).toBeLessThan(1);
+  });
+
+  it("Apple AAC の priming と padding を検証して60秒を受理する", async () => {
+    await expect(
+      reader.getDurationSeconds(recordedAudio("appleAac60"), "audio/mp4"),
+    ).resolves.toBe(60);
+  });
+
+  it.each([
+    ["実サンプル数との不一致", 2112, 976, 44100],
+    ["過大な priming", 32768, 976, 2649088 - 32768 - 976],
+    ["過大な padding", 2112, 4096, 2649088 - 2112 - 4096],
+  ])(
+    "AAC の偽装した余白情報を拒否する: %s",
+    async (_name, priming, padding, samples) => {
+      await expect(
+        reader.getDurationSeconds(
+          replaceGaplessSamples(priming, padding, samples),
+          "audio/mp4",
+        ),
+      ).rejects.toThrow("gapless metadata");
+    },
+  );
+
+  it("余白情報が整合していても60秒を超える AAC は拒否する", async () => {
+    await expect(
+      reader.getDurationSeconds(
+        replaceGaplessSamples(0, 976, 2649088 - 976),
+        "audio/mp4",
+      ),
+    ).rejects.toBeInstanceOf(SpeechAudioDurationLimitExceededError);
+  });
+
   it.each([
     ["WAV", "audio/wav", createWavAudio(60), 60],
     ["WebM Opus", "audio/webm", createWebmAudio(1), 1],

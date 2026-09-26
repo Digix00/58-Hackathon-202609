@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,8 +13,8 @@ function createAiBinding(run: Run): Pick<Ai, "run"> {
 }
 
 describe("WorkersAiSpeechRecognizer", () => {
-  it("passes byte-preserving binary input without building a number array", async () => {
-    const bytes = new Uint8Array(32 * 1024 + 1).fill(0xff);
+  it("公式仕様の Base64 入力で日本語の文字起こしを指定する", async () => {
+    const bytes = new Uint8Array(10 * 1024 * 1024).fill(0xff);
     bytes[0] = 0;
     bytes[1] = 0x7f;
     bytes[32 * 1024 - 1] = 0x80;
@@ -24,9 +25,15 @@ describe("WorkersAiSpeechRecognizer", () => {
     await expect(recognizer.transcribe(bytes.buffer)).resolves.toBe(
       "今日は疲れました",
     );
-    const binaryInput = run.mock.calls[0]?.[1];
-    expect(binaryInput).toBe(`\x00\x7f${"\xff".repeat(32 * 1024 - 3)}\x80\x00`);
-    expect(typeof binaryInput).toBe("string");
+    expect(run).toHaveBeenCalledExactlyOnceWith(
+      "@cf/openai/whisper-large-v3-turbo",
+      { audio: expect.any(String), task: "transcribe", language: "ja" },
+    );
+    // binding の JSON シリアライズを経ても、上限サイズの全バイトを復元できる。
+    const input = JSON.parse(JSON.stringify(run.mock.calls[0]?.[1]));
+    expect(Buffer.from(input.audio, "base64").equals(Buffer.from(bytes))).toBe(
+      true,
+    );
   });
 
   it("rejects empty audio and invalid model responses", async () => {

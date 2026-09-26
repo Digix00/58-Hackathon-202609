@@ -47,7 +47,7 @@ flowchart LR
 
 - `backend/wrangler.jsonc` の AI binding `AI` を Worker の `env.AI` として利用する。API キーは設定しない。
 - Application 層は `TextTranslator`、`TextEmbeddingGenerator`、`SpeechRecognizer` Portに依存し、Infrastructure層のWorkers AI Adapterが `env.AI.run(model, input)`を呼び出す。
-- 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は多言語の `@cf/openai/whisper` を使う。
+- 原文（日本語）→英語、原文（日本語）→ひらがなは `@cf/meta/llama-3.1-8b-instruct-fp8` 1つに統一し、タスクごとの短い指示だけを変える。音声認識は `@cf/openai/whisper-large-v3-turbo` を使い、Base64 の `audio`、`task: "transcribe"`、`language: "ja"` を指定する。[公式入力スキーマ](https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/schema-input.json)に合わせ、音声を巨大な数値配列へ展開しない。
 - Embeddingは `@cf/qwen/qwen3-embedding-0.6b` を使い、複数テキストを入力順にベクトル化する。当初候補の `@cf/pfnet/plamo-embedding-1b` は2048次元で、Vectorizeの最大1536次元を超えるため採用しない。Qwen3の1024次元出力に合わせてVectorize indexを作成する（[PLaMo model card](https://huggingface.co/pfnet/plamo-embedding-1b/blob/main/README_ja.md)、[Vectorize limits](https://developers.cloudflare.com/vectorize/platform/limits/)、[Qwen3 model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)）。Qwen3 Embeddingは100以上の言語に対応する。
 - 投稿保存後は `concern.process` メッセージをQueueへ送り、Queue consumerから `ConcernProcessingUseCase` を起動する。ひらがな・英語表現とクラスタ割当はD1に保存し、EmbeddingはVectorizeに保存する。D1の `concerns.cluster_id` を正とし、Queue再試行でも既存の割当を使う。
 - Vectorizeは投稿処理内部の近傍照合にだけ使う。公開の任意文検索APIやRAGはこの段階では提供しない。Vectorize metadataにはcluster IDだけを保存し、本文や属性は保存しない。Embeddingの次元とindex設定はモデルに合わせ、モデルを変更する場合はindexを再構築する。

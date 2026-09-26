@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { hc } from "hono/client";
 import { describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE_NAME } from "../src/app/auth-cookie";
 import { createApp } from "../src/app/create-app";
@@ -22,6 +23,10 @@ import {
 } from "./support/audio-fixture";
 import { createConcernDependencies } from "./support/concern-fixture";
 import { createHistoryDependencies } from "./support/history-fixture";
+import {
+  recordedAudio,
+  replaceGaplessSamples,
+} from "./support/recorded-audio-fixture";
 import { createUserDependencies } from "./support/user-fixture";
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
@@ -114,6 +119,67 @@ async function postTranscription(
 }
 
 describe("POST /api/v1/speech/transcriptions", () => {
+  it.each([
+    ["Chrome WebM", "audio/webm;codecs=opus", recordedAudio("chromeWebm")],
+    ["Apple AAC 60秒", "audio/mp4", recordedAudio("appleAac60")],
+    [
+      "Opus 60秒の浮動小数点境界",
+      "audio/webm",
+      createWebmAudio(20, 20, 0, Uint8Array.of(0x18, 0xff)),
+    ],
+  ])(
+    "実際の録音形式と上限境界を受理する: %s",
+    async (_name, mimeType, audio) => {
+      const transcribe = vi.fn(async () => "文字起こし結果");
+      const response = await postTranscription(
+        createTestApp({ transcribe }),
+        createAudioForm({
+          audio: new File([audio], "recording", { type: mimeType }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(transcribe).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("偽装された AAC の余白情報を AI に送らない", async () => {
+    const transcribe = vi.fn(async () => "文字起こし結果");
+    const response = await postTranscription(
+      createTestApp({ transcribe }),
+      createAudioForm({
+        audio: new File(
+          [replaceGaplessSamples(2112, 976, 44100)],
+          "recording.m4a",
+          { type: "audio/mp4" },
+        ),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("Hono RPC の form 入力で音声を送信できる", async () => {
+    const app = createTestApp({ transcribe: async () => "今日は疲れました" });
+    const client = hc<typeof app>("http://localhost", {
+      headers: { Cookie: `${SESSION_COOKIE_NAME}=speech-test-token` },
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        app.request(input, init, env),
+    });
+    const response = await client.api.v1.speech.transcriptions.$post({
+      form: {
+        audio: new File([createWavAudio(1)], "voice.wav", {
+          type: "audio/wav",
+        }),
+        language: "ja",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      text: "今日は疲れました",
+      language: "ja",
+    });
+  });
+
   it("uses a deterministic recognizer only when the local development flag is enabled", async () => {
     const localBindings = {
       ...env,
@@ -667,6 +733,9 @@ describe("POST /api/v1/speech/transcriptions", () => {
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("23");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "Retry-After",
+    );
     expect(await response.json()).toMatchObject({
       error: { code: "RATE_LIMITED" },
     });

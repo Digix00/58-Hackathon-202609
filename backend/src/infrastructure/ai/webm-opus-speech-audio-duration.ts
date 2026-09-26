@@ -234,7 +234,8 @@ export function readWebmOpusDurationSeconds(audio: Uint8Array): number {
   ) {
     throw new SpeechAudioDurationLimitExceededError();
   }
-  return duration;
+  // 許容した浮動小数点誤差で、UseCase の 60 秒判定に再び拒否されないようにする。
+  return Math.min(duration, MAX_AUDIO_DURATION_SECONDS);
 }
 
 function validateOpusHeadChannelMapping(

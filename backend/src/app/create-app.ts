@@ -65,6 +65,7 @@ function createPublicApp({
     return cors({
       origin: () => origin || "*",
       credentials: Boolean(origin),
+      exposeHeaders: ["Retry-After", "X-Request-Id"],
     })(c, next);
   });
   app.onError(handleError);
