@@ -8,6 +8,17 @@ export type ConcernLanguage = (typeof CONCERN_LANGUAGES)[number];
 
 export type ConcernRepresentationState = "pending" | "ready" | "failed";
 
+/**
+ * APIの表示言語を決める。Query で明示された言語を優先し、未指定の場合は
+ * ログインユーザーの表示形式、未ログインなら原文とする。
+ */
+export function resolveConcernLanguage(
+  requested: ConcernLanguage | undefined,
+  userDisplayLanguage: ConcernLanguage | undefined,
+): ConcernLanguage {
+  return requested ?? userDisplayLanguage ?? "original";
+}
+
 export interface SelectedConcernText {
   body: string;
   language: ConcernLanguage;

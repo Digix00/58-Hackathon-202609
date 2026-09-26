@@ -5,14 +5,20 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
+  getAgeGroupName,
+  getGenderName,
+} from "../application/entity/attribute-name";
+import {
   type Quiz,
   QuizAlreadyAnsweredError,
   QuizNotAvailableError,
   QuizValidationError,
 } from "../application/entity/quiz";
+import { getRegionName } from "../application/entity/region-name";
 import {
   CONCERN_LANGUAGES,
   type ConcernLanguage,
+  resolveConcernLanguage,
   selectConcernText,
 } from "../application/shared/concern-representation";
 import type { IQuizUseCase } from "../application/usecase/quiz.usecase";
@@ -20,7 +26,7 @@ import type { Bindings } from "../types";
 
 const quizQuery = z
   .object({
-    language: z.enum(CONCERN_LANGUAGES).default("original"),
+    language: z.enum(CONCERN_LANGUAGES).optional(),
   })
   .strict();
 
@@ -72,7 +78,12 @@ export class QuizHandler {
       return quizNotAvailable(c, requestId);
     }
 
-    return c.json(toResponse(quiz, parsed.data.language));
+    return c.json(
+      toResponse(
+        quiz,
+        resolveConcernLanguage(parsed.data.language, auth.user.displayLanguage),
+      ),
+    );
   });
 
   readonly getById = factory.createHandlers(async (c) => {
@@ -97,7 +108,12 @@ export class QuizHandler {
       return quizNotAvailable(c, requestId);
     }
 
-    return c.json(toResponse(quiz, parsed.data.language));
+    return c.json(
+      toResponse(
+        quiz,
+        resolveConcernLanguage(parsed.data.language, auth.user.displayLanguage),
+      ),
+    );
   });
 
   readonly answer = factory.createHandlers(async (c) => {
@@ -159,15 +175,23 @@ export class QuizHandler {
 }
 
 function toResponse(quiz: Quiz, language: ConcernLanguage) {
-  const participants = shuffle(quiz.participants).map((participant, index) => ({
-    participantId: participant.id,
-    attributes: {
-      ageGroup: participant.ageGroup ?? "no_answer",
-      gender: participant.gender ?? "no_answer",
-      regionCode: participant.regionCode ?? "no_answer",
-    },
-    displayOrder: index + 1,
-  }));
+  const participants = shuffle(quiz.participants).map((participant, index) => {
+    const ageGroup = participant.ageGroup ?? "no_answer";
+    const gender = participant.gender ?? "no_answer";
+    const regionCode = participant.regionCode ?? "no_answer";
+    return {
+      participantId: participant.id,
+      attributes: {
+        ageGroup,
+        ageGroupName: getAgeGroupName(ageGroup, language),
+        gender,
+        genderName: getGenderName(gender, language),
+        regionCode,
+        regionName: getRegionName(regionCode, language),
+      },
+      displayOrder: index + 1,
+    };
+  });
   const concerns = shuffle(quiz.options).map((option, index) => ({
     ...selectConcernText(option.body, option.representations ?? [], language),
     concernId: option.concernId,

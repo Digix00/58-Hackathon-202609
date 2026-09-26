@@ -222,6 +222,27 @@ representations.jaHira と representations.en は、作成 API では未生成�
 }
 ~~~
 
+### 1.8 表示言語（原文・ひらがな・英語）
+
+API は原文（`original`）、ひらがな（`jaHira`）、英語（`en`）の3つの表示言語で返却内容を出し分ける。
+
+- 表示言語は、Query の `language` を指定した場合はその値、未指定の場合はログイン済みユーザーの `displayLanguage`、未ログインの場合は `original` の順で決める
+- 性別、年代、都道府県はコードを常に維持し、表示名（`genderName`、`ageGroupName`、`regionName`）をバックエンドのマスタデータ（`backend/src/application/entity/attribute-name.ts`、`region-name.ts`）で表示言語に合わせて変換して併せて返す。`no_answer` は全属性で「回答しない」「こたえない」「Prefer not to say」とする
+- 悩みの本文は、キュー処理で `concern_representations` に保存したひらがな・英語の表現を参照する。対象の表現が `ready` の場合だけ採用し、`pending`、`failed`、未生成の場合は原文へフォールバックする
+- クラスタの `label`、`summary` は現時点では翻訳テーブルがないため原文のまま返す
+
+| コード | original | jaHira | en |
+| --- | --- | --- | --- |
+| gender=male | 男性 | だんせい | Male |
+| gender=female | 女性 | じょせい | Female |
+| gender=non_binary | ノンバイナリー | のんばいなりー | Non-binary |
+| gender=other | その他 | そのた | Other |
+| ageGroup=10s | 10代 | 10だい | Teens |
+| ageGroup=20s〜80s | 20代〜80代 | 20だい〜80だい | 20s〜80s |
+| ageGroup=90s_plus | 90代以上 | 90だいいじょう | 90 and over |
+| regionCode=osaka（例） | 大阪府 | おおさかふ | Osaka |
+| no_answer | 回答しない | こたえない | Prefer not to say |
+
 ## 2. エンドポイント一覧
 
 | Method | Path | 優先度 | 認証 | 用途 |
@@ -291,18 +312,21 @@ HttpOnly Cookieのセッションから解決する。プロフィールは初�
     "birthYear": 2002,
     "birthMonth": 9,
     "gender": "no_answer",
+    "genderName": "回答しない",
     "regionCode": "hyogo",
+    "regionName": "兵庫県",
     "profileCompleted": true
   }
 }
 ~~~
 
 `id` は既存の認証レスポンスとの互換性のために返す内部 opaque IDであり、LINE user IDは返さない。
+`genderName`、`regionName` は本人の `displayLanguage` に合わせたマスタ上の表示名であり、未設定の場合は null とする。
 未認証の場合は401 `AUTHENTICATION_REQUIRED`、入力値が不正な場合は400 `INVALID_REQUEST`を返す。
 
 ### 2.2 PUT /api/v1/users/me/display-language
 
-LINEログイン済みユーザー自身の都道府県表示形式を更新する。表示形式は `original`、`jaHira`、`en` のいずれかとする。
+LINEログイン済みユーザー自身の表示言語（悩み本文、性別・年代・都道府県名の表示形式）を更新する。表示形式は `original`、`jaHira`、`en` のいずれかとする。
 
 #### Request
 
@@ -403,7 +427,7 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 | clusterId | 任意 | — | 指定クラスタに絞る |
 | gender | 任意 | — | `male`、`female`、`non_binary`、`other`、`no_answer` のいずれか。性別コードの完全一致で絞る |
 | regionCode | 任意 | — | 指定した都道府県に絞る |
-| language | 任意 | original | original、jaHira、en |
+| language | 任意 | 1.8 の規則 | original、jaHira、en。未指定時はログインユーザーの displayLanguage、未ログイン時は original |
 
 #### Response: 200 OK
 
@@ -416,7 +440,9 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
       "language": "original",
       "attributes": {
         "ageGroup": "20s",
+        "ageGroupName": "20代",
         "gender": "no_answer",
+        "genderName": "回答しない",
         "regionCode": "osaka",
         "regionName": "大阪府"
       },
@@ -447,10 +473,9 @@ LIFFでLINEログイン済みのユーザーの悩みを保存する。PoCでは
 - hidden、deleted の投稿は 404 と区別せず、一覧から除外する
 - gender を指定した場合は、投稿の gender コードが指定値と完全一致する投稿だけを返す
 - language で指定した表現が ready でない場合は原文を body に返し、language は original とする
-- `attributes.regionName` はログイン済みユーザーの `displayLanguage` に合わせた都道府県名。未ログイン時は原文表記とする
-- `attributes.regionCode` は検索用コードとして常に維持し、表示には `regionName` を利用する
+- `attributes.ageGroupName`、`attributes.genderName`、`attributes.regionName` は 1.8 で決めた表示言語に合わせたマスタ上の表示名とする
+- `attributes.ageGroup`、`attributes.gender`、`attributes.regionCode` は検索用コードとして常に維持し、表示には各 `*Name` を利用する
 - `language` で指定した表現が ready の場合はその本文と `language` を返し、pending、failed、未生成の場合は原文の本文と `language=original` にフォールバックする
-- `attributes.regionName` の表示形式はログイン済みユーザーの `displayLanguage` に合わせる
 - representation の値が failed でも原文は返す
 - viewed と reacted はLINEログイン済みユーザー自身の状態であり、公開閲覧では false とする
 - sort=recommended はLINEログイン済みLIFFで、未読、クラスタの分散、都道府県の分散、新しさを使う
@@ -474,12 +499,12 @@ reasonCode の初期値は次のとおり。
 
 | Param | 必須 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| language | 任意 | original | original、jaHira、en |
+| language | 任意 | 1.8 の規則 | original、jaHira、en |
 
 - Response の item 形式は GET /api/v1/concerns の items と同じ。ただし詳細取得では recommendation を省略する
 - language で指定した表現が ready の場合はその本文と language を返し、pending、failed、未生成の場合は原文の本文と language=original にフォールバックする
 - language が不正な場合は 400 INVALID_REQUEST とする
-- 都道府県名はログイン済みユーザーの `displayLanguage` に合わせ、未ログイン時は原文表記とする
+- 性別・年代・都道府県名は 1.8 で決めた表示言語に合わせる
 - 非公開または存在しない concernId は 404 NOT_FOUND
 - 詳細取得だけでは既読にしない。画面表示後に 3.5 の既読 API を呼び出す
 - 投稿者を特定できる users.id、LINE user ID、LINE profile 情報は返さない
@@ -589,7 +614,7 @@ reasonCode の初期値は次のとおり。
 
 | Param | 必須 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| language | 任意 | original | original、jaHira、en |
+| language | 任意 | 1.8 の規則 | original、jaHira、en |
 
 ~~~json
 {
@@ -600,8 +625,11 @@ reasonCode の初期値は次のとおり。
       "participantId": "participant_a",
       "attributes": {
         "ageGroup": "20s",
+        "ageGroupName": "20代",
         "gender": "female",
-        "regionCode": "osaka"
+        "genderName": "女性",
+        "regionCode": "osaka",
+        "regionName": "大阪府"
       },
       "displayOrder": 1
     },
@@ -609,8 +637,11 @@ reasonCode の初期値は次のとおり。
       "participantId": "participant_b",
       "attributes": {
         "ageGroup": "40s",
+        "ageGroupName": "40代",
         "gender": "male",
-        "regionCode": "kyoto"
+        "genderName": "男性",
+        "regionCode": "kyoto",
+        "regionName": "京都府"
       },
       "displayOrder": 2
     },
@@ -618,8 +649,11 @@ reasonCode の初期値は次のとおり。
       "participantId": "participant_c",
       "attributes": {
         "ageGroup": "no_answer",
+        "ageGroupName": "回答しない",
         "gender": "no_answer",
-        "regionCode": "hyogo"
+        "genderName": "回答しない",
+        "regionCode": "hyogo",
+        "regionName": "兵庫県"
       },
       "displayOrder": 3
     }
@@ -651,6 +685,7 @@ reasonCode の初期値は次のとおり。
 - participants と concerns はそれぞれ 3 件ちょうど返す
 - participants と concerns の配列順はそれぞれシャッフルする
 - 3 件の participants は、ageGroup、gender、regionCode の各属性がそれぞれ重複しない組み合わせにする。未入力値は `no_answer` として扱う
+- participants の `ageGroupName`、`genderName`、`regionName` は 1.8 で決めた表示言語に合わせたマスタ上の表示名とする
 - participantId は当該クイズ内だけで利用する opaque ID とし、users.id や LINE user ID を使わない
 - concernId は公開済みの元投稿を参照するが、参加者との正しい対応は返さない
 - 3 件の concern は実際の投稿であり、架空の選択肢は作らない
@@ -757,6 +792,12 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 
 ### 6.1 GET /api/v1/history/summary
 
+#### Query
+
+| Param | 必須 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| language | 任意 | 1.8 の規則 | original、jaHira、en。都道府県・年代・性別の表示名に使う |
+
 #### Response
 
 ~~~json
@@ -776,6 +817,7 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
   "regions": [
     {
       "regionCode": "osaka",
+      "regionName": "大阪府",
       "count": 4
     }
   ],
@@ -783,12 +825,14 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
     "ageGroups": [
       {
         "ageGroup": "20s",
+        "ageGroupName": "20代",
         "count": 5
       }
     ],
     "genders": [
       {
         "gender": "female",
+        "genderName": "女性",
         "count": 4
       }
     ]
@@ -803,9 +847,10 @@ Asia/Tokyo の現在日付に対応する published クイズを返す。
 ~~~
 
 - viewedConcernCount はユーザーが既読にした公開投稿の distinct 件数
-- nextSuggestion は本人以外の公開投稿の未読候補から、既読の公開投稿にまだ現れていないテーマまたは都道府県を1件返す。テーマ候補には処理完了済みの投稿と ready なラベル付きクラスタだけを使い、未読テーマを優先する。テーマ候補がない場合は未読の都道府県コードを返し、該当する候補がない場合は null
+- nextSuggestion は本人以外の公開投稿の未読候補から、既読の公開投稿にまだ現れていないテーマまたは都道府県を1件返す。テーマ候補には処理完了済みの投稿と ready なラベル付きクラスタだけを使い、未読テーマを優先する。テーマ候補がない場合は未読の都道府県コードと表示名（`regionName`）を返し、該当する候補がない場合は null
 - clusters は既読履歴に現れた公開・処理完了済み投稿のうち、ready なラベル付きクラスタを集計する。`regions` は既読履歴に現れた公開投稿の都道府県コード別集計であり、マスタテーブルの参照結果ではない
 - attributes.ageGroups と attributes.genders は、既読履歴に現れた公開投稿を属性値ごとに集計する
+- `regionName`、`ageGroupName`、`genderName` は 1.8 で決めた表示言語に合わせたマスタ上の表示名とする
 - 各属性の count は同じ投稿を複数回既読にしても重複しない distinct 件数とし、値が未設定の投稿はその属性の集計から除外する
 - quiz.answeredCount は回答済みクイズ数
 - accuracy は correctCount / totalQuestions。totalQuestions が 0 の場合は 0

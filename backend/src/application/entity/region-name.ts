@@ -1,3 +1,4 @@
+import { NO_ANSWER_NAMES } from "./attribute-name";
 import type { RegionCode } from "./region-code";
 import type { DisplayLanguage } from "./user";
 
@@ -59,6 +60,9 @@ export function getRegionName(
 ): string | undefined {
   if (!regionCode) {
     return undefined;
+  }
+  if (regionCode === "no_answer") {
+    return NO_ANSWER_NAMES[displayLanguage];
   }
 
   return (

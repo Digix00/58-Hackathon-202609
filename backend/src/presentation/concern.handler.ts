@@ -4,6 +4,10 @@ import { z } from "zod";
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
 import {
+  getAgeGroupName,
+  getGenderName,
+} from "../application/entity/attribute-name";
+import {
   type AgeGroup,
   type Concern,
   ConcernValidationError,
@@ -18,6 +22,7 @@ import {
   CONCERN_LANGUAGES,
   type ConcernLanguage,
   getConcernRepresentationState,
+  resolveConcernLanguage,
   selectConcernText,
 } from "../application/shared/concern-representation";
 import type { IConcernUseCase } from "../application/usecase/concern.usecase";
@@ -43,11 +48,11 @@ const listConcernQuery = z
     clusterId: z.string().min(1).optional(),
     gender: z.enum(GENDERS).optional(),
     regionCode: z.enum(REGION_CODES).optional(),
-    language: z.enum(CONCERN_LANGUAGES).default("original"),
+    language: z.enum(CONCERN_LANGUAGES).optional(),
   })
   .strict();
 const concernLanguageQuery = z
-  .object({ language: z.enum(CONCERN_LANGUAGES).default("original") })
+  .object({ language: z.enum(CONCERN_LANGUAGES).optional() })
   .strict();
 
 const factory = createFactory<{
@@ -202,8 +207,10 @@ export class ConcernHandler {
           toFeedResponse(
             item,
             true,
-            auth?.user?.displayLanguage ?? "original",
-            parsed.data.language,
+            resolveConcernLanguage(
+              parsed.data.language,
+              auth?.user?.displayLanguage,
+            ),
           ),
         ),
         nextCursor,
@@ -224,8 +231,10 @@ export class ConcernHandler {
         toFeedResponse(
           concern,
           true,
-          auth?.user?.displayLanguage ?? "original",
-          parsed.data.language,
+          resolveConcernLanguage(
+            parsed.data.language,
+            auth?.user?.displayLanguage,
+          ),
         ),
       ),
       nextCursor,
@@ -278,8 +287,10 @@ export class ConcernHandler {
       toFeedResponse(
         item,
         false,
-        c.var.auth?.user?.displayLanguage ?? "original",
-        parsed.data.language,
+        resolveConcernLanguage(
+          parsed.data.language,
+          c.var.auth?.user?.displayLanguage,
+        ),
       ),
     );
   });
@@ -289,12 +300,7 @@ function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
   return {
     id: concern.id,
     body: concern.body,
-    attributes: {
-      ageGroup: concern.ageGroup ?? undefined,
-      gender: concern.gender ?? undefined,
-      regionCode: concern.regionCode ?? undefined,
-      regionName: getRegionName(concern.regionCode, displayLanguage),
-    },
+    attributes: toAttributesResponse(concern, displayLanguage),
     visibilityStatus: concern.visibilityStatus,
     processingStatus: concern.processingStatus,
     representations: { jaHira: null, en: null },
@@ -307,8 +313,7 @@ function toResponse(concern: Concern, displayLanguage: DisplayLanguage) {
 function toFeedResponse(
   source: Concern | RankedConcernFeedItem,
   includeRecommendation: boolean,
-  displayLanguage: DisplayLanguage,
-  language: ConcernLanguage = "original",
+  language: ConcernLanguage,
 ) {
   const candidate = isFeedItem(source)
     ? source
@@ -330,12 +335,7 @@ function toFeedResponse(
     id: concern.id,
     body: selectedText.body,
     language: selectedText.language,
-    attributes: {
-      ageGroup: concern.ageGroup ?? undefined,
-      gender: concern.gender ?? undefined,
-      regionCode: concern.regionCode ?? undefined,
-      regionName: getRegionName(concern.regionCode, displayLanguage),
-    },
+    attributes: toAttributesResponse(concern, language),
     representations: {
       jaHira: getConcernRepresentationState(
         concern.representations,
@@ -369,6 +369,21 @@ function toFeedResponse(
         }
       : {}),
     createdAt: concern.createdAt,
+  };
+}
+
+/** 属性コードに、表示形式に合わせたマスタ上の名称を添える。 */
+function toAttributesResponse(
+  concern: Concern,
+  displayLanguage: DisplayLanguage,
+) {
+  return {
+    ageGroup: concern.ageGroup ?? undefined,
+    ageGroupName: getAgeGroupName(concern.ageGroup, displayLanguage),
+    gender: concern.gender ?? undefined,
+    genderName: getGenderName(concern.gender, displayLanguage),
+    regionCode: concern.regionCode ?? undefined,
+    regionName: getRegionName(concern.regionCode, displayLanguage),
   };
 }
 

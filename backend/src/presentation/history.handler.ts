@@ -4,10 +4,25 @@ import { z } from "zod";
 
 import type { AuthVariables } from "../app/middleware/auth";
 import { getRequestId } from "../app/request-id";
+import {
+  getAgeGroupName,
+  getGenderName,
+} from "../application/entity/attribute-name";
+import type { HistorySummary } from "../application/entity/history";
+import { getRegionName } from "../application/entity/region-name";
+import type { DisplayLanguage } from "../application/entity/user";
+import {
+  CONCERN_LANGUAGES,
+  resolveConcernLanguage,
+} from "../application/shared/concern-representation";
 import type { IHistoryUseCase } from "../application/usecase/history.usecase";
 import { HistoryUserDeletedError } from "../application/usecase/history.usecase";
 import type { Bindings } from "../types";
 import { decodeHistoryCursor, encodeHistoryCursor } from "./history-cursor";
+
+const summaryQuery = z
+  .object({ language: z.enum(CONCERN_LANGUAGES).optional() })
+  .strict();
 
 const quizAnswersQuery = z
   .object({
@@ -34,11 +49,22 @@ export class HistoryHandler {
 
   readonly getSummary = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
-    const userId = c.var.auth?.user?.id;
-    if (!userId) return authenticationRequired(c, requestId);
+    const user = c.var.auth?.user;
+    if (!user) return authenticationRequired(c, requestId);
+
+    const parsed = summaryQuery.safeParse(c.req.query());
+    if (!parsed.success) {
+      return invalidRequest(c, requestId, parsed.error.issues);
+    }
 
     try {
-      return c.json(await this.historyUseCase.getSummary(userId));
+      const summary = await this.historyUseCase.getSummary(user.id);
+      return c.json(
+        toSummaryResponse(
+          summary,
+          resolveConcernLanguage(parsed.data.language, user.displayLanguage),
+        ),
+      );
     } catch (error) {
       if (error instanceof HistoryUserDeletedError) {
         return userDeleted(c, requestId);
@@ -93,6 +119,40 @@ export class HistoryHandler {
       throw error;
     }
   });
+}
+
+/** 集計の属性コードに、表示形式に合わせたマスタ上の名称を添える。 */
+function toSummaryResponse(
+  summary: HistorySummary,
+  displayLanguage: DisplayLanguage,
+) {
+  return {
+    ...summary,
+    regions: summary.regions.map((region) => ({
+      ...region,
+      regionName: getRegionName(region.regionCode, displayLanguage),
+    })),
+    attributes: {
+      ageGroups: summary.attributes.ageGroups.map((item) => ({
+        ...item,
+        ageGroupName: getAgeGroupName(item.ageGroup, displayLanguage),
+      })),
+      genders: summary.attributes.genders.map((item) => ({
+        ...item,
+        genderName: getGenderName(item.gender, displayLanguage),
+      })),
+    },
+    nextSuggestion:
+      summary.nextSuggestion?.kind === "region"
+        ? {
+            ...summary.nextSuggestion,
+            regionName: getRegionName(
+              summary.nextSuggestion.regionCode,
+              displayLanguage,
+            ),
+          }
+        : summary.nextSuggestion,
+  };
 }
 
 function setRequestId(c: {

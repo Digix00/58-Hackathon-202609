@@ -97,7 +97,9 @@ describe("authentication routes", () => {
         birthYear: null,
         birthMonth: null,
         gender: null,
+        genderName: null,
         regionCode: null,
+        regionName: null,
         profileCompleted: false,
       },
     });
@@ -170,7 +172,9 @@ describe("authentication routes", () => {
         birthYear: null,
         birthMonth: null,
         gender: null,
+        genderName: null,
         regionCode: null,
+        regionName: null,
         profileCompleted: false,
       },
     });
@@ -191,7 +195,9 @@ describe("authentication routes", () => {
         birthYear: null,
         birthMonth: null,
         gender: null,
+        genderName: null,
         regionCode: null,
+        regionName: null,
         profileCompleted: false,
       },
     });
@@ -258,7 +264,9 @@ describe("authentication routes", () => {
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
+        genderName: "回答しない",
         regionCode: "hyogo",
+        regionName: "兵庫県",
         profileCompleted: true,
       },
     });
@@ -276,7 +284,9 @@ describe("authentication routes", () => {
         birthYear: 2002,
         birthMonth: 9,
         gender: "no_answer",
+        genderName: "回答しない",
         regionCode: "hyogo",
+        regionName: "兵庫県",
         profileCompleted: true,
       },
     });
