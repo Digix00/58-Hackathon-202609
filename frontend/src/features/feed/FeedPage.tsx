@@ -253,7 +253,7 @@ function FeedCover() {
 }
 
 type FeedStackProps = {
-  concern: FeedConcern
+  concern: FeedConcern | undefined
   stackRef: RefObject<HTMLDivElement | null>
   index: number
   position: number
@@ -308,10 +308,10 @@ function FeedStack({
         }
       >
         {/*
-         * 表紙が開くまでは、表紙が一番上の紙。声の紙はその下に控えている。
+         * 表紙自身で紙束の高さを確保し、取得前後で位置を変えない。
          * 戻りのめくりが降りている間は、いま読んでいる紙をここに残す。
          */}
-        {coverOpened ? (
+        {coverOpened && concern ? (
           <div key={`${concern.id}-${index}`} className={styles.enter}>
             <FeedCard
               concern={concern}
@@ -325,14 +325,9 @@ function FeedStack({
             />
           </div>
         ) : (
-          <>
-            <div className={`${styles.enter} ${styles.coverUnderlay}`} aria-hidden="true">
-              <FeedCard concern={concern} page={position + 1} showTabs={false} />
-            </div>
-            <div className={styles.coverLayer}>
-              <FeedCover />
-            </div>
-          </>
+          <div className={styles.coverStandalone}>
+            <FeedCover />
+          </div>
         )}
       </NotebookStack>
     </NotebookOpening>
@@ -384,12 +379,18 @@ function FeedStage({
       <h1 id="feed-title" className={styles.srOnly}>
         {t('feed.start')}
       </h1>
-      {concern ? <FeedStack concern={concern} {...stackProps} /> : <FeedEmpty onReset={onReset} />}
+      {concern || !stackProps.coverOpened ? (
+        <FeedStack concern={concern} {...stackProps} />
+      ) : (
+        <FeedEmpty onReset={onReset} />
+      )}
     </section>
   )
 }
 
 type FeedActionsProps = {
+  coverOpened: boolean
+  waiting: boolean
   showLogin: boolean
   concern: FeedConcern | undefined
   filtersOpen: boolean
@@ -403,6 +404,8 @@ type FeedActionsProps = {
 }
 
 function FeedActions({
+  coverOpened,
+  waiting,
   showLogin,
   concern,
   filtersOpen,
@@ -419,16 +422,19 @@ function FeedActions({
   return (
     <div className={styles.actions}>
       {showLogin ? <LoginGuide /> : null}
-      {concern ? (
+      {concern || !coverOpened ? (
         <div className={styles.coverOpenSlot}>
           <button
             type="button"
             className={`${actionStyles.primary} ${styles.coverButton}`}
             onClick={onNext}
+            disabled={waiting}
+            aria-busy={waiting}
           >
             {t('feed.next')}
             <span aria-hidden="true">→</span>
           </button>
+          <p role="status">{waiting ? t('feed.loading') : ''}</p>
         </div>
       ) : null}
       <details
@@ -490,11 +496,15 @@ function FeedPageView({
 
   return (
     <div className={styles.page}>
-      {showInitialLoading ? <LoadingState label={t('feed.loading')} /> : null}
+      {showInitialLoading && stageProps.coverOpened ? (
+        <LoadingState label={t('feed.loading')} />
+      ) : null}
       {showInitialError ? (
         <ErrorState description={initialError ?? t('error.loadConcernShort')} onRetry={onRetry} />
       ) : null}
-      {!showInitialLoading && !showInitialError ? <FeedStage {...stageProps} /> : null}
+      {!showInitialError && (!showInitialLoading || !stageProps.coverOpened) ? (
+        <FeedStage {...stageProps} />
+      ) : null}
       <FeedActions {...actionsProps} />
       {loadingMore ? <LoadingState label={t('feed.loadingNext')} /> : null}
       {showPaginationError ? (
@@ -530,6 +540,9 @@ export function FeedPage() {
     feed,
   })
   const {
+    showInitialLoading,
+    showInitialError,
+    waitingToOpen,
     filter,
     index,
     coverOpened,
@@ -556,10 +569,6 @@ export function FeedPage() {
   })
   useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
   const activeFilter = activeFeedFilterLabel(filter, language)
-
-  const showInitialLoading =
-    feed.status === 'idle' || (feed.status === 'loading' && concerns.length === 0)
-  const showInitialError = feed.status === 'error' && concerns.length === 0
 
   const stageProps: FeedStageProps = {
     concern,
@@ -598,6 +607,8 @@ export function FeedPage() {
     reactionError: reaction.error,
   }
   const actionsProps: FeedActionsProps = {
+    coverOpened: coverOpened || showInitialError,
+    waiting: waitingToOpen,
     showLogin,
     concern,
     filtersOpen,

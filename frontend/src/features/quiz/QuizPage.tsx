@@ -14,7 +14,10 @@ import {
   type RefObject,
 } from 'react'
 import { Link } from 'react-router'
-import { EmptyState, ErrorState, LoadingState } from '../../shared/components/AsyncStates'
+import { ProtectedRoute } from '../../app/router'
+import { useRuntime } from '../../app/providers/RuntimeContext'
+import { useAuth } from '../../auth/useAuth'
+import { EmptyState, ErrorState } from '../../shared/components/AsyncStates'
 import { NotebookBinding } from '../../shared/components/NotebookBinding'
 import { NotebookTurn } from '../../shared/components/NotebookTurn'
 import { NotebookStack } from '../../shared/components/NotebookStack'
@@ -1545,6 +1548,17 @@ function QuizReader({
 
   const { answerResult, people } = useQuizData()
   const quiz = useQuizNavigation(setAnswerResult)
+  const { openCover } = quiz
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    // 表紙を描画してから開く。StrictModeのEffect再実行でも押し上げ位置を失わない。
+    const frame = window.requestAnimationFrame(() => {
+      started.current = true
+      openCover()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [openCover])
   const { drag, slotRef, startDrag } = useQuizDrag(quiz.fit)
   const swipe = useNotebookSwipe({
     // 表紙が残っているうちは、左へ払う先が手紙ではなく表紙になる。
@@ -1659,9 +1673,10 @@ function quizLoadReducer(_state: QuizLoadState, action: QuizLoadAction): QuizLoa
   }
 }
 
-export function QuizPage() {
+function QuizPage({ enabled }: { enabled: boolean }) {
   const { t, language } = useTranslation()
   const requestVersion = useRef(0)
+  const [openRequested, setOpenRequested] = useState(false)
 
   const [loadState, dispatchLoad] = useReducer(quizLoadReducer, { status: 'loading' })
 
@@ -1695,14 +1710,15 @@ export function QuizPage() {
   }, [dispatchLoad, loadQuiz])
 
   useEffect(() => {
+    if (!enabled) return
     void loadQuiz()
     return () => {
       requestVersion.current += 1
     }
-  }, [loadQuiz])
+  }, [enabled, loadQuiz])
 
-  if (loadState.status === 'loading') {
-    return <LoadingState label={t('quiz.loading')} />
+  if (!enabled || !openRequested || loadState.status === 'loading') {
+    return <QuizEntrance waiting={openRequested} onOpen={() => setOpenRequested(true)} />
   }
   if (loadState.status === 'unavailable') return <QuizUnavailableState />
   if (loadState.status === 'error') {
@@ -1725,4 +1741,47 @@ export function QuizPage() {
       setAnswerResult={setQuizAnswerResult}
     />
   )
+}
+
+function QuizEntrance({ waiting, onOpen }: { waiting: boolean; onOpen: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className={styles.page}>
+      <section className={styles.stage} aria-labelledby="quiz-title">
+        <h1 id="quiz-title" className={styles.srOnly}>
+          {t('quiz.pageTitle')}
+        </h1>
+        <NotebookStack className={`${styles.stack} ${styles.stackCover}`} opened={false}>
+          <div className={styles.coverStandalone}>
+            <QuizCover />
+          </div>
+        </NotebookStack>
+      </section>
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={`${actionStyles.primary} ${styles.nextButton}`}
+          onClick={onOpen}
+          disabled={waiting}
+          aria-busy={waiting}
+        >
+          {t('quiz.open')}
+          <span aria-hidden="true">→</span>
+        </button>
+        <p role="status">{waiting ? t('quiz.loading') : ''}</p>
+      </div>
+    </div>
+  )
+}
+
+export function QuizRoute() {
+  const { state } = useRuntime()
+  const { status, user } = useAuth()
+  const enabled =
+    state.status === 'ready' &&
+    state.mode === 'liff' &&
+    status === 'authenticated' &&
+    Boolean(user?.profileCompleted)
+  const page = <QuizPage enabled={enabled} />
+  return <ProtectedRoute pending={page}>{page}</ProtectedRoute>
 }

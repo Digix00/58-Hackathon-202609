@@ -1,20 +1,17 @@
 import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router'
+import { FeedPage } from '../features/feed/FeedPage'
+import { QuizRoute } from '../features/quiz/QuizPage'
 import { PostPage } from '../features/post/PostPage'
 import { LineBroadcastPage } from '../features/line-broadcast/LineBroadcastPage'
 import { LoadingState } from '../shared/components/AsyncStates'
 import { SettingsRoute } from './SettingsRoute'
 import { AppLayout, NotFoundPage, ProtectedRoute, RouteErrorBoundary } from './router'
 
-const feedPage = lazy(async () => ({
-  default: (await import('../features/feed/FeedPage')).FeedPage,
-}))
 const concernDetailPage = lazy(async () => ({
   default: (await import('../features/concern-detail/ConcernDetailPage')).ConcernDetailPage,
 }))
-const quizPage = lazy(async () => ({
-  default: (await import('../features/quiz/QuizPage')).QuizPage,
-}))
+
 const onboardingPage = lazy(async () => ({
   default: (await import('../features/onboarding/OnboardingPage')).OnboardingPage,
 }))
@@ -41,7 +38,7 @@ export const router = createBrowserRouter([
     Component: AppLayout,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, element: apiPage(feedPage) },
+      { index: true, element: <FeedPage /> },
       // はじめの1ページは ProtectedRoute で包まない。包むと、
       // プロフィール未記入の案内がこの画面自身へ戻り続ける。
       { path: 'onboarding', element: apiPage(onboardingPage) },
@@ -56,7 +53,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'quiz/today',
-        element: <ProtectedRoute>{apiPage(quizPage)}</ProtectedRoute>,
+        element: <QuizRoute />,
       },
       {
         path: 'history',

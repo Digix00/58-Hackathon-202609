@@ -722,3 +722,9 @@
     transition: none;
   }
 }
+
+/* 本文がまだない表紙も、紙束の高さを自身で確保する。 */
+.coverStandalone {
+  position: relative;
+  z-index: 2;
+}

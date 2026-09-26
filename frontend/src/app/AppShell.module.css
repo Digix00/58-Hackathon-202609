@@ -257,3 +257,7 @@
     font-size: calc(12px * var(--font-scale));
   }
 }
+
+.nav[hidden] {
+  display: none;
+}
