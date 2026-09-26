@@ -45,7 +45,12 @@ export interface CreateConcernInput {
 export interface ListFeedInput extends ListConcernFeedInput {
   sort: ConcernSort;
   recommendationCursor?: RecommendedConcernCursor;
+  /** 閲覧者のプロフィール上の都道府県。推薦で近くの悩みを選ぶために使う。 */
+  viewerRegionCode?: string | null;
 }
+
+/** 見飽きた投稿を判定するために、表示履歴をさかのぼる期間。 */
+const UNOPENED_EXPOSURE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface ListFeedResult {
   items: RankedConcernFeedItem[];
@@ -237,11 +242,19 @@ export class ConcernUseCase implements IConcernUseCase {
         this.repository.listRecommendationHistory && input.userId
           ? await this.repository.listRecommendationHistory(input.userId, 50)
           : [];
-      const ranked = rankConcernFeedCandidates(
-        candidateWindow,
-        history,
-        recommendationCursor?.lastClusterId,
+      const now = this.now();
+      const unopenedExposureCounts = await this.loadUnopenedExposureCounts(
+        input.userId,
+        now,
       );
+      const ranked = rankConcernFeedCandidates(candidateWindow, history, {
+        previousClusterId: recommendationCursor?.lastClusterId,
+        viewerUserId: input.userId,
+        viewerRegionCode: input.viewerRegionCode,
+        pageSize: input.limit,
+        unopenedExposureCounts,
+        now,
+      });
       const items = ranked.slice(0, input.limit);
       const result = {
         items,
@@ -365,6 +378,34 @@ export class ConcernUseCase implements IConcernUseCase {
           viewed: false,
         }
       : null;
+  }
+
+  /**
+   * 開かれずに表示された回数を取得する。表示履歴は推薦の補助情報のため、
+   * 取得に失敗しても推薦全体をフォールバックさせず、減点なしで続ける。
+   */
+  private async loadUnopenedExposureCounts(
+    userId: string | undefined,
+    now: Date,
+  ): Promise<Map<string, number>> {
+    if (!userId || !this.repository.listUnopenedFeedExposures) {
+      return new Map();
+    }
+
+    try {
+      const since = new Date(
+        now.getTime() - UNOPENED_EXPOSURE_LOOKBACK_MS,
+      ).toISOString();
+      const exposures = await this.repository.listUnopenedFeedExposures(
+        userId,
+        since,
+      );
+      return new Map(
+        exposures.map((exposure) => [exposure.concernId, exposure.count]),
+      );
+    } catch {
+      return new Map();
+    }
   }
 
   private async recordImpressions(

@@ -197,6 +197,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
         userId: auth?.user?.id,
+        viewerRegionCode: auth?.user?.regionCode,
         recommendationCursor,
       });
       const nextCursor = result.nextCursor

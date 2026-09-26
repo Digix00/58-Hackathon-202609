@@ -14,6 +14,8 @@ export type RecommendationStrategy = (typeof RECOMMENDATION_STRATEGIES)[number];
 export const RECOMMENDATION_REASON_CODES = [
   "unread_cluster",
   "new_cluster",
+  "nearby_prefecture",
+  "nearby_area",
   "region_diversity",
   "newest",
   "fallback_newest",
@@ -33,6 +35,12 @@ export interface RecommendationHistory {
   clusterId: string | null;
   regionCode: string | null;
   viewedAt: string;
+}
+
+/** 表示されたが開かれていない回数。見飽きた投稿を下げるために使う。 */
+export interface UnopenedFeedExposure {
+  concernId: string;
+  count: number;
 }
 
 export interface FeedRecommendation {

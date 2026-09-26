@@ -18,6 +18,7 @@ import {
   concernReactions,
   concernRepresentations,
   concerns,
+  feedImpressions,
   learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
@@ -816,6 +817,36 @@ describe("GET /api/v1/concerns", () => {
     expect(ids).toContain(otherConcernId);
   });
 
+  it("marks posts from the viewer's prefecture as nearby in the recommended feed", async () => {
+    const lineUserId = `line_concern_nearby_${crypto.randomUUID()}`;
+    const app = createTestApp(lineUserId);
+    const cookie = await loginCookie(app);
+    await seedUserProfile(lineUserId, {
+      birthYear: 1990,
+      birthMonth: 4,
+      genderCode: "no_answer",
+      regionCode: "tottori",
+    });
+    const nearbyConcernId = await seedConcern({
+      body: "同じ県からのおすすめ投稿",
+      regionCode: "tottori",
+      createdAt: "9999-01-12T00:00:00.000Z",
+    });
+
+    const response = await app.request(
+      "/api/v1/concerns?sort=recommended&limit=50",
+      { headers: { Cookie: cookie } },
+      env,
+    );
+    const body = await response.json<{
+      items: Array<{ id: string; recommendation: { reasonCode: string } }>;
+    }>();
+    const nearbyItem = body.items.find((item) => item.id === nearbyConcernId);
+
+    expect(response.status).toBe(200);
+    expect(nearbyItem?.recommendation.reasonCode).toBe("nearby_prefecture");
+  });
+
   it("does not skip candidates across recommended pages", async () => {
     const suffix = crypto.randomUUID();
     const clusterId = await seedCluster({
@@ -1456,5 +1487,68 @@ describe("POST /api/v1/concerns/:concernId/reactions", () => {
     expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
     expect(body.error.requestId).toBe(response.headers.get("X-Request-Id"));
     expect(body.error.requestId).toBe("reaction-auth");
+  });
+});
+
+describe("D1ConcernRepository.listUnopenedFeedExposures", () => {
+  it("counts only recent unopened impressions of the user per concern", async () => {
+    const suffix = crypto.randomUUID();
+    const userId = `exposure-user-${suffix}`;
+    const otherUserId = `exposure-other-${suffix}`;
+    const db = drizzle(env.DB);
+    await db
+      .insert(users)
+      .values(
+        [userId, otherUserId].map((id) => ({
+          id,
+          lineUserId: `line-${id}`,
+          createdAt: "2026-09-20T00:00:00.000Z",
+          updatedAt: "2026-09-20T00:00:00.000Z",
+        })),
+      )
+      .run();
+    const ignoredId = await seedConcern({
+      body: "何度も表示された投稿",
+      createdAt: "2026-09-20T00:00:00.000Z",
+    });
+    const openedId = await seedConcern({
+      body: "開かれた投稿",
+      createdAt: "2026-09-20T00:00:00.000Z",
+    });
+    const impression = (
+      concernId: string,
+      exposedAt: string,
+      options: { userId?: string; openedAt?: string } = {},
+    ) => ({
+      id: `impression-${crypto.randomUUID()}`,
+      userId: options.userId ?? userId,
+      concernId,
+      strategy: "recommended",
+      reasonCode: "unread_cluster",
+      algorithmVersion: "test",
+      position: 0,
+      exposedAt,
+      openedAt: options.openedAt ?? null,
+    });
+    await db
+      .insert(feedImpressions)
+      .values([
+        impression(ignoredId, "2026-09-24T00:00:00.000Z"),
+        impression(ignoredId, "2026-09-25T00:00:00.000Z"),
+        impression(ignoredId, "2026-09-10T00:00:00.000Z"),
+        impression(ignoredId, "2026-09-25T00:00:00.000Z", {
+          userId: otherUserId,
+        }),
+        impression(openedId, "2026-09-25T00:00:00.000Z", {
+          openedAt: "2026-09-25T01:00:00.000Z",
+        }),
+      ])
+      .run();
+
+    const exposures = await new D1ConcernRepository(
+      env.DB,
+    ).listUnopenedFeedExposures(userId, "2026-09-19T00:00:00.000Z");
+
+    expect(exposures).toEqual([{ concernId: ignoredId, count: 2 }]);
   });
 });
