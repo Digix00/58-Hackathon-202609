@@ -10,22 +10,43 @@ import { prefersReducedMotion } from '../../shared/hooks/useNotebookSwipe'
  */
 export type SplashPhase = 'drawing' | 'waiting' | 'leaving'
 
-/** 第1幕と第2幕を描き切るまで。これがスプラッシュの最低表示時間になる。 */
-const DRAW_MS = 1000
+/**
+ * 第1幕と第2幕を描き切るまで。SplashScreen.module.css の .pen の尺と合わせる。
+ *
+ * 線を引く時間そのものがこの画面の見せ場なので、待ち時間の埋め合わせではなく、
+ * 手が動くのを追える速さから決める。速いと、描かれたのではなく出たように見える。
+ */
+const DRAW_MS = 1500
+
+/**
+ * 描き切ってから、絵を見る間。
+ *
+ * 引き終えた瞬間に画面が切り替わると、書いた字を読む前に消える。
+ * 短くてよいが、ゼロにはしない。
+ */
+const HOLD_MS = 350
+
+/** 起動画面を出しておく最短の時間。描き切りと、絵を見る間の合計。 */
+const SHOW_MS = DRAW_MS + HOLD_MS
 
 /**
  * 待っていることを文字で言うまでの間。
  *
- * これより早く準備が終わる回では文字を出さない。出してすぐ消える文字は、
- * 読む間がないまま画面が動いたようにしか見えない。
+ * 最短の表示時間より後に置く。手前に置くと、ふつうに起動しただけの回でも
+ * 描いている最中に文字が出て、待たされている画面になる。
  */
-const HINT_MS = 1600
+const HINT_MS = 2400
 
 /** 退場。絵が抜けるだけなので、紙をめくるより短く済ませる。 */
-const LEAVE_MS = 320
+const LEAVE_MS = 400
 
-/** 早送りの倍率。描き切る前に準備が終わったとき、残りをこの速さで流す。 */
-const FAST_RATE = 1.8
+/**
+ * 早送りの倍率。描き切る前に準備が終わったとき、残りをこの速さで流す。
+ *
+ * 大きくすると、ほとんどの回で早送りだけを見ることになり、本来の速さが
+ * 画面に出てこない。手が少し急いだ、と分かる程度に留める。
+ */
+const FAST_RATE = 1.35
 
 /**
  * 流れているアニメーションを、いまの位置を保ったまま早送りする。
@@ -74,7 +95,7 @@ export function useSplashPresentation(ready: boolean, onDone: () => void) {
     if (drawn) return
 
     if (drawStartedAt.current === 0) drawStartedAt.current = performance.now()
-    const remaining = Math.max(0, DRAW_MS - (performance.now() - drawStartedAt.current))
+    const remaining = Math.max(0, SHOW_MS - (performance.now() - drawStartedAt.current))
 
     if (ready) speedUp(rootRef.current)
     const timer = window.setTimeout(() => setDrawn(true), ready ? remaining / FAST_RATE : remaining)
