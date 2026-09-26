@@ -45,7 +45,7 @@ function createTestApp(
     },
   );
   const concernHandler = new ConcernHandler(
-    new ConcernUseCase(new D1ConcernRepository(env.DB, now), now),
+    new ConcernUseCase(new D1ConcernRepository(env.DB), now),
   );
   const concernReactionHandler = new ConcernReactionHandler(
     new ConcernReactionUseCase(new D1ConcernReactionRepository(env.DB)),

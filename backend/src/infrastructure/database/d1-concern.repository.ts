@@ -12,14 +12,12 @@ import {
 import { ConcernCluster } from "../../application/entity/concern-cluster";
 import type {
   ConcernRepository,
-  CreateConcernUserProfile,
   ListConcernFeedByIdsInput,
   ListConcernFeedInput,
   ListConcernFeedResult,
   ListPublishedConcernsInput,
   ListPublishedConcernsResult,
 } from "../../application/repository/concern.repository";
-import { deriveAgeGroup } from "../../application/shared/age-group";
 import { loadConcernRepresentations } from "./concern-representation.reader";
 import {
   concernClusters,
@@ -32,40 +30,21 @@ import {
 /** D1/Drizzleを使ったConcernRepositoryの実装。 */
 export class D1ConcernRepository implements ConcernRepository {
   private readonly db: ReturnType<typeof drizzle>;
-  private readonly now: () => Date;
 
-  constructor(d1: D1Database, now: () => Date = () => new Date()) {
+  constructor(d1: D1Database) {
     this.db = drizzle(d1);
-    this.now = now;
   }
 
-  /**
-   * concern自体にageGroup/gender/regionCodeの指定がない場合、認証済みユーザーの
-   * プロフィール（userProfile）をフォールバック元としてinsert時に補う。
-   */
-  async insert(
-    concern: Concern,
-    userProfile?: CreateConcernUserProfile,
-  ): Promise<Concern> {
-    const ageGroup =
-      concern.ageGroup ??
-      deriveAgeGroup(
-        userProfile?.birthYear ?? null,
-        userProfile?.birthMonth ?? null,
-        this.now(),
-      );
-    const genderCode = concern.gender ?? userProfile?.gender ?? null;
-    const regionCode = concern.regionCode ?? userProfile?.regionCode ?? null;
-
+  async insert(concern: Concern): Promise<Concern> {
     await this.db
       .insert(concerns)
       .values({
         id: concern.id,
         userId: concern.userId,
         body: concern.body,
-        ageGroup,
-        genderCode,
-        regionCode,
+        ageGroup: concern.ageGroup,
+        genderCode: concern.gender,
+        regionCode: concern.regionCode,
         clusterId: concern.clusterId,
         visibilityStatus: concern.visibilityStatus,
         processingStatus: concern.processingStatus,
@@ -74,19 +53,7 @@ export class D1ConcernRepository implements ConcernRepository {
       })
       .run();
 
-    return new Concern({
-      id: concern.id,
-      userId: concern.userId,
-      body: concern.body,
-      ageGroup,
-      gender: genderCode,
-      regionCode,
-      clusterId: concern.clusterId,
-      visibilityStatus: concern.visibilityStatus,
-      processingStatus: concern.processingStatus,
-      representations: concern.representations,
-      createdAt: concern.createdAt,
-    });
+    return concern;
   }
 
   async listPublished(
