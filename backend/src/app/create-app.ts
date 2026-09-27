@@ -3,7 +3,6 @@ import { cors } from "hono/cors";
 
 import type { IAuthUseCase } from "../application/usecase/auth.usecase";
 import type { AuthHandler } from "../presentation/auth.handler";
-import type { ClusterHandler } from "../presentation/cluster.handler";
 import type { ConcernHandler } from "../presentation/concern.handler";
 import type { ConcernReactionHandler } from "../presentation/concern-reaction.handler";
 import type { ConcernViewHandler } from "../presentation/concern-view.handler";
@@ -24,7 +23,6 @@ export interface ApplicationDependencies {
   authHandler: AuthHandler;
   authUseCase: IAuthUseCase;
   concernHandler: ConcernHandler;
-  clusterHandler: ClusterHandler;
   concernReactionHandler: ConcernReactionHandler;
   concernViewHandler: ConcernViewHandler;
   healthHandler: HealthHandler;
@@ -51,7 +49,6 @@ function createPublicApp({
   authHandler,
   authUseCase,
   concernHandler,
-  clusterHandler,
   concernReactionHandler,
   concernViewHandler,
   healthHandler,
@@ -91,12 +88,6 @@ function createPublicApp({
     .get("/api/v1/history/concerns", ...historyHandler.getConcerns)
     .get("/api/v1/history/reactions", ...historyHandler.getReactions)
     .get("/api/v1/concerns", ...concernHandler.list)
-    .get("/api/v1/clusters", ...clusterHandler.list)
-    .get(
-      "/api/v1/clusters/:clusterId/concerns",
-      ...clusterHandler.requirePublished,
-      ...concernHandler.list,
-    )
     .post("/api/v1/concerns", ...concernHandler.create)
     .get("/api/v1/concerns/:concernId", ...concernHandler.detail)
     .post(
