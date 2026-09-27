@@ -59,13 +59,68 @@ async function readStatus(response: {
   }
 }
 
-async function sendRequest<TResponse>(send: () => Promise<TResponse>): Promise<TResponse> {
+async function sendRequest<TResponse>(
+  send: () => Promise<TResponse>,
+  timeoutMilliseconds = 20_000,
+): Promise<TResponse> {
   try {
-    return await withApiTimeout(send, 20_000)
+    return await withApiTimeout(send, timeoutMilliseconds)
   } catch (cause) {
     if (cause instanceof ApiTimeoutError) {
       throw new LineBroadcastApiError('REQUEST_TIMEOUT', 'broadcast.noResponse')
     }
     throw new LineBroadcastApiError('NETWORK_ERROR', 'broadcast.network')
+  }
+}
+
+const reactionDigest = apiClient.api.v1.admin.line.notifications['reaction-digest']
+
+export type ReactionDigestStatus = InferResponseType<typeof reactionDigest.$get, 200>
+export type ReactionDigestRun = ReactionDigestStatus['runs'][number]
+
+export async function getReactionDigestStatus(): Promise<ReactionDigestStatus> {
+  const response = await sendRequest(() =>
+    reactionDigest.$get(undefined, {
+      init: { signal: AbortSignal.timeout(20_000) },
+    }),
+  )
+  if (!response.ok) {
+    const error = await readApiError(response)
+    throw new LineBroadcastApiError(
+      error?.code ?? 'REQUEST_FAILED',
+      apiErrorMessage(error?.code, 'broadcast.requestFailed'),
+    )
+  }
+  try {
+    return await response.json()
+  } catch {
+    throw new LineBroadcastApiError('INVALID_RESPONSE', 'broadcast.invalidResponse')
+  }
+}
+
+/**
+ * 寄りそい通知を今すぐ送る。未完了の実行があれば、その続きを送る。
+ *
+ * バックエンドは手動実行の送信時間に上限を設けており、上限に達すると残りを
+ * pending のまま 202 で返す。そのため送信件数の設定
+ * (REACTION_DIGEST_MAX_PER_RUN) を増やしても応答時間は伸びない。
+ * ここでは、その上限に最後の 1 件の送信待ちを足した時間より十分長く待つ。
+ */
+const REACTION_DIGEST_TIMEOUT_MILLISECONDS = 60_000
+
+export async function triggerReactionDigest(): Promise<void> {
+  const response = await sendRequest(
+    () =>
+      reactionDigest.$post(undefined, {
+        init: { signal: AbortSignal.timeout(REACTION_DIGEST_TIMEOUT_MILLISECONDS) },
+      }),
+    REACTION_DIGEST_TIMEOUT_MILLISECONDS,
+  )
+  if (!response.ok) {
+    const error = await readApiError(response)
+    throw new LineBroadcastApiError(
+      error?.code ?? 'REQUEST_FAILED',
+      apiErrorMessage(error?.code, 'broadcast.requestFailed'),
+    )
   }
 }

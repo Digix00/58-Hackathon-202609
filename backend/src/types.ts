@@ -26,6 +26,7 @@ declare global {
       DEV_LINE_BROADCAST_SIMULATION?: string;
       CORS_ORIGIN?: string;
       AUTH_SESSION_TTL_SECONDS?: string;
+      REACTION_DIGEST_MAX_PER_RUN?: string;
     }
   }
 }
