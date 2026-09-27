@@ -568,7 +568,8 @@ export function FeedPage() {
   const closeThemePicker = (theme?: FeedTheme | null) => {
     if (theme === undefined) readerView.onThemePickerToggle(false)
     else readerView.onThemeChange(theme)
-    requestAnimationFrame(() => themeButton.current?.focus())
+    // 画面を動かさずに戻す。しおりは常に上端にあるので、送り込むための巻き戻しは要らない。
+    requestAnimationFrame(() => themeButton.current?.focus({ preventScroll: true }))
   }
   const {
     showInitialLoading,

@@ -1,61 +1,352 @@
+/*
+ * テーマの入口。
+ *
+ * 本の上へ文字だけの操作を置くと、リンクだけがノートの世界から浮いて、
+ * 表紙の絵と同じ画面にいることをやめてしまう。
+ * 紙に挟んだしおりとして置き、押す前から「この本に付いているもの」に見せる。
+ */
 .control {
+  /*
+   * 本の上に挟んだしおり。
+   *
+   * 高さは、これまでのテーマ操作行（46px + 上の余白0.4em）と同じ値に固定する。
+   * ここが変わると下の紙とめくる操作が上下に動く。テーマの有無や名前の長さでも
+   * 変えない。長い名前は折り返さず末尾を省く（.markName）。
+   */
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.3em 0.75em;
+  height: calc(46px + 0.4em);
+  gap: 0.7em;
   min-width: 0;
-  padding-top: 0.4em;
-  overflow-wrap: anywhere;
 }
 
-.picker {
-  padding-block: 0.8em;
+.mark {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5em;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0.4em 0.8em 0.45em;
+  /* 角を四つとも変える。定規で測った付箋にしない。 */
+  border: 0;
+  border-radius: 5px 11px 4px 10px;
+  color: var(--color-purple-ink);
+  background: #f5ead0;
+  box-shadow: 1.5px 2px 0 #b0a894;
+  font: inherit;
+  cursor: pointer;
+  /* 一枚ずつ手で貼った付箋なので、まっすぐには貼らない。 */
+  transform: rotate(-1.1deg);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 260ms ease;
 }
+
+/* ふちはクレヨン。紙・しおり・付箋と同じ引き方にそろえる。 */
+.mark::before {
+  position: absolute;
+  inset: -1px;
+  border: 2.5px solid var(--color-outline);
+  border-radius: inherit;
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  opacity: 0.78;
+  pointer-events: none;
+  content: '';
+}
+
+/* テーマを選んでいるあいだは、しおりに色が入る。 */
+.marked {
+  background: #efe6fa;
+}
+
+.mark:hover {
+  transform: rotate(-1.1deg) translateY(-1px);
+  box-shadow: 2px 3px 0 #b0a894;
+}
+
+.mark:active {
+  transform: rotate(-1.1deg) translate(1px, 2px);
+  box-shadow: 0 0 0 #b0a894;
+}
+
+.mark:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 4px;
+}
+
+/* 長いテーマ名でもしおりを2行にしない。行が増えると紙の位置が動く。 */
+.markName {
+  overflow: hidden;
+  color: var(--color-purple-ink);
+  font-size: calc(15px * var(--font-scale));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clear {
+  flex: none;
+  min-height: 44px;
+  font-size: calc(13px * var(--font-scale));
+}
+
+/*
+ * もくじの紙。
+ *
+ * 声の紙と同じ紙・同じとじ代で開く。テーマ選びだけ別の様式にすると、
+ * 本の途中で紙が入れ替わったように見えるため。
+ */
+.picker {
+  gap: 0.9em;
+  padding-block: 0.2em 0.6em;
+}
+
+.back {
+  justify-self: start;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.sheet {
+  position: relative;
+  /* 声の紙と同じ背丈で開く。目次が短い日だけ紙が縮むと、別の紙に見える。 */
+  min-height: min(62vh, 34em);
+  align-content: start;
+  gap: clamp(0.85em, 2.2vh, 1.15em);
+  /* 左はとじ代。リングの上に文字が乗らないよう、ふちより奥から書き始める。 */
+  padding: clamp(1.4em, 5vw, 1.8em) clamp(1.25em, 6vw, 1.7em) clamp(1.15em, 4vw, 1.45em)
+    calc(clamp(1.25em, 6vw, 1.7em) + 15px);
+  box-shadow: 4px 5px 0 var(--color-paper-shadow);
+}
+
+.head {
+  gap: 0.35em;
+}
+
+/*
+ * もくじを開くと見出しへフォーカスが移る。その枠はブラウザ既定のままだと
+ * この画面で唯一の青い直線になるので、ほかの操作と同じ紫で引き直す。
+ */
+.head h1:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid var(--color-purple);
+  outline-offset: 6px;
+}
+
+.lead {
+  font-size: calc(14px * var(--font-scale));
+}
+
+/* いま効いている条件は、紙に貼った付箋として本文の外へ出す。 */
+.condition {
+  margin-top: 0.15em;
+  background: #e5eee2;
+  transform: rotate(-0.8deg);
+}
+
+/*
+ * 目次の見出し行。本の目次と同じく、題と件数を点線でつなぐ。
+ * 絵ではなく組み方で「もくじ」を伝えるので、落書きを足さずに済む。
+ */
 .list {
   display: grid;
-  gap: 0.9em;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+
 .choice {
+  position: relative;
   display: grid;
-  gap: 0.45em;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.2em 0.75em;
   width: 100%;
-  min-height: 44px;
-  padding: 1em 1.15em;
-  border: 1px solid var(--color-field-outline);
-  border-radius: 5px 12px 8px 5px;
-  border-left: 6px solid #b6a5d4;
-  background: var(--color-surface);
+  min-height: 52px;
+  padding: 0.75em 0.15em 0.85em;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--color-ink);
   text-align: left;
   font: inherit;
   cursor: pointer;
   overflow-wrap: anywhere;
+  transition:
+    background-color 200ms ease,
+    transform 140ms ease;
 }
-.choice[aria-pressed='true'] {
-  background: #f1ebfb;
-  border-color: var(--color-purple);
+
+/* 行と行のあいだの罫線。紙に引いてある線なので、最後の行の下には引かない。 */
+.list > li:not(:last-child) .choice::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-bottom: 2px solid rgb(138 132 122 / 26%);
+  filter: url(#crayon-edge);
+  -webkit-mask-image: var(--crayon-grain);
+  mask-image: var(--crayon-grain);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
+  pointer-events: none;
+  content: '';
 }
+
+/* 行の頭に貼った細い付箋。色はページの色から取り、同じ色が隣り合わないようにする。 */
+.tab {
+  grid-row: 1 / -1;
+  align-self: stretch;
+  width: 7px;
+  min-height: 1.6em;
+  border-radius: 4px 2px 3px 2px;
+  background: var(--entry-tab, #f8d9b0);
+  box-shadow: 1px 1.5px 0 rgb(176 168 148 / 65%);
+  transform: rotate(-1.4deg);
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
 .label {
+  /* 長い題はこの中で折り返す。行ごと折り返すと件数が説明文の上へ落ちる。 */
+  min-width: 0;
   color: var(--color-purple-ink);
+  font-size: calc(17px * var(--font-scale));
+  font-family: var(--font-hand);
   font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1.6;
 }
+
+/* 題と件数をつなぐ点線。目次の中身ではないので、読み上げには渡さない。 */
+.leader {
+  /* 点線は題のための余りを埋めるだけの線。幅が足りない行では引かずに題へ譲る。 */
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: center;
+  height: 0;
+  margin-top: 0.35em;
+  border-bottom: 2px dotted rgb(138 132 122 / 45%);
+}
+
+.count {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  color: var(--color-muted);
+  font-size: calc(13px * var(--font-scale));
+  white-space: nowrap;
+}
+
+.arrow {
+  color: var(--color-purple-dark);
+  font-size: calc(15px * var(--font-scale));
+}
+
 .summary {
+  grid-column: 2;
   color: var(--color-muted);
   font-size: calc(14px * var(--font-scale));
   line-height: 1.7;
 }
-.count {
-  color: var(--color-muted);
-  font-size: calc(13px * var(--font-scale));
+
+/* いま読んでいるテーマ。押下状態だけに頼らず、しおりの言葉でも示す。 */
+.reading {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 0.15em;
+  padding: 0.2em 0.65em 0.25em;
+  border-radius: 4px 9px 3px 8px;
+  color: var(--color-purple-ink);
+  background: #e7dffa;
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 700;
 }
+
+.choice[aria-pressed='true'] {
+  background: #f7f3ff;
+}
+
+.choice:hover {
+  background: #fbf6e8;
+}
+
+.choice:active {
+  transform: translate(1px, 1px);
+}
+
+.choice:focus-visible {
+  outline: 3px solid var(--color-purple);
+  outline-offset: 2px;
+}
+
+.empty {
+  padding: 0.5em 0 0.2em;
+}
+
+/* ページ送り。紙の下辺に置き、前へ戻る側と先へ進む側を左右に分ける。 */
 .paging {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75em;
+  gap: 0.5em 0.75em;
+  padding-top: 0.15em;
+  font-size: calc(14px * var(--font-scale));
+}
+
+.paging > :only-child {
+  margin-inline-start: auto;
+}
+
+.previous {
+  margin-inline-end: auto;
+}
+
+/* 紙の外に置く逃げ道。もくじを閉じずにテーマなしで読み始められるようにする。 */
+.readAll {
+  justify-self: center;
+  font-size: calc(14px * var(--font-scale));
+}
+
+@media (prefers-contrast: more) {
+  .mark::before {
+    border-width: 2px;
+    opacity: 1;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .list > li:not(:last-child) .choice::after {
+    border-bottom-color: rgb(93 88 80 / 55%);
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .leader {
+    border-bottom-color: rgb(93 88 80 / 55%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .choice {
+    transition: none;
+  }
 }
