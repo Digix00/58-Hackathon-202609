@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent,
+  type PointerEvent,
   type RefCallback,
   type RefObject,
   type ReactNode,
@@ -141,14 +142,25 @@ function FeedReaction({
   )
 }
 
-function FeedNextCorner({ onNext }: { onNext?: () => void }) {
+function FeedNextCorner({
+  onNext,
+  onLinkClick,
+}: {
+  onNext?: () => void
+  /** 引いてめくった直後の click を受け取り、もう一枚めくらないようにする。 */
+  onLinkClick?: (event: MouseEvent) => void
+}) {
   if (!onNext) return null
 
   return (
     <button
       type="button"
       className={styles.corner}
-      onClick={onNext}
+      onClick={(event) => {
+        onLinkClick?.(event)
+        if (event.defaultPrevented) return
+        onNext()
+      }}
       tabIndex={-1}
       aria-hidden="true"
     />
@@ -209,6 +221,8 @@ function FeedCard({
         }}
         aria-label={t('feed.details', { body: concern.body })}
         onClick={onLinkClick}
+        /* 本文を掴んだときはリンクを運ぶのではなく、紙をめくる操作として扱う。 */
+        draggable={false}
       >
         <p className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
           {concern.body}
@@ -229,7 +243,7 @@ function FeedCard({
         </div>
       ) : null}
       {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
-      <FeedNextCorner onNext={onNext} />
+      <FeedNextCorner onNext={onNext} onLinkClick={onLinkClick} />
     </article>
   )
 }
@@ -370,6 +384,7 @@ type FeedStageProps = Omit<FeedStackProps, 'concern'> & {
   onTouchMove: (event: TouchEvent) => void
   onTouchEnd: (event: TouchEvent) => void
   onTouchCancel: () => void
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void
 }
 
 function FeedStage({
@@ -379,6 +394,7 @@ function FeedStage({
   onTouchMove,
   onTouchEnd,
   onTouchCancel,
+  onPointerDown,
   ...stackProps
 }: FeedStageProps) {
   const { t } = useTranslation()
@@ -391,6 +407,7 @@ function FeedStage({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchCancel}
+      onPointerDown={onPointerDown}
     >
       <h1 id="feed-title" className={styles.srOnly}>
         {t('feed.start')}
@@ -624,6 +641,7 @@ export function FeedPage() {
     onTouchMove: swipe.handleTouchMove,
     onTouchEnd: swipe.handleTouchEnd,
     onTouchCancel: swipe.handleTouchCancel,
+    onPointerDown: swipe.handlePointerDown,
     reaction:
       coverOpened && feedContext.isLiff
         ? {
