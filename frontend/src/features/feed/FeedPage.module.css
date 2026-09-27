@@ -595,6 +595,19 @@
   font-size: calc(14px * var(--font-scale));
 }
 
+/* テーマ名は長い。性別・地域のように2列へ詰めず、1行をまるごと使う。 */
+.filterFields > :first-child {
+  grid-column: 1 / -1;
+}
+
+/* テーマを読み込めなかったときの知らせ。条件の並びの下に置く。 */
+.filterError {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-purple-dark);
+  line-height: 1.6;
+}
+
 .empty {
   display: grid;
   justify-items: center;
