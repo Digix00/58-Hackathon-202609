@@ -15,13 +15,6 @@ type NotebookTurnProps = {
   onFinish: () => void
 }
 
-/**
- * めくりの前半（0〜32%）が受け持つ角度と、その区間が使う時間の割合。
- * 引いた角度がこの区間のどこまで進んだぶんかを測り、その時間を飛ばす。
- */
-const TURN_FIRST_ANGLE = 46
-const TURN_FIRST_SHARE = 0.32
-
 /** 表紙は本文の紙より大きく動かす。開くときも、閉じるときも同じ手つきにする。 */
 function coverStyle(direction: 1 | -1) {
   return direction === 1 ? styles.coverTurning : styles.coverTurningBack
@@ -45,9 +38,6 @@ export function NotebookTurn({
         style={
           {
             '--turn-start': `${startAngle}deg`,
-            '--turn-skip':
-              (Math.min(TURN_FIRST_ANGLE, Math.abs(startAngle)) / TURN_FIRST_ANGLE) *
-              TURN_FIRST_SHARE,
           } as CSSProperties
         }
         aria-hidden="true"

@@ -1,4 +1,3 @@
-import { ClusterHandler } from "../../src/presentation/cluster.handler";
 import { ConcernHandler } from "../../src/presentation/concern.handler";
 import { ConcernReactionHandler } from "../../src/presentation/concern-reaction.handler";
 import { ConcernViewHandler } from "../../src/presentation/concern-view.handler";
@@ -6,10 +5,6 @@ import { QuizHandler } from "../../src/presentation/quiz.handler";
 
 export function createConcernDependencies() {
   return {
-    clusterHandler: new ClusterHandler({
-      listPublished: async () => ({ items: [], nextId: null }),
-      findPublishedById: async () => null,
-    }),
     concernHandler: new ConcernHandler({
       create: async () => {
         throw new Error("concern fixture is not used by this test");
