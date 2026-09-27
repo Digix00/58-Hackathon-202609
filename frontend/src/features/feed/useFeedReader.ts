@@ -24,7 +24,6 @@ export type TurningPage =
 type FeedReaderState = {
   filter: FeedFilter
   theme: FeedTheme | null
-  themePickerOpen: boolean
   index: number
   direction: 1 | -1
   /** 取得中に開く操作を受け付けたか。取得後に自動で開く。 */
@@ -48,7 +47,6 @@ type FeedReaderAction =
   | { type: 'filtersReset' }
   | { type: 'themeChanged'; theme: FeedTheme | null }
   | { type: 'themeMetadataLoaded'; theme: FeedTheme }
-  | { type: 'themePickerChanged'; open: boolean }
   | { type: 'loginVisibilityChanged'; visible: boolean }
   | { type: 'filtersVisibilityChanged'; open: boolean }
   | { type: 'turningFinished' }
@@ -56,7 +54,6 @@ type FeedReaderAction =
 const initialFeedReaderState: FeedReaderState = {
   filter: { gender: '', region: '' },
   theme: null,
-  themePickerOpen: false,
   index: 0,
   direction: 1,
   openRequested: false,
@@ -124,7 +121,6 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
       return {
         ...state,
         theme: action.theme,
-        themePickerOpen: false,
         index: 0,
         turning: null,
         coverOpened: true,
@@ -134,14 +130,6 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
       }
     case 'themeMetadataLoaded':
       return { ...state, theme: action.theme }
-    case 'themePickerChanged':
-      return {
-        ...state,
-        themePickerOpen: action.open,
-        index: settledIndex(state),
-        turning: null,
-        coverLifting: false,
-      }
     case 'loginVisibilityChanged':
       return { ...state, showLogin: action.visible }
     case 'filtersVisibilityChanged':
@@ -177,16 +165,7 @@ export function useFeedReader(options: UseFeedReaderOptions) {
     regionCode: state.filter.region || undefined,
   })
   const concerns = feed.items.map((item) => toFeedConcern(item, options.language ?? 'original'))
-  const {
-    filter,
-    index,
-    coverLifting,
-    coverOpened,
-    showLogin,
-    filtersOpen,
-    turning,
-    themePickerOpen,
-  } = state
+  const { filter, index, coverLifting, coverOpened, showLogin, filtersOpen, turning } = state
   const { hasMore, status: feedStatus, loadMore } = feed
   const coverOpening = coverLifting || coverOpened
   const total = concerns.length
@@ -306,8 +285,8 @@ export function useFeedReader(options: UseFeedReaderOptions) {
   }, [concerns, coverOpened, dispatch, position, total])
 
   const swipe = useNotebookSwipe({
-    canGoNext: !themePickerOpen,
-    canGoPrevious: !themePickerOpen && coverOpened && total > 0,
+    canGoNext: true,
+    canGoPrevious: coverOpened && total > 0,
     onNext: goNext,
     onPrevious: goPrev,
   })
@@ -321,12 +300,6 @@ export function useFeedReader(options: UseFeedReaderOptions) {
   const onThemeChange = useCallback(
     (theme: FeedTheme | null) => {
       dispatch({ type: 'themeChanged', theme })
-    },
-    [dispatch],
-  )
-  const onThemePickerToggle = useCallback(
-    (open: boolean) => {
-      dispatch({ type: 'themePickerChanged', open })
     },
     [dispatch],
   )
@@ -362,7 +335,6 @@ export function useFeedReader(options: UseFeedReaderOptions) {
     waitingToOpen: state.openRequested && showInitialLoading,
     filter,
     theme: state.theme,
-    themePickerOpen,
     index,
     coverLifting,
     coverOpened,
@@ -379,7 +351,6 @@ export function useFeedReader(options: UseFeedReaderOptions) {
     onTurningFinished,
     onReset,
     onThemeChange,
-    onThemePickerToggle,
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,

@@ -12,16 +12,15 @@ import type { FeedFilter } from './feedViewModel'
 export type FeedTheme = Pick<ListClustersResponse['items'][number], 'id' | 'label' | 'summary'>
 export type ThemeItem = ListClustersResponse['items'][number]
 
+/** 条件に合うテーマを、選択肢として使えるぶんだけまとめて取る。 */
 export async function listThemes(
   filter: FeedFilter,
-  cursor?: string,
 ): Promise<{ ok: true; data: ListClustersResponse } | { ok: false; message: MessageKey }> {
   try {
     const response = await withApiTimeout(() =>
       apiClient.api.v1.clusters.$get({
         query: {
-          limit: '4',
-          ...(cursor ? { cursor } : {}),
+          limit: '20',
           ...(filter.region ? { regionCode: filter.region } : {}),
           ...(filter.gender ? { gender: filter.gender } : {}),
         },
