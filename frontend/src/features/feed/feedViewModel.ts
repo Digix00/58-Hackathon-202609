@@ -82,8 +82,10 @@ export function buildFeedFilterOptions(language: DisplayLanguage = 'original'): 
 export function activeFeedFilterLabel(
   filter: FeedFilter,
   language: DisplayLanguage = 'original',
+  /** 選んでいるテーマ名。性別・地域と同じ条件として並べて示す。 */
+  themeLabel?: string,
 ): string {
-  return [genderLabel(filter.gender, language), regionLabel(filter.region, language)]
+  return [themeLabel, genderLabel(filter.gender, language), regionLabel(filter.region, language)]
     .filter(Boolean)
     .join(' · ')
 }
