@@ -1,7 +1,6 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import type { ReactNode } from 'react'
 import { ProfileSettings } from '../profile/ProfileSettings'
-import { ComingSoonLabel } from '../../shared/components/ComingSoonLabel'
 import sharedStyles from '../../shared/styles/Settings.module.css'
 import styles from './SettingsPage.module.css'
 import { useSettingsPage } from './useSettingsPage'
@@ -26,12 +25,10 @@ function SettingsPageView({
   authStatus,
   fontSize,
   language,
-  speechEnabled,
   languageStatus,
   languageError,
   fontSizeStatus,
   fontSizeError,
-  setSpeechEnabled,
   selectLanguage,
   selectFontSize,
   profileSettings,
@@ -92,23 +89,6 @@ function SettingsPageView({
       </fieldset>
 
       {profileSettings}
-
-      {/* TODO: 読み上げを実装し、設定と投稿画面の再生・停止操作を接続する。 */}
-      <fieldset className={sharedStyles.group} disabled>
-        <legend>
-          {t('settings.speech')}
-          <ComingSoonLabel ariaLabel={t('settings.speechSoon')} />
-        </legend>
-        <p>{t('settings.speechUnavailable')}</p>
-        <label className={sharedStyles.toggle}>
-          <input
-            type="checkbox"
-            checked={speechEnabled}
-            onChange={(event) => setSpeechEnabled(event.target.checked)}
-          />
-          <span>{t('settings.autoSpeech')}</span>
-        </label>
-      </fieldset>
     </section>
   )
 }

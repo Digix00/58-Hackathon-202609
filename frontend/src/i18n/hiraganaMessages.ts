@@ -95,10 +95,6 @@ export const hiraganaMessages = {
   'settings.languageHint': 'えらんだひょうきでひょうじします。',
   'settings.loginHint': 'LINEでろぐいんすると、えらんだひょうきをあかうんとにほぞんできます。',
   'settings.saved': 'ひょうじけいしきをほぞんしました。',
-  'settings.speech': 'よみあげ',
-  'settings.speechSoon': 'よみあげはじゅんびちゅうです',
-  'settings.speechUnavailable': 'よみあげは、まだおつかいいただけません。',
-  'settings.autoSpeech': 'とうこうをひらいたらよみあげる',
   'profile.title': 'あなたのせってい',
   'profile.loginHint':
     'ねんだい・せいべつ・ちいきのせっていは、LINEでろぐいんするとほぞんできます。',
