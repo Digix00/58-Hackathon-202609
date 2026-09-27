@@ -14,9 +14,13 @@ export const RECOMMENDATION_ALGORITHM_VERSION = "v5";
  * feed_impressions でバージョンごとの開封率を比較できるようにする。
  */
 export const RECOMMENDATION_WEIGHTS = {
-  /** 未読（クラスタあり／なし）。 */
-  unreadClustered: 1_000,
-  unreadUnclustered: 100,
+  /**
+   * 未読。同じ都道府県の加点に新しさと日替わりのゆらぎの最大値を足した値
+   * （500 + 150 + 40）より大きくし、既読の投稿が未読より上に戻らないようにする。
+   * クラスタの有無では差をつけない。クラスタのある投稿は unseenCluster と
+   * clusterNotInPage で加点されるため、それで十分にテーマの分散を促せる。
+   */
+  unread: 700,
   /** 閲覧履歴にないクラスタ。 */
   unseenCluster: 250,
   /** 今回のページでまだ選んでいないクラスタ。 */
@@ -29,7 +33,7 @@ export const RECOMMENDATION_WEIGHTS = {
   /**
    * 閲覧者と同じ都道府県／同じ地方区分。ページ内の上限までだけ加点する。
    * 同じ都道府県は、新しさ・日替わりのゆらぎ・分散の加点を合わせた差より大きくし、
-   * 他県の新しい投稿に埋もれないようにする。未読と既読の差（unreadClustered）よりは
+   * 他県の新しい投稿に埋もれないようにする。未読と既読の差（unread）よりは
    * 小さく保ち、既読の投稿を未読より優先しない。
    */
   nearbyPrefecture: 500,
@@ -144,9 +148,7 @@ export function rankConcernFeedCandidates(
     let baseScore = 0;
 
     if (unread) {
-      baseScore += clusterId
-        ? weights.unreadClustered
-        : weights.unreadUnclustered;
+      baseScore += weights.unread;
     }
     if (clusterId) {
       const viewedCount = clusterHistoryCounts.get(clusterId) ?? 0;

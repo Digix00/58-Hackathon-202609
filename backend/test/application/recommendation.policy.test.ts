@@ -260,6 +260,60 @@ describe("rankConcernFeedCandidates", () => {
     ]);
   });
 
+  it("prefers unclustered same-prefecture posts over clustered posts elsewhere", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        candidate({
+          id: "tokyo-clustered",
+          clusterId: "c-1",
+          regionCode: "tokyo",
+          day: 9,
+        }),
+        candidate({ id: "osaka-unclustered", regionCode: "osaka", day: 1 }),
+      ],
+      [],
+      { viewerRegionCode: "osaka", pageSize: 10 },
+    );
+
+    // クラスタ分けが済んでいない新しい投稿でも、同じ県なら先に来る。
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "osaka-unclustered",
+      "tokyo-clustered",
+    ]);
+  });
+
+  it("does not put read same-prefecture posts above unread posts", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        candidate({
+          id: "osaka-read",
+          clusterId: "c-1",
+          regionCode: "osaka",
+          day: 26,
+          viewed: true,
+        }),
+        candidate({
+          id: "tokyo-unread",
+          clusterId: "c-2",
+          regionCode: "tokyo",
+          day: 1,
+        }),
+      ],
+      [],
+      {
+        viewerRegionCode: "osaka",
+        viewerUserId: "viewer",
+        pageSize: 10,
+        now: new Date("2026-09-26T00:00:00.000Z"),
+      },
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "tokyo-unread",
+      "osaka-read",
+    ]);
+  });
+
   it("counts area boosts separately from the prefecture share", () => {
     const ranked = rankConcernFeedCandidates(
       [
