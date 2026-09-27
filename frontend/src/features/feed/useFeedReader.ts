@@ -4,6 +4,7 @@ import { useStackLift } from '../../shared/hooks/useStackLift'
 import { useFeed, type UseFeedOptions } from './useFeed'
 import { toFeedConcern } from './feedViewModel'
 import type { FeedConcern, FeedFilter } from './feedViewModel'
+import type { FeedTheme } from './clusterApi'
 
 const COVER_LIFT_DURATION_MS = 760
 const COVER_LIFT_SETTLE_MS = COVER_LIFT_DURATION_MS + 120
@@ -22,6 +23,7 @@ export type TurningPage =
 
 type FeedReaderState = {
   filter: FeedFilter
+  theme: FeedTheme | null
   index: number
   direction: 1 | -1
   /** 取得中に開く操作を受け付けたか。取得後に自動で開く。 */
@@ -43,12 +45,15 @@ type FeedReaderAction =
   | { type: 'previous'; turning: TurningPage | null }
   | { type: 'filterChanged'; field: keyof FeedFilter; value: string }
   | { type: 'filtersReset' }
+  | { type: 'themeChanged'; theme: FeedTheme | null }
+  | { type: 'themeMetadataLoaded'; theme: FeedTheme }
   | { type: 'loginVisibilityChanged'; visible: boolean }
   | { type: 'filtersVisibilityChanged'; open: boolean }
   | { type: 'turningFinished' }
 
 const initialFeedReaderState: FeedReaderState = {
   filter: { gender: '', region: '' },
+  theme: null,
   index: 0,
   direction: 1,
   openRequested: false,
@@ -105,7 +110,26 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
         turning: null,
       }
     case 'filtersReset':
-      return { ...state, filter: { gender: '', region: '' }, index: 0, turning: null }
+      return {
+        ...state,
+        filter: { gender: '', region: '' },
+        theme: null,
+        index: 0,
+        turning: null,
+      }
+    case 'themeChanged':
+      return {
+        ...state,
+        theme: action.theme,
+        index: 0,
+        turning: null,
+        coverOpened: true,
+        coverLifting: false,
+        openRequested: false,
+        showLogin: false,
+      }
+    case 'themeMetadataLoaded':
+      return { ...state, theme: action.theme }
     case 'loginVisibilityChanged':
       return { ...state, showLogin: action.visible }
     case 'filtersVisibilityChanged':
@@ -124,10 +148,19 @@ function feedReaderReducer(state: FeedReaderState, action: FeedReaderAction): Fe
  * Composition: useFeedの取得結果と紙めくりを合成し、FeedPageへ渡す。
  * Test notes: 取得中の開く操作、前後移動、フィルタ変更、追加取得失敗を確認する。
  */
-export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCode'>) {
-  const [state, dispatch] = useReducer(feedReaderReducer, initialFeedReaderState)
+type UseFeedReaderOptions = Omit<UseFeedOptions, 'gender' | 'regionCode'> & {
+  initialTheme?: FeedTheme | null
+}
+
+export function useFeedReader(options: UseFeedReaderOptions) {
+  const { initialTheme = null, ...feedOptions } = options
+  const [state, dispatch] = useReducer(feedReaderReducer, {
+    ...initialFeedReaderState,
+    theme: initialTheme,
+  })
   const feed = useFeed({
-    ...options,
+    ...feedOptions,
+    clusterId: state.theme?.id,
     gender: state.filter.gender || undefined,
     regionCode: state.filter.region || undefined,
   })
@@ -138,6 +171,18 @@ export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCo
   const total = concerns.length
   const position = total ? ((index % total) + total) % total : 0
   const concern = concerns[position]
+
+  useEffect(() => {
+    const selectedTheme = state.theme
+    if (!selectedTheme) return
+    const cluster = feed.items.find((item) => item.cluster?.id === selectedTheme.id)?.cluster
+    if (cluster?.label && cluster.summary && cluster.label !== selectedTheme.label) {
+      dispatch({
+        type: 'themeMetadataLoaded',
+        theme: { id: cluster.id, label: cluster.label, summary: cluster.summary },
+      })
+    }
+  }, [dispatch, feed.items, state.theme])
 
   const { stackRef, rememberStackPosition } = useStackLift(
     coverOpening,
@@ -252,6 +297,12 @@ export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCo
   const onReset = useCallback(() => {
     dispatch({ type: 'filtersReset' })
   }, [dispatch])
+  const onThemeChange = useCallback(
+    (theme: FeedTheme | null) => {
+      dispatch({ type: 'themeChanged', theme })
+    },
+    [dispatch],
+  )
   const onLoginVisibilityChange = useCallback(
     (visible: boolean) => {
       dispatch({ type: 'loginVisibilityChanged', visible })
@@ -283,6 +334,7 @@ export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCo
     showInitialError,
     waitingToOpen: state.openRequested && showInitialLoading,
     filter,
+    theme: state.theme,
     index,
     coverLifting,
     coverOpened,
@@ -298,6 +350,7 @@ export function useFeedReader(options: Omit<UseFeedOptions, 'gender' | 'regionCo
     goNext,
     onTurningFinished,
     onReset,
+    onThemeChange,
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,

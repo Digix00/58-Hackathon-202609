@@ -26,6 +26,7 @@ export type FeedConcern = {
   reason: string
   reactionCount: number
   reacted: boolean
+  theme: { id: string; label: string; summary: string } | null
 }
 
 export type FeedFilterOption = { value: string; label: string }
@@ -49,6 +50,10 @@ export function toFeedConcern(item: FeedItem, language: DisplayLanguage = 'origi
     reason: translate(language, RECOMMENDATION_REASON_LABELS[reasonCode]),
     reactionCount: item.reactionCount,
     reacted: item.reacted,
+    theme:
+      item.cluster?.label && item.cluster.summary
+        ? { id: item.cluster.id, label: item.cluster.label, summary: item.cluster.summary }
+        : null,
   }
 }
 
@@ -77,8 +82,10 @@ export function buildFeedFilterOptions(language: DisplayLanguage = 'original'): 
 export function activeFeedFilterLabel(
   filter: FeedFilter,
   language: DisplayLanguage = 'original',
+  /** 選んでいるテーマ名。性別・地域と同じ条件として並べて示す。 */
+  themeLabel?: string,
 ): string {
-  return [genderLabel(filter.gender, language), regionLabel(filter.region, language)]
+  return [themeLabel, genderLabel(filter.gender, language), regionLabel(filter.region, language)]
     .filter(Boolean)
     .join(' · ')
 }

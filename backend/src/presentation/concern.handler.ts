@@ -138,7 +138,12 @@ export class ConcernHandler {
 
   readonly list = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
-    const parsed = listConcernQuery.safeParse(c.req.query());
+    // テーマ別のURLも同じ取得処理を利用し、絞り込みや推薦の挙動を揃える。
+    const pathClusterId = c.req.param("clusterId");
+    const parsed = listConcernQuery.safeParse({
+      ...c.req.query(),
+      ...(pathClusterId ? { clusterId: pathClusterId } : {}),
+    });
     if (!parsed.success) {
       return c.json(
         {
@@ -197,6 +202,7 @@ export class ConcernHandler {
         regionCode: parsed.data.regionCode,
         clusterId: parsed.data.clusterId,
         userId: auth?.user?.id,
+        viewerRegionCode: auth?.user?.regionCode,
         recommendationCursor,
       });
       const nextCursor = result.nextCursor
