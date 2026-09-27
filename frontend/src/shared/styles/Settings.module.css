@@ -85,19 +85,3 @@
   position: absolute;
   opacity: 0;
 }
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  color: #514c82;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.toggle input {
-  width: 22px;
-  height: 22px;
-  accent-color: var(--color-focus);
-}

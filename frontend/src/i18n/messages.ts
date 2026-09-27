@@ -181,13 +181,6 @@ export const messages = {
     'Log in with LINE to save your language to your account.',
   ],
   'settings.saved': ['表示形式を保存しました。', 'Your language has been saved.'],
-  'settings.speech': ['読み上げ', 'Read aloud'],
-  'settings.speechSoon': ['読み上げは準備中です', 'Read aloud is coming soon.'],
-  'settings.speechUnavailable': [
-    '読み上げは、まだお使いいただけません。',
-    'Read aloud is not available yet.',
-  ],
-  'settings.autoSpeech': ['投稿を開いたら読み上げる', 'Read a voice aloud when opened'],
   'profile.title': ['あなたの設定', 'Your profile'],
   'profile.loginHint': [
     '年代・性別・地域の設定は、LINEでログインすると保存できます。',
