@@ -114,10 +114,7 @@ export function rankConcernFeedCandidates(
     1,
     Math.floor(pageSize * weights.prefecturePageShare),
   );
-  const areaPageCap = Math.max(
-    1,
-    Math.floor(pageSize * weights.areaPageShare),
-  );
+  const areaPageCap = Math.max(1, Math.floor(pageSize * weights.areaPageShare));
   const clusterPageCap = Math.max(
     1,
     Math.ceil(pageSize * weights.clusterPageShare),
@@ -193,8 +190,7 @@ export function rankConcernFeedCandidates(
     let bestScore = Number.NEGATIVE_INFINITY;
     for (const entry of rankingPool) {
       const score =
-        entry.baseScore +
-        pageScore(entry, page, viewedRegionCodes, limits);
+        entry.baseScore + pageScore(entry, page, viewedRegionCodes, limits);
       if (
         !best ||
         score > bestScore ||
