@@ -9,6 +9,7 @@ import type { LineSignatureVerifier } from "../port/line-signature-verifier";
 import type { LineRepository } from "../repository/line.repository";
 import { createDailyQuizLiffUrl } from "../shared/daily-quiz-liff-url";
 import { generateId } from "../shared/id-generator";
+import { toTokyoDate } from "../shared/tokyo-date";
 
 export class InvalidLineSignatureError extends Error {
   constructor() {
@@ -105,13 +106,13 @@ export class LineUseCase {
   };
 
   readonly getDailyBroadcast = async (
-    quizDate = toTokyoQuizDate(this.now()),
+    quizDate = toTokyoDate(this.now()),
   ): Promise<DailyBroadcastView> =>
     this.repository.findDailyBroadcast(quizDate);
 
   readonly executeDailyBroadcast = async (
     quizId: string,
-    quizDate = toTokyoQuizDate(this.now()),
+    quizDate = toTokyoDate(this.now()),
   ): Promise<DailyBroadcastExecution> => {
     if (!this.broadcastSender.isConfigured()) {
       throw new LineIntegrationConfigurationError();
@@ -191,7 +192,7 @@ export class LineUseCase {
   readonly triggerDailyRun = async (
     at: Date = this.now(),
   ): Promise<DailyQuizRunResult> => {
-    const quizDate = toTokyoQuizDate(at);
+    const quizDate = toTokyoDate(at);
     const quiz = await this.dailyQuizProvider.ensureDailyQuiz(quizDate);
     if (!quiz) {
       return {
@@ -278,19 +279,4 @@ function parseWebhookEvents(payload: unknown): LineWebhookEvent[] | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toTokyoQuizDate(date: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-  }).formatToParts(date);
-  const values = new Map(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
 }

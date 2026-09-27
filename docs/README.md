@@ -8,6 +8,7 @@
 - [API仕様](./technical/api.md)
 - [データモデル](./technical/data.md)
 - [SQLiteデータベース設計](./technical/database.md)
+- [LINE 寄りそい通知 設計](./technical/line-reaction-digest.md)
 - [フロントエンド実装指針](./technical/frontend.md)
 - [LINEミニアプリ固有の挙動とフロントエンド編集ガイド](./technical/line-mini-app.md)
 - [開発・運用方針](./technical/development.md)

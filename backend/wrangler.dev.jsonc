@@ -9,7 +9,7 @@
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
   "triggers": {
-    "crons": ["0 0 * * *"]
+    "crons": ["0 0 * * *", "0 11 * * *"]
   },
   "observability": {
     "enabled": true
