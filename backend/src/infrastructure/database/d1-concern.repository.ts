@@ -128,9 +128,6 @@ export class D1ConcernRepository implements ConcernRepository {
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
       conditions.push(eq(concerns.processingStatus, "ready"));
-      conditions.push(eq(concernClusters.status, "ready"));
-      conditions.push(sql`trim(${concernClusters.label}) <> ''`);
-      conditions.push(sql`trim(${concernClusters.summary}) <> ''`);
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));
@@ -217,9 +214,6 @@ export class D1ConcernRepository implements ConcernRepository {
     if (input.clusterId) {
       conditions.push(eq(concerns.clusterId, input.clusterId));
       conditions.push(eq(concerns.processingStatus, "ready"));
-      conditions.push(eq(concernClusters.status, "ready"));
-      conditions.push(sql`trim(${concernClusters.label}) <> ''`);
-      conditions.push(sql`trim(${concernClusters.summary}) <> ''`);
     }
     if (input.excludeUserId) {
       conditions.push(ne(concerns.userId, input.excludeUserId));

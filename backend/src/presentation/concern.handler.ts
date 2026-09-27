@@ -138,12 +138,7 @@ export class ConcernHandler {
 
   readonly list = factory.createHandlers(async (c) => {
     const requestId = setRequestId(c);
-    // テーマ別のURLも同じ取得処理を利用し、絞り込みや推薦の挙動を揃える。
-    const pathClusterId = c.req.param("clusterId");
-    const parsed = listConcernQuery.safeParse({
-      ...c.req.query(),
-      ...(pathClusterId ? { clusterId: pathClusterId } : {}),
-    });
+    const parsed = listConcernQuery.safeParse(c.req.query());
     if (!parsed.success) {
       return c.json(
         {

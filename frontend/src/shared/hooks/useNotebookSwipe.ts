@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
-  type TouchEvent,
-} from 'react'
+import { useEffect, useEffectEvent, useRef, type MouseEvent, type TouchEvent } from 'react'
 
 const SWIPE_THRESHOLD = 56
 const SWIPE_SLOP = 8
@@ -31,8 +24,8 @@ export function prefersReducedMotion() {
  * Intent: ノートの横スワイプと左右キーによる移動を局所化する。
  * Boundary: 前後の移動可否とコールバックを受け取り、DOMイベントハンドラーを返す。
  * State Modeling: 描画を伴わないジェスチャー履歴とフレーム予約はrefで保持する。
- * Update Surface: タッチ・ポインタの開始・移動・終了・中断とリンククリックのハンドラー。
- * Hidden Complexity: 縦スクロールとの区別、指とマウスの二重処理の回避、スワイプ後の誤クリック抑止、入力欄のキー除外。
+ * Update Surface: タッチ開始・移動・終了・中断とリンククリックのハンドラー。
+ * Hidden Complexity: 縦スクロールとの区別、スワイプ後の誤クリック抑止、入力欄のキー除外。
  * Composition: featureの移動Hookと紙面のDOMイベントを接続する。
  * Test Notes: 縦横の判定、中断、入力中の左右キー、購読解除を確認する。
  */
@@ -89,106 +82,53 @@ export function useNotebookSwipe({
     [],
   )
 
-  /** 引き始め。動かす紙は、受け取った紙面の中から拾う。 */
-  function beginGesture(x: number, y: number, container: Element) {
+  function handleTouchStart(event: TouchEvent) {
     clearDrag()
+    const touch = event.touches[0]
     swiped.current = false
-    swipe.current = { x, y, active: false }
-    dragTarget.current = container.querySelector<HTMLElement>('[data-notebook-swipe-target]')
+    swipe.current = { x: touch.clientX, y: touch.clientY, active: false }
+    dragTarget.current = event.currentTarget.querySelector<HTMLElement>(
+      '[data-notebook-swipe-target]',
+    )
   }
 
-  /** 引いているあいだ。紙を動かしたときだけ true を返す。 */
-  function trackGesture(x: number, y: number) {
+  function handleTouchMove(event: TouchEvent) {
     const start = swipe.current
-    if (!start) return false
-    const dx = x - start.x
-    const dy = y - start.y
+    if (!start) return
+    const touch = event.touches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
     if (!start.active) {
-      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return false
+      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return
       // 縦に動かし始めたならスクロールとして扱い、横めくりには使わない。
       if (Math.abs(dy) >= Math.abs(dx)) {
         swipe.current = null
         clearDrag()
-        return false
+        return
       }
       start.active = true
     }
     scheduleDrag(dx < 0 ? notebookAngleForDrag(dx) : 0)
-    return true
   }
 
-  /** 手を離したとき。しきい値を越えていれば、そのままめくる。 */
-  function finishGesture(x: number) {
+  function handleTouchEnd(event: TouchEvent) {
     const start = swipe.current
-    const dx = start ? x - start.x : 0
-    // いま紙が向いている角度。ここからめくりを続ける。
-    const angle = dragAngle.current ?? 0
+    const dx = start ? event.changedTouches[0].clientX - start.x : 0
     swipe.current = null
     clearDrag()
     if (!start?.active) return
 
-    // 水平に払った後の click が、本文リンクや紙の角をもう一度動かさないようにする。
+    // 水平に払った後の click が、本文リンクを開かないようにする。
     swiped.current = true
-    // 引いた角度をそのまま渡す。0度へ戻してから回すと、めくり直したように見える。
-    if (dx <= -SWIPE_THRESHOLD && canGoNext) onNext(angle)
+    // 指に追従した角度はプレビューだけに使い、確定後はタップと同じ0度からめくる。
+    if (dx <= -SWIPE_THRESHOLD && canGoNext) onNext(0)
     else if (dx >= SWIPE_THRESHOLD && canGoPrevious) onPrevious()
   }
 
-  function cancelGesture() {
+  function handleTouchCancel() {
     swipe.current = null
     swiped.current = false
     clearDrag()
-  }
-
-  function handleTouchStart(event: TouchEvent) {
-    const touch = event.touches[0]
-    beginGesture(touch.clientX, touch.clientY, event.currentTarget)
-  }
-
-  function handleTouchMove(event: TouchEvent) {
-    const touch = event.touches[0]
-    trackGesture(touch.clientX, touch.clientY)
-  }
-
-  function handleTouchEnd(event: TouchEvent) {
-    finishGesture(event.changedTouches[0].clientX)
-  }
-
-  function handleTouchCancel() {
-    cancelGesture()
-  }
-
-  /**
-   * マウスで紙の角をつまんでめくる。
-   *
-   * 指は touch 側で扱うので、ここでは pointerType が touch のものを受け取らない。
-   * 一度押したら、移動と終了は window で受ける。紙の外まで引いても、
-   * 手を離すまでは同じ一続きの操作として追いたいため。
-   */
-  function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (event.pointerType === 'touch' || event.button !== 0 || !event.isPrimary) return
-    const pointerId = event.pointerId
-    beginGesture(event.clientX, event.clientY, event.currentTarget)
-
-    function move(moveEvent: PointerEvent) {
-      if (moveEvent.pointerId !== pointerId) return
-      // 紙を引いているあいだは、本文が選択されないようにする。
-      if (trackGesture(moveEvent.clientX, moveEvent.clientY)) moveEvent.preventDefault()
-    }
-
-    function end(endEvent: PointerEvent) {
-      if (endEvent.pointerId !== pointerId) return
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', end)
-      window.removeEventListener('pointercancel', end)
-      // 別の操作へ引き渡された場合は、めくらずに紙を戻す。
-      if (endEvent.type === 'pointercancel') cancelGesture()
-      else finishGesture(endEvent.clientX)
-    }
-
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', end)
-    window.addEventListener('pointercancel', end)
   }
 
   function handleLinkClick(event: MouseEvent) {
@@ -214,7 +154,6 @@ export function useNotebookSwipe({
     handleTouchMove,
     handleTouchEnd,
     handleTouchCancel,
-    handlePointerDown,
     handleLinkClick,
   }
 }
