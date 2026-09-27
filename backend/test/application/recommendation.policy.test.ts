@@ -207,17 +207,103 @@ describe("rankConcernFeedCandidates", () => {
       { viewerRegionCode: "osaka", pageSize: 4 },
     );
 
+    // 4件のページでは同じ県の加点は2件まで。3件目の大阪は他県と同じ条件で比べる。
     expect(ranked.map((item) => item.concern.id)).toEqual([
       "osaka-1",
-      "tokyo",
       "osaka-2",
+      "tokyo",
       "osaka-3",
     ]);
     expect(
       ranked.filter(
         (item) => item.recommendation.reasonCode === "nearby_prefecture",
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
+  });
+
+  it("keeps same-prefecture posts ahead of fresher posts from other prefectures", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        candidate({
+          id: "tokyo-fresh",
+          clusterId: "c-1",
+          regionCode: "tokyo",
+          day: 26,
+        }),
+        candidate({
+          id: "osaka-1",
+          clusterId: "c-2",
+          regionCode: "osaka",
+          day: 19,
+        }),
+        candidate({
+          id: "osaka-2",
+          clusterId: "c-3",
+          regionCode: "osaka",
+          day: 18,
+        }),
+      ],
+      [],
+      {
+        viewerRegionCode: "osaka",
+        viewerUserId: "viewer",
+        pageSize: 4,
+        now: new Date("2026-09-26T00:00:00.000Z"),
+      },
+    );
+
+    // 2件目の大阪は都道府県の分散の加点を失っても、新しい東京の投稿より先に来る。
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "osaka-1",
+      "osaka-2",
+      "tokyo-fresh",
+    ]);
+  });
+
+  it("counts area boosts separately from the prefecture share", () => {
+    const ranked = rankConcernFeedCandidates(
+      [
+        candidate({
+          id: "kyoto",
+          clusterId: "c-1",
+          regionCode: "kyoto",
+          day: 9,
+        }),
+        candidate({
+          id: "tokyo",
+          clusterId: "c-2",
+          regionCode: "tokyo",
+          day: 8,
+        }),
+        candidate({
+          id: "osaka-1",
+          clusterId: "c-3",
+          regionCode: "osaka",
+          day: 2,
+        }),
+        candidate({
+          id: "osaka-2",
+          clusterId: "c-4",
+          regionCode: "osaka",
+          day: 1,
+        }),
+      ],
+      [],
+      { viewerRegionCode: "osaka", pageSize: 4 },
+    );
+
+    expect(ranked.map((item) => item.concern.id)).toEqual([
+      "osaka-1",
+      "osaka-2",
+      "kyoto",
+      "tokyo",
+    ]);
+    expect(ranked.map((item) => item.recommendation.reasonCode)).toEqual([
+      "nearby_prefecture",
+      "nearby_prefecture",
+      "nearby_area",
+      "unread_cluster",
+    ]);
   });
 
   it("does not boost nearby posts when the viewer has no region", () => {

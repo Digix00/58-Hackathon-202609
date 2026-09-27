@@ -7,7 +7,7 @@ import type {
 import { getRegionArea } from "../entity/region-code";
 
 /** 推薦アルゴリズムのバージョン。表示履歴を後から評価できるように保存する。 */
-export const RECOMMENDATION_ALGORITHM_VERSION = "v4";
+export const RECOMMENDATION_ALGORITHM_VERSION = "v5";
 
 /**
  * 推薦スコアの重みとページ内の上限。値を変えたらアルゴリズムのバージョンも上げ、
@@ -26,8 +26,13 @@ export const RECOMMENDATION_WEIGHTS = {
   viewedRegionNotInPage: 25,
   /** 今回のページでまだ選んでいない年代。 */
   ageGroupNotInPage: 40,
-  /** 閲覧者と同じ都道府県／同じ地方区分。ページ内の上限までだけ加点する。 */
-  nearbyPrefecture: 200,
+  /**
+   * 閲覧者と同じ都道府県／同じ地方区分。ページ内の上限までだけ加点する。
+   * 同じ都道府県は、新しさ・日替わりのゆらぎ・分散の加点を合わせた差より大きくし、
+   * 他県の新しい投稿に埋もれないようにする。未読と既読の差（unreadClustered）よりは
+   * 小さく保ち、既読の投稿を未読より優先しない。
+   */
+  nearbyPrefecture: 500,
   nearbyArea: 100,
   /** 直近の閲覧履歴に占めるクラスタの割合（0〜1）に掛けて減点する。 */
   clusterHistoryShare: 300,
@@ -38,8 +43,12 @@ export const RECOMMENDATION_WEIGHTS = {
   freshnessHalfLifeHours: 24,
   /** 利用者と日付で決まる小さなゆらぎの最大値。 */
   dailyJitter: 40,
-  /** 1ページのうち「近く」として加点する割合と、同一クラスタの割合。 */
-  nearbyPageShare: 0.3,
+  /**
+   * 1ページのうち同じ都道府県／同じ地方として加点する割合と、同一クラスタの割合。
+   * 同じ地方の投稿が同じ都道府県の枠を使わないよう、上限は別々に数える。
+   */
+  prefecturePageShare: 0.5,
+  areaPageShare: 0.2,
   clusterPageShare: 0.2,
 } as const;
 
@@ -68,14 +77,22 @@ interface PageState {
   clusterCounts: Map<string, number>;
   regionCodes: Set<string>;
   ageGroups: Set<string>;
-  nearbyCount: number;
+  prefectureCount: number;
+  areaCount: number;
+}
+
+interface PageLimits {
+  prefectureAvailable: boolean;
+  areaAvailable: boolean;
+  clusterPageCap: number;
 }
 
 /**
  * 新着順で取得した候補を、飽きさせず特定の分野に偏らないように並べ替える。
  *
  * - 未読、閲覧履歴にないクラスタ、都道府県・年代の分散を加点する
- * - 閲覧者の近く（同じ都道府県・地方）の悩みを、1ページの一定割合まで加点する
+ * - 閲覧者と同じ都道府県の悩みを大きく、同じ地方の悩みを小さく、それぞれ1ページの
+ *   一定割合まで加点する
  * - 直近の閲覧でよく読んだクラスタと、ページ内で上限に達したクラスタを減点する
  * - 新しい投稿と日替わりのゆらぎを加点し、同じ並びが続かないようにする
  * - 直前と同じクラスタは、異なるクラスタが残っている限り連続させない
@@ -89,9 +106,13 @@ export function rankConcernFeedCandidates(
 ): RankedConcernFeedItem[] {
   const weights = RECOMMENDATION_WEIGHTS;
   const pageSize = Math.max(1, options.pageSize ?? candidates.length);
-  const nearbyPageCap = Math.max(
+  const prefecturePageCap = Math.max(
     1,
-    Math.floor(pageSize * weights.nearbyPageShare),
+    Math.floor(pageSize * weights.prefecturePageShare),
+  );
+  const areaPageCap = Math.max(
+    1,
+    Math.floor(pageSize * weights.areaPageShare),
   );
   const clusterPageCap = Math.max(
     1,
@@ -154,7 +175,11 @@ export function rankConcernFeedCandidates(
     if (ranked.length > 0 && ranked.length % pageSize === 0) {
       page = createPageState();
     }
-    const nearbyAvailable = page.nearbyCount < nearbyPageCap;
+    const limits: PageLimits = {
+      prefectureAvailable: page.prefectureCount < prefecturePageCap,
+      areaAvailable: page.areaCount < areaPageCap,
+      clusterPageCap,
+    };
     const selectable = lastSelectedClusterId
       ? remaining.filter(
           ({ candidate }) => candidate.cluster?.id !== lastSelectedClusterId,
@@ -167,10 +192,7 @@ export function rankConcernFeedCandidates(
     for (const entry of rankingPool) {
       const score =
         entry.baseScore +
-        pageScore(entry, page, viewedRegionCodes, {
-          nearbyAvailable,
-          clusterPageCap,
-        });
+        pageScore(entry, page, viewedRegionCodes, limits);
       if (
         !best ||
         score > bestScore ||
@@ -189,7 +211,7 @@ export function rankConcernFeedCandidates(
     const clusterId = candidate.cluster?.id;
     const regionCode = candidate.concern.regionCode;
     const ageGroup = candidate.concern.ageGroup;
-    const nearbyApplied = best.nearby !== null && nearbyAvailable;
+    const nearbyApplied = isNearbyBoosted(best, limits);
     ranked.push({
       ...candidate,
       recommendation: {
@@ -213,8 +235,10 @@ export function rankConcernFeedCandidates(
     if (ageGroup) {
       page.ageGroups.add(ageGroup);
     }
-    if (nearbyApplied) {
-      page.nearbyCount += 1;
+    if (nearbyApplied && best.nearby === "prefecture") {
+      page.prefectureCount += 1;
+    } else if (nearbyApplied && best.nearby === "area") {
+      page.areaCount += 1;
     }
     lastSelectedClusterId = clusterId ?? null;
   }
@@ -227,8 +251,17 @@ function createPageState(): PageState {
     clusterCounts: new Map(),
     regionCodes: new Set(),
     ageGroups: new Set(),
-    nearbyCount: 0,
+    prefectureCount: 0,
+    areaCount: 0,
   };
+}
+
+/** 候補が「近く」の加点を受けられるか。種類ごとのページ内上限に達していれば受けない。 */
+function isNearbyBoosted(entry: RankingEntry, limits: PageLimits): boolean {
+  return (
+    (entry.nearby === "prefecture" && limits.prefectureAvailable) ||
+    (entry.nearby === "area" && limits.areaAvailable)
+  );
 }
 
 /** ページ内ですでに選んだ候補との重なりに応じた加減点を計算する。 */
@@ -236,7 +269,7 @@ function pageScore(
   entry: RankingEntry,
   page: PageState,
   viewedRegionCodes: Set<string>,
-  limits: { nearbyAvailable: boolean; clusterPageCap: number },
+  limits: PageLimits,
 ): number {
   const weights = RECOMMENDATION_WEIGHTS;
   const clusterId = entry.candidate.cluster?.id;
@@ -260,10 +293,11 @@ function pageScore(
   if (ageGroup && !page.ageGroups.has(ageGroup)) {
     score += weights.ageGroupNotInPage;
   }
-  if (limits.nearbyAvailable && entry.nearby === "prefecture") {
-    score += weights.nearbyPrefecture;
-  } else if (limits.nearbyAvailable && entry.nearby === "area") {
-    score += weights.nearbyArea;
+  if (isNearbyBoosted(entry, limits)) {
+    score +=
+      entry.nearby === "prefecture"
+        ? weights.nearbyPrefecture
+        : weights.nearbyArea;
   }
 
   return score;
