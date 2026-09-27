@@ -17,6 +17,7 @@ export type DevAuthResponse = InferResponseType<typeof apiClient.api.v1.auth.dev
 export type CreateConcernResponse = InferResponseType<typeof apiClient.api.v1.concerns.$post, 201>
 
 export type ListConcernsResponse = InferResponseType<typeof apiClient.api.v1.concerns.$get, 200>
+export type ListClustersResponse = InferResponseType<typeof apiClient.api.v1.clusters.$get, 200>
 
 export type ConcernDetailResponse = InferResponseType<
   (typeof apiClient.api.v1.concerns)[':concernId']['$get'],

@@ -1,13 +1,17 @@
 import { useTranslation } from '../../i18n/useTranslation'
 import {
+  useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
+  type PointerEvent,
   type RefCallback,
   type RefObject,
+  type ReactNode,
   type TouchEvent,
 } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useAuth } from '../../auth/useAuth'
 import { LoginGuide } from '../../app/router'
 import { useRuntime } from '../../app/providers/RuntimeContext'
@@ -40,6 +44,9 @@ import type { TurningPage } from './useFeedReader'
 import { paletteForPage } from './themePalette'
 import styles from './FeedPage.module.css'
 import { TranslationNotice } from '../../shared/components/TranslationNotice'
+import { FeedThemePicker } from './FeedThemePicker'
+import { FeedThemeControl } from './FeedThemeControl'
+import type { FeedTheme } from './clusterApi'
 
 /** めくり直すたびにアニメーションを最初から流すための鍵。 */
 function turningKey(turning: TurningPage) {
@@ -135,14 +142,25 @@ function FeedReaction({
   )
 }
 
-function FeedNextCorner({ onNext }: { onNext?: () => void }) {
+function FeedNextCorner({
+  onNext,
+  onLinkClick,
+}: {
+  onNext?: () => void
+  /** 引いてめくった直後の click を受け取り、もう一枚めくらないようにする。 */
+  onLinkClick?: (event: MouseEvent) => void
+}) {
   if (!onNext) return null
 
   return (
     <button
       type="button"
       className={styles.corner}
-      onClick={onNext}
+      onClick={(event) => {
+        onLinkClick?.(event)
+        if (event.defaultPrevented) return
+        onNext()
+      }}
       tabIndex={-1}
       aria-hidden="true"
     />
@@ -153,6 +171,7 @@ function FeedCard({
   concern,
   page,
   onNext,
+  selectedClusterId,
   articleRef,
   swipeTarget = false,
   onLinkClick,
@@ -164,6 +183,8 @@ function FeedCard({
   page: number
   /** 渡したときだけ、紙の右下にめくれた角を出す。めくられている最中の紙には出さない。 */
   onNext?: () => void
+  /** 選択中のテーマだけを詳細画面の戻り先へ引き継ぐ。 */
+  selectedClusterId: string | null
   articleRef?: RefCallback<HTMLElement>
   swipeTarget?: boolean
   onLinkClick?: (event: MouseEvent) => void
@@ -194,14 +215,20 @@ function FeedCard({
       <FeedTabs concern={concern} showTabs={showTabs} />
       <Link
         className={styles.storyLink}
-        to={`/concerns/${encodeURIComponent(concern.id)}`}
+        to={{
+          pathname: `/concerns/${encodeURIComponent(concern.id)}`,
+          search: selectedClusterId ? `?clusterId=${encodeURIComponent(selectedClusterId)}` : '',
+        }}
         aria-label={t('feed.details', { body: concern.body })}
         onClick={onLinkClick}
+        /* 本文を掴んだときはリンクを運ぶのではなく、紙をめくる操作として扱う。 */
+        draggable={false}
       >
         <p className={screen.body} lang={concern.language === 'en' ? 'en' : 'ja'}>
           {concern.body}
         </p>
       </Link>
+      {concern.theme ? <p className={styles.storyTheme}>テーマ：{concern.theme.label}</p> : null}
       {showTabs ? (
         <TranslationNotice actualLanguage={concern.language} status={concern.translationStatus} />
       ) : null}
@@ -216,7 +243,7 @@ function FeedCard({
         </div>
       ) : null}
       {/* めくれた角。紙をめくる補助操作なので、読み上げには重ねて出さない。 */}
-      <FeedNextCorner onNext={onNext} />
+      <FeedNextCorner onNext={onNext} onLinkClick={onLinkClick} />
     </article>
   )
 }
@@ -256,6 +283,7 @@ type FeedStackProps = {
   turning: TurningPage | null
   coverOpened: boolean
   coverOpening: boolean
+  selectedClusterId: string | null
   articleRef?: RefCallback<HTMLElement>
   onNext: () => void
   onLinkClick: (event: MouseEvent) => void
@@ -272,6 +300,7 @@ function FeedStack({
   turning,
   coverOpened,
   coverOpening,
+  selectedClusterId,
   articleRef,
   onNext,
   onLinkClick,
@@ -295,7 +324,11 @@ function FeedStack({
               onFinish={onTurningFinished}
             >
               {turning.kind === 'concern' ? (
-                <FeedCard concern={turning.concern} page={turning.page} />
+                <FeedCard
+                  concern={turning.concern}
+                  page={turning.page}
+                  selectedClusterId={selectedClusterId}
+                />
               ) : (
                 <FeedCover />
               )}
@@ -312,6 +345,7 @@ function FeedStack({
             <FeedCard
               concern={concern}
               page={position + 1}
+              selectedClusterId={selectedClusterId}
               onNext={onNext}
               articleRef={articleRef}
               swipeTarget
@@ -350,6 +384,7 @@ type FeedStageProps = Omit<FeedStackProps, 'concern'> & {
   onTouchMove: (event: TouchEvent) => void
   onTouchEnd: (event: TouchEvent) => void
   onTouchCancel: () => void
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void
 }
 
 function FeedStage({
@@ -359,6 +394,7 @@ function FeedStage({
   onTouchMove,
   onTouchEnd,
   onTouchCancel,
+  onPointerDown,
   ...stackProps
 }: FeedStageProps) {
   const { t } = useTranslation()
@@ -371,6 +407,7 @@ function FeedStage({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchCancel}
+      onPointerDown={onPointerDown}
     >
       <h1 id="feed-title" className={styles.srOnly}>
         {t('feed.start')}
@@ -464,6 +501,7 @@ function FeedActions({
 }
 
 type FeedPageViewProps = {
+  themeControl: ReactNode
   showInitialLoading: boolean
   showInitialError: boolean
   initialError: string | null
@@ -477,6 +515,7 @@ type FeedPageViewProps = {
 }
 
 function FeedPageView({
+  themeControl,
   showInitialLoading,
   showInitialError,
   initialError,
@@ -492,6 +531,7 @@ function FeedPageView({
 
   return (
     <div className={styles.page}>
+      {themeControl}
       {showInitialLoading && stageProps.coverOpened ? (
         <LoadingState label={t('feed.loading')} />
       ) : null}
@@ -515,6 +555,9 @@ function FeedPageView({
 
 export function FeedPage() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const clusterId = searchParams.get('clusterId')
+  const themeButton = useRef<HTMLButtonElement>(null)
   const { state: runtime } = useRuntime()
   const { language } = useDisplaySettings()
   const { status: authStatus, user } = useAuth()
@@ -524,7 +567,27 @@ export function FeedPage() {
     enabled: feedContext.enabled,
     sort: feedContext.sort,
     authUserId: user?.id,
+    initialTheme: clusterId ? { id: clusterId, label: '選んだテーマ', summary: '' } : null,
   })
+  useEffect(() => {
+    const selectedId = readerView.theme?.id
+    if (selectedId === clusterId) return
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (selectedId) next.set('clusterId', selectedId)
+        else next.delete('clusterId')
+        return next
+      },
+      { replace: true },
+    )
+  }, [clusterId, readerView.theme?.id, setSearchParams])
+  const closeThemePicker = (theme?: FeedTheme | null) => {
+    if (theme === undefined) readerView.onThemePickerToggle(false)
+    else readerView.onThemeChange(theme)
+    // 画面を動かさずに戻す。しおりは常に上端にあるので、送り込むための巻き戻しは要らない。
+    requestAnimationFrame(() => themeButton.current?.focus({ preventScroll: true }))
+  }
   const {
     showInitialLoading,
     showInitialError,
@@ -543,6 +606,8 @@ export function FeedPage() {
     goNext,
     onTurningFinished,
     onReset,
+    theme,
+    themePickerOpen,
     onLoginVisibilityChange,
     onFiltersToggle,
     onFilterChange,
@@ -555,7 +620,7 @@ export function FeedPage() {
     initialReacted: concern?.reacted ?? false,
     onChanged: applyReaction,
   })
-  useConcernViewOnDisplay(coverOpened ? concern?.id : undefined)
+  useConcernViewOnDisplay(coverOpened && !themePickerOpen ? concern?.id : undefined)
   const activeFilter = activeFeedFilterLabel(filter, language)
 
   const stageProps: FeedStageProps = {
@@ -566,6 +631,7 @@ export function FeedPage() {
     turning,
     coverOpened,
     coverOpening,
+    selectedClusterId: theme?.id ?? null,
     articleRef: undefined,
     onNext: goNext,
     onLinkClick: swipe.handleLinkClick,
@@ -575,6 +641,7 @@ export function FeedPage() {
     onTouchMove: swipe.handleTouchMove,
     onTouchEnd: swipe.handleTouchEnd,
     onTouchCancel: swipe.handleTouchCancel,
+    onPointerDown: swipe.handlePointerDown,
     reaction:
       coverOpened && feedContext.isLiff
         ? {
@@ -609,8 +676,27 @@ export function FeedPage() {
     onFilterChange,
   }
 
+  if (themePickerOpen) {
+    return (
+      <FeedThemePicker
+        filter={filter}
+        selectedId={theme?.id}
+        onSelect={closeThemePicker}
+        onClose={() => closeThemePicker()}
+      />
+    )
+  }
+
   return (
     <FeedPageView
+      themeControl={
+        <FeedThemeControl
+          theme={theme}
+          buttonRef={themeButton}
+          onOpen={() => readerView.onThemePickerToggle(true)}
+          onClear={() => closeThemePicker(null)}
+        />
+      }
       showInitialLoading={showInitialLoading}
       showInitialError={showInitialError}
       initialError={readerView.feedError}

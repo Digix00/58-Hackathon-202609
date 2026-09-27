@@ -19,6 +19,7 @@ import { D1ConcernViewRepository } from "../src/infrastructure/database/d1-conce
 import {
   concerns,
   concernViews,
+  feedImpressions,
   learningEvents,
   users,
 } from "../src/infrastructure/database/schema";
@@ -207,6 +208,65 @@ describe("POST /api/v1/concerns/:concernId/views", () => {
     expect(events).toHaveLength(1);
     expect(events[0].eventType).toBe("view");
     expect(events[0].userId).toBe(rows[0].actorKey);
+  });
+
+  it("marks the viewer's unopened feed impressions of the concern as opened", async () => {
+    const lineUserId = `line-view-impression-${crypto.randomUUID()}`;
+    const app = createTestApp(lineUserId);
+    const cookie = await loginCookie(app);
+    const concernId = await seedConcern();
+    const otherConcernId = await seedConcern();
+    const db = drizzle(env.DB);
+    const user = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.lineUserId, lineUserId))
+      .get();
+    if (!user) {
+      throw new Error("expected the logged-in user");
+    }
+    const impression = {
+      userId: user.id,
+      strategy: "recommended",
+      reasonCode: "unread_cluster",
+      algorithmVersion: "test",
+      position: 0,
+      exposedAt: "2026-09-23T00:00:00.000Z",
+    };
+    await db
+      .insert(feedImpressions)
+      .values([
+        { ...impression, id: `impression-${crypto.randomUUID()}`, concernId },
+        { ...impression, id: `impression-${crypto.randomUUID()}`, concernId },
+        {
+          ...impression,
+          id: `impression-${crypto.randomUUID()}`,
+          concernId: otherConcernId,
+        },
+      ])
+      .run();
+
+    const response = await app.request(
+      `/api/v1/concerns/${concernId}/views`,
+      { method: "POST", headers: { Cookie: cookie } },
+      env,
+    );
+    const body = await response.json<{ viewedAt: string }>();
+
+    expect(response.status).toBe(200);
+    const opened = await db
+      .select({ openedAt: feedImpressions.openedAt })
+      .from(feedImpressions)
+      .where(eq(feedImpressions.concernId, concernId));
+    expect(opened.map((row) => row.openedAt)).toEqual([
+      body.viewedAt,
+      body.viewedAt,
+    ]);
+    const other = await db
+      .select({ openedAt: feedImpressions.openedAt })
+      .from(feedImpressions)
+      .where(eq(feedImpressions.concernId, otherConcernId));
+    expect(other.map((row) => row.openedAt)).toEqual([null]);
   });
 
   it("keeps separate records for different actors", async () => {

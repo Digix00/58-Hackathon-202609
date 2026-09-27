@@ -25,6 +25,7 @@ pnpm --filter backend db:seed:local
 ```
 
 開発用ユーザー3件、当日クイズ、公開投稿3件、原文表示を確認する公開投稿6件を登録し、再実行しても重複しない。
+さらに`seed-local-clusters.sql`で分類済みテーマ3件と専用投稿6件を追加する。テーマ選択・絞り込みのローカル確認専用で、実AIの分類精度を示すデータではない。固定IDの追加だけを行い、既存投稿の分類は上書きしない。
 投稿は`visibility_status=published`で登録し、処理済み表示用の投稿は`processing_status=ready`、非同期処理の状態を再現する投稿は`processing_status=pending`とする。
 このコマンドはローカルD1専用であり、本番D1へ適用してはならない。実際のLINE認証連携を確認する場合は、開発用認証モードを外してLINEログインを使う。
 
