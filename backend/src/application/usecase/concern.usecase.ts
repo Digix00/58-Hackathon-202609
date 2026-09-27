@@ -45,6 +45,8 @@ export interface CreateConcernInput {
 export interface ListFeedInput extends ListConcernFeedInput {
   sort: ConcernSort;
   recommendationCursor?: RecommendedConcernCursor;
+  /** 閲覧者のプロフィール上の都道府県。推薦で近くの悩みを選ぶために使う。 */
+  viewerRegionCode?: string | null;
 }
 
 export interface ListFeedResult {
@@ -237,11 +239,14 @@ export class ConcernUseCase implements IConcernUseCase {
         this.repository.listRecommendationHistory && input.userId
           ? await this.repository.listRecommendationHistory(input.userId, 50)
           : [];
-      const ranked = rankConcernFeedCandidates(
-        candidateWindow,
-        history,
-        recommendationCursor?.lastClusterId,
-      );
+      const now = this.now();
+      const ranked = rankConcernFeedCandidates(candidateWindow, history, {
+        previousClusterId: recommendationCursor?.lastClusterId,
+        viewerUserId: input.userId,
+        viewerRegionCode: input.viewerRegionCode,
+        pageSize: input.limit,
+        now,
+      });
       const items = ranked.slice(0, input.limit);
       const result = {
         items,

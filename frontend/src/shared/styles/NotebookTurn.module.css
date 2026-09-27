@@ -10,19 +10,28 @@
  * 混ぜると、消失点が回転軸の上に乗り、めくりではなく飛んでいく動きになる。
  */
 .turning {
+  --turn-duration: 640ms;
+
   position: absolute;
   inset: 0;
   z-index: 3;
   transform-origin: var(--turn-axis) center;
   transform-style: preserve-3d;
   pointer-events: none;
-  animation: turnOut 640ms both;
+  animation: turnOut var(--turn-duration) both;
+  /*
+   * 指やマウスで引いた紙は、その角度まで自分で回っている。
+   * 同じ時間をもう一度使うと、めくりが一度止まって見えるので、
+   * 引いた分だけ動きを先送りして、続きの時間から回す（--turn-skip は 0〜0.32）。
+   */
+  animation-delay: calc(-1 * var(--turn-duration) * var(--turn-skip, 0));
 }
 
 /* 表紙から本文へ入るときは、ノートを開く合図として少し大きく動かす。 */
 .coverTurning {
+  --turn-duration: 1040ms;
+
   animation-name: coverTurnOut;
-  animation-duration: 1040ms;
 }
 
 /*
@@ -39,8 +48,12 @@
     animation-timing-function: cubic-bezier(0.42, 0, 0.72, 0.62);
   }
   32% {
-    /* リングの太さを越えるぶん、紙がいちど持ち上がる。 */
-    transform: translateZ(18px) rotateY(-46deg);
+    /*
+     * リングの太さを越えるぶん、紙がいちど持ち上がる。
+     * 引いた角度がここより深いときは、その角度を保つ。戻してから回すと、
+     * 一度めくった紙がリセットされたように見える。
+     */
+    transform: translateZ(18px) rotateY(min(var(--turn-start, 0deg), -46deg));
     animation-timing-function: linear;
   }
   64% {
@@ -185,6 +198,9 @@
 .page[data-notebook-dragging] {
   transition: none;
   transform: rotateY(var(--notebook-drag-angle, 0deg));
+  /* 引いているあいだは紙を動かす操作なので、本文を選ばない。 */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .face,
