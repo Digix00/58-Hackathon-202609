@@ -52,14 +52,14 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(tsx@4.23.13))
       wrangler:
-        specifier: 4.131.1
-        version: 4.131.1(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1)
+        specifier: 4.136.2
+        version: 4.136.2(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1)
 
   frontend:
     dependencies:
       '@line/liff':
         specifier: ^2.31.0
-        version: 2.31.0
+        version: 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
       backend:
         specifier: workspace:*
         version: link:../backend
@@ -104,8 +104,8 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(tsx@4.23.13)
       wrangler:
-        specifier: 4.131.1
-        version: 4.131.1(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1)
+        specifier: 4.136.2
+        version: 4.136.2(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1)
 
 packages:
 
@@ -179,6 +179,15 @@ packages:
       workerd:
         optional: true
 
+  '@cloudflare/unenv-preset@2.16.2':
+    resolution: {integrity: sha512-JBP1+Z7ZSNG/d4mRP+y8VC5dka3tZVMLEZRvS+rzQ4DGV1EoxRFQckcJTTkXbHSQiTj0DtNI01Zwb/V2fX0mvQ==}
+    peerDependencies:
+      unenv: 2.0.0-rc.24
+      workerd: '>1.20260305.0 <2.0.0-0'
+    peerDependenciesMeta:
+      workerd:
+        optional: true
+
   '@cloudflare/vitest-pool-workers@0.22.0':
     resolution: {integrity: sha512-OJv/qikkOgxnKxJ5xrLS7zuOLZhc/6iziU+llqZm4tiQf2CJUYwlMuXN68VaWIQebORd1AUx4w6A0oy8XRbuaQ==}
     peerDependencies:
@@ -192,8 +201,8 @@ packages:
     cpu: [x64]
     os: [darwin]
 
-  '@cloudflare/workerd-darwin-64@1.20260911.1':
-    resolution: {integrity: sha512-785eaY1bkR1cm4Z/PCUeteZYmTMe6lre2zz63/GdGGimsoMsKxgl4brFPRukim8iv28EyD1XoCB/VPYF20BERA==}
+  '@cloudflare/workerd-darwin-64@1.20260921.1':
+    resolution: {integrity: sha512-3iB2WnYOlZ29T+1zhCwbHFExCBp6E9bgmDUMryATYwrIGEQ1YbvR78m4ydm56XKN/d/yF3803ivMGfZMYDtiMg==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [darwin]
@@ -204,8 +213,8 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@cloudflare/workerd-darwin-arm64@1.20260911.1':
-    resolution: {integrity: sha512-WU4bFqEN0H7ndGWxoedegv95DmNVBtv0ncXcHG9nYFTUI78sxEb0qoT3U6Ga4hyBkzsJFBX/zvVBIGX3qKldGA==}
+  '@cloudflare/workerd-darwin-arm64@1.20260921.1':
+    resolution: {integrity: sha512-FpqVR7IQXVBmGtajyonEmhmb5UAsmV7dTaIkpemmHZXHEw7uYpkhkzKPjc4BOPhNQy8iwt2p+RZBPMY3Y7/bvQ==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [darwin]
@@ -216,8 +225,8 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@cloudflare/workerd-linux-64@1.20260911.1':
-    resolution: {integrity: sha512-0Y2gy62oxQxWa38qinSPE6zNL5+JmumJtDY9AWW1HB8KHuATxN71o5MGzmVFfB8PwZsiHfUd2Sv7O22krCOrhw==}
+  '@cloudflare/workerd-linux-64@1.20260921.1':
+    resolution: {integrity: sha512-riAJIohaVp5A8Sqy4yKlzHOaLPOICMf5oey+jC2rm45RVT+wK8+7UU0d31Dy/02Nc8YUkobAFwNVjX06P8WQ5g==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [linux]
@@ -228,8 +237,8 @@ packages:
     cpu: [arm64]
     os: [linux]
 
-  '@cloudflare/workerd-linux-arm64@1.20260911.1':
-    resolution: {integrity: sha512-kttNPnx1r2lCqFUoMH62z7CqGV+j4QBbw5fdtaz4pzOrzBv0AWkNATt7onFUe+SwP8zhcepMtbm2F4kKzTf6VA==}
+  '@cloudflare/workerd-linux-arm64@1.20260921.1':
+    resolution: {integrity: sha512-tnJu08tT7s0XWDqp3O0H/vCp0voy9OqVAzspb89biMo1dh8IiEpnyXnoPmdJ7H4qBnXCmXgy0kuEphuvpDPj9w==}
     engines: {node: '>=16'}
     cpu: [arm64]
     os: [linux]
@@ -240,8 +249,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workerd-windows-64@1.20260911.1':
-    resolution: {integrity: sha512-5iO/YfoBDOgO3CrHdkiiVP8SL3O2jC+c6Ux3d378TSPKLhU5+CgHjtE/ZSodWQrzr4FzFRqdW8S7n5nbyD1MHQ==}
+  '@cloudflare/workerd-windows-64@1.20260921.1':
+    resolution: {integrity: sha512-VgNcRPstoZMb1G94JTrx+jU24GtkkazNfox0gnF/2fkuXpcfW/M0e0xvdMovYfwt8ZxG5AB2ZNvanD6ufBwiuQ==}
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
@@ -1449,6 +1458,7 @@ packages:
 
   '@line/liff@2.31.0':
     resolution: {integrity: sha512-9uQM+JXOwmhpWzlvmP5gPKcjPbYEtlPyE4rFd/1dKKRLVCQhSv5RDzQjaQM49rLTLcmt7hEDrHjn9Btf2+dRVg==}
+    deprecated: This version has been deprecated because an issue with potential security implications was identified. Update to LIFF v2.31.1 immediately. See https://developers.line.biz/en/docs/liff/release-notes/#liff-v2-31-1
 
   '@oxc-project/types@0.148.0':
     resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
@@ -2299,8 +2309,8 @@ packages:
     resolution: {integrity: sha512-YAaGj4Sh5f4fqHKiMQ8zRHDOOM5IGUVtMhnLIeyjuQfU+9P6hcOTrHUVtbfj/ZPay9Kzik4pWELB39pGgefjiQ==}
     engines: {node: '>=22.0.0'}
 
-  miniflare@5.20260911.0-alpha:
-    resolution: {integrity: sha512-CRieJmvHx+7rNqnA5SKdsYsER6rfkUIE/jruIUw+fLhsQ4sORfuMtr3+FQzsQ9/y8lhk061V4Fl1DFdHiyBB6g==}
+  miniflare@5.20260921.0-alpha:
+    resolution: {integrity: sha512-vHH/unOYvV2jA1Q9SdkmzrQhhMoksdwg5jegu6ZeKaaRzgxZhVbt1NdTpQjHF2VTgiBjgP8SiUlUMfruB3N3SQ==}
     engines: {node: '>=22.0.0'}
 
   mp4box@2.4.1:
@@ -2590,8 +2600,8 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  workerd@1.20260911.1:
-    resolution: {integrity: sha512-vRr8QdBxueQOZJO1hRCI73EZlix87IAyBAcSyI3rA1VB+6oxjw3oaqzYnIV8C4IOPtUgihbdMAgzkb5GM4V7DQ==}
+  workerd@1.20260921.1:
+    resolution: {integrity: sha512-4HyG7G1W4ksa6tUZ8bV2jxDRWuL5PXnHm9+Z1sjFPb9OZNoYtXz4y7QQRh4ibi0BF/lOmlAVjbhkUqsAVZuUKA==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -2605,12 +2615,12 @@ packages:
       '@cloudflare/workers-types':
         optional: true
 
-  wrangler@4.131.1:
-    resolution: {integrity: sha512-1u5FMdJAn6UOcL02cVsIITcnHrk6mC7N+RF10EkVhPL18R/o9g5BZb4PCjByL+3AsRP5wQpppCIPHhYPRmIJwg==}
+  wrangler@4.136.2:
+    resolution: {integrity: sha512-BeWkkU7leFyalKi++LDHUaWSumwLVNeBeY2Ma+CqylT/hxs2sKT5e/q88MvXUl4Ng4iPS90H9H1qlb5oK3uhhQ==}
     engines: {node: '>=22.0.0'}
     hasBin: true
     peerDependencies:
-      '@cloudflare/workers-types': ^5.20260911.1
+      '@cloudflare/workers-types': ^5.20260921.1
     peerDependenciesMeta:
       '@cloudflare/workers-types':
         optional: true
@@ -2700,11 +2710,11 @@ snapshots:
     optionalDependencies:
       workerd: 1.20260815.1
 
-  '@cloudflare/unenv-preset@2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260911.1)':
+  '@cloudflare/unenv-preset@2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260921.1)':
     dependencies:
       unenv: 2.0.0-rc.24
     optionalDependencies:
-      workerd: 1.20260911.1
+      workerd: 1.20260921.1
 
   '@cloudflare/vitest-pool-workers@0.22.0(@cloudflare/workers-types@5.20260911.1)(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(tsx@4.23.13)))':
     dependencies:
@@ -2724,31 +2734,31 @@ snapshots:
   '@cloudflare/workerd-darwin-64@1.20260815.1':
     optional: true
 
-  '@cloudflare/workerd-darwin-64@1.20260911.1':
+  '@cloudflare/workerd-darwin-64@1.20260921.1':
     optional: true
 
   '@cloudflare/workerd-darwin-arm64@1.20260815.1':
     optional: true
 
-  '@cloudflare/workerd-darwin-arm64@1.20260911.1':
+  '@cloudflare/workerd-darwin-arm64@1.20260921.1':
     optional: true
 
   '@cloudflare/workerd-linux-64@1.20260815.1':
     optional: true
 
-  '@cloudflare/workerd-linux-64@1.20260911.1':
+  '@cloudflare/workerd-linux-64@1.20260921.1':
     optional: true
 
   '@cloudflare/workerd-linux-arm64@1.20260815.1':
     optional: true
 
-  '@cloudflare/workerd-linux-arm64@1.20260911.1':
+  '@cloudflare/workerd-linux-arm64@1.20260921.1':
     optional: true
 
   '@cloudflare/workerd-windows-64@1.20260815.1':
     optional: true
 
-  '@cloudflare/workerd-windows-64@1.20260911.1':
+  '@cloudflare/workerd-windows-64@1.20260921.1':
     optional: true
 
   '@cloudflare/workers-types@5.20260911.1': {}
@@ -3539,7 +3549,7 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@liff/liff-types@2.31.0(tslib@2.8.1)':
+  '@liff/liff-types@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/activity': 2.31.0(tslib@2.8.1)
       '@liff/analytics': 2.31.0(tslib@2.8.1)
@@ -3570,8 +3580,8 @@ snapshots:
       '@liff/ready': 2.31.0(tslib@2.8.1)
       '@liff/request-friendship': 2.31.0(tslib@2.8.1)
       '@liff/scan-code-v2': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
-      '@liff/share-target-picker': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
+      '@liff/share-target-picker': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/sub-window': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
@@ -3685,7 +3695,7 @@ snapshots:
       '@liff/types': 2.31.0
       tslib: 2.8.1
 
-  '@liff/send-messages@2.31.0(tslib@2.8.1)':
+  '@liff/send-messages@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/consts': 2.31.0(tslib@2.8.1)
       '@liff/get-line-version': 2.31.0(tslib@2.8.1)
@@ -3694,7 +3704,7 @@ snapshots:
       '@liff/server-api': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
       '@liff/util': 2.31.0(tslib@2.8.1)
-      '@line/bot-sdk': 10.8.0
+      '@line/bot-sdk': 10.8.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
       tslib: 2.8.1
     transitivePeerDependencies:
       - debug
@@ -3707,7 +3717,7 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@liff/share-target-picker@2.31.0(tslib@2.8.1)':
+  '@liff/share-target-picker@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)':
     dependencies:
       '@liff/analytics': 2.31.0(tslib@2.8.1)
       '@liff/consts': 2.31.0(tslib@2.8.1)
@@ -3718,7 +3728,7 @@ snapshots:
       '@liff/is-logged-in': 2.31.0(tslib@2.8.1)
       '@liff/is-sub-window': 2.31.0(tslib@2.8.1)
       '@liff/logger': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/server-api': 2.31.0(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/types': 2.31.0
@@ -3783,16 +3793,16 @@ snapshots:
       '@liff/util': 2.31.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@line/bot-sdk@10.8.0':
+  '@line/bot-sdk@10.8.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
       '@types/node': 24.13.5
     optionalDependencies:
-      axios: 1.20.0
+      axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
     transitivePeerDependencies:
       - debug
       - supports-color
 
-  '@line/liff@2.31.0':
+  '@line/liff@2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
       '@liff/activity': 2.31.0(tslib@2.8.1)
       '@liff/analytics': 2.31.0(tslib@2.8.1)
@@ -3818,7 +3828,7 @@ snapshots:
       '@liff/is-in-client': 2.31.0(tslib@2.8.1)
       '@liff/is-logged-in': 2.31.0(tslib@2.8.1)
       '@liff/is-sub-window': 2.31.0(tslib@2.8.1)
-      '@liff/liff-types': 2.31.0(tslib@2.8.1)
+      '@liff/liff-types': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/login': 2.31.0(tslib@2.8.1)
       '@liff/logout': 2.31.0(tslib@2.8.1)
       '@liff/native-bridge': 2.31.0(tslib@2.8.1)
@@ -3828,9 +3838,9 @@ snapshots:
       '@liff/ready': 2.31.0(tslib@2.8.1)
       '@liff/request-friendship': 2.31.0(tslib@2.8.1)
       '@liff/scan-code-v2': 2.31.0(tslib@2.8.1)
-      '@liff/send-messages': 2.31.0(tslib@2.8.1)
+      '@liff/send-messages': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/server-api': 2.31.0(tslib@2.8.1)
-      '@liff/share-target-picker': 2.31.0(tslib@2.8.1)
+      '@liff/share-target-picker': 2.31.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(tslib@2.8.1)
       '@liff/store': 2.31.0(tslib@2.8.1)
       '@liff/sub-window': 2.31.0(tslib@2.8.1)
       '@liff/use': 2.31.0(tslib@2.8.1)
@@ -4098,9 +4108,9 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
 
-  agent-base@6.0.2:
+  agent-base@6.0.2(supports-color@10.2.2):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -4114,11 +4124,11 @@ snapshots:
   asynckit@0.4.0:
     optional: true
 
-  axios@1.20.0:
+  axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
-      follow-redirects: 1.16.0
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@10.2.2))
       form-data: 4.0.6
-      https-proxy-agent: 5.0.1
+      https-proxy-agent: 5.0.1(supports-color@10.2.2)
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
@@ -4169,9 +4179,11 @@ snapshots:
 
   csstype@3.2.3: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@10.2.2):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 10.2.2
     optional: true
 
   delayed-stream@1.0.0:
@@ -4346,7 +4358,9 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
-  follow-redirects@1.16.0:
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@10.2.2)):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@10.2.2)
     optional: true
 
   form-data@4.0.6:
@@ -4410,10 +4424,10 @@ snapshots:
 
   hono@4.13.8: {}
 
-  https-proxy-agent@5.0.1:
+  https-proxy-agent@5.0.1(supports-color@10.2.2):
     dependencies:
-      agent-base: 6.0.2
-      debug: 4.4.3
+      agent-base: 6.0.2(supports-color@10.2.2)
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -4498,12 +4512,12 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  miniflare@5.20260911.0-alpha(@types/node@26.5.1):
+  miniflare@5.20260921.0-alpha(@types/node@26.5.1):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.4(@types/node@26.5.1)
       undici: 7.29.0
-      workerd: 1.20260911.1
+      workerd: 1.20260921.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
     transitivePeerDependencies:
@@ -4812,13 +4826,13 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20260815.1
       '@cloudflare/workerd-windows-64': 1.20260815.1
 
-  workerd@1.20260911.1:
+  workerd@1.20260921.1:
     optionalDependencies:
-      '@cloudflare/workerd-darwin-64': 1.20260911.1
-      '@cloudflare/workerd-darwin-arm64': 1.20260911.1
-      '@cloudflare/workerd-linux-64': 1.20260911.1
-      '@cloudflare/workerd-linux-arm64': 1.20260911.1
-      '@cloudflare/workerd-windows-64': 1.20260911.1
+      '@cloudflare/workerd-darwin-64': 1.20260921.1
+      '@cloudflare/workerd-darwin-arm64': 1.20260921.1
+      '@cloudflare/workerd-linux-64': 1.20260921.1
+      '@cloudflare/workerd-linux-arm64': 1.20260921.1
+      '@cloudflare/workerd-windows-64': 1.20260921.1
 
   wrangler@4.124.0(@cloudflare/workers-types@5.20260911.1):
     dependencies:
@@ -4837,16 +4851,16 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  wrangler@4.131.1(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1):
+  wrangler@4.136.2(@cloudflare/workers-types@5.20260911.1)(@types/node@26.5.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
-      '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260911.1)
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260921.1)
       blake3-wasm: 2.1.5
       esbuild: 0.28.1
-      miniflare: 5.20260911.0-alpha(@types/node@26.5.1)
+      miniflare: 5.20260921.0-alpha(@types/node@26.5.1)
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
-      workerd: 1.20260911.1
+      workerd: 1.20260921.1
     optionalDependencies:
       '@cloudflare/workers-types': 5.20260911.1
       fsevents: 2.3.3
