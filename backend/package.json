@@ -32,7 +32,7 @@
     "@biomejs/biome": "^2.5.14",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "5.20260911.1",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "oxlint": "^1.83.0",
     "typescript": "~7.0.2",
     "vitest": "^4.1.11",
