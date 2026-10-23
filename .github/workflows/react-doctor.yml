@@ -54,7 +54,7 @@ jobs:
             echo 'has-react-changes=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: millionco/react-doctor@013f7373f91a3b9e68bd1dc7d4d354f4b041b117 # v2.2.9
+      - uses: millionco/react-doctor@695e46eee203a5d1855020191aa7e9c010a1250e # v2.4.0
         if: steps.changes.outputs.has-react-changes == 'true'
         # Advisory by default: React Doctor reports findings on every PR — a
         # sticky summary comment, inline review comments, and a commit status
